@@ -199,10 +199,12 @@ export class AuthService {
       { code: '3200', name: 'الأرباح المحتجزة', type: 'EQUITY', category: 'EQUITY' },
       { code: '4000', name: 'الإيرادات', type: 'REVENUE', category: 'REVENUE' },
       { code: '4100', name: 'مبيعات', type: 'REVENUE', category: 'REVENUE' },
+      { code: '4200', name: 'أرباح فروق عملة غير محققة', type: 'REVENUE', category: 'OTHER_INCOME' },
       { code: '5000', name: 'المصروفات', type: 'EXPENSE', category: 'OPERATING_EXPENSE' },
       { code: '5100', name: 'تكلفة البضاعة المباعة', type: 'EXPENSE', category: 'COST_OF_SALES' },
       { code: '5200', name: 'مصروفات تشغيلية', type: 'EXPENSE', category: 'OPERATING_EXPENSE' },
       { code: '5300', name: 'مصروف الإهلاك', type: 'EXPENSE', category: 'OPERATING_EXPENSE' },
+      { code: '5400', name: 'خسائر فروق عملة غير محققة', type: 'EXPENSE', category: 'OTHER_EXPENSE' },
     ];
 
     await this.prisma.account.createMany({

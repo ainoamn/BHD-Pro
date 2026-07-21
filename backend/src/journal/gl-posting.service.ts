@@ -71,6 +71,40 @@ export class GlPostingService {
     }
   }
 
+  /** Ensure unrealized FX gain/loss COA exists. */
+  async ensureFxAccounts(companyId: string) {
+    const defaults: Array<{
+      code: string;
+      name: string;
+      type: AccountType;
+      category: AccountCategory;
+    }> = [
+      {
+        code: '4200',
+        name: 'أرباح فروق عملة غير محققة',
+        type: AccountType.REVENUE,
+        category: AccountCategory.OTHER_INCOME,
+      },
+      {
+        code: '5400',
+        name: 'خسائر فروق عملة غير محققة',
+        type: AccountType.EXPENSE,
+        category: AccountCategory.OTHER_EXPENSE,
+      },
+    ];
+
+    for (const acc of defaults) {
+      const existing = await this.prisma.account.findFirst({
+        where: { companyId, code: acc.code },
+      });
+      if (!existing) {
+        await this.prisma.account.create({
+          data: { companyId, ...acc, isActive: true },
+        });
+      }
+    }
+  }
+
   private async resolveAccounts(companyId: string) {
     const [ar, ap, cash, bank, revenue, expense, vat] = await Promise.all([
       this.accountByCode(companyId, '1300'),
@@ -415,6 +449,25 @@ export class GlPostingService {
       date: new Date(),
       description: `إهلاك أصل ${asset.name}`,
       reference: `DEP:${asset.id}`,
+    }, lines);
+  }
+
+  /**
+   * Post unrealized FX revaluation journal.
+   * lines: balanced debit/credit pairs already computed by FxRevaluationService.
+   */
+  async postFxRevaluation(
+    companyId: string,
+    userId: string,
+    asOf: Date,
+    lines: JournalLineInput[],
+  ) {
+    await this.ensureFxAccounts(companyId);
+    const asOfKey = asOf.toISOString().slice(0, 10);
+    return this.createEntry(companyId, userId, {
+      date: asOf,
+      description: `إعادة تقييم عملات أجنبية ${asOfKey}`,
+      reference: `FX-REV:${asOfKey}`,
     }, lines);
   }
 }

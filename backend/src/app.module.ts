@@ -28,6 +28,7 @@ import { EmployeeClaimsModule } from './employee-claims/employee-claims.module';
 import { DocumentTemplatesModule } from './document-templates/document-templates.module';
 import { CustomFieldsModule } from './custom-fields/custom-fields.module';
 import { ExchangeRatesModule } from './exchange-rates/exchange-rates.module';
+import { FxRevaluationModule } from './fx-revaluation/fx-revaluation.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -60,6 +61,7 @@ import { HealthController } from './health.controller';
     DocumentTemplatesModule,
     CustomFieldsModule,
     ExchangeRatesModule,
+    FxRevaluationModule,
   ],
   controllers: [HealthController],
 })

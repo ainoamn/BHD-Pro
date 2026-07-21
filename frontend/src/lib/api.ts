@@ -624,6 +624,14 @@ class ApiClient {
     return this.get('/exchange-rates/convert', { params });
   }
 
+  previewFxRevaluation(asOf?: string) {
+    return this.get('/fx-revaluation/preview', { params: asOf ? { asOf } : {} });
+  }
+
+  postFxRevaluation(data: { asOf: string; invoiceIds?: string[] }) {
+    return this.post('/fx-revaluation/post', data);
+  }
+
   getDeliveryNotes() {
     return this.get('/delivery-notes');
   }

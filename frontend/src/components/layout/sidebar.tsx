@@ -21,6 +21,7 @@ import {
   FileStack,
   FormInput,
   ArrowLeftRight,
+  RefreshCcw,
   ChevronLeft,
   ChevronRight,
   Calculator,
@@ -72,6 +73,7 @@ const settingsItems = [
   { href: "/document-templates", icon: FileStack, label: "documentTemplates" },
   { href: "/custom-fields", icon: FormInput, label: "customFields" },
   { href: "/exchange-rates", icon: ArrowLeftRight, label: "exchangeRates" },
+  { href: "/fx-revaluation", icon: RefreshCcw, label: "fxRevaluation" },
   { href: "/subscription", icon: Crown, label: "subscription" },
   { href: "/users", icon: Shield, label: "users" },
 ];

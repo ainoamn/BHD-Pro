@@ -49,6 +49,7 @@
     "documentTemplates": "Document Templates",
     "customFields": "Custom Fields",
     "exchangeRates": "Exchange Rates",
+    "fxRevaluation": "FX Revaluation",
     "subscription": "Subscription",
     "users": "Users"
   },
@@ -562,7 +563,9 @@
     "customFieldsLink": "Custom fields",
     "customFieldsLinkDesc": "Extra fields for contacts, products, and invoices",
     "exchangeRatesLink": "Exchange rates",
-    "exchangeRatesLinkDesc": "Maintain FX rates and convert amounts"
+    "exchangeRatesLinkDesc": "Maintain FX rates and convert amounts",
+    "fxRevaluationLink": "FX revaluation",
+    "fxRevaluationLinkDesc": "Post unrealized foreign exchange gain/loss journals"
   },
   "taxRates": {
     "title": "Tax Rates",
@@ -904,7 +907,7 @@
   },
   "exchangeRates": {
     "title": "Exchange Rates",
-    "subtitle": "Maintain currency rates for future FX documents — Wafeq-style",
+    "subtitle": "Maintain currency rates for multi-currency documents — Wafeq-style",
     "from": "From",
     "to": "To",
     "rate": "Rate",
@@ -914,6 +917,33 @@
     "convert": "Convert",
     "convertTitle": "Quick convert",
     "convertHint": "Uses the latest rate on or before the selected date (or the inverse pair)."
+  },
+  "fxRevaluation": {
+    "title": "FX Revaluation",
+    "subtitle": "Unrealized FX gain/loss journals on open foreign AR/AP — Wafeq-style",
+    "asOf": "As of",
+    "preview": "Preview",
+    "postJournal": "Post revaluation journal",
+    "hint": "Revalues open foreign customer/supplier balances at the as-of rate. One journal per date.",
+    "manageRates": "Manage exchange rates",
+    "empty": "No FX differences to revalue",
+    "unrealizedGain": "Unrealized gain",
+    "unrealizedLoss": "Unrealized loss",
+    "net": "Net",
+    "invoice": "Invoice",
+    "type": "Type",
+    "currency": "Currency",
+    "foreignRemaining": "Foreign remaining",
+    "bookedBase": "Booked (base)",
+    "rateAsOf": "As-of rate",
+    "revaluedBase": "Revalued base",
+    "pnlImpact": "P&L impact",
+    "ar": "AR",
+    "ap": "AP",
+    "skipped": "Skipped",
+    "confirmPost": "Post FX revaluation journal for this date?",
+    "nothingToPost": "Nothing to post",
+    "posted": "Posted journal {number} — {count} invoices"
   },
   "purchasesHub": {
     "title": "Purchases Center",
