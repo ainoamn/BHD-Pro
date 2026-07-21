@@ -576,6 +576,18 @@ class ApiClient {
     return this.put('/companies/me', data);
   }
 
+  getPeriods(year?: number) {
+    return this.get('/periods', { params: year ? { year } : {} });
+  }
+
+  lockPeriod(year: number, month: number) {
+    return this.post(`/periods/${year}/${month}/lock`);
+  }
+
+  unlockPeriod(year: number, month: number) {
+    return this.post(`/periods/${year}/${month}/unlock`);
+  }
+
   // Users
   getUsers() {
     return this.get('/users');

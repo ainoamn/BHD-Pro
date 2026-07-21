@@ -1,10 +1,14 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateJournalDto } from './dto/create-journal.dto';
+import { PeriodsService } from '../periods/periods.service';
 
 @Injectable()
 export class JournalService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private periods: PeriodsService,
+  ) {}
 
   private async generateNumber(companyId: string) {
     const year = new Date().getFullYear();
@@ -59,6 +63,8 @@ export class JournalService {
 
   async create(companyId: string, userId: string, dto: CreateJournalDto) {
     if (!dto.lines?.length) throw new BadRequestException('At least one line required');
+
+    await this.periods.assertOpen(companyId, dto.date);
 
     const totalDebit = dto.lines.reduce((s, l) => s + Number(l.debit), 0);
     const totalCredit = dto.lines.reduce((s, l) => s + Number(l.credit), 0);
@@ -148,7 +154,8 @@ export class JournalService {
   }
 
   async remove(companyId: string, id: string) {
-    await this.findOne(companyId, id);
+    const journal = await this.findOne(companyId, id);
+    await this.periods.assertOpen(companyId, journal.date);
     await this.prisma.journal.delete({ where: { id } });
     return { message: 'Journal deleted' };
   }

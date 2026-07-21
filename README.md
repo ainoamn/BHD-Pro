@@ -267,6 +267,9 @@ POST {API_PUBLIC_URL}/api/payments/webhooks/paypal
 | GET/POST | `/warehouses` | المستودعات |
 | POST | `/products/:id/adjust` | تعديل مخزون منتج (IN / OUT / SET) |
 | GET | `/products/:id/movements` | حركات المخزون للمنتج |
+| GET | `/periods?year=` | قائمة أشهر السنة (يُنشئ الأشهر الناقصة) |
+| POST | `/periods/:year/:month/lock` | إقفال فترة محاسبية |
+| POST | `/periods/:year/:month/unlock` | فتح فترة (مدير فقط) |
 | GET/POST | `/invoices` | فواتير CRUD |
 | POST | `/invoices/:id/payments` | تسجيل تحصيل |
 | POST | `/invoices/payments/batch` | تحصيل على عدة فواتير (FIFO / يدوي) |

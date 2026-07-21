@@ -4,8 +4,9 @@ import {
   AccountType,
   InvoiceType,
   PaymentMethod,
+  AccountCategory,
 } from '@prisma/client';
-import { AccountCategory } from '@prisma/client';
+import { PeriodsService } from '../periods/periods.service';
 
 type JournalLineInput = {
   accountId: string;
@@ -20,7 +21,10 @@ type JournalLineInput = {
 export class GlPostingService {
   private readonly logger = new Logger(GlPostingService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private periods: PeriodsService,
+  ) {}
 
   private balanceDelta(type: AccountType, debit: number, credit: number) {
     const net = debit - credit;
@@ -98,6 +102,8 @@ export class GlPostingService {
   ) {
     const filtered = lines.filter((l) => l.debit > 0.0005 || l.credit > 0.0005);
     if (!filtered.length) return null;
+
+    await this.periods.assertOpen(companyId, meta.date);
 
     const totalDebit = Number(filtered.reduce((s, l) => s + l.debit, 0).toFixed(3));
     const totalCredit = Number(filtered.reduce((s, l) => s + l.credit, 0).toFixed(3));

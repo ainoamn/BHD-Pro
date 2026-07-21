@@ -55,6 +55,7 @@ model Company {
   bankStatementLines BankStatementLine[]
   purchaseOrders PurchaseOrder[]
   scheduledInvoices ScheduledInvoice[]
+  accountingPeriods AccountingPeriod[]
 
   @@index([vatNumber])
   @@index([crNumber])
@@ -87,6 +88,7 @@ model User {
   createdJournals Journal[] @relation("CreatedBy")
   purchaseOrdersCreated PurchaseOrder[] @relation("PurchaseOrdersCreated")
   scheduledInvoicesCreated ScheduledInvoice[] @relation("ScheduledInvoicesCreated")
+  lockedPeriods AccountingPeriod[] @relation("PeriodLockedBy")
   auditLogs   AuditLog[]
   sessions    Session[]
 
@@ -177,6 +179,27 @@ model Journal {
   @@index([date])
   @@index([number])
   @@map("journals")
+}
+
+model AccountingPeriod {
+  id         String    @id @default(uuid())
+  companyId  String    @map("company_id")
+  company    Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  year       Int
+  month      Int
+
+  isLocked   Boolean   @default(false) @map("is_locked")
+  lockedAt   DateTime? @map("locked_at")
+  lockedById String?   @map("locked_by_id")
+  lockedBy   User?     @relation("PeriodLockedBy", fields: [lockedById], references: [id])
+
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  @@unique([companyId, year, month])
+  @@index([companyId])
+  @@map("accounting_periods")
 }
 
 model JournalLine {
