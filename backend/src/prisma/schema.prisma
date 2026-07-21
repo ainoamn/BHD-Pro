@@ -60,6 +60,7 @@ model Company {
   deliveryNotes DeliveryNote[]
   stockCounts StockCount[]
   apiKeys CompanyApiKey[]
+  employeeClaims EmployeeClaim[]
 
   @@index([vatNumber])
   @@index([crNumber])
@@ -98,6 +99,7 @@ model User {
   auditLogs   AuditLog[]
   sessions    Session[]
   apiKeysCreated CompanyApiKey[] @relation("ApiKeysCreated")
+  employeeClaimsCreated EmployeeClaim[] @relation("EmployeeClaimsCreated")
 
   @@index([companyId])
   @@index([email])
@@ -375,6 +377,7 @@ model Employee {
   updatedAt      DateTime @updatedAt @map("updated_at")
 
   payrollLines   PayrollLine[]
+  claims         EmployeeClaim[]
 
   @@unique([companyId, employeeNumber])
   @@index([companyId])
@@ -418,6 +421,56 @@ model PayrollLine {
   @@index([payrollRunId])
   @@index([employeeId])
   @@map("payroll_lines")
+}
+
+model EmployeeClaim {
+  id          String              @id @default(uuid())
+  companyId   String              @map("company_id")
+  company     Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  number      String
+  date        DateTime
+  employeeId  String              @map("employee_id")
+  employee    Employee            @relation(fields: [employeeId], references: [id])
+
+  status      EmployeeClaimStatus @default(DRAFT)
+  total       Decimal             @default(0)
+  notes       String?
+  rejectReason String?            @map("reject_reason")
+
+  submittedAt DateTime?           @map("submitted_at")
+  approvedAt  DateTime?           @map("approved_at")
+  paidAt      DateTime?           @map("paid_at")
+  rejectedAt  DateTime?           @map("rejected_at")
+
+  createdById String              @map("created_by_id")
+  createdBy   User                @relation("EmployeeClaimsCreated", fields: [createdById], references: [id])
+
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
+
+  lines       EmployeeClaimLine[]
+
+  @@unique([companyId, number])
+  @@index([companyId])
+  @@index([employeeId])
+  @@index([date])
+  @@index([status])
+  @@map("employee_claims")
+}
+
+model EmployeeClaimLine {
+  id          String        @id @default(uuid())
+  claimId     String        @map("claim_id")
+  claim       EmployeeClaim @relation(fields: [claimId], references: [id], onDelete: Cascade)
+
+  description String
+  amount      Decimal
+  category    String?
+  receiptRef  String?       @map("receipt_ref")
+
+  @@index([claimId])
+  @@map("employee_claim_lines")
 }
 
 model FixedAsset {
@@ -1015,6 +1068,14 @@ enum PayrollStatus {
   DRAFT
   APPROVED
   PAID
+}
+
+enum EmployeeClaimStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  PAID
+  REJECTED
 }
 
 enum AssetCategory {

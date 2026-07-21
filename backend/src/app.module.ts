@@ -24,6 +24,7 @@ import { TaxRatesModule } from './tax-rates/tax-rates.module';
 import { DeliveryNotesModule } from './delivery-notes/delivery-notes.module';
 import { StockCountsModule } from './stock-counts/stock-counts.module';
 import { ApiKeysModule } from './api-keys/api-keys.module';
+import { EmployeeClaimsModule } from './employee-claims/employee-claims.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -52,6 +53,7 @@ import { HealthController } from './health.controller';
     DeliveryNotesModule,
     StockCountsModule,
     ApiKeysModule,
+    EmployeeClaimsModule,
   ],
   controllers: [HealthController],
 })

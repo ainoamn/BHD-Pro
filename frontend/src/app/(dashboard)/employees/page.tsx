@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, Fragment } from "react";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronUp, Loader2, Plus } from "lucide-react";
+import { ChevronDown, ChevronUp, Loader2, Plus, Wallet } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { ErpCrudPage, formatMoney } from "@/components/erp/erp-crud-page";
@@ -72,9 +73,18 @@ export default function EmployeesPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-2">
-        <TabBtn active={tab === "employees"} onClick={() => setTab("employees")} label={t("employeesTab")} />
-        <TabBtn active={tab === "payroll"} onClick={() => setTab("payroll")} label={t("payrollTab")} />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex gap-2">
+          <TabBtn active={tab === "employees"} onClick={() => setTab("employees")} label={t("employeesTab")} />
+          <TabBtn active={tab === "payroll"} onClick={() => setTab("payroll")} label={t("payrollTab")} />
+        </div>
+        <Link
+          href="/employee-claims"
+          className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800 text-slate-200 text-sm hover:bg-slate-700"
+        >
+          <Wallet className="w-4 h-4" />
+          {t("claimsLink")}
+        </Link>
       </div>
 
       {tab === "employees" ? (

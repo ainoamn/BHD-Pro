@@ -530,6 +530,38 @@ class ApiClient {
     return this.delete(`/api-keys/${id}`);
   }
 
+  getEmployeeClaims() {
+    return this.get('/employee-claims');
+  }
+
+  createEmployeeClaim(data: unknown) {
+    return this.post('/employee-claims', data);
+  }
+
+  updateEmployeeClaim(id: string, data: unknown) {
+    return this.put(`/employee-claims/${id}`, data);
+  }
+
+  submitEmployeeClaim(id: string) {
+    return this.post(`/employee-claims/${id}/submit`);
+  }
+
+  approveEmployeeClaim(id: string) {
+    return this.post(`/employee-claims/${id}/approve`);
+  }
+
+  rejectEmployeeClaim(id: string, data?: { reason?: string }) {
+    return this.post(`/employee-claims/${id}/reject`, data || {});
+  }
+
+  payEmployeeClaim(id: string) {
+    return this.post(`/employee-claims/${id}/pay`);
+  }
+
+  deleteEmployeeClaim(id: string) {
+    return this.delete(`/employee-claims/${id}`);
+  }
+
   getDeliveryNotes() {
     return this.get('/delivery-notes');
   }
