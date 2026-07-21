@@ -101,14 +101,61 @@ class ApiClient {
   // Auth
   async login(email: string, password: string) {
     const response = await this.client.post('/auth/login', { email, password });
-    const { user, accessToken } = response.data;
-    const company = user.company;
+    const data = response.data as {
+      requires2fa?: boolean;
+      tempToken?: string;
+      user?: { company?: unknown; companyId?: string; id: string; name: string; email: string; role: string };
+      accessToken?: string;
+    };
+    if (data.requires2fa) {
+      return data;
+    }
+    const user = data.user!;
+    const company = user.company as import('@/types').Company;
+    const { company: _c, ...userWithoutCompany } = user;
     useAuthStore.getState().login(
-      { ...user, companyId: company?.id || user.companyId },
+      {
+        ...userWithoutCompany,
+        companyId: company?.id || user.companyId || '',
+        role: user.role as import('@/types').User['role'],
+        company,
+      },
+      company,
+      data.accessToken || null
+    );
+    return data;
+  }
+
+  async verify2faLogin(tempToken: string, code: string) {
+    const response = await this.client.post('/auth/2fa/verify-login', { tempToken, code });
+    const { user, accessToken } = response.data;
+    const company = user.company as import('@/types').Company;
+    useAuthStore.getState().login(
+      {
+        ...user,
+        companyId: company?.id || user.companyId,
+        company,
+      },
       company,
       accessToken || null
     );
     return response.data;
+  }
+
+  get2faStatus() {
+    return this.get<{ enabled: boolean }>('/auth/2fa/status');
+  }
+
+  setup2fa() {
+    return this.post<{ otpauthUrl: string; qrCodeDataUrl: string; secret: string }>('/auth/2fa/setup');
+  }
+
+  confirm2fa(code: string) {
+    return this.post('/auth/2fa/confirm', { code });
+  }
+
+  disable2fa(password: string, code: string) {
+    return this.post('/auth/2fa/disable', { password, code });
   }
 
   async register(data: { name: string; email: string; password: string; companyName: string; plan?: string }) {

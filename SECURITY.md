@@ -38,10 +38,9 @@ After the hardening commit, the app is **closer to production-ready** for a cont
 
 ## Remaining (recommended next)
 
-- Full 2FA for admins
+- Full 2FA for admins → **Done** (TOTP via authenticator apps)
 - WAF / bot protection in front of login
 - Dependency audit (`npm audit`) and lock Next.js to patched releases
-
 ## Cookie auth notes
 
 - Browser sessions use **httpOnly** cookies (`bhd_access`, `bhd_refresh`).

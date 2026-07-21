@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, ForbiddenException, Logger } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ForbiddenException, Logger, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
@@ -8,7 +8,9 @@ import { AccountCategory, AccountType, Plan } from '@prisma/client';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { TokenPayload } from './interfaces/token-payload.interface';
-import { hashToken } from '../common/crypto/secrets.crypto';
+import { decryptSecret, encryptSecret, hashToken } from '../common/crypto/secrets.crypto';
+import { generateSecret, generateURI, verifySync } from 'otplib';
+import * as QRCode from 'qrcode';
 
 @Injectable()
 export class AuthService {
@@ -51,6 +53,141 @@ export class AuthService {
 
   async login(dto: LoginDto) {
     const user = await this.validateUser(dto.email, dto.password);
+
+    if (user.twoFactorEnabled && user.twoFactorSecret) {
+      const tempToken = await this.jwtService.signAsync(
+        { sub: user.id, purpose: '2fa' },
+        {
+          secret: this.config.get<string>('jwt.secret'),
+          expiresIn: '5m',
+        },
+      );
+      return { requires2fa: true as const, tempToken };
+    }
+
+    return this.issueSession(user, {
+      ipAddress: dto.ipAddress,
+      userAgent: dto.userAgent,
+    });
+  }
+
+  async verify2faLogin(tempToken: string, code: string) {
+    let payload: { sub?: string; purpose?: string };
+    try {
+      payload = this.jwtService.verify(tempToken, {
+        secret: this.config.get<string>('jwt.secret'),
+      });
+    } catch {
+      throw new UnauthorizedException('Invalid or expired 2FA session');
+    }
+    if (payload.purpose !== '2fa' || !payload.sub) {
+      throw new UnauthorizedException('Invalid 2FA session');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+      include: { company: true },
+    });
+    if (!user || !user.isActive || !user.twoFactorEnabled || !user.twoFactorSecret) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    const secret = this.readTotpSecret(user.twoFactorSecret);
+    if (!this.verifyTotp(secret, code)) {
+      await this.incrementLoginAttempts(user.id);
+      throw new UnauthorizedException('Invalid authentication code');
+    }
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { loginAttempts: 0, lockedUntil: null, lastLoginAt: new Date() },
+    });
+
+    const { password: _, twoFactorSecret: __, ...safe } = user;
+    return this.issueSession(safe, {});
+  }
+
+  async get2faStatus(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { twoFactorEnabled: true },
+    });
+    return { enabled: !!user?.twoFactorEnabled };
+  }
+
+  async setup2fa(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException();
+    if (user.twoFactorEnabled) {
+      throw new ForbiddenException('2FA is already enabled — disable it first to reset');
+    }
+
+    const secret = generateSecret();
+    const otpauthUrl = generateURI({
+      issuer: 'BHD Pro',
+      label: user.email,
+      secret,
+    });
+    const qrCodeDataUrl = await QRCode.toDataURL(otpauthUrl);
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        twoFactorSecret: encryptSecret(secret),
+        twoFactorEnabled: false,
+      },
+    });
+
+    return { otpauthUrl, qrCodeDataUrl, secret };
+  }
+
+  async confirm2fa(userId: string, code: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user?.twoFactorSecret) {
+      throw new BadRequestException('Run 2FA setup first');
+    }
+    const secret = this.readTotpSecret(user.twoFactorSecret);
+    if (!this.verifyTotp(secret, code)) {
+      throw new UnauthorizedException('Invalid authentication code');
+    }
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { twoFactorEnabled: true },
+    });
+    return { enabled: true };
+  }
+
+  async disable2fa(userId: string, password: string, code: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException();
+    const ok = await bcrypt.compare(password, user.password);
+    if (!ok) throw new UnauthorizedException('Invalid password');
+    if (user.twoFactorEnabled && user.twoFactorSecret) {
+      const secret = this.readTotpSecret(user.twoFactorSecret);
+      if (!this.verifyTotp(secret, code)) {
+        throw new UnauthorizedException('Invalid authentication code');
+      }
+    }
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { twoFactorEnabled: false, twoFactorSecret: null },
+    });
+    return { enabled: false };
+  }
+
+  private readTotpSecret(stored: string): string {
+    return decryptSecret(stored);
+  }
+
+  private verifyTotp(secret: string, code: string): boolean {
+    const result = verifySync({ secret, token: code.replace(/\s/g, '') });
+    return !!(result && typeof result === 'object' && 'valid' in result && result.valid);
+  }
+
+  private async issueSession(
+    user: any,
+    meta: { ipAddress?: string; userAgent?: string },
+  ) {
     const tokens = await this.generateTokens(user);
 
     await this.prisma.session.create({
@@ -58,12 +195,13 @@ export class AuthService {
         userId: user.id,
         token: hashToken(tokens.refreshToken),
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-        ipAddress: dto.ipAddress,
-        userAgent: dto.userAgent,
+        ipAddress: meta.ipAddress,
+        userAgent: meta.userAgent,
       },
     });
 
     return {
+      requires2fa: false as const,
       user: {
         id: user.id,
         name: user.name,
@@ -196,6 +334,7 @@ export class AuthService {
       role: safe.role,
       companyId: safe.companyId,
       company: safe.company,
+      twoFactorEnabled: !!safe.twoFactorEnabled,
     };
   }
 

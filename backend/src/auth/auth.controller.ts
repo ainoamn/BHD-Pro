@@ -17,6 +17,7 @@ import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { Disable2faDto, TotpCodeDto, Verify2faLoginDto } from './dto/two-factor.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { clearAuthCookies, REFRESH_COOKIE, setAuthCookies } from './auth-cookies';
 
@@ -33,12 +34,63 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
   async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
     const result = await this.authService.login(dto);
+    if ('requires2fa' in result && result.requires2fa) {
+      return result;
+    }
+    if ('accessToken' in result && 'refreshToken' in result) {
+      setAuthCookies(res, {
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+      });
+    }
+    return result;
+  }
+
+  @Post('2fa/verify-login')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Complete login with TOTP code' })
+  async verify2faLogin(
+    @Body() dto: Verify2faLoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.verify2faLogin(dto.tempToken, dto.code);
     setAuthCookies(res, {
       accessToken: result.accessToken,
       refreshToken: result.refreshToken,
     });
-    // Tokens still returned for non-browser API clients; browser should rely on cookies
     return result;
+  }
+
+  @Get('2fa/status')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  get2faStatus(@Req() req: Request & { user: { sub: string } }) {
+    return this.authService.get2faStatus(req.user.sub);
+  }
+
+  @Post('2fa/setup')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Generate TOTP secret + QR (not enabled until confirm)' })
+  setup2fa(@Req() req: Request & { user: { sub: string } }) {
+    return this.authService.setup2fa(req.user.sub);
+  }
+
+  @Post('2fa/confirm')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  confirm2fa(@Req() req: Request & { user: { sub: string } }, @Body() dto: TotpCodeDto) {
+    return this.authService.confirm2fa(req.user.sub, dto.code);
+  }
+
+  @Post('2fa/disable')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  disable2fa(@Req() req: Request & { user: { sub: string } }, @Body() dto: Disable2faDto) {
+    return this.authService.disable2fa(req.user.sub, dto.password, dto.code);
   }
 
   @Post('register')

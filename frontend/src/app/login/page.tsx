@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Calculator, Mail, Lock, Loader2 } from "lucide-react";
+import { Calculator, Mail, Lock, Loader2, Shield } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
 
@@ -14,17 +14,35 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("admin@bhd.om");
   const [password, setPassword] = useState("Admin123!");
+  const [totpCode, setTotpCode] = useState("");
+  const [tempToken, setTempToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const finishLogin = () => {
+    toast.success(t("login"));
+    router.push("/dashboard");
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
-      await api.login(email, password);
-      toast.success(t("login"));
-      router.push("/dashboard");
-    } catch {
-      toast.error("Invalid credentials");
+      if (tempToken) {
+        await api.verify2faLogin(tempToken, totpCode);
+        finishLogin();
+        return;
+      }
+      const data = await api.login(email, password);
+      if (data?.requires2fa && data.tempToken) {
+        setTempToken(data.tempToken);
+        toast.success(t("totpPrompt"));
+        return;
+      }
+      finishLogin();
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { message?: string | string[] } } };
+      const msg = axiosErr?.response?.data?.message;
+      toast.error(Array.isArray(msg) ? msg.join(" — ") : msg || t("invalidCredentials"));
     } finally {
       setLoading(false);
     }
@@ -42,35 +60,69 @@ export default function LoginPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="glass rounded-2xl p-6 space-y-4">
-          <h2 className="text-lg font-semibold text-white">{t("login")}</h2>
+          <h2 className="text-lg font-semibold text-white">
+            {tempToken ? t("totpTitle") : t("login")}
+          </h2>
 
-          <div>
-            <label className="block text-sm text-slate-400 mb-1">{t("email")}</label>
-            <div className="relative">
-              <Mail className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full h-10 pr-10 pl-3 bg-slate-800/50 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500"
-                required
-              />
+          {!tempToken ? (
+            <>
+              <div>
+                <label className="block text-sm text-slate-400 mb-1">{t("email")}</label>
+                <div className="relative">
+                  <Mail className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full h-10 pr-10 pl-3 bg-slate-800/50 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500"
+                    required
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm text-slate-400 mb-1">{t("password")}</label>
+                <div className="relative">
+                  <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full h-10 pr-10 pl-3 bg-slate-800/50 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500"
+                    required
+                  />
+                </div>
+              </div>
+            </>
+          ) : (
+            <div>
+              <label className="block text-sm text-slate-400 mb-1">{t("totpCode")}</label>
+              <div className="relative">
+                <Shield className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  value={totpCode}
+                  onChange={(e) => setTotpCode(e.target.value)}
+                  className="w-full h-10 pr-10 pl-3 bg-slate-800/50 border border-slate-700 rounded-lg text-white tracking-widest focus:outline-none focus:border-emerald-500"
+                  placeholder="000000"
+                  minLength={6}
+                  maxLength={8}
+                  required
+                />
+              </div>
+              <button
+                type="button"
+                className="text-xs text-slate-400 mt-2 hover:text-emerald-400"
+                onClick={() => {
+                  setTempToken(null);
+                  setTotpCode("");
+                }}
+              >
+                {t("backToLogin")}
+              </button>
             </div>
-          </div>
-
-          <div>
-            <label className="block text-sm text-slate-400 mb-1">{t("password")}</label>
-            <div className="relative">
-              <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full h-10 pr-10 pl-3 bg-slate-800/50 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500"
-                required
-              />
-            </div>
-          </div>
+          )}
 
           <button
             type="submit"
@@ -78,7 +130,7 @@ export default function LoginPage() {
             className="w-full h-10 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-            {t("login")}
+            {tempToken ? t("verifyTotp") : t("login")}
           </button>
 
           <p className="text-center text-sm text-slate-400">
@@ -87,9 +139,8 @@ export default function LoginPage() {
               {t("register")}
             </Link>
           </p>
+          <p className="text-center text-xs text-slate-500">{t("demoHint")}</p>
         </form>
-
-        <p className="text-center text-xs text-slate-500 mt-4">{t("demoHint")}</p>
       </div>
     </div>
   );

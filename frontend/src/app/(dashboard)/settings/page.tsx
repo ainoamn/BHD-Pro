@@ -13,6 +13,7 @@ import { DecimalInput } from "@/components/ui/decimal-input";
 import { Company } from "@/types";
 import { cn } from "@/lib/utils";
 import { PaymentGatewaysSettings } from "@/components/payments/payment-gateways-settings";
+import { TwoFactorSettings } from "@/components/auth/two-factor-settings";
 
 const CURRENCIES = [
   { code: "OMR", labelAr: "ريال عماني (ر.ع)" },
@@ -361,6 +362,8 @@ export default function SettingsPage() {
           </Link>
         </div>
       </GlassCard>
+
+      <TwoFactorSettings />
 
       <GlassCard>
         <PaymentGatewaysSettings />

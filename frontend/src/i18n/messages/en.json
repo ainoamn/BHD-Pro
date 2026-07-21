@@ -18,7 +18,30 @@
     "demoHint": "Demo: admin@bhd.om / Admin123!",
     "passwordHint": "At least 10 characters with upper, lower, and a number",
     "starterOnlyHint": "New accounts always start on the Starter plan — upgrades require payment",
-    "upgradeLater": "You can upgrade later from Subscription after checkout"
+    "upgradeLater": "You can upgrade later from Subscription after checkout",
+    "totpTitle": "Two-factor verification",
+    "totpPrompt": "Enter the code from your authenticator app",
+    "totpCode": "Authentication code",
+    "verifyTotp": "Verify",
+    "backToLogin": "Back to login",
+    "invalidCredentials": "Invalid credentials"
+  },
+  "twoFactor": {
+    "title": "Two-factor authentication (2FA)",
+    "subtitle": "Protect your account with an authenticator app (e.g. Google Authenticator)",
+    "status": "Status",
+    "on": "Enabled",
+    "off": "Disabled",
+    "enable": "Enable 2FA",
+    "disable": "Disable 2FA",
+    "scanHint": "Scan the QR code with your authenticator app, then enter a code to confirm",
+    "manualSecret": "Manual secret",
+    "code": "6-digit code",
+    "confirm": "Confirm enable",
+    "password": "Password",
+    "disableHint": "Enter your password and a TOTP code to disable 2FA",
+    "enabled": "Two-factor authentication enabled",
+    "disabled": "Two-factor authentication disabled"
   },
   "nav": {
     "dashboard": "Dashboard",
