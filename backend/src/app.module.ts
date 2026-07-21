@@ -1,0 +1,40 @@
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import configuration from './config/configuration';
+import { PrismaModule } from './prisma/prisma.module';
+import { AuthModule } from './auth/auth.module';
+import { ContactsModule } from './contacts/contacts.module';
+import { InvoicesModule } from './invoices/invoices.module';
+import { SubscriptionsModule } from './subscriptions/subscriptions.module';
+import { DashboardModule } from './dashboard/dashboard.module';
+import { JournalModule } from './journal/journal.module';
+import { ProductsModule } from './products/products.module';
+import { ReportsModule } from './reports/reports.module';
+import { CompaniesModule } from './companies/companies.module';
+import { UsersModule } from './users/users.module';
+import { VatModule } from './vat/vat.module';
+import { AiModule } from './ai/ai.module';
+import { PaymentsModule } from './payments/payments.module';
+import { HealthController } from './health.controller';
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true, load: [configuration] }),
+    PrismaModule,
+    AuthModule,
+    DashboardModule,
+    ContactsModule,
+    InvoicesModule,
+    JournalModule,
+    ProductsModule,
+    ReportsModule,
+    CompaniesModule,
+    UsersModule,
+    VatModule,
+    AiModule,
+    SubscriptionsModule,
+    PaymentsModule,
+  ],
+  controllers: [HealthController],
+})
+export class AppModule {}

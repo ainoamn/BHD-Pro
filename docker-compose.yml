@@ -1,0 +1,31 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: qootk-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: qootk
+      POSTGRES_PASSWORD: qootk_secret
+      POSTGRES_DB: qootk_pro
+    ports:
+      - "5432:5432"
+    volumes:
+      - qootk_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U qootk -d qootk_pro"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: qootk-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - qootk_redis_data:/data
+
+volumes:
+  qootk_pg_data:
+  qootk_redis_data:

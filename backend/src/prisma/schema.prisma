@@ -1,0 +1,585 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== CORE TABLES ====================
+
+model Company {
+  id          String   @id @default(uuid())
+  name        String
+  crNumber    String?  @map("cr_number")
+  vatNumber   String?  @map("vat_number")
+  address     String?
+  city        String?
+  country     String   @default("OM")
+  phone       String?
+  email       String?
+  website     String?
+  logo        String?
+  plan        Plan     @default(STARTER)
+  planExpiry  DateTime? @map("plan_expiry")
+  isActive    Boolean  @default(true) @map("is_active")
+  timezone    String   @default("Asia/Muscat")
+  currency    String   @default("OMR")
+  language    String   @default("ar")
+  fiscalYearStart Int @default(1) @map("fiscal_year_start")
+
+  zatcaConfig Json?   @map("ota_config")
+  ftaConfig   Json?   @map("tax_config")
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  users       User[]
+  contacts    Contact[]
+  products    Product[]
+  invoices    Invoice[]
+  journals    Journal[]
+  accounts    Account[]
+  warehouses  Warehouse[]
+  paymentGateways CompanyPaymentGateway[]
+  billingInvoices BillingInvoice[]
+
+  @@index([vatNumber])
+  @@index([crNumber])
+  @@index([isActive])
+  @@map("companies")
+}
+
+model User {
+  id          String   @id @default(uuid())
+  companyId   String   @map("company_id")
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  name        String
+  email       String   @unique
+  password    String
+  avatar      String?
+  role        UserRole @default(ACCOUNTANT)
+  permissions Json?
+
+  isActive    Boolean  @default(true) @map("is_active")
+  lastLoginAt DateTime? @map("last_login_at")
+  loginAttempts Int    @default(0) @map("login_attempts")
+  lockedUntil DateTime? @map("locked_until")
+  twoFactorSecret String? @map("2fa_secret")
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  createdInvoices Invoice[] @relation("CreatedBy")
+  createdJournals Journal[] @relation("CreatedBy")
+  auditLogs   AuditLog[]
+  sessions    Session[]
+
+  @@index([companyId])
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([token])
+  @@map("sessions")
+}
+
+// ==================== ACCOUNTING TABLES ====================
+
+model Account {
+  id          String   @id @default(uuid())
+  companyId   String   @map("company_id")
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  code        String
+  name        String
+  nameEn      String?  @map("name_en")
+  type        AccountType
+  category    AccountCategory
+  parentId    String?  @map("parent_id")
+  parent      Account? @relation("AccountHierarchy", fields: [parentId], references: [id])
+  children    Account[] @relation("AccountHierarchy")
+
+  openingBalance Decimal @default(0) @map("opening_balance")
+  currentBalance Decimal @default(0) @map("current_balance")
+
+  isActive    Boolean  @default(true) @map("is_active")
+  isBank      Boolean  @default(false) @map("is_bank")
+  bankAccount String?  @map("bank_account")
+  bankName    String?  @map("bank_name")
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  journalLines JournalLine[]
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@index([type])
+  @@index([category])
+  @@map("accounts")
+}
+
+model Journal {
+  id          String   @id @default(uuid())
+  companyId   String   @map("company_id")
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  number      String
+  date        DateTime
+  description String?
+  reference   String?
+
+  totalDebit  Decimal  @map("total_debit")
+  totalCredit Decimal  @map("total_credit")
+  isBalanced  Boolean  @default(false) @map("is_balanced")
+
+  createdById String   @map("created_by_id")
+  createdBy   User     @relation("CreatedBy", fields: [createdById], references: [id])
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  lines       JournalLine[]
+
+  @@index([companyId])
+  @@index([date])
+  @@index([number])
+  @@map("journals")
+}
+
+model JournalLine {
+  id          String   @id @default(uuid())
+  journalId   String   @map("journal_id")
+  journal     Journal  @relation(fields: [journalId], references: [id], onDelete: Cascade)
+
+  accountId   String   @map("account_id")
+  account     Account  @relation(fields: [accountId], references: [id])
+
+  description String?
+  debit       Decimal  @default(0)
+  credit      Decimal  @default(0)
+  costCenterId String? @map("cost_center_id")
+
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([journalId])
+  @@index([accountId])
+  @@map("journal_lines")
+}
+
+// ==================== INVOICE TABLES ====================
+
+model Invoice {
+  id          String   @id @default(uuid())
+  companyId   String   @map("company_id")
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  number      String
+  type        InvoiceType @default(SALES)
+
+  contactId   String   @map("contact_id")
+  contact     Contact  @relation(fields: [contactId], references: [id])
+
+  date        DateTime
+  dueDate     DateTime @map("due_date")
+
+  subtotal    Decimal 
+  discount    Decimal  @default(0)
+  taxRate     Decimal  @default(5) @map("tax_rate")
+  taxAmount   Decimal  @map("tax_amount")
+  total       Decimal 
+  paidAmount  Decimal  @default(0) @map("paid_amount")
+
+  status      InvoiceStatus @default(DRAFT)
+  paymentStatus PaymentStatus @default(UNPAID) @map("payment_status")
+
+  vatUuid     String?  @map("vat_uuid") @unique
+  xmlContent  String?  @map("xml_content")
+  qrCode      String?  @map("qr_code")
+  hash        String?
+  signedXml   String?  @map("signed_xml")
+  clearedAt   DateTime? @map("cleared_at")
+
+  notes       String?
+  terms       String?
+
+  createdById String   @map("created_by_id")
+  createdBy   User     @relation("CreatedBy", fields: [createdById], references: [id])
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  items       InvoiceItem[]
+  payments    Payment[]
+
+  @@unique([companyId, number])
+  @@index([companyId])
+  @@index([contactId])
+  @@index([status])
+  @@index([date])
+  @@index([vatUuid])
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id          String   @id @default(uuid())
+  invoiceId   String   @map("invoice_id")
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  productId   String?  @map("product_id")
+  product     Product? @relation(fields: [productId], references: [id])
+
+  description String
+  quantity    Decimal 
+  unitPrice   Decimal  @map("unit_price")
+  discount    Decimal  @default(0)
+  taxRate     Decimal  @default(5) @map("tax_rate")
+  taxAmount   Decimal  @map("tax_amount")
+  total       Decimal 
+
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([invoiceId])
+  @@index([productId])
+  @@map("invoice_items")
+}
+
+model Payment {
+  id          String   @id @default(uuid())
+  invoiceId   String   @map("invoice_id")
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  amount      Decimal 
+  method      PaymentMethod
+  reference   String?
+  date        DateTime
+  notes       String?
+
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([invoiceId])
+  @@map("payments")
+}
+
+// ==================== INVENTORY TABLES ====================
+
+model Product {
+  id          String   @id @default(uuid())
+  companyId   String   @map("company_id")
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  sku         String   @unique
+  name        String
+  nameEn      String?  @map("name_en")
+  description String?
+  category    String
+  barcode     String?  @unique
+
+  costPrice   Decimal  @map("cost_price")
+  salePrice   Decimal  @map("sale_price")
+
+  quantity    Decimal  @default(0)
+  minQuantity Decimal  @default(5) @map("min_quantity")
+  maxQuantity Decimal? @map("max_quantity")
+  reorderPoint Decimal @default(10) @map("reorder_point")
+
+  unit        String   @default("piece")
+  warehouseId String?  @map("warehouse_id")
+  warehouse   Warehouse? @relation(fields: [warehouseId], references: [id])
+
+  isActive    Boolean  @default(true) @map("is_active")
+  isTracked   Boolean  @default(true) @map("is_tracked")
+
+  images      String[]
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  invoiceItems InvoiceItem[]
+  stockMovements StockMovement[]
+
+  @@index([companyId])
+  @@index([sku])
+  @@index([category])
+  @@map("products")
+}
+
+model Warehouse {
+  id          String   @id @default(uuid())
+  companyId   String   @map("company_id")
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  name        String
+  code        String
+  address     String?
+  isActive    Boolean  @default(true) @map("is_active")
+
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  products    Product[]
+  stockMovements StockMovement[]
+
+  @@unique([companyId, code])
+  @@map("warehouses")
+}
+
+model StockMovement {
+  id          String   @id @default(uuid())
+  productId   String   @map("product_id")
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  warehouseId String   @map("warehouse_id")
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+
+  type        MovementType
+  quantity    Decimal 
+  unitCost    Decimal  @map("unit_cost")
+  reference   String?
+  notes       String?
+
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([productId])
+  @@index([warehouseId])
+  @@map("stock_movements")
+}
+
+// ==================== CONTACT TABLES ====================
+
+model Contact {
+  id          String   @id @default(uuid())
+  companyId   String   @map("company_id")
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  type        ContactType
+  name        String
+  nameEn      String?  @map("name_en")
+
+  taxId       String?  @map("tax_id")
+  crNumber    String?  @map("cr_number")
+
+  email       String?
+  phone       String?
+  phone2      String?
+  fax         String?
+
+  address     String?
+  city        String?
+  country     String   @default("OM")
+  zipCode     String?  @map("zip_code")
+
+  openingBalance Decimal @default(0) @map("opening_balance")
+  currentBalance Decimal @default(0) @map("current_balance")
+  creditLimit Decimal? @map("credit_limit")
+  paymentTerms Int?     @map("payment_terms")
+
+  website     String?
+  notes       String?
+  isActive    Boolean  @default(true) @map("is_active")
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  invoices    Invoice[]
+
+  @@index([companyId])
+  @@index([type])
+  @@index([taxId])
+  @@map("contacts")
+}
+
+// ==================== AUDIT & LOGS ====================
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  companyId   String   @map("company_id")
+  userId      String?  @map("user_id")
+  user        User?    @relation(fields: [userId], references: [id])
+
+  action      String
+  entity      String
+  entityId    String?  @map("entity_id")
+  oldValues   Json?    @map("old_values")
+  newValues   Json?    @map("new_values")
+  ipAddress   String?  @map("ip_address")
+  userAgent   String?  @map("user_agent")
+
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([companyId])
+  @@index([userId])
+  @@index([action])
+  @@index([entity])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// ==================== ENUMS ====================
+
+enum Plan {
+  STARTER
+  PROFESSIONAL
+  ENTERPRISE
+}
+
+enum UserRole {
+  ADMIN
+  ACCOUNTANT
+  VIEWER
+  MANAGER
+}
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  EXPENSE
+}
+
+enum AccountCategory {
+  CURRENT_ASSET
+  FIXED_ASSET
+  CURRENT_LIABILITY
+  LONG_TERM_LIABILITY
+  EQUITY
+  REVENUE
+  COST_OF_SALES
+  OPERATING_EXPENSE
+  OTHER_EXPENSE
+  OTHER_INCOME
+}
+
+enum InvoiceType {
+  SALES
+  PURCHASE
+  CREDIT_NOTE
+  DEBIT_NOTE
+  QUOTATION
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  VIEWED
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum PaymentStatus {
+  UNPAID
+  PARTIAL
+  PAID
+  OVERPAID
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CREDIT_CARD
+  CHECK
+  ONLINE
+  OTHER
+}
+
+enum ContactType {
+  CUSTOMER
+  SUPPLIER
+  BOTH
+}
+
+enum MovementType {
+  IN
+  OUT
+  ADJUSTMENT
+  TRANSFER
+}
+
+enum PaymentGatewaySlug {
+  THAWANI
+  STRIPE
+  PAYPAL
+  BANK_TRANSFER
+  MANUAL
+}
+
+enum BillingInvoiceStatus {
+  PENDING
+  PAID
+  CANCELLED
+}
+
+enum BillingPurpose {
+  SUBSCRIPTION
+  INVOICE_COLLECTION
+}
+
+model PlatformPaymentGateway {
+  id          String             @id @default(uuid())
+  slug        PaymentGatewaySlug @unique
+  nameAr      String             @map("name_ar")
+  nameEn      String             @map("name_en")
+  isEnabled   Boolean            @default(false) @map("is_enabled")
+  isTestMode  Boolean            @default(true) @map("is_test_mode")
+  configJson  Json               @default("{}") @map("config_json")
+  sortOrder   Int                @default(0) @map("sort_order")
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+
+  @@map("platform_payment_gateways")
+}
+
+model CompanyPaymentGateway {
+  id          String             @id @default(uuid())
+  companyId   String             @map("company_id")
+  company     Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  slug        PaymentGatewaySlug
+  isEnabled   Boolean            @default(false) @map("is_enabled")
+  isTestMode  Boolean            @default(true) @map("is_test_mode")
+  configJson  Json               @default("{}") @map("config_json")
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+
+  @@unique([companyId, slug])
+  @@index([companyId])
+  @@map("company_payment_gateways")
+}
+
+model BillingInvoice {
+  id                String               @id @default(uuid())
+  companyId         String               @map("company_id")
+  company           Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  number            String               @unique
+  purpose           BillingPurpose
+  description       String
+  amount            Decimal
+  currency          String               @default("OMR")
+  status            BillingInvoiceStatus @default(PENDING)
+  gatewaySlug       PaymentGatewaySlug?  @map("gateway_slug")
+  externalPaymentId String?              @map("external_payment_id")
+  checkoutUrl       String?              @map("checkout_url")
+  metadataJson      Json?                @map("metadata_json")
+  paidAt            DateTime?            @map("paid_at")
+  createdAt         DateTime             @default(now()) @map("created_at")
+  updatedAt         DateTime             @updatedAt @map("updated_at")
+
+  @@index([companyId])
+  @@index([status])
+  @@map("billing_invoices")
+}
