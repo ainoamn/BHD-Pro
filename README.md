@@ -270,6 +270,7 @@ POST {API_PUBLIC_URL}/api/payments/webhooks/paypal
 | GET | `/periods?year=` | قائمة أشهر السنة (يُنشئ الأشهر الناقصة) |
 | POST | `/periods/:year/:month/lock` | إقفال فترة محاسبية |
 | POST | `/periods/:year/:month/unlock` | فتح فترة (مدير فقط) |
+| GET | `/reports/cash-flow-forecast?weeks=` | توقعات التدفق النقدي من AR/AP حسب الاستحقاق (4–16 أسبوع) |
 | GET/POST | `/invoices` | فواتير CRUD |
 | POST | `/invoices/:id/payments` | تسجيل تحصيل |
 | POST | `/invoices/payments/batch` | تحصيل على عدة فواتير (FIFO / يدوي) |
