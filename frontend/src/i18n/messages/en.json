@@ -35,6 +35,7 @@
     "journal": "Journal Entries",
     "inventory": "Inventory",
     "deliveryNotes": "Delivery Notes",
+    "stockCounts": "Stock Counts",
     "warehouses": "Warehouses",
     "contacts": "Customers & Suppliers",
     "reports": "Financial Reports",
@@ -387,7 +388,8 @@
     "reference": "Reference",
     "warehouse": "Warehouse",
     "adjusted": "Stock adjusted",
-    "warehousesLink": "Warehouses"
+    "warehousesLink": "Warehouses",
+    "stockCountsLink": "Stock counts"
   },
   "contacts": {
     "title": "Address Book",
@@ -718,6 +720,34 @@
     "cancelled": "Delivery note cancelled",
     "status_DRAFT": "Draft",
     "status_DELIVERED": "Delivered",
+    "status_CANCELLED": "Cancelled"
+  },
+  "stockCounts": {
+    "title": "Stock Counts",
+    "subtitle": "Physical inventory counts with variance adjustments — Wafeq-style",
+    "new": "New stock count",
+    "empty": "No stock counts yet",
+    "number": "Number",
+    "date": "Date",
+    "warehouse": "Warehouse",
+    "defaultWarehouse": "Default warehouse",
+    "status": "Status",
+    "items": "Items",
+    "notes": "Notes",
+    "product": "Product",
+    "systemQty": "System qty",
+    "countedQty": "Counted qty",
+    "variance": "Variance",
+    "seedHint": "All active tracked products will be added with current system quantities.",
+    "noLines": "No products to count",
+    "complete": "Complete & adjust stock",
+    "completeConfirm": "Apply counted quantities to inventory? Variances will create adjustment movements.",
+    "completed": "Stock count completed and inventory adjusted",
+    "cancel": "Cancel count",
+    "cancelConfirm": "Cancel this draft stock count?",
+    "cancelled": "Stock count cancelled",
+    "status_DRAFT": "Draft",
+    "status_COMPLETED": "Completed",
     "status_CANCELLED": "Cancelled"
   },
   "purchasesHub": {

@@ -29,6 +29,7 @@ import {
   UserCircle,
   Warehouse,
   Truck,
+  ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUIStore } from "@/store/ui";
@@ -49,6 +50,7 @@ const navItems = [
   { href: "/employees", icon: UserCircle, label: "employees" },
   { href: "/inventory", icon: Package, label: "inventory" },
   { href: "/delivery-notes", icon: Truck, label: "deliveryNotes" },
+  { href: "/stock-counts", icon: ClipboardList, label: "stockCounts" },
   { href: "/warehouses", icon: Warehouse, label: "warehouses" },
   { href: "/contacts", icon: Users, label: "addressBook" },
   { href: "/reports", icon: BarChart3, label: "reports" },

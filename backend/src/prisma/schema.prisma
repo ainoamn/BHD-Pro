@@ -58,6 +58,7 @@ model Company {
   accountingPeriods AccountingPeriod[]
   taxRates TaxRate[]
   deliveryNotes DeliveryNote[]
+  stockCounts StockCount[]
 
   @@index([vatNumber])
   @@index([crNumber])
@@ -91,6 +92,7 @@ model User {
   purchaseOrdersCreated PurchaseOrder[] @relation("PurchaseOrdersCreated")
   scheduledInvoicesCreated ScheduledInvoice[] @relation("ScheduledInvoicesCreated")
   deliveryNotesCreated DeliveryNote[] @relation("DeliveryNotesCreated")
+  stockCountsCreated StockCount[] @relation("StockCountsCreated")
   lockedPeriods AccountingPeriod[] @relation("PeriodLockedBy")
   auditLogs   AuditLog[]
   sessions    Session[]
@@ -724,6 +726,7 @@ model Product {
   scheduledInvoiceItems ScheduledInvoiceItem[]
   stockMovements StockMovement[]
   deliveryNoteItems DeliveryNoteItem[]
+  stockCountLines StockCountLine[]
 
   @@index([companyId])
   @@index([sku])
@@ -746,6 +749,7 @@ model Warehouse {
   products    Product[]
   stockMovements StockMovement[]
   deliveryNotes DeliveryNote[]
+  stockCounts StockCount[]
 
   @@unique([companyId, code])
   @@map("warehouses")
@@ -769,6 +773,50 @@ model StockMovement {
   @@index([productId])
   @@index([warehouseId])
   @@map("stock_movements")
+}
+
+model StockCount {
+  id            String           @id @default(uuid())
+  companyId     String           @map("company_id")
+  company       Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  number        String
+  date          DateTime
+  warehouseId   String?          @map("warehouse_id")
+  warehouse     Warehouse?       @relation(fields: [warehouseId], references: [id])
+
+  status        StockCountStatus @default(DRAFT)
+  notes         String?
+  completedAt   DateTime?        @map("completed_at")
+
+  createdById   String           @map("created_by_id")
+  createdBy     User             @relation("StockCountsCreated", fields: [createdById], references: [id])
+
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+
+  lines         StockCountLine[]
+
+  @@unique([companyId, number])
+  @@index([companyId])
+  @@index([date])
+  @@map("stock_counts")
+}
+
+model StockCountLine {
+  id           String     @id @default(uuid())
+  stockCountId String     @map("stock_count_id")
+  stockCount   StockCount @relation(fields: [stockCountId], references: [id], onDelete: Cascade)
+
+  productId    String     @map("product_id")
+  product      Product    @relation(fields: [productId], references: [id])
+
+  systemQty    Decimal    @map("system_qty")
+  countedQty   Decimal    @map("counted_qty")
+
+  @@index([stockCountId])
+  @@index([productId])
+  @@map("stock_count_lines")
 }
 
 // ==================== CONTACT TABLES ====================
@@ -1014,6 +1062,12 @@ enum MovementType {
 enum DeliveryNoteStatus {
   DRAFT
   DELIVERED
+  CANCELLED
+}
+
+enum StockCountStatus {
+  DRAFT
+  COMPLETED
   CANCELLED
 }
 

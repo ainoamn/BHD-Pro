@@ -35,6 +35,7 @@
     "journal": "القيود اليومية",
     "inventory": "المخزون",
     "deliveryNotes": "إشعارات التسليم",
+    "stockCounts": "عمليات الجرد",
     "warehouses": "المستودعات",
     "contacts": "العملاء والموردين",
     "reports": "التقارير المالية",
@@ -387,7 +388,8 @@
     "reference": "المرجع",
     "warehouse": "المستودع",
     "adjusted": "تم تعديل المخزون",
-    "warehousesLink": "المستودعات"
+    "warehousesLink": "المستودعات",
+    "stockCountsLink": "عمليات الجرد"
   },
   "contacts": {
     "title": "دفتر العناوين",
@@ -718,6 +720,34 @@
     "cancelled": "تم إلغاء الإشعار",
     "status_DRAFT": "مسودة",
     "status_DELIVERED": "مُسلَّم",
+    "status_CANCELLED": "ملغى"
+  },
+  "stockCounts": {
+    "title": "عمليات جرد المخزون",
+    "subtitle": "جرد فعلي مع تسوية الفروقات — مثل نظام وفاق",
+    "new": "عملية جرد جديدة",
+    "empty": "لا توجد عمليات جرد",
+    "number": "الرقم",
+    "date": "التاريخ",
+    "warehouse": "المستودع",
+    "defaultWarehouse": "المستودع الافتراضي",
+    "status": "الحالة",
+    "items": "البنود",
+    "notes": "ملاحظات",
+    "product": "المنتج",
+    "systemQty": "كمية النظام",
+    "countedQty": "الكمية المعدودة",
+    "variance": "الفرق",
+    "seedHint": "ستُضاف جميع المنتجات النشطة المتتبَّعة بكميات النظام الحالية.",
+    "noLines": "لا توجد منتجات للجرد",
+    "complete": "إتمام وتسوية المخزون",
+    "completeConfirm": "تطبيق الكميات المعدودة على المخزون؟ سيتم إنشاء حركات تسوية للفروقات.",
+    "completed": "تم إتمام الجرد وتسوية المخزون",
+    "cancel": "إلغاء الجرد",
+    "cancelConfirm": "إلغاء مسودة الجرد؟",
+    "cancelled": "تم إلغاء الجرد",
+    "status_DRAFT": "مسودة",
+    "status_COMPLETED": "مكتمل",
     "status_CANCELLED": "ملغى"
   },
   "purchasesHub": {

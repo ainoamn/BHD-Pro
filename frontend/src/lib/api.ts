@@ -525,6 +525,34 @@ class ApiClient {
     return this.delete(`/delivery-notes/${id}`);
   }
 
+  getStockCounts() {
+    return this.get('/stock-counts');
+  }
+
+  getStockCount(id: string) {
+    return this.get(`/stock-counts/${id}`);
+  }
+
+  createStockCount(data: unknown) {
+    return this.post('/stock-counts', data);
+  }
+
+  updateStockCountLines(id: string, data: { lines: { productId: string; countedQty: number }[] }) {
+    return this.put(`/stock-counts/${id}/lines`, data);
+  }
+
+  completeStockCount(id: string) {
+    return this.post(`/stock-counts/${id}/complete`);
+  }
+
+  cancelStockCount(id: string) {
+    return this.post(`/stock-counts/${id}/cancel`);
+  }
+
+  deleteStockCount(id: string) {
+    return this.delete(`/stock-counts/${id}`);
+  }
+
   getArAging() {
     return this.get('/reports/ar-aging');
   }

@@ -14,6 +14,7 @@ import {
   AlertTriangle,
   ArrowLeftRight,
   Warehouse,
+  ClipboardList,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
@@ -178,6 +179,13 @@ export default function InventoryPage() {
         subtitle={t("subtitle")}
         action={
           <div className="flex items-center gap-2 flex-wrap justify-end">
+            <Link
+              href="/stock-counts"
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800 text-slate-200 text-sm hover:bg-slate-700"
+            >
+              <ClipboardList className="w-4 h-4" />
+              {t("stockCountsLink")}
+            </Link>
             <Link
               href="/warehouses"
               className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800 text-slate-200 text-sm hover:bg-slate-700"
