@@ -14,6 +14,7 @@ import {
   UserCircle,
   Layers,
   FolderKanban,
+  Landmark,
 } from "lucide-react";
 import { ModuleHub } from "@/components/hub/module-hub";
 
@@ -98,6 +99,12 @@ export default function ReportsHubPage() {
       icon: FileSpreadsheet,
       title: t("trialBalance"),
       description: t("trialBalanceDesc"),
+    },
+    {
+      href: "/bank-reconciliation",
+      icon: Landmark,
+      title: t("bankRecon"),
+      description: t("bankReconDesc"),
     },
   ];
 

@@ -88,6 +88,15 @@ export class BankAccountDto {
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
 }
 
+export class BankStatementLineDto {
+  @ApiProperty() @IsDateString() date: string;
+  @ApiProperty() @IsString() description: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() reference?: string;
+  @ApiProperty({ description: 'Positive = deposit; negative = withdrawal' })
+  @IsNumber()
+  amount: number;
+}
+
 export class CreatePayrollDto {
   @ApiProperty() @IsInt() @Min(1) @Max(12) periodMonth: number;
   @ApiProperty() @IsInt() @Min(2000) periodYear: number;

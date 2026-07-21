@@ -732,7 +732,32 @@
     "inventory": "Inventory report",
     "inventoryDesc": "Stock value and low items",
     "payroll": "Payroll report",
-    "payrollDesc": "Employees and payroll runs"
+    "payrollDesc": "Employees and payroll runs",
+    "bankRecon": "Bank reconciliation",
+    "bankReconDesc": "Match bank statement lines to book balance"
+  },
+  "bankRecon": {
+    "title": "Bank Reconciliation",
+    "subtitle": "Enter statement lines and match them to book balance",
+    "selectBank": "Bank account",
+    "noBanks": "Add a bank account first",
+    "bookBalance": "Book balance",
+    "statementBalance": "Statement balance",
+    "difference": "Difference",
+    "unreconciled": "Unreconciled",
+    "addLine": "Add statement line",
+    "description": "Description",
+    "reference": "Reference",
+    "date": "Date",
+    "amount": "Amount",
+    "amountHint": "Positive = deposit, negative = withdrawal",
+    "needDescription": "Description is required",
+    "empty": "No statement lines yet",
+    "status": "Status",
+    "reconciled": "Reconciled",
+    "pending": "Pending",
+    "reconcile": "Reconcile",
+    "unreconcile": "Unreconcile"
   },
   "reportsExport": {
     "csv": "Export CSV",

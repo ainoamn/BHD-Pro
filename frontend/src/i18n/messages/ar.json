@@ -732,7 +732,32 @@
     "inventory": "تقرير المخزون",
     "inventoryDesc": "قيمة المخزون والنواقص",
     "payroll": "تقرير الرواتب",
-    "payrollDesc": "الموظفين ومسيرات الرواتب"
+    "payrollDesc": "الموظفين ومسيرات الرواتب",
+    "bankRecon": "تسوية مصرفية",
+    "bankReconDesc": "مطابقة كشف الحساب البنكي مع الدفاتر"
+  },
+  "bankRecon": {
+    "title": "التسوية المصرفية",
+    "subtitle": "إدخال بنود كشف الحساب ومطابقتها مع رصيد الدفاتر",
+    "selectBank": "الحساب البنكي",
+    "noBanks": "أضف حساباً بنكياً أولاً",
+    "bookBalance": "رصيد الدفاتر",
+    "statementBalance": "رصيد الكشف",
+    "difference": "الفرق",
+    "unreconciled": "غير المسوّى",
+    "addLine": "إضافة بند كشف",
+    "description": "الوصف",
+    "reference": "المرجع",
+    "date": "التاريخ",
+    "amount": "المبلغ",
+    "amountHint": "موجب = إيداع، سالب = سحب",
+    "needDescription": "الوصف مطلوب",
+    "empty": "لا توجد بنود كشف بعد",
+    "status": "الحالة",
+    "reconciled": "مسوّى",
+    "pending": "معلّق",
+    "reconcile": "تسوية",
+    "unreconcile": "إلغاء التسوية"
   },
   "reportsExport": {
     "csv": "تصدير CSV",

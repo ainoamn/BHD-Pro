@@ -261,6 +261,9 @@ POST {API_PUBLIC_URL}/api/payments/webhooks/paypal
 | POST | `/assets/:id/depreciate` | إهلاك شهري للأصل (تحديث القيمة + قيد GL: Dr 5300 / Cr 1510 أو حساب الأصل) |
 | POST | `/scheduled-invoices/:id/toggle-active` | إيقاف / استئناف جدولة فاتورة دورية |
 | GET/POST | `/bank-accounts` | الحسابات البنكية |
+| GET/POST | `/bank-accounts/:id/statement-lines` | بنود كشف الحساب للتسوية |
+| GET | `/bank-accounts/:id/reconciliation` | تقرير التسوية المصرفية |
+| POST | `/bank-accounts/statement-lines/:lineId/toggle-reconciled` | تعليم بند كمسوّى / غير مسوّى |
 | GET/POST | `/invoices` | فواتير CRUD |
 | POST | `/invoices/:id/payments` | تسجيل تحصيل |
 | POST | `/invoices/payments/batch` | تحصيل على عدة فواتير (FIFO / يدوي) |

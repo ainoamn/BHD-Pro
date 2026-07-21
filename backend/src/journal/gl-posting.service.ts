@@ -5,6 +5,7 @@ import {
   InvoiceType,
   PaymentMethod,
 } from '@prisma/client';
+import { AccountCategory } from '@prisma/client';
 
 type JournalLineInput = {
   accountId: string;
@@ -39,6 +40,31 @@ export class GlPostingService {
     return this.prisma.account.findFirst({
       where: { companyId, code, isActive: true },
     });
+  }
+
+  /** Ensure fixed-asset / depreciation COA exists (for companies created before these codes). */
+  async ensureDepreciationAccounts(companyId: string) {
+    const defaults: Array<{
+      code: string;
+      name: string;
+      type: AccountType;
+      category: AccountCategory;
+    }> = [
+      { code: '1500', name: 'الأصول الثابتة', type: AccountType.ASSET, category: AccountCategory.FIXED_ASSET },
+      { code: '1510', name: 'مجمع الإهلاك', type: AccountType.ASSET, category: AccountCategory.FIXED_ASSET },
+      { code: '5300', name: 'مصروف الإهلاك', type: AccountType.EXPENSE, category: AccountCategory.OPERATING_EXPENSE },
+    ];
+
+    for (const acc of defaults) {
+      const existing = await this.prisma.account.findFirst({
+        where: { companyId, code: acc.code },
+      });
+      if (!existing) {
+        await this.prisma.account.create({
+          data: { companyId, ...acc, isActive: true },
+        });
+      }
+    }
   }
 
   private async resolveAccounts(companyId: string) {
@@ -349,6 +375,8 @@ export class GlPostingService {
     asset: { id: string; code: string; name: string; accountId?: string | null },
     amount: number,
   ) {
+    await this.ensureDepreciationAccounts(companyId);
+
     const [depExpense, accumDep, fixedAsset, fallbackExpense] = await Promise.all([
       this.accountByCode(companyId, '5300'),
       this.accountByCode(companyId, '1510'),

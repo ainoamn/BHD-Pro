@@ -52,6 +52,7 @@ model Company {
   payrollRuns   PayrollRun[]
   fixedAssets   FixedAsset[]
   bankAccounts  BankAccount[]
+  bankStatementLines BankStatementLine[]
   purchaseOrders PurchaseOrder[]
   scheduledInvoices ScheduledInvoice[]
 
@@ -391,8 +392,34 @@ model BankAccount {
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
+  statementLines BankStatementLine[]
+
   @@index([companyId])
   @@map("bank_accounts")
+}
+
+model BankStatementLine {
+  id            String      @id @default(uuid())
+  companyId     String      @map("company_id")
+  company       Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  bankAccountId String      @map("bank_account_id")
+  bankAccount   BankAccount @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+
+  date          DateTime
+  description   String
+  reference     String?
+  /// Positive = deposit / credit; negative = withdrawal / debit
+  amount        Decimal
+  isReconciled  Boolean     @default(false) @map("is_reconciled")
+  reconciledAt  DateTime?   @map("reconciled_at")
+
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+
+  @@index([companyId])
+  @@index([bankAccountId])
+  @@index([date])
+  @@map("bank_statement_lines")
 }
 
 // ==================== INVOICE TABLES ====================

@@ -404,6 +404,26 @@ class ApiClient {
     return this.delete(`/bank-accounts/${id}`);
   }
 
+  getBankStatementLines(bankAccountId: string) {
+    return this.get(`/bank-accounts/${bankAccountId}/statement-lines`);
+  }
+
+  addBankStatementLine(bankAccountId: string, data: unknown) {
+    return this.post(`/bank-accounts/${bankAccountId}/statement-lines`, data);
+  }
+
+  getBankReconciliation(bankAccountId: string) {
+    return this.get(`/bank-accounts/${bankAccountId}/reconciliation`);
+  }
+
+  toggleBankStatementReconciled(lineId: string) {
+    return this.post(`/bank-accounts/statement-lines/${lineId}/toggle-reconciled`);
+  }
+
+  deleteBankStatementLine(lineId: string) {
+    return this.delete(`/bank-accounts/statement-lines/${lineId}`);
+  }
+
   getPayrollRuns() {
     return this.get('/payroll');
   }

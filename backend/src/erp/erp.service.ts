@@ -12,6 +12,7 @@ import {
   EmployeeDto,
   AssetDto,
   BankAccountDto,
+  BankStatementLineDto,
   CreatePayrollDto,
 } from './dto/erp.dto';
 import { AccountCategory, AccountType, PayrollStatus } from '@prisma/client';
@@ -366,6 +367,88 @@ export class ErpService {
     const row = await this.prisma.bankAccount.findFirst({ where: { id, companyId } });
     if (!row) throw new NotFoundException('Bank account not found');
     return row;
+  }
+
+  // ─── Bank Reconciliation ───
+  async listStatementLines(companyId: string, bankAccountId: string) {
+    await this.ensureBankAccount(companyId, bankAccountId);
+    return this.prisma.bankStatementLine.findMany({
+      where: { companyId, bankAccountId },
+      orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+    });
+  }
+
+  async addStatementLine(companyId: string, bankAccountId: string, dto: BankStatementLineDto) {
+    await this.ensureBankAccount(companyId, bankAccountId);
+    return this.prisma.bankStatementLine.create({
+      data: {
+        companyId,
+        bankAccountId,
+        date: new Date(dto.date),
+        description: dto.description.trim(),
+        reference: dto.reference?.trim() || null,
+        amount: dto.amount,
+      },
+    });
+  }
+
+  async toggleStatementReconciled(companyId: string, lineId: string) {
+    const line = await this.prisma.bankStatementLine.findFirst({
+      where: { id: lineId, companyId },
+    });
+    if (!line) throw new NotFoundException('Statement line not found');
+    const next = !line.isReconciled;
+    return this.prisma.bankStatementLine.update({
+      where: { id: lineId },
+      data: {
+        isReconciled: next,
+        reconciledAt: next ? new Date() : null,
+      },
+    });
+  }
+
+  async deleteStatementLine(companyId: string, lineId: string) {
+    const line = await this.prisma.bankStatementLine.findFirst({
+      where: { id: lineId, companyId },
+    });
+    if (!line) throw new NotFoundException('Statement line not found');
+    await this.prisma.bankStatementLine.delete({ where: { id: lineId } });
+    return { message: 'Deleted' };
+  }
+
+  async getReconciliationReport(companyId: string, bankAccountId: string) {
+    const bank = await this.ensureBankAccount(companyId, bankAccountId);
+    const lines = await this.prisma.bankStatementLine.findMany({
+      where: { companyId, bankAccountId },
+      orderBy: { date: 'asc' },
+    });
+
+    const bookBalance = Number(bank.currentBalance);
+    const statementBalance = lines.reduce((s, l) => s + Number(l.amount), Number(bank.openingBalance));
+    const reconciledTotal = lines
+      .filter((l) => l.isReconciled)
+      .reduce((s, l) => s + Number(l.amount), 0);
+    const unreconciled = lines.filter((l) => !l.isReconciled);
+    const unreconciledTotal = unreconciled.reduce((s, l) => s + Number(l.amount), 0);
+
+    return {
+      bankAccount: {
+        id: bank.id,
+        name: bank.name,
+        bankName: bank.bankName,
+        accountNumber: bank.accountNumber,
+        currency: bank.currency,
+        openingBalance: Number(bank.openingBalance),
+      },
+      bookBalance,
+      statementBalance: Number(statementBalance.toFixed(3)),
+      difference: Number((statementBalance - bookBalance).toFixed(3)),
+      reconciledCount: lines.filter((l) => l.isReconciled).length,
+      unreconciledCount: unreconciled.length,
+      reconciledTotal: Number(reconciledTotal.toFixed(3)),
+      unreconciledTotal: Number(unreconciledTotal.toFixed(3)),
+      lines,
+    };
   }
 
   // ─── Payroll ───
