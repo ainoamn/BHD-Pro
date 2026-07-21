@@ -178,55 +178,129 @@ export default function InventoryPage() {
             }
           />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-800 text-slate-400">
-                  <th className="text-right p-4 font-medium">{t("sku")}</th>
-                  <th className="text-right p-4 font-medium">{t("name")}</th>
-                  <th className="text-right p-4 font-medium">{t("category")}</th>
-                  <th className="text-right p-4 font-medium">{t("quantity")}</th>
-                  <th className="text-right p-4 font-medium">{t("costPrice")}</th>
-                  <th className="text-right p-4 font-medium">{t("salePrice")}</th>
-                  <th className="text-right p-4 font-medium">{tCommon("actions")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {products.filter((p) => p.isActive !== false).map((product) => (
-                  <tr key={product.id} className="border-b border-slate-800/50 hover:bg-slate-800/30">
-                    <td className="p-4 text-slate-400 font-mono text-xs">{product.sku}</td>
-                    <td className="p-4 text-white font-medium">
-                      <span className="flex items-center gap-2">
-                        {product.name}
-                        {isLowStock(product) && (
-                          <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-                        )}
-                      </span>
-                    </td>
-                    <td className="p-4 text-slate-300">{product.category}</td>
-                    <td className={cn("p-4", isLowStock(product) ? "text-amber-400" : "text-white")}>
-                      {product.quantity} {product.unit}
-                    </td>
-                    <td className="p-4 text-slate-300">{formatMoney(Number(product.costPrice), currency)}</td>
-                    <td className="p-4 text-white">{formatMoney(Number(product.salePrice), currency)}</td>
-                    <td className="p-4">
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => openEdit(product)} className="p-1.5 rounded-lg hover:bg-slate-700 text-slate-400">
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => { if (confirm(t("deleteConfirm"))) deleteMutation.mutate(product.id); }}
-                          className="p-1.5 rounded-lg hover:bg-rose-500/10 text-rose-400"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+          <>
+            <div className="md:hidden p-3 space-y-3">
+              {products
+                .filter((p) => p.isActive !== false)
+                .map((product) => (
+                  <div
+                    key={product.id}
+                    className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 space-y-3"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="text-white font-semibold flex items-center gap-2">
+                          {product.name}
+                          {isLowStock(product) && (
+                            <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                          )}
+                        </p>
+                        <p className="text-xs text-slate-500 font-mono mt-0.5">{product.sku}</p>
                       </div>
-                    </td>
-                  </tr>
+                      <p
+                        className={cn(
+                          "text-sm font-medium shrink-0",
+                          isLowStock(product) ? "text-amber-400" : "text-white"
+                        )}
+                      >
+                        {product.quantity} {product.unit}
+                      </p>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-500">{product.category || "—"}</span>
+                      <span className="text-emerald-400">
+                        {formatMoney(Number(product.salePrice), currency)}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => openEdit(product)}
+                        className="p-1.5 rounded-lg hover:bg-slate-700 text-slate-400"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (confirm(t("deleteConfirm"))) deleteMutation.mutate(product.id);
+                        }}
+                        className="p-1.5 rounded-lg hover:bg-rose-500/10 text-rose-400"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
                 ))}
-              </tbody>
-            </table>
-          </div>
+            </div>
+
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-800 text-slate-400">
+                    <th className="text-right p-4 font-medium">{t("sku")}</th>
+                    <th className="text-right p-4 font-medium">{t("name")}</th>
+                    <th className="text-right p-4 font-medium">{t("category")}</th>
+                    <th className="text-right p-4 font-medium">{t("quantity")}</th>
+                    <th className="text-right p-4 font-medium">{t("costPrice")}</th>
+                    <th className="text-right p-4 font-medium">{t("salePrice")}</th>
+                    <th className="text-right p-4 font-medium">{tCommon("actions")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {products
+                    .filter((p) => p.isActive !== false)
+                    .map((product) => (
+                      <tr
+                        key={product.id}
+                        className="border-b border-slate-800/50 hover:bg-slate-800/30"
+                      >
+                        <td className="p-4 text-slate-400 font-mono text-xs">{product.sku}</td>
+                        <td className="p-4 text-white font-medium">
+                          <span className="flex items-center gap-2">
+                            {product.name}
+                            {isLowStock(product) && (
+                              <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                            )}
+                          </span>
+                        </td>
+                        <td className="p-4 text-slate-300">{product.category}</td>
+                        <td
+                          className={cn(
+                            "p-4",
+                            isLowStock(product) ? "text-amber-400" : "text-white"
+                          )}
+                        >
+                          {product.quantity} {product.unit}
+                        </td>
+                        <td className="p-4 text-slate-300">
+                          {formatMoney(Number(product.costPrice), currency)}
+                        </td>
+                        <td className="p-4 text-white">
+                          {formatMoney(Number(product.salePrice), currency)}
+                        </td>
+                        <td className="p-4">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => openEdit(product)}
+                              className="p-1.5 rounded-lg hover:bg-slate-700 text-slate-400"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (confirm(t("deleteConfirm"))) deleteMutation.mutate(product.id);
+                              }}
+                              className="p-1.5 rounded-lg hover:bg-rose-500/10 text-rose-400"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </GlassCard>
 

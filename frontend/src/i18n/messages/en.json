@@ -345,7 +345,8 @@
     "saved": "Journal entry saved",
     "deleted": "Journal entry deleted",
     "deleteConfirm": "Delete this journal entry?",
-    "saveError": "Failed to save journal entry"
+    "saveError": "Failed to save journal entry",
+    "project": "Project"
   },
   "inventory": {
     "title": "Inventory",
@@ -579,6 +580,8 @@
     "totalNet": "Total net",
     "approve": "Approve",
     "markPaid": "Mark paid",
+    "viewLines": "View lines",
+    "noPayroll": "No payroll runs yet",
     "emptyChart": "No accounts yet",
     "parentAccount": "Parent account",
     "openingBalance": "Opening balance"

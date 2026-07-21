@@ -25,6 +25,8 @@ interface JournalLine {
   debit: number;
   credit: number;
   account?: { code: string; name: string };
+  costCenter?: { id: string; code: string; name: string } | null;
+  project?: { id: string; code: string; name: string } | null;
 }
 
 interface Journal {
@@ -45,6 +47,8 @@ interface LineForm {
   description: string;
   debit: number;
   credit: number;
+  costCenterId: string;
+  projectId: string;
 }
 
 const emptyLine = (): LineForm => ({
@@ -52,10 +56,13 @@ const emptyLine = (): LineForm => ({
   description: "",
   debit: 0,
   credit: 0,
+  costCenterId: "",
+  projectId: "",
 });
 
 export default function JournalPage() {
   const t = useTranslations("journal");
+  const tErp = useTranslations("erp");
   const tCommon = useTranslations("common");
   const { company } = useAuthStore();
   const currency = company?.currency || "OMR";
@@ -84,6 +91,24 @@ export default function JournalPage() {
     enabled: modalOpen,
   });
 
+  const { data: costCenters = [] } = useQuery({
+    queryKey: ["cost-centers"],
+    queryFn: async () => {
+      const res = await api.getCostCenters();
+      return res.data as { id: string; code: string; name: string }[];
+    },
+    enabled: modalOpen,
+  });
+
+  const { data: projects = [] } = useQuery({
+    queryKey: ["projects"],
+    queryFn: async () => {
+      const res = await api.getProjects();
+      return res.data as { id: string; code: string; name: string; costCenterId?: string | null }[];
+    },
+    enabled: modalOpen,
+  });
+
   const totalDebit = lines.reduce((s, l) => s + (Number(l.debit) || 0), 0);
   const totalCredit = lines.reduce((s, l) => s + (Number(l.credit) || 0), 0);
   const isBalanced = Math.abs(totalDebit - totalCredit) < 0.001 && totalDebit > 0;
@@ -93,6 +118,12 @@ export default function JournalPage() {
     setDescription("");
     setReference("");
     setLines([emptyLine(), emptyLine()]);
+  };
+
+  const updateLine = (idx: number, patch: Partial<LineForm>) => {
+    const next = [...lines];
+    next[idx] = { ...next[idx], ...patch };
+    setLines(next);
   };
 
   const createMutation = useMutation({
@@ -108,6 +139,8 @@ export default function JournalPage() {
             description: l.description || undefined,
             debit: Number(l.debit) || 0,
             credit: Number(l.credit) || 0,
+            costCenterId: l.costCenterId || undefined,
+            projectId: l.projectId || undefined,
           })),
       }),
     onSuccess: () => {
@@ -129,6 +162,17 @@ export default function JournalPage() {
     },
   });
 
+  const deleteBtn = (id: string) => (
+    <button
+      onClick={() => {
+        if (confirm(t("deleteConfirm"))) deleteMutation.mutate(id);
+      }}
+      className="p-1.5 rounded-lg hover:bg-rose-500/10 text-rose-400"
+    >
+      <Trash2 className="w-4 h-4" />
+    </button>
+  );
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -136,7 +180,10 @@ export default function JournalPage() {
         subtitle={t("subtitle")}
         action={
           <button
-            onClick={() => { resetForm(); setModalOpen(true); }}
+            onClick={() => {
+              resetForm();
+              setModalOpen(true);
+            }}
             className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-lg font-medium hover:opacity-90"
           >
             <Plus className="w-4 h-4" />
@@ -145,72 +192,115 @@ export default function JournalPage() {
         }
       />
 
-      <GlassCard>
-        {isLoading ? (
-          <LoadingSpinner />
-        ) : journals.length === 0 ? (
+      {isLoading ? (
+        <LoadingSpinner />
+      ) : journals.length === 0 ? (
+        <GlassCard>
           <EmptyState
             icon={BookOpen}
             title={t("noEntries")}
             description={t("createFirst")}
             action={
               <button
-                onClick={() => { resetForm(); setModalOpen(true); }}
+                onClick={() => {
+                  resetForm();
+                  setModalOpen(true);
+                }}
                 className="text-emerald-400 hover:underline text-sm"
               >
                 {t("newEntry")}
               </button>
             }
           />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-800 text-slate-400">
-                  <th className="text-right p-4 font-medium">{t("number")}</th>
-                  <th className="text-right p-4 font-medium">{t("date")}</th>
-                  <th className="text-right p-4 font-medium">{t("description")}</th>
-                  <th className="text-right p-4 font-medium">{t("debit")}</th>
-                  <th className="text-right p-4 font-medium">{t("credit")}</th>
-                  <th className="text-right p-4 font-medium">{t("balanced")}</th>
-                  <th className="text-right p-4 font-medium">{tCommon("actions")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {journals.map((journal) => (
-                  <tr key={journal.id} className="border-b border-slate-800/50 hover:bg-slate-800/30">
-                    <td className="p-4 text-white font-medium">{journal.number}</td>
-                    <td className="p-4 text-slate-400">{formatDate(journal.date)}</td>
-                    <td className="p-4 text-slate-300">{journal.description || "—"}</td>
-                    <td className="p-4 text-white">{formatMoney(Number(journal.totalDebit), currency)}</td>
-                    <td className="p-4 text-white">{formatMoney(Number(journal.totalCredit), currency)}</td>
-                    <td className="p-4">
-                      <span className={cn(
-                        "px-2 py-1 rounded-full text-xs font-medium",
-                        journal.isBalanced ? "bg-emerald-500/10 text-emerald-400" : "bg-rose-500/10 text-rose-400"
-                      )}>
-                        {journal.isBalanced ? t("yes") : t("no")}
-                      </span>
-                    </td>
-                    <td className="p-4">
-                      <button
-                        onClick={() => { if (confirm(t("deleteConfirm"))) deleteMutation.mutate(journal.id); }}
-                        className="p-1.5 rounded-lg hover:bg-rose-500/10 text-rose-400"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        </GlassCard>
+      ) : (
+        <>
+          <div className="md:hidden space-y-3">
+            {journals.map((journal) => (
+              <GlassCard key={journal.id} className="p-4 space-y-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-white font-semibold">{journal.number}</p>
+                    <p className="text-sm text-slate-400 mt-0.5">
+                      {journal.description || "—"}
+                    </p>
+                  </div>
+                  <span
+                    className={cn(
+                      "px-2 py-1 rounded-full text-xs font-medium shrink-0",
+                      journal.isBalanced
+                        ? "bg-emerald-500/10 text-emerald-400"
+                        : "bg-rose-500/10 text-rose-400"
+                    )}
+                  >
+                    {journal.isBalanced ? t("yes") : t("no")}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500">{formatDate(journal.date)}</span>
+                  <span className="text-white font-medium">
+                    {formatMoney(Number(journal.totalDebit), currency)}
+                  </span>
+                </div>
+                <div className="flex justify-end">{deleteBtn(journal.id)}</div>
+              </GlassCard>
+            ))}
           </div>
-        )}
-      </GlassCard>
+
+          <GlassCard className="hidden md:block overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-800 text-slate-400">
+                    <th className="text-right p-4 font-medium">{t("number")}</th>
+                    <th className="text-right p-4 font-medium">{t("date")}</th>
+                    <th className="text-right p-4 font-medium">{t("description")}</th>
+                    <th className="text-right p-4 font-medium">{t("debit")}</th>
+                    <th className="text-right p-4 font-medium">{t("credit")}</th>
+                    <th className="text-right p-4 font-medium">{t("balanced")}</th>
+                    <th className="text-right p-4 font-medium">{tCommon("actions")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {journals.map((journal) => (
+                    <tr
+                      key={journal.id}
+                      className="border-b border-slate-800/50 hover:bg-slate-800/30"
+                    >
+                      <td className="p-4 text-white font-medium">{journal.number}</td>
+                      <td className="p-4 text-slate-400">{formatDate(journal.date)}</td>
+                      <td className="p-4 text-slate-300">{journal.description || "—"}</td>
+                      <td className="p-4 text-white">
+                        {formatMoney(Number(journal.totalDebit), currency)}
+                      </td>
+                      <td className="p-4 text-white">
+                        {formatMoney(Number(journal.totalCredit), currency)}
+                      </td>
+                      <td className="p-4">
+                        <span
+                          className={cn(
+                            "px-2 py-1 rounded-full text-xs font-medium",
+                            journal.isBalanced
+                              ? "bg-emerald-500/10 text-emerald-400"
+                              : "bg-rose-500/10 text-rose-400"
+                          )}
+                        >
+                          {journal.isBalanced ? t("yes") : t("no")}
+                        </span>
+                      </td>
+                      <td className="p-4">{deleteBtn(journal.id)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </GlassCard>
+        </>
+      )}
 
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-start justify-center pt-10 bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="w-full max-w-3xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl">
+          <div className="w-full max-w-4xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl">
             <div className="flex items-center justify-between p-5 border-b border-slate-800">
               <h2 className="text-lg font-semibold text-white">{t("newEntry")}</h2>
               <button onClick={() => setModalOpen(false)} className="text-slate-400 hover:text-white">
@@ -258,87 +348,129 @@ export default function JournalPage() {
                     + {t("addLine")}
                   </button>
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {lines.map((line, idx) => (
-                    <div key={idx} className="grid grid-cols-12 gap-2 items-center">
-                      <select
-                        value={line.accountId}
-                        onChange={(e) => {
-                          const n = [...lines];
-                          n[idx].accountId = e.target.value;
-                          setLines(n);
-                        }}
-                        className="col-span-4 h-9 px-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:border-emerald-500"
-                      >
-                        <option value="">{t("selectAccount")}</option>
-                        {accounts.map((a) => (
-                          <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
-                        ))}
-                      </select>
-                      <input
-                        placeholder={t("lineDescription")}
-                        value={line.description}
-                        onChange={(e) => {
-                          const n = [...lines];
-                          n[idx].description = e.target.value;
-                          setLines(n);
-                        }}
-                        className="col-span-3 h-9 px-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:border-emerald-500"
-                      />
-                      <input
-                        type="number"
-                        placeholder={t("debit")}
-                        value={line.debit || ""}
-                        min={0}
-                        step={0.001}
-                        onChange={(e) => {
-                          const n = [...lines];
-                          n[idx].debit = parseFloat(e.target.value) || 0;
-                          if (n[idx].debit > 0) n[idx].credit = 0;
-                          setLines(n);
-                        }}
-                        className="col-span-2 h-9 px-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:border-emerald-500"
-                      />
-                      <input
-                        type="number"
-                        placeholder={t("credit")}
-                        value={line.credit || ""}
-                        min={0}
-                        step={0.001}
-                        onChange={(e) => {
-                          const n = [...lines];
-                          n[idx].credit = parseFloat(e.target.value) || 0;
-                          if (n[idx].credit > 0) n[idx].debit = 0;
-                          setLines(n);
-                        }}
-                        className="col-span-2 h-9 px-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:border-emerald-500"
-                      />
-                      {lines.length > 2 && (
-                        <button
-                          type="button"
-                          onClick={() => setLines(lines.filter((_, i) => i !== idx))}
-                          className="col-span-1 text-rose-400 hover:text-rose-300"
+                    <div
+                      key={idx}
+                      className="rounded-xl border border-slate-800 bg-slate-900/40 p-3 space-y-2"
+                    >
+                      <div className="grid grid-cols-12 gap-2 items-center">
+                        <select
+                          value={line.accountId}
+                          onChange={(e) => updateLine(idx, { accountId: e.target.value })}
+                          className="col-span-12 md:col-span-4 h-9 px-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
                         >
-                          <X className="w-4 h-4" />
-                        </button>
-                      )}
+                          <option value="">{t("selectAccount")}</option>
+                          {accounts.map((a) => (
+                            <option key={a.id} value={a.id}>
+                              {a.code} — {a.name}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          placeholder={t("lineDescription")}
+                          value={line.description}
+                          onChange={(e) => updateLine(idx, { description: e.target.value })}
+                          className="col-span-12 md:col-span-3 h-9 px-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
+                        />
+                        <input
+                          type="number"
+                          placeholder={t("debit")}
+                          value={line.debit || ""}
+                          min={0}
+                          step={0.001}
+                          onChange={(e) => {
+                            const debit = parseFloat(e.target.value) || 0;
+                            updateLine(idx, { debit, credit: debit > 0 ? 0 : line.credit });
+                          }}
+                          className="col-span-5 md:col-span-2 h-9 px-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
+                        />
+                        <input
+                          type="number"
+                          placeholder={t("credit")}
+                          value={line.credit || ""}
+                          min={0}
+                          step={0.001}
+                          onChange={(e) => {
+                            const credit = parseFloat(e.target.value) || 0;
+                            updateLine(idx, { credit, debit: credit > 0 ? 0 : line.debit });
+                          }}
+                          className="col-span-5 md:col-span-2 h-9 px-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
+                        />
+                        {lines.length > 2 && (
+                          <button
+                            type="button"
+                            onClick={() => setLines(lines.filter((_, i) => i !== idx))}
+                            className="col-span-2 md:col-span-1 text-rose-400 hover:text-rose-300 flex justify-center"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        <select
+                          value={line.costCenterId}
+                          onChange={(e) => updateLine(idx, { costCenterId: e.target.value })}
+                          className="h-9 px-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
+                        >
+                          <option value="">— {tErp("costCenter")}</option>
+                          {costCenters.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.code} — {c.name}
+                            </option>
+                          ))}
+                        </select>
+                        <select
+                          value={line.projectId}
+                          onChange={(e) => {
+                            const projectId = e.target.value;
+                            const proj = projects.find((p) => p.id === projectId);
+                            updateLine(idx, {
+                              projectId,
+                              ...(proj?.costCenterId
+                                ? { costCenterId: proj.costCenterId }
+                                : {}),
+                            });
+                          }}
+                          className="h-9 px-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
+                        >
+                          <option value="">— {t("project")}</option>
+                          {projects.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.code} — {p.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className={cn(
-                "flex items-center justify-between p-4 rounded-lg border",
-                isBalanced ? "bg-emerald-500/10 border-emerald-500/30" : "bg-rose-500/10 border-rose-500/30"
-              )}>
+              <div
+                className={cn(
+                  "flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-4 rounded-lg border",
+                  isBalanced
+                    ? "bg-emerald-500/10 border-emerald-500/30"
+                    : "bg-rose-500/10 border-rose-500/30"
+                )}
+              >
                 <div className="flex items-center gap-2">
-                  <Scale className={cn("w-5 h-5", isBalanced ? "text-emerald-400" : "text-rose-400")} />
-                  <span className={cn("text-sm font-medium", isBalanced ? "text-emerald-400" : "text-rose-400")}>
+                  <Scale
+                    className={cn("w-5 h-5", isBalanced ? "text-emerald-400" : "text-rose-400")}
+                  />
+                  <span
+                    className={cn(
+                      "text-sm font-medium",
+                      isBalanced ? "text-emerald-400" : "text-rose-400"
+                    )}
+                  >
                     {isBalanced ? t("balancedOk") : t("notBalanced")}
                   </span>
                 </div>
                 <div className="text-sm text-slate-300">
-                  {t("debit")}: {formatMoney(totalDebit, currency)} | {t("credit")}: {formatMoney(totalCredit, currency)}
+                  {t("debit")}: {formatMoney(totalDebit, currency)} | {t("credit")}:{" "}
+                  {formatMoney(totalCredit, currency)}
                 </div>
               </div>
             </div>

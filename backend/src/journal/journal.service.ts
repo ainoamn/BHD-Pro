@@ -26,7 +26,13 @@ export class JournalService {
     return this.prisma.journal.findMany({
       where: { companyId },
       include: {
-        lines: { include: { account: { select: { code: true, name: true } } } },
+        lines: {
+          include: {
+            account: { select: { code: true, name: true } },
+            costCenter: { select: { id: true, code: true, name: true } },
+            project: { select: { id: true, code: true, name: true } },
+          },
+        },
         createdBy: { select: { name: true } },
       },
       orderBy: { date: 'desc' },
@@ -37,7 +43,13 @@ export class JournalService {
     const journal = await this.prisma.journal.findFirst({
       where: { id, companyId },
       include: {
-        lines: { include: { account: true } },
+        lines: {
+          include: {
+            account: true,
+            costCenter: { select: { id: true, code: true, name: true } },
+            project: { select: { id: true, code: true, name: true } },
+          },
+        },
         createdBy: { select: { name: true, email: true } },
       },
     });
@@ -60,6 +72,19 @@ export class JournalService {
         where: { id: line.accountId, companyId },
       });
       if (!account) throw new BadRequestException(`Account ${line.accountId} not found`);
+
+      if (line.costCenterId) {
+        const cc = await this.prisma.costCenter.findFirst({
+          where: { id: line.costCenterId, companyId },
+        });
+        if (!cc) throw new BadRequestException('Cost center not found');
+      }
+      if (line.projectId) {
+        const project = await this.prisma.project.findFirst({
+          where: { id: line.projectId, companyId },
+        });
+        if (!project) throw new BadRequestException('Project not found');
+      }
     }
 
     const number = await this.generateNumber(companyId);
@@ -88,11 +113,19 @@ export class JournalService {
               description: l.description,
               debit: l.debit,
               credit: l.credit,
+              costCenterId: l.costCenterId || null,
+              projectId: l.projectId || null,
             })),
           },
         },
         include: {
-          lines: { include: { account: { select: { code: true, name: true } } } },
+          lines: {
+            include: {
+              account: { select: { code: true, name: true } },
+              costCenter: { select: { id: true, code: true, name: true } },
+              project: { select: { id: true, code: true, name: true } },
+            },
+          },
         },
       });
 

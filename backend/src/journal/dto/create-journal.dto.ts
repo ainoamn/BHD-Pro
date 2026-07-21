@@ -16,6 +16,14 @@ export class JournalLineDto {
   @IsNumber()
   @Min(0)
   credit: number;
+
+  @IsOptional()
+  @IsUUID()
+  costCenterId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  projectId?: string;
 }
 
 export class CreateJournalDto {

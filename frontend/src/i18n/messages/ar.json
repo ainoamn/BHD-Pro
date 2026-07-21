@@ -345,7 +345,8 @@
     "saved": "تم حفظ القيد",
     "deleted": "تم حذف القيد",
     "deleteConfirm": "حذف هذا القيد؟",
-    "saveError": "فشل حفظ القيد"
+    "saveError": "فشل حفظ القيد",
+    "project": "المشروع"
   },
   "inventory": {
     "title": "المخزون",
@@ -579,6 +580,8 @@
     "totalNet": "صافي الإجمالي",
     "approve": "اعتماد",
     "markPaid": "تسجيل كمدفوع",
+    "viewLines": "عرض البنود",
+    "noPayroll": "لا توجد مسيرات رواتب بعد",
     "emptyChart": "لا توجد حسابات — سيتم إنشاؤها تلقائياً عند التسجيل",
     "parentAccount": "الحساب الأب",
     "openingBalance": "الرصيد الافتتاحي"
