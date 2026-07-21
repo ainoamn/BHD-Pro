@@ -443,6 +443,22 @@ class ApiClient {
     return this.get('/reports/contact-statement', { params: { contactId } });
   }
 
+  getSalesSummary() {
+    return this.get('/reports/sales-summary');
+  }
+
+  getPurchaseSummary() {
+    return this.get('/reports/purchase-summary');
+  }
+
+  getVatSummary() {
+    return this.get('/reports/vat-summary');
+  }
+
+  getGeneralLedger(accountId?: string) {
+    return this.get('/reports/general-ledger', { params: accountId ? { accountId } : {} });
+  }
+
   getPaymentVouchers(type?: 'SALES' | 'PURCHASE') {
     return this.get('/invoices/payments/list', { params: type ? { type } : {} });
   }

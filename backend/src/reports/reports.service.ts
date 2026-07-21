@@ -414,4 +414,189 @@ export class ReportsService {
       currency: 'OMR',
     };
   }
+
+  async salesSummary(companyId: string) {
+    const base = this.notCancelled(companyId);
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+
+    const invoices = await this.prisma.invoice.findMany({
+      where: { ...base, type: InvoiceType.SALES },
+      select: {
+        total: true,
+        taxAmount: true,
+        date: true,
+        status: true,
+        paymentStatus: true,
+        contact: { select: { id: true, name: true } },
+      },
+    });
+
+    const thisMonth = invoices.filter((i) => i.date >= monthStart);
+    const lastMonth = invoices.filter(
+      (i) => i.date >= lastMonthStart && i.date <= lastMonthEnd,
+    );
+
+    const sum = (rows: typeof invoices) =>
+      rows.reduce((s, i) => s + Number(i.total), 0);
+
+    const byCustomer = new Map<string, { name: string; total: number; count: number }>();
+    for (const inv of invoices) {
+      const id = inv.contact.id;
+      if (!byCustomer.has(id)) {
+        byCustomer.set(id, { name: inv.contact.name, total: 0, count: 0 });
+      }
+      const row = byCustomer.get(id)!;
+      row.total += Number(inv.total);
+      row.count += 1;
+    }
+
+    const monthlyMap = new Map<string, number>();
+    for (let m = 5; m >= 0; m--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - m, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      monthlyMap.set(key, 0);
+    }
+    for (const inv of invoices) {
+      const key = `${inv.date.getFullYear()}-${String(inv.date.getMonth() + 1).padStart(2, '0')}`;
+      if (monthlyMap.has(key)) {
+        monthlyMap.set(key, (monthlyMap.get(key) || 0) + Number(inv.total));
+      }
+    }
+
+    return {
+      invoiceCount: invoices.length,
+      totalRevenue: sum(invoices),
+      thisMonth: sum(thisMonth),
+      lastMonth: sum(lastMonth),
+      unpaid: invoices
+        .filter((i) => i.paymentStatus === 'UNPAID' || i.paymentStatus === 'PARTIAL')
+        .reduce((s, i) => s + Number(i.total), 0),
+      topCustomers: Array.from(byCustomer.entries())
+        .map(([contactId, v]) => ({ contactId, ...v }))
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 10),
+      monthly: Array.from(monthlyMap.entries()).map(([month, amount]) => ({ month, amount })),
+      currency: 'OMR',
+    };
+  }
+
+  async purchaseSummary(companyId: string) {
+    const base = this.notCancelled(companyId);
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+
+    const invoices = await this.prisma.invoice.findMany({
+      where: { ...base, type: InvoiceType.PURCHASE },
+      select: {
+        total: true,
+        taxAmount: true,
+        date: true,
+        paymentStatus: true,
+        contact: { select: { id: true, name: true } },
+      },
+    });
+
+    const thisMonth = invoices.filter((i) => i.date >= monthStart);
+    const lastMonth = invoices.filter(
+      (i) => i.date >= lastMonthStart && i.date <= lastMonthEnd,
+    );
+    const sum = (rows: typeof invoices) =>
+      rows.reduce((s, i) => s + Number(i.total), 0);
+
+    const bySupplier = new Map<string, { name: string; total: number; count: number }>();
+    for (const inv of invoices) {
+      const id = inv.contact.id;
+      if (!bySupplier.has(id)) {
+        bySupplier.set(id, { name: inv.contact.name, total: 0, count: 0 });
+      }
+      const row = bySupplier.get(id)!;
+      row.total += Number(inv.total);
+      row.count += 1;
+    }
+
+    return {
+      invoiceCount: invoices.length,
+      totalExpenses: sum(invoices),
+      thisMonth: sum(thisMonth),
+      lastMonth: sum(lastMonth),
+      unpaid: invoices
+        .filter((i) => i.paymentStatus === 'UNPAID' || i.paymentStatus === 'PARTIAL')
+        .reduce((s, i) => s + Number(i.total), 0),
+      topSuppliers: Array.from(bySupplier.entries())
+        .map(([contactId, v]) => ({ contactId, ...v }))
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 10),
+      currency: 'OMR',
+    };
+  }
+
+  async vatSummary(companyId: string) {
+    const base = this.notCancelled(companyId);
+
+    const [salesAgg, purchaseAgg] = await Promise.all([
+      this.prisma.invoice.aggregate({
+        where: { ...base, type: InvoiceType.SALES },
+        _sum: { taxAmount: true, total: true },
+        _count: true,
+      }),
+      this.prisma.invoice.aggregate({
+        where: { ...base, type: InvoiceType.PURCHASE },
+        _sum: { taxAmount: true, total: true },
+        _count: true,
+      }),
+    ]);
+
+    const outputVat = Number(salesAgg._sum.taxAmount || 0);
+    const inputVat = Number(purchaseAgg._sum.taxAmount || 0);
+
+    return {
+      outputVat,
+      inputVat,
+      netVat: Number((outputVat - inputVat).toFixed(3)),
+      salesInvoiceCount: salesAgg._count,
+      purchaseInvoiceCount: purchaseAgg._count,
+      salesTotal: Number(salesAgg._sum.total || 0),
+      purchaseTotal: Number(purchaseAgg._sum.total || 0),
+      currency: 'OMR',
+    };
+  }
+
+  async generalLedger(companyId: string, accountId?: string) {
+    const lines = await this.prisma.journalLine.findMany({
+      where: {
+        journal: { companyId },
+        ...(accountId ? { accountId } : {}),
+      },
+      include: {
+        account: { select: { id: true, code: true, name: true } },
+        journal: { select: { id: true, number: true, date: true, description: true, reference: true } },
+      },
+      orderBy: [{ journal: { date: 'asc' } }, { createdAt: 'asc' }],
+      take: 500,
+    });
+
+    let running = 0;
+    const entries = lines.map((line) => {
+      running += Number(line.debit) - Number(line.credit);
+      return {
+        id: line.id,
+        date: line.journal.date,
+        journalNumber: line.journal.number,
+        reference: line.journal.reference,
+        description: line.description || line.journal.description,
+        accountCode: line.account.code,
+        accountName: line.account.name,
+        debit: Number(line.debit),
+        credit: Number(line.credit),
+        balance: running,
+      };
+    });
+
+    return { entries, currency: 'OMR' };
+  }
 }

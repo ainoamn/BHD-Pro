@@ -53,7 +53,7 @@ export default function PurchasesHubPage() {
       description: t("purchaseOrdersDesc"),
     },
     {
-      href: "/reports?tab=apAging",
+      href: "/reports/financial?tab=apAging",
       icon: Globe,
       title: t("aging"),
       description: t("agingDesc"),

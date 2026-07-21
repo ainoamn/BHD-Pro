@@ -60,14 +60,21 @@ export function Sidebar() {
   const t = useTranslations("nav");
   const tApp = useTranslations("app");
   const pathname = usePathname();
-  const { sidebarCollapsed, toggleSidebarCollapse } = useUIStore();
+  const { sidebarCollapsed, sidebarOpen, toggleSidebarCollapse, setSidebarOpen } = useUIStore();
   const { user } = useAuthStore();
+
+  const closeMobile = () => {
+    if (typeof window !== "undefined" && window.innerWidth < 1024) {
+      setSidebarOpen(false);
+    }
+  };
 
   return (
     <aside
       className={cn(
         "fixed right-0 top-0 h-screen bg-slate-900/95 backdrop-blur-xl border-l border-slate-800/50 z-50 transition-all duration-300 ease-in-out flex flex-col",
-        sidebarCollapsed ? "w-20" : "w-72"
+        sidebarCollapsed ? "w-20 lg:w-20" : "w-72",
+        sidebarOpen ? "translate-x-0" : "translate-x-full lg:translate-x-0"
       )}
     >
       <div className="flex items-center gap-3 px-5 py-6 border-b border-slate-800/50 shrink-0">
@@ -90,6 +97,7 @@ export function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
+              onClick={closeMobile}
               className={cn(
                 "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group relative",
                 isActive
@@ -114,6 +122,7 @@ export function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
+              onClick={closeMobile}
               className={cn(
                 "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200",
                 isActive
@@ -148,7 +157,7 @@ export function Sidebar() {
 
       <button
         onClick={toggleSidebarCollapse}
-        className="absolute -left-3 top-20 w-6 h-6 bg-slate-800 border border-slate-700 rounded-full flex items-center justify-center text-slate-400 hover:text-white transition-colors"
+        className="hidden lg:flex absolute -left-3 top-20 w-6 h-6 bg-slate-800 border border-slate-700 rounded-full items-center justify-center text-slate-400 hover:text-white transition-colors"
       >
         {sidebarCollapsed ? <ChevronLeft className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
       </button>

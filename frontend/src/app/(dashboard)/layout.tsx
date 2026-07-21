@@ -17,7 +17,7 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { sidebarCollapsed } = useUIStore();
+  const { sidebarCollapsed, sidebarOpen, setSidebarOpen } = useUIStore();
   const { isAuthenticated, isLoading, setCompany } = useAuthStore();
   const router = useRouter();
   const [hydrated, setHydrated] = useState(false);
@@ -72,15 +72,23 @@ export default function DashboardLayout({
 
   return (
     <div className="min-h-screen bg-slate-950">
+      {sidebarOpen && (
+        <button
+          type="button"
+          aria-label="Close menu"
+          className="fixed inset-0 bg-black/60 z-40 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
       <Sidebar />
       <div
         className={cn(
-          "transition-all duration-300",
-          sidebarCollapsed ? "mr-20" : "mr-72"
+          "transition-all duration-300 mr-0",
+          sidebarCollapsed ? "lg:mr-20" : "lg:mr-72"
         )}
       >
         <Topbar />
-        <main className="p-6">{children}</main>
+        <main className="p-4 sm:p-6">{children}</main>
       </div>
       <AIChatWidget />
       <CommandPalette />

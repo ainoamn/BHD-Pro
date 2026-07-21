@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { Search, Bell, Moon, Sun, Building2, ChevronDown, Globe, LogOut } from "lucide-react";
+import { Search, Bell, Moon, Sun, Building2, ChevronDown, Globe, LogOut, Menu } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -15,7 +15,7 @@ export function Topbar() {
   const t = useTranslations("common");
   const tAuth = useTranslations("auth");
   const { theme, setTheme } = useTheme();
-  const { setCommandPaletteOpen } = useUIStore();
+  const { setCommandPaletteOpen, toggleSidebar } = useUIStore();
   const { company, logout } = useAuthStore();
   const { locale, setLocale } = useLocaleStore();
   const router = useRouter();
@@ -32,12 +32,20 @@ export function Topbar() {
   };
 
   return (
-    <header className="sticky top-0 z-40 h-16 bg-slate-900/80 backdrop-blur-xl border-b border-slate-800/50 flex items-center justify-between px-6">
-      <div className="flex items-center gap-4">
+    <header className="sticky top-0 z-40 h-14 sm:h-16 bg-slate-900/80 backdrop-blur-xl border-b border-slate-800/50 flex items-center justify-between px-3 sm:px-6 gap-2">
+      <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
+        <button
+          type="button"
+          onClick={toggleSidebar}
+          className="lg:hidden w-9 h-9 flex items-center justify-center rounded-lg bg-slate-800/50 border border-slate-700/50 text-slate-300 shrink-0"
+          aria-label="Menu"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
         <div
           className={cn(
-            "relative flex items-center transition-all duration-300",
-            searchFocused ? "w-80" : "w-64"
+            "relative hidden sm:flex items-center transition-all duration-300 min-w-0",
+            searchFocused ? "w-full max-w-xs lg:max-w-sm" : "w-48 lg:w-64"
           )}
         >
           <Search className="absolute right-3 w-4 h-4 text-slate-500" />
@@ -56,7 +64,7 @@ export function Topbar() {
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
         {/* Language Switcher */}
         <div className="relative">
           <button
@@ -96,10 +104,10 @@ export function Topbar() {
           <span className="absolute top-1.5 left-1.5 w-2 h-2 bg-rose-500 rounded-full animate-pulse" />
         </button>
 
-        <button className="flex items-center gap-2 px-3 py-1.5 bg-slate-800/50 border border-slate-700/50 rounded-lg hover:bg-slate-700/50 transition-all">
-          <Building2 className="w-4 h-4 text-emerald-400" />
-          <span className="text-sm text-white font-medium">{company?.name || "—"}</span>
-          <ChevronDown className="w-3 h-3 text-slate-500" />
+        <button className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-slate-800/50 border border-slate-700/50 rounded-lg hover:bg-slate-700/50 transition-all max-w-[140px] lg:max-w-none">
+          <Building2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span className="text-sm text-white font-medium truncate">{company?.name || "—"}</span>
+          <ChevronDown className="w-3 h-3 text-slate-500 shrink-0" />
         </button>
 
         <button

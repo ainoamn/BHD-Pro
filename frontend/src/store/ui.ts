@@ -9,6 +9,7 @@ interface UIState {
   notifications: Notification[];
 
   toggleSidebar: () => void;
+  setSidebarOpen: (open: boolean) => void;
   toggleSidebarCollapse: () => void;
   setTheme: (theme: 'dark' | 'light') => void;
   toggleTheme: () => void;
@@ -28,7 +29,7 @@ interface Notification {
 }
 
 export const useUIStore = create<UIState>((set) => ({
-  sidebarOpen: true,
+  sidebarOpen: false,
   sidebarCollapsed: false,
   theme: 'dark',
   commandPaletteOpen: false,
@@ -36,6 +37,7 @@ export const useUIStore = create<UIState>((set) => ({
   notifications: [],
 
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
+  setSidebarOpen: (open) => set({ sidebarOpen: open }),
   toggleSidebarCollapse: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
   setTheme: (theme) => set({ theme }),
   toggleTheme: () => set((state) => ({ theme: state.theme === 'dark' ? 'light' : 'dark' })),

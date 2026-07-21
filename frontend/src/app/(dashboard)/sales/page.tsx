@@ -60,7 +60,7 @@ export default function SalesHubPage() {
       description: t("cashInvoicesDesc"),
     },
     {
-      href: "/reports?tab=arAging",
+      href: "/reports/financial?tab=arAging",
       icon: Globe,
       title: t("aging"),
       description: t("agingDesc"),

@@ -53,4 +53,32 @@ export class ReportsController {
   ) {
     return this.reportsService.contactStatement(user.companyId, contactId);
   }
+
+  @Get('sales-summary')
+  @ApiOperation({ summary: 'Sales revenue summary and top customers' })
+  salesSummary(@CurrentUser() user: TokenPayload) {
+    return this.reportsService.salesSummary(user.companyId);
+  }
+
+  @Get('purchase-summary')
+  @ApiOperation({ summary: 'Purchase expense summary and top suppliers' })
+  purchaseSummary(@CurrentUser() user: TokenPayload) {
+    return this.reportsService.purchaseSummary(user.companyId);
+  }
+
+  @Get('vat-summary')
+  @ApiOperation({ summary: 'VAT output / input / net summary' })
+  vatSummary(@CurrentUser() user: TokenPayload) {
+    return this.reportsService.vatSummary(user.companyId);
+  }
+
+  @Get('general-ledger')
+  @ApiOperation({ summary: 'General ledger journal lines' })
+  @ApiQuery({ name: 'accountId', required: false })
+  generalLedger(
+    @CurrentUser() user: TokenPayload,
+    @Query('accountId') accountId?: string,
+  ) {
+    return this.reportsService.generalLedger(user.companyId, accountId);
+  }
 }
