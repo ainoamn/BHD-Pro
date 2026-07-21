@@ -9,15 +9,36 @@ import {
   Trash2,
   Receipt,
   Mail,
+  Undo2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export function canEditInvoice(status: string) {
-  return !["PAID", "CANCELLED"].includes(status);
+export function canEditInvoice(
+  status: string,
+  paidAmount?: number,
+  paymentStatus?: string
+) {
+  if (["PAID", "CANCELLED"].includes(status)) return false;
+  if (paymentStatus === "PAID" || paymentStatus === "PARTIAL") return false;
+  if (paidAmount != null && Number(paidAmount) > 0) return false;
+  return true;
 }
 
-export function canDeleteInvoice(status: string) {
-  return !["PAID", "CANCELLED"].includes(status);
+export function canUnsendInvoice(status: string, paidAmount?: number) {
+  if (["DRAFT", "CANCELLED", "PAID"].includes(status)) return false;
+  if (paidAmount != null && Number(paidAmount) > 0) return false;
+  return ["SENT", "VIEWED", "OVERDUE"].includes(status);
+}
+
+export function canReversePayment(paidAmount?: number, paymentStatus?: string) {
+  if (paidAmount != null && Number(paidAmount) > 0) return true;
+  return paymentStatus === "PARTIAL" || paymentStatus === "PAID";
+}
+
+export function canDeleteInvoice(status: string, paidAmount?: number) {
+  if (["PAID", "CANCELLED"].includes(status)) return false;
+  if (paidAmount != null && Number(paidAmount) > 0) return false;
+  return true;
 }
 
 export function canMarkPaid(status: string, paymentStatus?: string) {
@@ -40,11 +61,14 @@ export function canShowReceipt(status: string) {
 interface InvoiceActionsProps {
   status: string;
   paymentStatus?: string;
+  paidAmount?: number;
   onView?: () => void;
   onEdit?: () => void;
   onSend?: () => void;
   onMarkSent?: () => void;
   onMarkPaid?: () => void;
+  onUnsend?: () => void;
+  onReversePayment?: () => void;
   onCancel?: () => void;
   onDelete?: () => void;
   onReceipt?: () => void;
@@ -85,11 +109,14 @@ function ActionBtn({
 export function InvoiceActions({
   status,
   paymentStatus,
+  paidAmount,
   onView,
   onEdit,
   onSend,
   onMarkSent,
   onMarkPaid,
+  onUnsend,
+  onReversePayment,
   onCancel,
   onDelete,
   onReceipt,
@@ -116,12 +143,30 @@ export function InvoiceActions({
           disabled={disabled}
         />
       )}
-      {canEditInvoice(status) && (
+      {canEditInvoice(status, paidAmount, paymentStatus) && (
         <ActionBtn
           onClick={onEdit}
           label={tCommon("edit")}
           icon={Edit}
           className="bg-slate-800 text-slate-200 hover:bg-slate-700"
+          disabled={disabled}
+        />
+      )}
+      {canUnsendInvoice(status, paidAmount) && (
+        <ActionBtn
+          onClick={onUnsend}
+          label={t("undoSend")}
+          icon={Undo2}
+          className="bg-amber-600/20 text-amber-400 hover:bg-amber-600/30"
+          disabled={disabled}
+        />
+      )}
+      {canReversePayment(paidAmount, paymentStatus) && (
+        <ActionBtn
+          onClick={onReversePayment}
+          label={t("reversePayment")}
+          icon={Undo2}
+          className="bg-rose-600/20 text-rose-400 hover:bg-rose-600/30"
           disabled={disabled}
         />
       )}
@@ -161,7 +206,7 @@ export function InvoiceActions({
           disabled={disabled}
         />
       )}
-      {canDeleteInvoice(status) && (
+      {canDeleteInvoice(status, paidAmount) && (
         <ActionBtn
           onClick={onDelete}
           label={tCommon("delete")}

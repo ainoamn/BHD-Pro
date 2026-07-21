@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import { useTranslations } from "next-intl";
-import { X, Printer, Download, Mail, MessageCircle, CheckCircle, Ban, Edit, Send, Receipt } from "lucide-react";
+import { X, Printer, Download, Mail, MessageCircle, CheckCircle, Ban, Edit, Send, Receipt, Undo2 } from "lucide-react";
 import toast from "react-hot-toast";
 import { formatMoney, formatDate } from "@/lib/utils";
 import { buildInvoiceEmailBody, buildWhatsAppLink } from "@/lib/invoice-share";
@@ -20,6 +20,8 @@ export interface InvoiceDocumentData {
   taxAmount: number;
   total: number;
   status: string;
+  paidAmount?: number;
+  paymentStatus?: string;
   notes?: string;
   contact: {
     id: string;
@@ -61,6 +63,8 @@ interface InvoiceDocumentProps {
   onCancel?: () => void;
   onEdit?: () => void;
   onMarkSent?: () => void;
+  onUnsend?: () => void;
+  onReversePayment?: () => void;
   onViewReceipt?: () => void;
   onViewInvoice?: () => void;
   actionsDisabled?: boolean;
@@ -77,6 +81,8 @@ export function InvoiceDocument({
   onCancel,
   onEdit,
   onMarkSent,
+  onUnsend,
+  onReversePayment,
   onViewReceipt,
   onViewInvoice,
   actionsDisabled,
@@ -159,9 +165,17 @@ export function InvoiceDocument({
   };
 
   const isSales = invoice.type === "SALES";
+  const hasPayments =
+    Number(invoice.paidAmount || 0) > 0 ||
+    invoice.paymentStatus === "PARTIAL" ||
+    invoice.paymentStatus === "PAID";
+  const canUnsend =
+    onUnsend &&
+    ["SENT", "VIEWED", "OVERDUE"].includes(invoice.status) &&
+    !hasPayments;
   const showWorkflowActions =
     !isReceipt &&
-    (onMarkPaid || onCancel || onEdit || onMarkSent || onViewReceipt);
+    (onMarkPaid || onCancel || onEdit || onMarkSent || onViewReceipt || onUnsend || onReversePayment);
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-6 bg-black/70 backdrop-blur-sm p-4 overflow-y-auto">
@@ -178,6 +192,16 @@ export function InvoiceDocument({
                 className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-slate-800 text-slate-200 rounded-lg hover:bg-slate-700 disabled:opacity-40"
               >
                 {t("invoiceDoc")}
+              </button>
+            )}
+            {isReceipt && onReversePayment && hasPayments && (
+              <button
+                onClick={onReversePayment}
+                disabled={actionsDisabled}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-amber-600 text-white rounded-lg hover:bg-amber-500 disabled:opacity-40"
+              >
+                <Undo2 className="w-4 h-4" />
+                {t("reversePayment")}
               </button>
             )}
             {!isReceipt && invoice.status === "PAID" && onViewReceipt && (
@@ -233,7 +257,10 @@ export function InvoiceDocument({
 
         {showWorkflowActions && (
           <div className="flex flex-wrap gap-2 px-4 py-3 border-b border-slate-800 bg-slate-900/80">
-            {onEdit && invoice.status !== "PAID" && invoice.status !== "CANCELLED" && (
+            {onEdit &&
+              invoice.status !== "PAID" &&
+              invoice.status !== "CANCELLED" &&
+              !hasPayments && (
               <button
                 type="button"
                 onClick={onEdit}
@@ -242,6 +269,28 @@ export function InvoiceDocument({
               >
                 <Edit className="w-4 h-4" />
                 {tCommon("edit")}
+              </button>
+            )}
+            {canUnsend && (
+              <button
+                type="button"
+                onClick={onUnsend}
+                disabled={actionsDisabled}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-amber-600/20 text-amber-300 hover:bg-amber-600/30 disabled:opacity-40"
+              >
+                <Undo2 className="w-4 h-4" />
+                {t("undoSend")}
+              </button>
+            )}
+            {onReversePayment && hasPayments && (
+              <button
+                type="button"
+                onClick={onReversePayment}
+                disabled={actionsDisabled}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-rose-600/20 text-rose-300 hover:bg-rose-600/30 disabled:opacity-40"
+              >
+                <Undo2 className="w-4 h-4" />
+                {t("reversePayment")}
               </button>
             )}
             {onMarkSent && invoice.status === "DRAFT" && (

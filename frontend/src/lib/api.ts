@@ -178,6 +178,28 @@ class ApiClient {
     return this.post(`/invoices/${id}/payments`, data);
   }
 
+  recordBatchInvoicePayment(data: {
+    method: string;
+    date?: string;
+    reference?: string;
+    notes?: string;
+    allocations: { invoiceId: string; amount: number }[];
+  }) {
+    return this.post('/invoices/payments/batch', data);
+  }
+
+  unsendInvoice(id: string) {
+    return this.post(`/invoices/${id}/unsend`);
+  }
+
+  reverseInvoicePayment(invoiceId: string, paymentId: string) {
+    return this.delete(`/invoices/${invoiceId}/payments/${paymentId}`);
+  }
+
+  reverseAllInvoicePayments(invoiceId: string) {
+    return this.post(`/invoices/${invoiceId}/payments/reverse-all`);
+  }
+
   // Contacts
   getContacts(type?: string) {
     return this.get('/contacts', { params: type ? { type } : {} });

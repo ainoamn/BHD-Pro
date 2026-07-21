@@ -9,6 +9,7 @@ import { CreateInvoiceDto } from './dto/create-invoice.dto';
 import { UpdateInvoiceDto } from './dto/update-invoice.dto';
 import { InvoiceStatus, PaymentStatus, InvoiceType, PaymentMethod } from '@prisma/client';
 import { RecordPaymentDto } from './dto/record-payment.dto';
+import { BatchRecordPaymentDto } from './dto/batch-record-payment.dto';
 
 const OMAN_VAT_RATE = 5;
 
@@ -58,7 +59,7 @@ export class InvoicesService {
     });
   }
 
-  async findOne(companyId: string, id: string) {
+  private async loadInvoice(companyId: string, id: string) {
     const invoice = await this.prisma.invoice.findFirst({
       where: { id, companyId },
       include: {
@@ -70,6 +71,11 @@ export class InvoicesService {
     });
     if (!invoice) throw new NotFoundException('Invoice not found');
     return invoice;
+  }
+
+  async findOne(companyId: string, id: string) {
+    const invoice = await this.loadInvoice(companyId, id);
+    return this.repairMissingPayments(companyId, invoice);
   }
 
   async create(companyId: string, userId: string, dto: CreateInvoiceDto) {
@@ -140,6 +146,11 @@ export class InvoicesService {
       existing.status === InvoiceStatus.CANCELLED
     ) {
       throw new ForbiddenException('Cannot edit paid or cancelled invoice');
+    }
+    if (Number(existing.paidAmount) > 0 || existing.payments.length > 0) {
+      throw new ForbiddenException(
+        'Cannot edit invoice with recorded payments — reverse the receipt first',
+      );
     }
 
     if (dto.items) {
@@ -256,36 +267,37 @@ export class InvoicesService {
       },
       select: { id: true, total: true },
     });
-    await Promise.all(
-      stale.map((inv) =>
-        this.prisma.invoice.update({
-          where: { id: inv.id },
-          data: { paymentStatus: PaymentStatus.PAID, paidAmount: inv.total },
-        }),
-      ),
-    );
+    await Promise.all(stale.map((inv) => this.syncPaidInvoiceRow(companyId, inv)));
   }
 
-  async recordPayment(companyId: string, id: string, dto: RecordPaymentDto) {
-    const invoice = await this.findOne(companyId, id);
-
+  private async applyPayment(
+    invoice: Awaited<ReturnType<InvoicesService['findOne']>>,
+    amount: number,
+    meta: {
+      method: PaymentMethod;
+      date?: string;
+      reference?: string;
+      notes?: string;
+    },
+  ) {
     if (invoice.status === InvoiceStatus.CANCELLED) {
-      throw new BadRequestException('Cannot record payment on cancelled invoice');
+      throw new BadRequestException(`Cannot record payment on cancelled invoice ${invoice.number}`);
     }
     if (invoice.paymentStatus === PaymentStatus.PAID) {
-      throw new BadRequestException('Invoice is already fully paid');
+      throw new BadRequestException(`Invoice ${invoice.number} is already fully paid`);
     }
 
     const total = Number(invoice.total);
     const alreadyPaid = Number(invoice.paidAmount);
     const remaining = Number((total - alreadyPaid).toFixed(3));
-    const amount = dto.amount != null ? Number(dto.amount) : remaining;
 
     if (amount <= 0) {
       throw new BadRequestException('Payment amount must be greater than zero');
     }
     if (amount > remaining + 0.001) {
-      throw new BadRequestException(`Amount exceeds remaining balance (${remaining})`);
+      throw new BadRequestException(
+        `Amount ${amount} exceeds remaining balance (${remaining}) for invoice ${invoice.number}`,
+      );
     }
 
     const newPaid = Number((alreadyPaid + amount).toFixed(3));
@@ -296,22 +308,227 @@ export class InvoicesService {
 
     await this.prisma.payment.create({
       data: {
-        invoiceId: id,
+        invoiceId: invoice.id,
         amount,
-        method: dto.method,
-        reference: dto.reference || null,
-        notes: dto.notes || null,
-        date: dto.date ? new Date(dto.date) : new Date(),
+        method: meta.method,
+        reference: meta.reference || null,
+        notes: meta.notes || null,
+        date: meta.date ? new Date(meta.date) : new Date(),
       },
     });
 
     return this.prisma.invoice.update({
-      where: { id },
+      where: { id: invoice.id },
       data: {
         paidAmount: newPaid,
         paymentStatus,
         status,
       },
+      include: { contact: true, items: true, payments: true },
+    });
+  }
+
+  async recordPayment(companyId: string, id: string, dto: RecordPaymentDto) {
+    const invoice = await this.findOne(companyId, id);
+    const total = Number(invoice.total);
+    const alreadyPaid = Number(invoice.paidAmount);
+    const remaining = Number((total - alreadyPaid).toFixed(3));
+    const amount = dto.amount != null ? Number(dto.amount) : remaining;
+
+    return this.applyPayment(invoice, amount, {
+      method: dto.method,
+      date: dto.date,
+      reference: dto.reference,
+      notes: dto.notes,
+    });
+  }
+
+  async recordBatchPayment(companyId: string, dto: BatchRecordPaymentDto) {
+    const allocations = dto.allocations.map((a) => ({
+      invoiceId: a.invoiceId,
+      amount: Number(a.amount),
+    }));
+
+    const seen = new Set<string>();
+    for (const row of allocations) {
+      if (seen.has(row.invoiceId)) {
+        throw new BadRequestException('Duplicate invoice in payment allocations');
+      }
+      seen.add(row.invoiceId);
+    }
+
+    const invoices = await Promise.all(
+      allocations.map((a) => this.findOne(companyId, a.invoiceId)),
+    );
+
+    return this.prisma.$transaction(async () => {
+      const updated: Awaited<ReturnType<InvoicesService['applyPayment']>>[] = [];
+      for (let i = 0; i < allocations.length; i++) {
+        const result = await this.applyPayment(invoices[i], allocations[i].amount, {
+          method: dto.method,
+          date: dto.date,
+          reference: dto.reference,
+          notes: dto.notes,
+        });
+        updated.push(result);
+      }
+      return {
+        totalAmount: Number(
+          allocations.reduce((sum, row) => sum + row.amount, 0).toFixed(3),
+        ),
+        invoices: updated,
+      };
+    });
+  }
+
+  private recalcAfterPayments(
+    invoice: { total: unknown; status: InvoiceStatus; type?: InvoiceType },
+    paidAmount: number,
+  ): { paidAmount: number; paymentStatus: PaymentStatus; status: InvoiceStatus } {
+    const total = Number(invoice.total);
+    const paid = Number(paidAmount.toFixed(3));
+
+    let paymentStatus: PaymentStatus;
+    if (paid <= 0.0005) paymentStatus = PaymentStatus.UNPAID;
+    else if (paid >= total - 0.001) paymentStatus = PaymentStatus.PAID;
+    else paymentStatus = PaymentStatus.PARTIAL;
+
+    let status = invoice.status;
+    if (paymentStatus === PaymentStatus.PAID) {
+      status = InvoiceStatus.PAID;
+    } else if (invoice.status === InvoiceStatus.PAID) {
+      status =
+        invoice.type === InvoiceType.PURCHASE
+          ? InvoiceStatus.DRAFT
+          : InvoiceStatus.SENT;
+    }
+
+    return { paidAmount: paid, paymentStatus, status };
+  }
+
+  /** Invoices marked paid without Payment rows (legacy sync) */
+  private async repairMissingPayments(
+    companyId: string,
+    invoice: Awaited<ReturnType<InvoicesService['loadInvoice']>>,
+  ) {
+    const paid = Number(invoice.paidAmount);
+    if (paid <= 0.0005 || invoice.payments.length > 0) {
+      return invoice;
+    }
+
+    await this.prisma.payment.create({
+      data: {
+        invoiceId: invoice.id,
+        amount: paid,
+        method: PaymentMethod.OTHER,
+        date: invoice.updatedAt || new Date(),
+        notes: 'Legacy payment (auto-repaired)',
+      },
+    });
+
+    return this.loadInvoice(companyId, invoice.id);
+  }
+
+  private async syncPaidInvoiceRow(
+    companyId: string,
+    inv: { id: string; total: unknown },
+  ) {
+    const count = await this.prisma.payment.count({ where: { invoiceId: inv.id } });
+    if (count === 0) {
+      await this.prisma.payment.create({
+        data: {
+          invoiceId: inv.id,
+          amount: Number(inv.total),
+          method: PaymentMethod.OTHER,
+          date: new Date(),
+          notes: 'Marked as paid',
+        },
+      });
+    }
+    await this.prisma.invoice.update({
+      where: { id: inv.id },
+      data: { paymentStatus: PaymentStatus.PAID, paidAmount: Number(inv.total) },
+    });
+  }
+
+  async unsend(companyId: string, id: string) {
+    const invoice = await this.findOne(companyId, id);
+
+    if (invoice.status === InvoiceStatus.CANCELLED) {
+      throw new BadRequestException('Cannot revert cancelled invoice');
+    }
+    if (invoice.status === InvoiceStatus.DRAFT) {
+      throw new BadRequestException('Invoice is already a draft');
+    }
+    if (Number(invoice.paidAmount) > 0 || invoice.payments.length > 0) {
+      throw new BadRequestException(
+        'Cannot revert send while payments exist — reverse the receipt first',
+      );
+    }
+    if (invoice.status === InvoiceStatus.PAID) {
+      throw new BadRequestException('Cannot revert paid invoice');
+    }
+
+    return this.prisma.invoice.update({
+      where: { id },
+      data: { status: InvoiceStatus.DRAFT },
+      include: { contact: true, items: true, payments: true },
+    });
+  }
+
+  async reversePayment(companyId: string, invoiceId: string, paymentId: string) {
+    const invoice = await this.findOne(companyId, invoiceId);
+
+    if (invoice.status === InvoiceStatus.CANCELLED) {
+      throw new BadRequestException('Cannot reverse payment on cancelled invoice');
+    }
+
+    const payment = invoice.payments.find((p) => p.id === paymentId);
+    if (!payment) {
+      throw new NotFoundException('Payment not found on this invoice');
+    }
+
+    await this.prisma.payment.delete({ where: { id: paymentId } });
+
+    const remaining = await this.prisma.payment.findMany({
+      where: { invoiceId },
+      orderBy: { date: 'asc' },
+    });
+    const paidAmount = Number(
+      remaining.reduce((sum, p) => sum + Number(p.amount), 0).toFixed(3),
+    );
+    const next = this.recalcAfterPayments(invoice, paidAmount);
+
+    return this.prisma.invoice.update({
+      where: { id: invoiceId },
+      data: next,
+      include: { contact: true, items: true, payments: true },
+    });
+  }
+
+  async reverseAllPayments(companyId: string, invoiceId: string) {
+    let invoice = await this.findOne(companyId, invoiceId);
+
+    if (invoice.status === InvoiceStatus.CANCELLED) {
+      throw new BadRequestException('Cannot reverse payments on cancelled invoice');
+    }
+
+    const hasPaidAmount = Number(invoice.paidAmount) > 0.0005;
+    const hasPayments = invoice.payments.length > 0;
+
+    if (!hasPaidAmount && !hasPayments) {
+      throw new BadRequestException('No payments to reverse');
+    }
+
+    if (hasPayments) {
+      await this.prisma.payment.deleteMany({ where: { invoiceId } });
+    }
+
+    const next = this.recalcAfterPayments(invoice, 0);
+
+    return this.prisma.invoice.update({
+      where: { id: invoiceId },
+      data: next,
       include: { contact: true, items: true, payments: true },
     });
   }

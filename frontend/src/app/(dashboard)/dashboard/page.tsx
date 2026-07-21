@@ -59,7 +59,9 @@ export default function DashboardPage() {
         paidAmount: number;
         status: string;
         paymentStatus: string;
-        contact?: { name: string };
+        date: string;
+        dueDate?: string;
+        contact?: { id: string; name: string };
       }[];
     },
     enabled: collectOpen,
@@ -109,10 +111,10 @@ export default function DashboardPage() {
         invoices={invoices
           .filter((i) => i.type === "SALES")
           .map((i) => ({
-          ...i,
-          total: Number(i.total),
-          paidAmount: Number(i.paidAmount || 0),
-        }))}
+            ...i,
+            total: Number(i.total),
+            paidAmount: Number(i.paidAmount || 0),
+          }))}
         currency={currency}
         onClose={() => setCollectOpen(false)}
       />

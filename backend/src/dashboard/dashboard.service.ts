@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { InvoiceStatus, PaymentStatus } from '@prisma/client';
+import { InvoiceStatus, PaymentStatus, PaymentMethod } from '@prisma/client';
 
 @Injectable()
 export class DashboardService {
@@ -20,12 +20,24 @@ export class DashboardService {
       select: { id: true, total: true },
     });
     await Promise.all(
-      stalePaid.map((inv) =>
-        this.prisma.invoice.update({
+      stalePaid.map(async (inv) => {
+        const count = await this.prisma.payment.count({ where: { invoiceId: inv.id } });
+        if (count === 0) {
+          await this.prisma.payment.create({
+            data: {
+              invoiceId: inv.id,
+              amount: inv.total,
+              method: PaymentMethod.OTHER,
+              date: new Date(),
+              notes: 'Marked as paid',
+            },
+          });
+        }
+        await this.prisma.invoice.update({
           where: { id: inv.id },
           data: { paymentStatus: PaymentStatus.PAID, paidAmount: inv.total },
-        }),
-      ),
+        });
+      }),
     );
 
     const notCancelled = { companyId, status: { not: InvoiceStatus.CANCELLED as InvoiceStatus } };

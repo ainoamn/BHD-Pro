@@ -29,6 +29,7 @@ import {
   canEditInvoice,
 } from "@/components/invoices/invoice-actions";
 import { RecordPaymentModal } from "@/components/invoices/record-payment-modal";
+import { ReversePaymentModal } from "@/components/invoices/reverse-payment-modal";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import {
   AccountingHubTabs,
@@ -138,6 +139,7 @@ export function AccountingModule() {
   const [quickCustomerName, setQuickCustomerName] = useState("");
   const [collectOpen, setCollectOpen] = useState(false);
   const [collectInvoiceId, setCollectInvoiceId] = useState<string | undefined>();
+  const [reversePaymentInvoice, setReversePaymentInvoice] = useState<Invoice | null>(null);
   const [statusFilter, setStatusFilter] = useState("");
   const [paymentFilter, setPaymentFilter] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -244,8 +246,10 @@ export function AccountingModule() {
   };
 
   const openEdit = (inv: Invoice) => {
-    if (!canEditInvoice(inv.status)) {
-      toast.error(t("cannotEditPaid"));
+    if (!canEditInvoice(inv.status, Number(inv.paidAmount || 0), inv.paymentStatus)) {
+      toast.error(
+        Number(inv.paidAmount || 0) > 0 ? t("cannotEditWithPayments") : t("cannotEditPaid")
+      );
       return;
     }
     setEditingId(inv.id);
@@ -463,8 +467,31 @@ export function AccountingModule() {
     onError: () => toast.error(t("sendError")),
   });
 
+  const unsendMutation = useMutation({
+    mutationFn: (id: string) => api.unsendInvoice(id),
+    onSuccess: () => {
+      invalidateInvoiceQueries();
+      toast.success(t("undoSendSuccess"));
+    },
+    onError: (err: unknown) => {
+      const axiosErr = err as { response?: { data?: { message?: string } } };
+      toast.error(axiosErr?.response?.data?.message || t("actionError"));
+    },
+  });
+
+  const handleUnsend = (id: string) => {
+    if (confirm(t("undoSendConfirm"))) unsendMutation.mutate(id);
+  };
+
+  const handleOpenReversePayment = (inv: Invoice) => {
+    setReversePaymentInvoice(inv);
+  };
+
   const actionsBusy =
-    statusMutation.isPending || sendMutation.isPending || deleteMutation.isPending;
+    statusMutation.isPending ||
+    sendMutation.isPending ||
+    deleteMutation.isPending ||
+    unsendMutation.isPending;
 
   const activeDocumentInvoice = printInvoice
     ? invoices.find((i) => i.id === printInvoice.id) ?? printInvoice
@@ -531,6 +558,8 @@ export function AccountingModule() {
 
   const toDocumentData = (inv: Invoice): InvoiceDocumentData => ({
     ...inv,
+    paidAmount: Number(inv.paidAmount || 0),
+    paymentStatus: inv.paymentStatus,
     subtotal: Number(inv.subtotal),
     discount: Number(inv.discount),
     taxRate: Number(inv.taxRate),
@@ -772,6 +801,7 @@ export function AccountingModule() {
                       <InvoiceActions
                         status={inv.status}
                         paymentStatus={inv.paymentStatus}
+                        paidAmount={Number(inv.paidAmount || 0)}
                         disabled={actionsBusy}
                         onView={() => openDocument(inv, "invoice")}
                         onReceipt={() => openDocument(inv, "receipt")}
@@ -779,6 +809,8 @@ export function AccountingModule() {
                         onSend={() => sendMutation.mutate(inv.id)}
                         onMarkSent={() => handleMarkSent(inv.id)}
                         onMarkPaid={() => handleMarkPaid(inv.id)}
+                        onUnsend={() => handleUnsend(inv.id)}
+                        onReversePayment={() => handleOpenReversePayment(inv)}
                         onCancel={() => handleCancel(inv.id)}
                         onDelete={() => handleDelete(inv.id)}
                       />
@@ -809,6 +841,8 @@ export function AccountingModule() {
           onMarkPaid={() => handleMarkPaid(activeDocumentInvoice.id)}
           onCancel={() => handleCancel(activeDocumentInvoice.id)}
           onMarkSent={() => handleMarkSent(activeDocumentInvoice.id)}
+          onUnsend={() => handleUnsend(activeDocumentInvoice.id)}
+          onReversePayment={() => handleOpenReversePayment(activeDocumentInvoice)}
           onEdit={() => {
             setPrintInvoice(null);
             openEdit(activeDocumentInvoice);
@@ -820,7 +854,13 @@ export function AccountingModule() {
 
       <RecordPaymentModal
         open={collectOpen}
-        invoices={invoices.filter((i) => i.type === "SALES").map((i) => ({
+        invoices={invoices
+          .filter((i) => {
+            if (hubTab === "sales") return i.type === "SALES";
+            if (hubTab === "purchases") return i.type === "PURCHASE";
+            return true;
+          })
+          .map((i) => ({
           id: i.id,
           number: i.number,
           type: i.type,
@@ -828,7 +868,9 @@ export function AccountingModule() {
           paidAmount: Number(i.paidAmount || 0),
           status: i.status,
           paymentStatus: i.paymentStatus,
-          contact: i.contact,
+          date: i.date,
+          dueDate: i.dueDate,
+          contact: i.contact ? { id: i.contact.id, name: i.contact.name } : undefined,
         }))}
         currency={company?.currency || "OMR"}
         defaultInvoiceId={collectInvoiceId}
@@ -838,6 +880,30 @@ export function AccountingModule() {
         }}
         onSuccess={handleCollectSuccess}
       />
+
+      {reversePaymentInvoice && (
+        <ReversePaymentModal
+          open={!!reversePaymentInvoice}
+          invoiceId={reversePaymentInvoice.id}
+          invoiceNumber={reversePaymentInvoice.number}
+          currency={company?.currency || "OMR"}
+          onClose={() => setReversePaymentInvoice(null)}
+          onSuccess={async () => {
+            invalidateInvoiceQueries();
+            if (printInvoice?.id === reversePaymentInvoice.id) {
+              try {
+                const res = await api.getInvoice(reversePaymentInvoice.id);
+                const fresh = res.data as Invoice;
+                setPrintInvoice(fresh);
+                if (Number(fresh.paidAmount || 0) <= 0) setDocumentVariant("invoice");
+              } catch {
+                setDocumentVariant("invoice");
+              }
+            }
+            setReversePaymentInvoice(null);
+          }}
+        />
+      )}
 
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-start justify-center pt-10 bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">

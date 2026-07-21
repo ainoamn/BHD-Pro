@@ -19,6 +19,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
 import { InvoiceStatus, InvoiceType } from '@prisma/client';
 import { RecordPaymentDto } from './dto/record-payment.dto';
+import { BatchRecordPaymentDto } from './dto/batch-record-payment.dto';
 
 @ApiTags('Invoices')
 @ApiBearerAuth()
@@ -72,6 +73,15 @@ export class InvoicesController {
     return this.invoicesService.updateStatus(user.companyId, id, status);
   }
 
+  @Post('payments/batch')
+  @ApiOperation({ summary: 'Record payment across multiple invoices (FIFO / manual split)' })
+  recordBatchPayment(
+    @CurrentUser() user: TokenPayload,
+    @Body() dto: BatchRecordPaymentDto,
+  ) {
+    return this.invoicesService.recordBatchPayment(user.companyId, dto);
+  }
+
   @Post(':id/payments')
   @ApiOperation({ summary: 'Record payment / receipt against invoice' })
   recordPayment(
@@ -80,6 +90,28 @@ export class InvoicesController {
     @Body() dto: RecordPaymentDto,
   ) {
     return this.invoicesService.recordPayment(user.companyId, id, dto);
+  }
+
+  @Post(':id/unsend')
+  @ApiOperation({ summary: 'Revert sent invoice back to draft (no payments recorded)' })
+  unsend(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
+    return this.invoicesService.unsend(user.companyId, id);
+  }
+
+  @Delete(':id/payments/:paymentId')
+  @ApiOperation({ summary: 'Reverse / undo a payment receipt' })
+  reversePayment(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+    @Param('paymentId') paymentId: string,
+  ) {
+    return this.invoicesService.reversePayment(user.companyId, id, paymentId);
+  }
+
+  @Post(':id/payments/reverse-all')
+  @ApiOperation({ summary: 'Reverse all payment receipts on an invoice' })
+  reverseAllPayments(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
+    return this.invoicesService.reverseAllPayments(user.companyId, id);
   }
 
   @Post(':id/send')
