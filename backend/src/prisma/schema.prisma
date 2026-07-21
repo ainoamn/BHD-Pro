@@ -63,6 +63,7 @@ model Company {
   employeeClaims EmployeeClaim[]
   documentTemplates DocumentTemplate[]
   customFieldDefinitions CustomFieldDefinition[]
+  exchangeRates ExchangeRate[]
 
   @@index([vatNumber])
   @@index([crNumber])
@@ -297,6 +298,26 @@ model CustomFieldDefinition {
   @@unique([companyId, entityType, key])
   @@index([companyId, entityType])
   @@map("custom_field_definitions")
+}
+
+model ExchangeRate {
+  id           String   @id @default(uuid())
+  companyId    String   @map("company_id")
+  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  fromCurrency String   @map("from_currency")
+  toCurrency   String   @map("to_currency")
+  rate         Decimal
+  date         DateTime @db.Date
+  notes        String?
+
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@unique([companyId, fromCurrency, toCurrency, date])
+  @@index([companyId])
+  @@index([date])
+  @@map("exchange_rates")
 }
 
 model JournalLine {

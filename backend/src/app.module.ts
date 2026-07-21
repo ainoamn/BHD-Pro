@@ -27,6 +27,7 @@ import { ApiKeysModule } from './api-keys/api-keys.module';
 import { EmployeeClaimsModule } from './employee-claims/employee-claims.module';
 import { DocumentTemplatesModule } from './document-templates/document-templates.module';
 import { CustomFieldsModule } from './custom-fields/custom-fields.module';
+import { ExchangeRatesModule } from './exchange-rates/exchange-rates.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -58,6 +59,7 @@ import { HealthController } from './health.controller';
     EmployeeClaimsModule,
     DocumentTemplatesModule,
     CustomFieldsModule,
+    ExchangeRatesModule,
   ],
   controllers: [HealthController],
 })

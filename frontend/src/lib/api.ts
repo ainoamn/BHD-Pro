@@ -604,6 +604,26 @@ class ApiClient {
     return this.delete(`/custom-fields/${id}`);
   }
 
+  getExchangeRates() {
+    return this.get('/exchange-rates');
+  }
+
+  createExchangeRate(data: unknown) {
+    return this.post('/exchange-rates', data);
+  }
+
+  updateExchangeRate(id: string, data: unknown) {
+    return this.put(`/exchange-rates/${id}`, data);
+  }
+
+  deleteExchangeRate(id: string) {
+    return this.delete(`/exchange-rates/${id}`);
+  }
+
+  convertExchangeRate(params: { from: string; to: string; amount: number; date?: string }) {
+    return this.get('/exchange-rates/convert', { params });
+  }
+
   getDeliveryNotes() {
     return this.get('/delivery-notes');
   }

@@ -48,6 +48,7 @@
     "apiKeys": "API Keys",
     "documentTemplates": "Document Templates",
     "customFields": "Custom Fields",
+    "exchangeRates": "Exchange Rates",
     "subscription": "Subscription",
     "users": "Users"
   },
@@ -556,7 +557,9 @@
     "documentTemplatesLink": "Document templates",
     "documentTemplatesLinkDesc": "Header and footer text for printed invoices and receipts",
     "customFieldsLink": "Custom fields",
-    "customFieldsLinkDesc": "Extra fields for contacts, products, and invoices"
+    "customFieldsLinkDesc": "Extra fields for contacts, products, and invoices",
+    "exchangeRatesLink": "Exchange rates",
+    "exchangeRatesLinkDesc": "Maintain FX rates and convert amounts"
   },
   "taxRates": {
     "title": "Tax Rates",
@@ -892,6 +895,19 @@
     "type_NUMBER": "Number",
     "type_DATE": "Date",
     "type_SELECT": "Select"
+  },
+  "exchangeRates": {
+    "title": "Exchange Rates",
+    "subtitle": "Maintain currency rates for future FX documents — Wafeq-style",
+    "from": "From",
+    "to": "To",
+    "rate": "Rate",
+    "date": "Date",
+    "notes": "Notes",
+    "amount": "Amount",
+    "convert": "Convert",
+    "convertTitle": "Quick convert",
+    "convertHint": "Uses the latest rate on or before the selected date (or the inverse pair)."
   },
   "purchasesHub": {
     "title": "Purchases Center",

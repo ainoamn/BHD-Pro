@@ -48,6 +48,7 @@
     "apiKeys": "مفاتيح API",
     "documentTemplates": "قوالب المستندات",
     "customFields": "حقول مخصصة",
+    "exchangeRates": "أسعار الصرف",
     "subscription": "الاشتراك",
     "users": "المستخدمين"
   },
@@ -556,7 +557,9 @@
     "documentTemplatesLink": "قوالب المستندات",
     "documentTemplatesLinkDesc": "نصوص الترويسة والتذييل لطباعة الفواتير والإيصالات",
     "customFieldsLink": "حقول مخصصة",
-    "customFieldsLinkDesc": "حقول إضافية لجهات الاتصال والمنتجات والفواتير"
+    "customFieldsLinkDesc": "حقول إضافية لجهات الاتصال والمنتجات والفواتير",
+    "exchangeRatesLink": "أسعار الصرف",
+    "exchangeRatesLinkDesc": "إدارة أسعار العملات وتحويل المبالغ"
   },
   "taxRates": {
     "title": "المعدلات الضريبية",
@@ -892,6 +895,19 @@
     "type_NUMBER": "رقم",
     "type_DATE": "تاريخ",
     "type_SELECT": "قائمة"
+  },
+  "exchangeRates": {
+    "title": "أسعار الصرف",
+    "subtitle": "إدارة أسعار العملات للمستندات متعددة العملات لاحقاً — مثل نظام وفاق",
+    "from": "من",
+    "to": "إلى",
+    "rate": "السعر",
+    "date": "التاريخ",
+    "notes": "ملاحظات",
+    "amount": "المبلغ",
+    "convert": "تحويل",
+    "convertTitle": "تحويل سريع",
+    "convertHint": "يستخدم أحدث سعر في أو قبل التاريخ المحدد (أو الزوج العكسي)."
   },
   "purchasesHub": {
     "title": "مركز المشتريات",
