@@ -217,9 +217,11 @@ npm run dev
 Frontend (اختياري `.env.local`):
 
 ```
-NEXT_PUBLIC_API_URL=http://localhost:3001/api
+NEXT_PUBLIC_API_URL=/backend-api
+BACKEND_URL=http://localhost:3001
 ```
 
+الـ proxy في Next (`/backend-api`) يمرّر الطلبات للـ API حتى تعمل **cookies httpOnly** على نفس النطاق.
 ---
 
 ## بوابات الدفع

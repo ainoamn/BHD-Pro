@@ -1,11 +1,14 @@
 import axios, { AxiosInstance, AxiosError, AxiosRequestConfig } from 'axios';
 import { useAuthStore } from '@/store/auth';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+/** Prefer same-origin Next rewrite so httpOnly cookies work on localhost + production */
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  (typeof window !== 'undefined' ? '/backend-api' : 'http://localhost:3001/api');
 
 class ApiClient {
   private client: AxiosInstance;
-  private refreshPromise: Promise<string> | null = null;
+  private refreshPromise: Promise<string | null> | null = null;
 
   constructor() {
     this.client = axios.create({
@@ -15,17 +18,18 @@ class ApiClient {
         Accept: 'application/json',
       },
       timeout: 30000,
+      withCredentials: true,
     });
 
     this.setupInterceptors();
   }
 
   private setupInterceptors() {
-    // Request interceptor
     this.client.interceptors.request.use(
       (config) => {
         const { accessToken, company } = useAuthStore.getState();
 
+        // Optional Bearer (memory) — cookies are primary for browser sessions
         if (accessToken) {
           config.headers.Authorization = `Bearer ${accessToken}`;
         }
@@ -38,19 +42,26 @@ class ApiClient {
       (error) => Promise.reject(error)
     );
 
-    // Response interceptor
     this.client.interceptors.response.use(
       (response) => response,
       async (error: AxiosError) => {
         const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean };
+        const url = originalRequest?.url || '';
+        const skipRefresh =
+          url.includes('/auth/login') ||
+          url.includes('/auth/register') ||
+          url.includes('/auth/refresh') ||
+          url.includes('/auth/logout');
 
-        if (error.response?.status === 401 && !originalRequest._retry) {
+        if (error.response?.status === 401 && !originalRequest._retry && !skipRefresh) {
           originalRequest._retry = true;
 
           try {
             const newToken = await this.refreshAccessToken();
             originalRequest.headers = originalRequest.headers || {};
-            originalRequest.headers.Authorization = `Bearer ${newToken}`;
+            if (newToken) {
+              originalRequest.headers.Authorization = `Bearer ${newToken}`;
+            }
             return this.client(originalRequest);
           } catch (refreshError) {
             useAuthStore.getState().logout();
@@ -66,19 +77,19 @@ class ApiClient {
     );
   }
 
-  private async refreshAccessToken(): Promise<string> {
+  private async refreshAccessToken(): Promise<string | null> {
     if (this.refreshPromise) {
       return this.refreshPromise;
     }
 
-    const { refreshToken } = useAuthStore.getState();
-
     this.refreshPromise = this.client
-      .post('/auth/refresh', { refreshToken })
+      .post('/auth/refresh', {})
       .then((response) => {
-        const { accessToken } = response.data;
-        useAuthStore.getState().setTokens(accessToken, refreshToken!);
-        return accessToken;
+        const { accessToken } = response.data as { accessToken?: string };
+        if (accessToken) {
+          useAuthStore.getState().setAccessToken(accessToken);
+        }
+        return accessToken || null;
       })
       .finally(() => {
         this.refreshPromise = null;
@@ -90,34 +101,68 @@ class ApiClient {
   // Auth
   async login(email: string, password: string) {
     const response = await this.client.post('/auth/login', { email, password });
-    const { user, accessToken, refreshToken } = response.data;
+    const { user, accessToken } = response.data;
     const company = user.company;
     useAuthStore.getState().login(
       { ...user, companyId: company?.id || user.companyId },
       company,
-      accessToken,
-      refreshToken
+      accessToken || null
     );
     return response.data;
   }
 
   async register(data: { name: string; email: string; password: string; companyName: string; plan?: string }) {
     const response = await this.client.post('/auth/register', data);
-    const { user, accessToken, refreshToken } = response.data;
+    const { user, accessToken } = response.data;
     const company = user.company;
     useAuthStore.getState().login(
       { ...user, companyId: company?.id || user.companyId },
       company,
-      accessToken,
-      refreshToken
+      accessToken || null
     );
     return response.data;
   }
 
   async logout() {
-    const { accessToken } = useAuthStore.getState();
-    await this.client.post('/auth/logout', { token: accessToken });
+    try {
+      await this.client.post('/auth/logout', {});
+    } catch {
+      // clear local state even if API fails
+    }
     useAuthStore.getState().logout();
+  }
+
+  async getMe() {
+    return this.get('/auth/me');
+  }
+
+  async restoreSession() {
+    try {
+      const res = await this.getMe();
+      const data = res.data as {
+        id: string;
+        name: string;
+        email: string;
+        role: string;
+        companyId: string;
+        company: import('@/types').Company;
+      };
+      useAuthStore.getState().login(
+        {
+          id: data.id,
+          name: data.name,
+          email: data.email,
+          role: data.role as never,
+          companyId: data.companyId,
+        },
+        data.company,
+        null
+      );
+      return true;
+    } catch {
+      useAuthStore.getState().logout();
+      return false;
+    }
   }
 
   // Generic HTTP methods

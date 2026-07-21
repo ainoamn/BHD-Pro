@@ -32,12 +32,19 @@ After the hardening commit, the app is **closer to production-ready** for a cont
 | Platform gateways | Restricted to `PLATFORM_ADMIN_EMAILS` |
 | Registration | Always STARTER; stronger password policy |
 | API keys | ADMIN only; API keys cannot create more keys |
-| Next.js | Security headers + `poweredByHeader: false` |
+| Cookies httpOnly | Access + refresh in `bhd_access` / `bhd_refresh`; not stored in localStorage |
+| Next.js | Security headers + `poweredByHeader: false` + `/backend-api` rewrite for cookie auth |
 | Docker | Bind DB/Redis to `127.0.0.1` |
 
 ## Remaining (recommended next)
 
-- Move access/refresh tokens from `localStorage` to **httpOnly Secure cookies**
 - Full 2FA for admins
 - WAF / bot protection in front of login
 - Dependency audit (`npm audit`) and lock Next.js to patched releases
+
+## Cookie auth notes
+
+- Browser sessions use **httpOnly** cookies (`bhd_access`, `bhd_refresh`).
+- Frontend calls `/backend-api/*` (Next rewrite → Nest) so cookies are same-site.
+- For a separate API domain, set `COOKIE_SAME_SITE=none`, HTTPS, and `NEXT_PUBLIC_API_URL` to the API origin with `credentials: true`.
+- Tokens may still be returned in JSON for non-browser clients; the SPA does **not** persist them.

@@ -1,11 +1,24 @@
-import { Controller, Post, Body, Get, UseGuards, Request, HttpCode, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  Get,
+  UseGuards,
+  Req,
+  Res,
+  HttpCode,
+  HttpStatus,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
+import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { clearAuthCookies, REFRESH_COOKIE, setAuthCookies } from './auth-cookies';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -18,8 +31,14 @@ export class AuthController {
   @ApiOperation({ summary: 'Login with email and password' })
   @ApiResponse({ status: 200, description: 'Login successful' })
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
-  async login(@Body() dto: LoginDto) {
-    return this.authService.login(dto);
+  async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
+    const result = await this.authService.login(dto);
+    setAuthCookies(res, {
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
+    });
+    // Tokens still returned for non-browser API clients; browser should rely on cookies
+    return result;
   }
 
   @Post('register')
@@ -27,16 +46,33 @@ export class AuthController {
   @ApiOperation({ summary: 'Register new user and company' })
   @ApiResponse({ status: 201, description: 'Registration successful' })
   @ApiResponse({ status: 403, description: 'Email already exists' })
-  async register(@Body() dto: RegisterDto) {
-    return this.authService.register(dto);
+  async register(@Body() dto: RegisterDto, @Res({ passthrough: true }) res: Response) {
+    const result = await this.authService.register(dto);
+    setAuthCookies(res, {
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
+    });
+    return result;
   }
 
   @Post('refresh')
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Refresh access token' })
-  async refreshToken(@Body() dto: RefreshTokenDto) {
-    return this.authService.refreshToken(dto.refreshToken);
+  @ApiOperation({ summary: 'Refresh access token (cookie or body)' })
+  async refreshToken(
+    @Body() dto: RefreshTokenDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const refreshToken =
+      dto.refreshToken ||
+      (req.cookies?.[REFRESH_COOKIE] as string | undefined);
+    if (!refreshToken) {
+      throw new UnauthorizedException('Refresh token required');
+    }
+    const tokens = await this.authService.refreshToken(refreshToken);
+    setAuthCookies(res, tokens);
+    return tokens;
   }
 
   @Post('logout')
@@ -44,15 +80,17 @@ export class AuthController {
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Logout user' })
-  async logout(@Request() req) {
-    return this.authService.logout(req.user.sub, req.headers.authorization?.split(' ')[1]);
+  async logout(@Req() req: Request & { user: { sub: string } }, @Res({ passthrough: true }) res: Response) {
+    const result = await this.authService.logout(req.user.sub);
+    clearAuthCookies(res);
+    return result;
   }
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get current user profile' })
-  async getProfile(@Request() req) {
-    return req.user;
+  async getProfile(@Req() req: Request & { user: { sub: string } }) {
+    return this.authService.getProfile(req.user.sub);
   }
 }

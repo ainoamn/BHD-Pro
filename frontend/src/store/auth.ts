@@ -5,32 +5,41 @@ import { User, Company } from '@/types';
 interface AuthState {
   user: User | null;
   company: Company | null;
+  /** In-memory only — never persisted (cookies hold the real session) */
   accessToken: string | null;
-  refreshToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
 
   setUser: (user: User | null) => void;
   setCompany: (company: Company | null) => void;
-  setTokens: (accessToken: string, refreshToken: string) => void;
-  login: (user: User, company: Company, accessToken: string, refreshToken: string) => void;
+  setAccessToken: (accessToken: string | null) => void;
+  login: (user: User, company: Company, accessToken?: string | null) => void;
   logout: () => void;
   setLoading: (loading: boolean) => void;
   switchCompany: (company: Company) => void;
 }
 
 function migrateLegacyAuth() {
-  if (typeof window === 'undefined') return null;
+  if (typeof window === 'undefined') return;
   try {
     const legacy = localStorage.getItem('qootk-auth');
     if (legacy) {
       localStorage.setItem('bhd-auth', legacy);
       localStorage.removeItem('qootk-auth');
     }
+    // Strip any previously persisted tokens from storage
+    const raw = localStorage.getItem('bhd-auth');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed?.state) {
+        delete parsed.state.accessToken;
+        delete parsed.state.refreshToken;
+        localStorage.setItem('bhd-auth', JSON.stringify(parsed));
+      }
+    }
   } catch {
     // ignore storage errors
   }
-  return null;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -39,20 +48,18 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       company: null,
       accessToken: null,
-      refreshToken: null,
       isAuthenticated: false,
       isLoading: true,
 
       setUser: (user) => set({ user, isAuthenticated: !!user }),
       setCompany: (company) => set({ company }),
-      setTokens: (accessToken, refreshToken) => set({ accessToken, refreshToken }),
+      setAccessToken: (accessToken) => set({ accessToken }),
 
-      login: (user, company, accessToken, refreshToken) =>
+      login: (user, company, accessToken = null) =>
         set({
           user,
           company,
           accessToken,
-          refreshToken,
           isAuthenticated: true,
           isLoading: false,
         }),
@@ -62,7 +69,6 @@ export const useAuthStore = create<AuthState>()(
           user: null,
           company: null,
           accessToken: null,
-          refreshToken: null,
           isAuthenticated: false,
           isLoading: false,
         }),
@@ -77,8 +83,6 @@ export const useAuthStore = create<AuthState>()(
       partialize: (state) => ({
         user: state.user,
         company: state.company,
-        accessToken: state.accessToken,
-        refreshToken: state.refreshToken,
         isAuthenticated: state.isAuthenticated,
       }),
       onRehydrateStorage: () => {
@@ -88,7 +92,6 @@ export const useAuthStore = create<AuthState>()(
             state?.setLoading(false);
             return;
           }
-          // Fix stale SAR left from older defaults — Oman companies use OMR
           if (state?.company?.currency === 'SAR' && state.company.country === 'OM') {
             state.setCompany({ ...state.company, currency: 'OMR' });
           }
@@ -99,7 +102,6 @@ export const useAuthStore = create<AuthState>()(
   )
 );
 
-// Safety: never leave isLoading stuck forever
 if (typeof window !== 'undefined') {
   setTimeout(() => {
     useAuthStore.getState().setLoading(false);

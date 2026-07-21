@@ -3,6 +3,15 @@ const nextConfig = {
   reactStrictMode: true,
   transpilePackages: ['next-intl'],
   poweredByHeader: false,
+  async rewrites() {
+    const backend = process.env.BACKEND_URL || 'http://localhost:3001';
+    return [
+      {
+        source: '/backend-api/:path*',
+        destination: `${backend}/api/:path*`,
+      },
+    ];
+  },
   async headers() {
     return [
       {

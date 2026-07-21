@@ -177,6 +177,28 @@ export class AuthService {
     return { message: 'Logged out successfully' };
   }
 
+  async getProfile(userId: string) {
+    if (userId.startsWith('api-key:')) {
+      throw new UnauthorizedException('API keys cannot use /auth/me');
+    }
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { company: true },
+    });
+    if (!user || !user.isActive) {
+      throw new UnauthorizedException();
+    }
+    const { password: _, ...safe } = user;
+    return {
+      id: safe.id,
+      name: safe.name,
+      email: safe.email,
+      role: safe.role,
+      companyId: safe.companyId,
+      company: safe.company,
+    };
+  }
+
   private async generateTokens(user: any) {
     const payload: TokenPayload = {
       sub: user.id,

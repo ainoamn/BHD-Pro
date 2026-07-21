@@ -26,6 +26,25 @@ export default function DashboardLayout({
     setHydrated(true);
   }, []);
 
+  // Restore session from httpOnly cookies when local user cache is missing/stale
+  useEffect(() => {
+    if (!hydrated) return;
+    let cancelled = false;
+    (async () => {
+      const { isAuthenticated, setLoading } = useAuthStore.getState();
+      if (isAuthenticated) {
+        setLoading(false);
+        return;
+      }
+      setLoading(true);
+      await api.restoreSession();
+      if (!cancelled) setLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [hydrated]);
+
   useEffect(() => {
     if (!hydrated || isLoading) return;
     if (!isAuthenticated) {

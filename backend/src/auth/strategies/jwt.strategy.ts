@@ -2,8 +2,17 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
+import { Request } from 'express';
 import { TokenPayload } from '../interfaces/token-payload.interface';
 import { PrismaService } from '../../prisma/prisma.service';
+import { ACCESS_COOKIE } from '../auth-cookies';
+
+function cookieExtractor(req: Request): string | null {
+  if (req?.cookies?.[ACCESS_COOKIE]) {
+    return req.cookies[ACCESS_COOKIE];
+  }
+  return null;
+}
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -12,7 +21,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     private prisma: PrismaService,
   ) {
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      jwtFromRequest: ExtractJwt.fromExtractors([
+        cookieExtractor,
+        ExtractJwt.fromAuthHeaderAsBearerToken(),
+      ]),
       ignoreExpiration: false,
       secretOrKey: config.get<string>('jwt.secret'),
     });
@@ -23,7 +35,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Invalid token payload');
     }
 
-    // API-key synthetic users are trusted for the request lifecycle
     if (payload.sub.startsWith('api-key:') || payload.email?.startsWith('api-key@')) {
       return payload;
     }
