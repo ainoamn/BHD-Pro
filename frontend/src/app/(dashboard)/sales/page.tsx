@@ -10,6 +10,7 @@ import {
   Banknote,
   Globe,
   ClipboardList,
+  Truck,
 } from "lucide-react";
 import { ModuleHub } from "@/components/hub/module-hub";
 
@@ -34,6 +35,12 @@ export default function SalesHubPage() {
       icon: FileText,
       title: t("invoices"),
       description: t("invoicesDesc"),
+    },
+    {
+      href: "/delivery-notes",
+      icon: Truck,
+      title: t("deliveryNotes"),
+      description: t("deliveryNotesDesc"),
     },
     {
       href: "/sales/receipts",

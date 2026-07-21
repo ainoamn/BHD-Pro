@@ -274,6 +274,9 @@ POST {API_PUBLIC_URL}/api/payments/webhooks/paypal
 | GET | `/reports/audit-log` | سجل التدقيق (عمليات الإنشاء/التعديل/الحذف) |
 | GET/POST | `/tax-rates` | المعدلات الضريبية |
 | POST | `/tax-rates/:id/set-default` | تعيين معدل ضريبي كافتراضي للشركة |
+| GET/POST | `/delivery-notes` | إشعارات التسليم |
+| POST | `/delivery-notes/:id/deliver` | تأكيد التسليم وخصم المخزون |
+| POST | `/delivery-notes/:id/cancel` | إلغاء إشعار تسليم (مسودة) |
 | GET/POST | `/invoices` | فواتير CRUD |
 | POST | `/invoices/:id/payments` | تسجيل تحصيل |
 | POST | `/invoices/payments/batch` | تحصيل على عدة فواتير (FIFO / يدوي) |

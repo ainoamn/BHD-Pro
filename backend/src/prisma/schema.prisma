@@ -57,6 +57,7 @@ model Company {
   scheduledInvoices ScheduledInvoice[]
   accountingPeriods AccountingPeriod[]
   taxRates TaxRate[]
+  deliveryNotes DeliveryNote[]
 
   @@index([vatNumber])
   @@index([crNumber])
@@ -89,6 +90,7 @@ model User {
   createdJournals Journal[] @relation("CreatedBy")
   purchaseOrdersCreated PurchaseOrder[] @relation("PurchaseOrdersCreated")
   scheduledInvoicesCreated ScheduledInvoice[] @relation("ScheduledInvoicesCreated")
+  deliveryNotesCreated DeliveryNote[] @relation("DeliveryNotesCreated")
   lockedPeriods AccountingPeriod[] @relation("PeriodLockedBy")
   auditLogs   AuditLog[]
   sessions    Session[]
@@ -721,6 +723,7 @@ model Product {
   purchaseOrderItems PurchaseOrderItem[]
   scheduledInvoiceItems ScheduledInvoiceItem[]
   stockMovements StockMovement[]
+  deliveryNoteItems DeliveryNoteItem[]
 
   @@index([companyId])
   @@index([sku])
@@ -742,6 +745,7 @@ model Warehouse {
 
   products    Product[]
   stockMovements StockMovement[]
+  deliveryNotes DeliveryNote[]
 
   @@unique([companyId, code])
   @@map("warehouses")
@@ -806,11 +810,60 @@ model Contact {
   invoices    Invoice[]
   purchaseOrders PurchaseOrder[]
   scheduledInvoices ScheduledInvoice[]
+  deliveryNotes DeliveryNote[]
 
   @@index([companyId])
   @@index([type])
   @@index([taxId])
   @@map("contacts")
+}
+
+model DeliveryNote {
+  id            String              @id @default(uuid())
+  companyId     String              @map("company_id")
+  company       Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  number        String
+  date          DateTime
+  contactId     String              @map("contact_id")
+  contact       Contact             @relation(fields: [contactId], references: [id])
+  warehouseId   String?             @map("warehouse_id")
+  warehouse     Warehouse?          @relation(fields: [warehouseId], references: [id])
+
+  status        DeliveryNoteStatus  @default(DRAFT)
+  notes         String?
+
+  deliveredAt   DateTime?           @map("delivered_at")
+
+  createdById   String              @map("created_by_id")
+  createdBy     User                @relation("DeliveryNotesCreated", fields: [createdById], references: [id])
+
+  createdAt     DateTime            @default(now()) @map("created_at")
+  updatedAt     DateTime            @updatedAt @map("updated_at")
+
+  items         DeliveryNoteItem[]
+
+  @@unique([companyId, number])
+  @@index([companyId])
+  @@index([contactId])
+  @@index([date])
+  @@map("delivery_notes")
+}
+
+model DeliveryNoteItem {
+  id              String       @id @default(uuid())
+  deliveryNoteId  String       @map("delivery_note_id")
+  deliveryNote    DeliveryNote @relation(fields: [deliveryNoteId], references: [id], onDelete: Cascade)
+
+  productId       String?      @map("product_id")
+  product         Product?     @relation(fields: [productId], references: [id])
+
+  description     String
+  quantity        Decimal
+  unit            String       @default("pcs")
+
+  @@index([deliveryNoteId])
+  @@map("delivery_note_items")
 }
 
 // ==================== AUDIT & LOGS ====================
@@ -956,6 +1009,12 @@ enum MovementType {
   OUT
   ADJUSTMENT
   TRANSFER
+}
+
+enum DeliveryNoteStatus {
+  DRAFT
+  DELIVERED
+  CANCELLED
 }
 
 enum PaymentGatewaySlug {

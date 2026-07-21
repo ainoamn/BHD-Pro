@@ -505,6 +505,26 @@ class ApiClient {
     return this.post(`/tax-rates/${id}/set-default`);
   }
 
+  getDeliveryNotes() {
+    return this.get('/delivery-notes');
+  }
+
+  createDeliveryNote(data: unknown) {
+    return this.post('/delivery-notes', data);
+  }
+
+  deliverDeliveryNote(id: string) {
+    return this.post(`/delivery-notes/${id}/deliver`);
+  }
+
+  cancelDeliveryNote(id: string) {
+    return this.post(`/delivery-notes/${id}/cancel`);
+  }
+
+  deleteDeliveryNote(id: string) {
+    return this.delete(`/delivery-notes/${id}`);
+  }
+
   getArAging() {
     return this.get('/reports/ar-aging');
   }

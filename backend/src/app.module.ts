@@ -21,6 +21,7 @@ import { ErpModule } from './erp/erp.module';
 import { PeriodsModule } from './periods/periods.module';
 import { AuditModule } from './audit/audit.module';
 import { TaxRatesModule } from './tax-rates/tax-rates.module';
+import { DeliveryNotesModule } from './delivery-notes/delivery-notes.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -46,6 +47,7 @@ import { HealthController } from './health.controller';
     PeriodsModule,
     AuditModule,
     TaxRatesModule,
+    DeliveryNotesModule,
   ],
   controllers: [HealthController],
 })
