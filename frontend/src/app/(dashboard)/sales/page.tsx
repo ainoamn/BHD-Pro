@@ -42,11 +42,10 @@ export default function SalesHubPage() {
       description: t("receiptsDesc"),
     },
     {
-      href: "/accounting?tab=sales&scheduled=1",
+      href: "/sales/scheduled",
       icon: CalendarClock,
       title: t("scheduled"),
       description: t("scheduledDesc"),
-      soon: true,
     },
     {
       href: "/accounting?tab=sales&docType=CREDIT_NOTE",

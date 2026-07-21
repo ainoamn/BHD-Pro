@@ -522,6 +522,15 @@ export function AccountingModule() {
     },
   });
 
+  const convertQuotationMutation = useMutation({
+    mutationFn: (id: string) => api.convertQuotationToInvoice(id),
+    onSuccess: () => {
+      invalidateInvoiceQueries();
+      toast.success(t("convertQuotation"));
+    },
+    onError: () => toast.error(t("actionError")),
+  });
+
   const handleUnsend = (id: string) => {
     if (confirm(t("undoSendConfirm"))) unsendMutation.mutate(id);
   };
@@ -534,7 +543,8 @@ export function AccountingModule() {
     statusMutation.isPending ||
     sendMutation.isPending ||
     deleteMutation.isPending ||
-    unsendMutation.isPending;
+    unsendMutation.isPending ||
+    convertQuotationMutation.isPending;
 
   const activeDocumentInvoice = printInvoice
     ? invoices.find((i) => i.id === printInvoice.id) ?? printInvoice
@@ -845,6 +855,7 @@ export function AccountingModule() {
                         status={inv.status}
                         paymentStatus={inv.paymentStatus}
                         paidAmount={Number(inv.paidAmount || 0)}
+                        invoiceType={inv.type}
                         disabled={actionsBusy}
                         onView={() => openDocument(inv, "invoice")}
                         onReceipt={() => openDocument(inv, "receipt")}
@@ -856,6 +867,7 @@ export function AccountingModule() {
                         onReversePayment={() => handleOpenReversePayment(inv)}
                         onCancel={() => handleCancel(inv.id)}
                         onDelete={() => handleDelete(inv.id)}
+                        onConvertToInvoice={() => convertQuotationMutation.mutate(inv.id)}
                       />
                     </td>
                   </tr>

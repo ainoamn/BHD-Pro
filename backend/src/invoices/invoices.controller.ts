@@ -108,6 +108,15 @@ export class InvoicesController {
     return this.invoicesService.unsend(user.companyId, id);
   }
 
+  @Post(':id/convert-to-invoice')
+  @ApiOperation({ summary: 'Convert quotation to sales invoice' })
+  convertQuotation(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+  ) {
+    return this.invoicesService.convertQuotationToSales(user.companyId, user.sub, id);
+  }
+
   @Delete(':id/payments/:paymentId')
   @ApiOperation({ summary: 'Reverse / undo a payment receipt' })
   reversePayment(

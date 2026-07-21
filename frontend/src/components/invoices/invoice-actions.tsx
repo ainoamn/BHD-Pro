@@ -10,6 +10,7 @@ import {
   Receipt,
   Mail,
   Undo2,
+  FileOutput,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -62,6 +63,7 @@ interface InvoiceActionsProps {
   status: string;
   paymentStatus?: string;
   paidAmount?: number;
+  invoiceType?: string;
   onView?: () => void;
   onEdit?: () => void;
   onSend?: () => void;
@@ -72,6 +74,7 @@ interface InvoiceActionsProps {
   onCancel?: () => void;
   onDelete?: () => void;
   onReceipt?: () => void;
+  onConvertToInvoice?: () => void;
   disabled?: boolean;
 }
 
@@ -110,6 +113,7 @@ export function InvoiceActions({
   status,
   paymentStatus,
   paidAmount,
+  invoiceType,
   onView,
   onEdit,
   onSend,
@@ -120,6 +124,7 @@ export function InvoiceActions({
   onCancel,
   onDelete,
   onReceipt,
+  onConvertToInvoice,
   disabled,
 }: InvoiceActionsProps) {
   const t = useTranslations("invoices");
@@ -134,6 +139,15 @@ export function InvoiceActions({
         className="bg-slate-800 text-slate-200 hover:bg-slate-700"
         disabled={disabled}
       />
+      {invoiceType === "QUOTATION" && status !== "CANCELLED" && onConvertToInvoice && (
+        <ActionBtn
+          onClick={onConvertToInvoice}
+          label={t("convertQuotation")}
+          icon={FileOutput}
+          className="bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30"
+          disabled={disabled}
+        />
+      )}
       {canShowReceipt(status) && (
         <ActionBtn
           onClick={onReceipt}

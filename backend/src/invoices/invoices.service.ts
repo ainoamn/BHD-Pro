@@ -28,7 +28,13 @@ export class InvoicesService {
 
   private async generateNumber(companyId: string, type: InvoiceType): Promise<string> {
     const year = new Date().getFullYear();
-    const prefix = type === InvoiceType.PURCHASE ? `EXP-${year}-` : `INV-${year}-`;
+    const prefixByType: Partial<Record<InvoiceType, string>> = {
+      [InvoiceType.PURCHASE]: `EXP-${year}-`,
+      [InvoiceType.QUOTATION]: `QTE-${year}-`,
+      [InvoiceType.CREDIT_NOTE]: `CN-${year}-`,
+      [InvoiceType.DEBIT_NOTE]: `DN-${year}-`,
+    };
+    const prefix = prefixByType[type] ?? `INV-${year}-`;
 
     const latest = await this.prisma.invoice.findFirst({
       where: { companyId, number: { startsWith: prefix } },
@@ -646,5 +652,33 @@ export class InvoicesService {
       notes: p.notes,
       invoice: p.invoice,
     }));
+  }
+
+  async convertQuotationToSales(companyId: string, userId: string, id: string) {
+    const quote = await this.loadInvoice(companyId, id);
+    if (quote.type !== InvoiceType.QUOTATION) {
+      throw new BadRequestException('Invoice is not a quotation');
+    }
+    if (quote.status === InvoiceStatus.CANCELLED) {
+      throw new BadRequestException('Cannot convert cancelled quotation');
+    }
+
+    return this.create(companyId, userId, {
+      type: InvoiceType.SALES,
+      contactId: quote.contactId,
+      date: new Date().toISOString().split('T')[0],
+      dueDate: quote.dueDate.toISOString().split('T')[0],
+      discount: Number(quote.discount),
+      taxRate: Number(quote.taxRate),
+      notes: quote.notes ? `من عرض سعر ${quote.number}\n${quote.notes}` : `من عرض سعر ${quote.number}`,
+      items: quote.items.map((item) => ({
+        productId: item.productId || undefined,
+        description: item.description,
+        quantity: Number(item.quantity),
+        unitPrice: Number(item.unitPrice),
+        discount: Number(item.discount),
+        taxRate: Number(item.taxRate),
+      })),
+    });
   }
 }

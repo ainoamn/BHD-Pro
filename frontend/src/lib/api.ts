@@ -447,6 +447,42 @@ class ApiClient {
     return this.get('/invoices/payments/list', { params: type ? { type } : {} });
   }
 
+  convertQuotationToInvoice(id: string) {
+    return this.post(`/invoices/${id}/convert-to-invoice`);
+  }
+
+  getPurchaseOrders() {
+    return this.get('/purchase-orders');
+  }
+
+  createPurchaseOrder(data: unknown) {
+    return this.post('/purchase-orders', data);
+  }
+
+  convertPurchaseOrder(id: string) {
+    return this.post(`/purchase-orders/${id}/convert`);
+  }
+
+  deletePurchaseOrder(id: string) {
+    return this.delete(`/purchase-orders/${id}`);
+  }
+
+  getScheduledInvoices() {
+    return this.get('/scheduled-invoices');
+  }
+
+  createScheduledInvoice(data: unknown) {
+    return this.post('/scheduled-invoices', data);
+  }
+
+  generateScheduledInvoice(id: string) {
+    return this.post(`/scheduled-invoices/${id}/generate`);
+  }
+
+  deleteScheduledInvoice(id: string) {
+    return this.delete(`/scheduled-invoices/${id}`);
+  }
+
   // Company settings
   getCompany() {
     return this.get('/companies/me');

@@ -199,7 +199,8 @@
     "method_CREDIT_CARD": "Card",
     "method_CHECK": "Cheque",
     "method_ONLINE": "Online",
-    "method_OTHER": "Other"
+    "method_OTHER": "Other",
+    "convertQuotation": "Convert to invoice"
   },
   "accounting": {
     "title": "Accounting",
@@ -616,6 +617,48 @@
     "purchaseOrdersDesc": "Manage purchase orders",
     "aging": "AP aging",
     "agingDesc": "Supplier payables aging"
+  },
+  "purchaseOrders": {
+    "title": "Purchase Orders",
+    "subtitle": "Create and manage POs, convert to purchase invoices",
+    "new": "New purchase order",
+    "empty": "No purchase orders yet",
+    "number": "PO number",
+    "contact": "Supplier",
+    "date": "Date",
+    "expectedDate": "Expected delivery",
+    "total": "Total",
+    "status": "Status",
+    "convert": "Convert to invoice",
+    "converted": "Purchase invoice created",
+    "selectContact": "Select supplier",
+    "estimatedTotal": "Estimated total",
+    "status_DRAFT": "Draft",
+    "status_SENT": "Sent",
+    "status_RECEIVED": "Received",
+    "status_CANCELLED": "Cancelled"
+  },
+  "scheduledInvoices": {
+    "title": "Scheduled Invoices",
+    "subtitle": "Recurring invoice schedules for customers",
+    "new": "New schedule",
+    "empty": "No scheduled invoices yet",
+    "name": "Name",
+    "scheduleName": "Schedule name",
+    "nameRequired": "Schedule name is required",
+    "contact": "Customer",
+    "date": "Date",
+    "nextDate": "Next issue date",
+    "frequency": "Frequency",
+    "total": "Total",
+    "generateNow": "Generate now",
+    "generated": "Sales invoice created",
+    "selectContact": "Select customer",
+    "estimatedTotal": "Estimated total",
+    "freq_WEEKLY": "Weekly",
+    "freq_MONTHLY": "Monthly",
+    "freq_QUARTERLY": "Quarterly",
+    "freq_YEARLY": "Yearly"
   },
   "receipts": {
     "salesTitle": "Receipt Vouchers",

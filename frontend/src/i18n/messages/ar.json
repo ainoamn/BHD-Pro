@@ -199,7 +199,8 @@
     "method_CREDIT_CARD": "بطاقة",
     "method_CHECK": "شيك",
     "method_ONLINE": "إلكتروني",
-    "method_OTHER": "أخرى"
+    "method_OTHER": "أخرى",
+    "convertQuotation": "تحويل لفاتورة"
   },
   "accounting": {
     "title": "المحاسبة",
@@ -616,6 +617,48 @@
     "purchaseOrdersDesc": "إدارة أوامر الشراء",
     "aging": "تقادم الذمم",
     "agingDesc": "تحليل أعمار ذمم الموردين"
+  },
+  "purchaseOrders": {
+    "title": "أوامر الشراء",
+    "subtitle": "إنشاء وإدارة أوامر الشراء وتحويلها لفواتير",
+    "new": "أمر شراء جديد",
+    "empty": "لا توجد أوامر شراء",
+    "number": "رقم الأمر",
+    "contact": "المورد",
+    "date": "التاريخ",
+    "expectedDate": "تاريخ التوريد المتوقع",
+    "total": "الإجمالي",
+    "status": "الحالة",
+    "convert": "تحويل لفاتورة",
+    "converted": "تم إنشاء فاتورة المشتريات",
+    "selectContact": "اختر مورد",
+    "estimatedTotal": "الإجمالي التقديري",
+    "status_DRAFT": "مسودة",
+    "status_SENT": "مرسل",
+    "status_RECEIVED": "مستلم",
+    "status_CANCELLED": "ملغى"
+  },
+  "scheduledInvoices": {
+    "title": "الفواتير المجدولة",
+    "subtitle": "جدولة فواتير دورية للعملاء",
+    "new": "جدولة جديدة",
+    "empty": "لا توجد فواتير مجدولة",
+    "name": "الاسم",
+    "scheduleName": "اسم الجدولة",
+    "nameRequired": "اسم الجدولة مطلوب",
+    "contact": "العميل",
+    "date": "التاريخ",
+    "nextDate": "تاريخ الإصدار القادم",
+    "frequency": "التكرار",
+    "total": "الإجمالي",
+    "generateNow": "إصدار الآن",
+    "generated": "تم إنشاء فاتورة المبيعات",
+    "selectContact": "اختر عميل",
+    "estimatedTotal": "الإجمالي التقديري",
+    "freq_WEEKLY": "أسبوعي",
+    "freq_MONTHLY": "شهري",
+    "freq_QUARTERLY": "ربع سنوي",
+    "freq_YEARLY": "سنوي"
   },
   "receipts": {
     "salesTitle": "سندات القبض",

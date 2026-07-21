@@ -51,7 +51,6 @@ export default function PurchasesHubPage() {
       icon: ShoppingCart,
       title: t("purchaseOrders"),
       description: t("purchaseOrdersDesc"),
-      soon: true,
     },
     {
       href: "/reports?tab=apAging",
