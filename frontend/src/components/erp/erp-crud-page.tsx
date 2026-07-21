@@ -17,7 +17,7 @@ export interface ErpColumn<T> {
 export interface ErpField {
   key: string;
   label: string;
-  type?: "text" | "number" | "select" | "date";
+  type?: "text" | "number" | "select" | "date" | "textarea";
   required?: boolean;
   options?: { value: string; label: string }[];
   placeholder?: string;
@@ -227,6 +227,14 @@ export function ErpCrudPage<T extends { id: string }>({
                         </option>
                       ))}
                     </select>
+                  ) : f.type === "textarea" ? (
+                    <textarea
+                      value={String(form[f.key] ?? "")}
+                      rows={3}
+                      placeholder={f.placeholder}
+                      onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white"
+                    />
                   ) : (
                     <input
                       type={f.type === "number" ? "number" : f.type === "date" ? "date" : "text"}

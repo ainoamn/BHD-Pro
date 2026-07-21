@@ -25,6 +25,7 @@ import { DeliveryNotesModule } from './delivery-notes/delivery-notes.module';
 import { StockCountsModule } from './stock-counts/stock-counts.module';
 import { ApiKeysModule } from './api-keys/api-keys.module';
 import { EmployeeClaimsModule } from './employee-claims/employee-claims.module';
+import { DocumentTemplatesModule } from './document-templates/document-templates.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -54,6 +55,7 @@ import { HealthController } from './health.controller';
     StockCountsModule,
     ApiKeysModule,
     EmployeeClaimsModule,
+    DocumentTemplatesModule,
   ],
   controllers: [HealthController],
 })

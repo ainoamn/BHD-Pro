@@ -46,6 +46,7 @@
     "periodLocks": "Period Locking",
     "taxRates": "Tax Rates",
     "apiKeys": "API Keys",
+    "documentTemplates": "Document Templates",
     "subscription": "Subscription",
     "users": "Users"
   },
@@ -550,7 +551,9 @@
     "taxRatesLink": "Tax rates",
     "taxRatesLinkDesc": "Manage VAT rates and the company default",
     "apiKeysLink": "API keys",
-    "apiKeysLinkDesc": "Create keys for external integrations"
+    "apiKeysLinkDesc": "Create keys for external integrations",
+    "documentTemplatesLink": "Document templates",
+    "documentTemplatesLinkDesc": "Header and footer text for printed invoices and receipts"
   },
   "taxRates": {
     "title": "Tax Rates",
@@ -842,6 +845,27 @@
     "status_APPROVED": "Approved",
     "status_PAID": "Paid",
     "status_REJECTED": "Rejected"
+  },
+  "documentTemplates": {
+    "title": "Document Templates",
+    "subtitle": "Customize print header and footer notes — Wafeq-style",
+    "type": "Document type",
+    "name": "Template name",
+    "headerText": "Header note",
+    "footerText": "Footer note",
+    "headerPlaceholder": "Shown under the company header on print",
+    "footerPlaceholder": "Replaces the default print footer when set",
+    "default": "Default",
+    "active": "Active",
+    "setDefault": "Set as default",
+    "defaultSet": "Default template updated",
+    "yes": "Yes",
+    "no": "No",
+    "type_INVOICE": "Invoice",
+    "type_QUOTATION": "Quotation",
+    "type_CREDIT_NOTE": "Credit note",
+    "type_DELIVERY_NOTE": "Delivery note",
+    "type_RECEIPT": "Receipt"
   },
   "purchasesHub": {
     "title": "Purchases Center",

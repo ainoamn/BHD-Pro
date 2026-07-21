@@ -18,6 +18,7 @@ import {
   Lock,
   Percent,
   KeyRound,
+  FileStack,
   ChevronLeft,
   ChevronRight,
   Calculator,
@@ -66,6 +67,7 @@ const settingsItems = [
   { href: "/period-locks", icon: Lock, label: "periodLocks" },
   { href: "/tax-rates", icon: Percent, label: "taxRates" },
   { href: "/api-keys", icon: KeyRound, label: "apiKeys" },
+  { href: "/document-templates", icon: FileStack, label: "documentTemplates" },
   { href: "/subscription", icon: Crown, label: "subscription" },
   { href: "/users", icon: Shield, label: "users" },
 ];

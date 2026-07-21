@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Settings, Loader2, Percent, Lock, KeyRound } from "lucide-react";
+import { Settings, Loader2, Percent, Lock, KeyRound, FileStack } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
@@ -286,6 +286,24 @@ export default function SettingsPage() {
             className="text-sm px-4 py-2 rounded-lg bg-slate-800 text-emerald-400 hover:bg-slate-700"
           >
             {t("apiKeysLink")}
+          </Link>
+        </div>
+      </GlassCard>
+
+      <GlassCard className="p-6">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="flex items-start gap-3">
+            <FileStack className="w-6 h-6 text-emerald-400 shrink-0 mt-0.5" />
+            <div>
+              <h2 className="text-lg font-semibold text-white">{t("documentTemplatesLink")}</h2>
+              <p className="text-sm text-slate-400 mt-1">{t("documentTemplatesLinkDesc")}</p>
+            </div>
+          </div>
+          <Link
+            href="/document-templates"
+            className="text-sm px-4 py-2 rounded-lg bg-slate-800 text-emerald-400 hover:bg-slate-700"
+          >
+            {t("documentTemplatesLink")}
           </Link>
         </div>
       </GlassCard>

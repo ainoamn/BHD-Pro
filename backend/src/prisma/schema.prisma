@@ -61,6 +61,7 @@ model Company {
   stockCounts StockCount[]
   apiKeys CompanyApiKey[]
   employeeClaims EmployeeClaim[]
+  documentTemplates DocumentTemplate[]
 
   @@index([vatNumber])
   @@index([crNumber])
@@ -252,6 +253,26 @@ model TaxRate {
   @@unique([companyId, code])
   @@index([companyId])
   @@map("tax_rates")
+}
+
+model DocumentTemplate {
+  id          String               @id @default(uuid())
+  companyId   String               @map("company_id")
+  company     Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  type        DocumentTemplateType
+  name        String
+  headerText  String?              @map("header_text")
+  footerText  String?              @map("footer_text")
+  isDefault   Boolean              @default(false) @map("is_default")
+  isActive    Boolean              @default(true) @map("is_active")
+
+  createdAt   DateTime             @default(now()) @map("created_at")
+  updatedAt   DateTime             @updatedAt @map("updated_at")
+
+  @@index([companyId])
+  @@index([companyId, type])
+  @@map("document_templates")
 }
 
 model JournalLine {
@@ -1157,6 +1178,14 @@ enum StockCountStatus {
   DRAFT
   COMPLETED
   CANCELLED
+}
+
+enum DocumentTemplateType {
+  INVOICE
+  QUOTATION
+  CREDIT_NOTE
+  DELIVERY_NOTE
+  RECEIPT
 }
 
 enum PaymentGatewaySlug {

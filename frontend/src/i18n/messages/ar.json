@@ -46,6 +46,7 @@
     "periodLocks": "إقفال الفترات",
     "taxRates": "المعدلات الضريبية",
     "apiKeys": "مفاتيح API",
+    "documentTemplates": "قوالب المستندات",
     "subscription": "الاشتراك",
     "users": "المستخدمين"
   },
@@ -550,7 +551,9 @@
     "taxRatesLink": "المعدلات الضريبية",
     "taxRatesLinkDesc": "إدارة نسب ضريبة القيمة المضافة والاختيار الافتراضي",
     "apiKeysLink": "مفاتيح API",
-    "apiKeysLinkDesc": "إنشاء مفاتيح للتكاملات الخارجية"
+    "apiKeysLinkDesc": "إنشاء مفاتيح للتكاملات الخارجية",
+    "documentTemplatesLink": "قوالب المستندات",
+    "documentTemplatesLinkDesc": "نصوص الترويسة والتذييل لطباعة الفواتير والإيصالات"
   },
   "taxRates": {
     "title": "المعدلات الضريبية",
@@ -842,6 +845,27 @@
     "status_APPROVED": "معتمدة",
     "status_PAID": "مدفوعة",
     "status_REJECTED": "مرفوضة"
+  },
+  "documentTemplates": {
+    "title": "قوالب المستندات",
+    "subtitle": "تخصيص نصوص الترويسة والتذييل عند الطباعة — مثل نظام وفاق",
+    "type": "نوع المستند",
+    "name": "اسم القالب",
+    "headerText": "نص الترويسة",
+    "footerText": "نص التذييل",
+    "headerPlaceholder": "يظهر تحت بيانات الشركة عند الطباعة",
+    "footerPlaceholder": "يستبدل تذييل الطباعة الافتراضي عند تعيينه",
+    "default": "افتراضي",
+    "active": "نشط",
+    "setDefault": "تعيين كافتراضي",
+    "defaultSet": "تم تحديث القالب الافتراضي",
+    "yes": "نعم",
+    "no": "لا",
+    "type_INVOICE": "فاتورة",
+    "type_QUOTATION": "عرض سعر",
+    "type_CREDIT_NOTE": "إشعار دائن",
+    "type_DELIVERY_NOTE": "إشعار تسليم",
+    "type_RECEIPT": "إيصال / سند"
   },
   "purchasesHub": {
     "title": "مركز المشتريات",

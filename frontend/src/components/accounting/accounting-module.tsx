@@ -255,6 +255,34 @@ export function AccountingModule() {
       );
     });
 
+  const { data: documentTemplates = [] } = useQuery({
+    queryKey: ["document-templates"],
+    queryFn: async () => {
+      const res = await api.getDocumentTemplates();
+      return res.data as {
+        id: string;
+        type: string;
+        headerText?: string | null;
+        footerText?: string | null;
+        isDefault: boolean;
+        isActive: boolean;
+      }[];
+    },
+  });
+
+  const resolveDocTemplate = (invoiceType: string, variant: "invoice" | "receipt") => {
+    const type =
+      variant === "receipt"
+        ? "RECEIPT"
+        : invoiceType === "QUOTATION"
+          ? "QUOTATION"
+          : invoiceType === "CREDIT_NOTE"
+            ? "CREDIT_NOTE"
+            : "INVOICE";
+    const active = documentTemplates.filter((t) => t.type === type && t.isActive);
+    return active.find((t) => t.isDefault) || active[0] || null;
+  };
+
   const { data: stats } = useQuery({
     queryKey: ["invoice-stats", listTypeFilter],
     queryFn: async () => {
@@ -1003,6 +1031,12 @@ export function AccountingModule() {
           company={company}
           currency={company?.currency || "OMR"}
           variant={documentVariant}
+          headerNote={
+            resolveDocTemplate(activeDocumentInvoice.type, documentVariant)?.headerText
+          }
+          footerNote={
+            resolveDocTemplate(activeDocumentInvoice.type, documentVariant)?.footerText
+          }
           actionsDisabled={actionsBusy}
           onClose={() => {
             setPrintInvoice(null);

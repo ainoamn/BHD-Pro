@@ -562,6 +562,30 @@ class ApiClient {
     return this.delete(`/employee-claims/${id}`);
   }
 
+  getDocumentTemplates(type?: string) {
+    return this.get('/document-templates', { params: type ? { type } : {} });
+  }
+
+  getDefaultDocumentTemplate(type: string) {
+    return this.get('/document-templates/default', { params: { type } });
+  }
+
+  createDocumentTemplate(data: unknown) {
+    return this.post('/document-templates', data);
+  }
+
+  updateDocumentTemplate(id: string, data: unknown) {
+    return this.put(`/document-templates/${id}`, data);
+  }
+
+  setDefaultDocumentTemplate(id: string) {
+    return this.post(`/document-templates/${id}/set-default`);
+  }
+
+  deleteDocumentTemplate(id: string) {
+    return this.delete(`/document-templates/${id}`);
+  }
+
   getDeliveryNotes() {
     return this.get('/delivery-notes');
   }

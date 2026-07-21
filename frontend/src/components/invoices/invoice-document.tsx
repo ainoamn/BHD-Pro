@@ -57,6 +57,8 @@ interface InvoiceDocumentProps {
   company?: CompanyInfo | null;
   currency?: string;
   variant?: "invoice" | "receipt";
+  headerNote?: string | null;
+  footerNote?: string | null;
   onClose: () => void;
   onSendEmail?: () => void;
   onMarkPaid?: () => void;
@@ -75,6 +77,8 @@ export function InvoiceDocument({
   company,
   currency = "OMR",
   variant = "invoice",
+  headerNote,
+  footerNote,
   onClose,
   onSendEmail,
   onMarkPaid,
@@ -370,6 +374,10 @@ export function InvoiceDocument({
             </div>
           </div>
 
+          {headerNote && (
+            <div className="mb-6 text-sm text-slate-600 whitespace-pre-wrap">{headerNote}</div>
+          )}
+
           <div className="parties grid grid-cols-2 gap-6 mb-6">
             <div className="box bg-slate-50 border border-slate-200 rounded-lg p-4">
               <h3 className="text-xs text-slate-500 uppercase mb-2">{isSales ? t("customer") : t("supplier")}</h3>
@@ -433,8 +441,8 @@ export function InvoiceDocument({
             </div>
           )}
 
-          <div className="footer mt-8 text-center text-xs text-slate-400 border-t pt-4">
-            {isReceipt ? t("receiptFooter") : t("printFooter")}
+          <div className="footer mt-8 text-center text-xs text-slate-400 border-t pt-4 whitespace-pre-wrap">
+            {footerNote || (isReceipt ? t("receiptFooter") : t("printFooter"))}
           </div>
         </div>
       </div>

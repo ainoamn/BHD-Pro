@@ -82,6 +82,14 @@ export function ReceiptsListPage({
     },
   });
 
+  const { data: receiptTemplate } = useQuery({
+    queryKey: ["document-templates", "RECEIPT"],
+    queryFn: async () => {
+      const res = await api.getDefaultDocumentTemplate("RECEIPT");
+      return res.data as { headerText?: string | null; footerText?: string | null } | null;
+    },
+  });
+
   const total = rows.reduce((s, r) => s + r.amount, 0);
 
   const openReceipt = async (invoiceId: string) => {
@@ -206,6 +214,8 @@ export function ReceiptsListPage({
           company={company}
           currency={currency}
           variant="receipt"
+          headerNote={receiptTemplate?.headerText}
+          footerNote={receiptTemplate?.footerText}
           onClose={() => setDocumentInvoice(null)}
         />
       )}
