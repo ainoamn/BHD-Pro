@@ -510,6 +510,26 @@ class ApiClient {
     return this.post(`/tax-rates/${id}/set-default`);
   }
 
+  getApiKeys() {
+    return this.get('/api-keys');
+  }
+
+  createApiKey(data: { name: string }) {
+    return this.post('/api-keys', data);
+  }
+
+  updateApiKey(id: string, data: { name: string }) {
+    return this.put(`/api-keys/${id}`, data);
+  }
+
+  revokeApiKey(id: string) {
+    return this.post(`/api-keys/${id}/revoke`);
+  }
+
+  deleteApiKey(id: string) {
+    return this.delete(`/api-keys/${id}`);
+  }
+
   getDeliveryNotes() {
     return this.get('/delivery-notes');
   }

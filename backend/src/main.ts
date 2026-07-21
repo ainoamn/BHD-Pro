@@ -1,7 +1,9 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { createHash } from 'crypto';
 import { AppModule } from './app.module';
+import { PrismaService } from './prisma/prisma.service';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { rawBody: true });
@@ -21,11 +23,50 @@ async function bootstrap() {
 
   app.setGlobalPrefix('api');
 
+  // Allow X-API-Key / Bearer qk_* before JWT guards
+  const prisma = app.get(PrismaService);
+  app.use(async (req: any, _res: any, next: () => void) => {
+    try {
+      const headerKey = req.headers['x-api-key'];
+      const auth = req.headers['authorization'] as string | undefined;
+      let secret: string | undefined;
+      if (typeof headerKey === 'string' && headerKey.startsWith('qk_')) {
+        secret = headerKey.trim();
+      } else if (typeof auth === 'string' && auth.startsWith('Bearer qk_')) {
+        secret = auth.slice(7).trim();
+      }
+
+      if (secret) {
+        const keyHash = createHash('sha256').update(secret).digest('hex');
+        const row = await prisma.companyApiKey.findFirst({
+          where: { keyHash, revokedAt: null },
+          include: { company: { select: { isActive: true } } },
+        });
+        if (row?.company.isActive) {
+          req.user = {
+            sub: row.createdById || `api-key:${row.id}`,
+            email: `api-key@${row.companyId}.local`,
+            role: 'ACCOUNTANT',
+            companyId: row.companyId,
+          };
+          req.apiKeyAuthenticated = true;
+          prisma.companyApiKey
+            .update({ where: { id: row.id }, data: { lastUsedAt: new Date() } })
+            .catch(() => undefined);
+        }
+      }
+    } catch {
+      // ignore and fall through to JWT
+    }
+    next();
+  });
+
   const config = new DocumentBuilder()
     .setTitle('BHD Pro API')
     .setDescription('Omani Accounting SaaS API — سلطنة عُمان')
     .setVersion('1.0')
     .addBearerAuth()
+    .addApiKey({ type: 'apiKey', name: 'x-api-key', in: 'header' }, 'api-key')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

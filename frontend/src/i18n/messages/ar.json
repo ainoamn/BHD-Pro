@@ -44,6 +44,7 @@
     "settings": "إعدادات الشركة",
     "periodLocks": "إقفال الفترات",
     "taxRates": "المعدلات الضريبية",
+    "apiKeys": "مفاتيح API",
     "subscription": "الاشتراك",
     "users": "المستخدمين"
   },
@@ -546,7 +547,9 @@
     "periodLocks": "إقفال الفترات",
     "periodLocksDesc": "منع التعديلات على الأشهر المقفلة",
     "taxRatesLink": "المعدلات الضريبية",
-    "taxRatesLinkDesc": "إدارة نسب ضريبة القيمة المضافة والاختيار الافتراضي"
+    "taxRatesLinkDesc": "إدارة نسب ضريبة القيمة المضافة والاختيار الافتراضي",
+    "apiKeysLink": "مفاتيح API",
+    "apiKeysLinkDesc": "إنشاء مفاتيح للتكاملات الخارجية"
   },
   "taxRates": {
     "title": "المعدلات الضريبية",
@@ -779,6 +782,31 @@
     "needItems": "اختر جهة اتصال وأضف بنداً واحداً على الأقل",
     "createAndPay": "إنشاء ودفع",
     "created": "تم إنشاء المستند النقدي وتحصيله"
+  },
+  "apiKeys": {
+    "title": "مفاتيح API",
+    "subtitle": "إصدار مفاتيح للتكاملات — يُعرض السر مرة واحدة — مثل نظام وفاق",
+    "new": "مفتاح API جديد",
+    "empty": "لا توجد مفاتيح API",
+    "name": "الاسم",
+    "namePlaceholder": "مثال: Zapier / تطبيق الجوال",
+    "nameRequired": "الاسم مطلوب",
+    "prefix": "البادئة",
+    "createdAt": "تاريخ الإنشاء",
+    "lastUsed": "آخر استخدام",
+    "status": "الحالة",
+    "statusActive": "نشط",
+    "statusRevoked": "ملغى",
+    "generate": "إنشاء المفتاح",
+    "created": "تم إنشاء مفتاح API",
+    "secretTitle": "انسخ مفتاحك",
+    "secretWarning": "لن يُعرض هذا السر مرة أخرى. احفظه في مكان آمن.",
+    "copied": "تم النسخ",
+    "done": "تم",
+    "revoke": "إلغاء",
+    "revokeConfirm": "إلغاء هذا المفتاح؟ ستتوقف التكاملات التي تستخدمه.",
+    "revoked": "تم إلغاء المفتاح",
+    "usageHint": "أرسل المفتاح مع كل طلب عبر ترويسة X-API-Key (أو Bearer qk_…)."
   },
   "purchasesHub": {
     "title": "مركز المشتريات",

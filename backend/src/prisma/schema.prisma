@@ -59,6 +59,7 @@ model Company {
   taxRates TaxRate[]
   deliveryNotes DeliveryNote[]
   stockCounts StockCount[]
+  apiKeys CompanyApiKey[]
 
   @@index([vatNumber])
   @@index([crNumber])
@@ -96,6 +97,7 @@ model User {
   lockedPeriods AccountingPeriod[] @relation("PeriodLockedBy")
   auditLogs   AuditLog[]
   sessions    Session[]
+  apiKeysCreated CompanyApiKey[] @relation("ApiKeysCreated")
 
   @@index([companyId])
   @@index([email])
@@ -116,6 +118,29 @@ model Session {
   @@index([userId])
   @@index([token])
   @@map("sessions")
+}
+
+model CompanyApiKey {
+  id          String    @id @default(uuid())
+  companyId   String    @map("company_id")
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  name        String
+  keyPrefix   String    @map("key_prefix")
+  keyHash     String    @unique @map("key_hash")
+
+  lastUsedAt  DateTime? @map("last_used_at")
+  revokedAt   DateTime? @map("revoked_at")
+
+  createdById String?   @map("created_by_id")
+  createdBy   User?     @relation("ApiKeysCreated", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@index([companyId])
+  @@index([keyPrefix])
+  @@map("company_api_keys")
 }
 
 // ==================== ACCOUNTING TABLES ====================

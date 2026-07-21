@@ -44,6 +44,7 @@
     "settings": "Company Settings",
     "periodLocks": "Period Locking",
     "taxRates": "Tax Rates",
+    "apiKeys": "API Keys",
     "subscription": "Subscription",
     "users": "Users"
   },
@@ -546,7 +547,9 @@
     "periodLocks": "Period locking",
     "periodLocksDesc": "Prevent edits in locked months",
     "taxRatesLink": "Tax rates",
-    "taxRatesLinkDesc": "Manage VAT rates and the company default"
+    "taxRatesLinkDesc": "Manage VAT rates and the company default",
+    "apiKeysLink": "API keys",
+    "apiKeysLinkDesc": "Create keys for external integrations"
   },
   "taxRates": {
     "title": "Tax Rates",
@@ -779,6 +782,31 @@
     "needItems": "Select a contact and add at least one line",
     "createAndPay": "Create & pay",
     "created": "Cash document created and paid"
+  },
+  "apiKeys": {
+    "title": "API Keys",
+    "subtitle": "Issue keys for integrations — secret shown once — Wafeq-style",
+    "new": "New API key",
+    "empty": "No API keys yet",
+    "name": "Name",
+    "namePlaceholder": "e.g. Zapier / Mobile app",
+    "nameRequired": "Name is required",
+    "prefix": "Prefix",
+    "createdAt": "Created",
+    "lastUsed": "Last used",
+    "status": "Status",
+    "statusActive": "Active",
+    "statusRevoked": "Revoked",
+    "generate": "Generate key",
+    "created": "API key created",
+    "secretTitle": "Copy your key",
+    "secretWarning": "This secret will not be shown again. Store it securely.",
+    "copied": "Copied to clipboard",
+    "done": "Done",
+    "revoke": "Revoke",
+    "revokeConfirm": "Revoke this API key? Integrations using it will stop working.",
+    "revoked": "API key revoked",
+    "usageHint": "Send the key with every API request using the X-API-Key header (or Bearer qk_…)."
   },
   "purchasesHub": {
     "title": "Purchases Center",
