@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsNumber, Min } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsNumber, IsObject, Min } from 'class-validator';
 
 export class CreateProductDto {
   @IsString()
@@ -42,4 +42,8 @@ export class CreateProductDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @IsOptional()
+  @IsObject()
+  customFieldsJson?: Record<string, unknown>;
 }

@@ -47,6 +47,7 @@
     "taxRates": "المعدلات الضريبية",
     "apiKeys": "مفاتيح API",
     "documentTemplates": "قوالب المستندات",
+    "customFields": "حقول مخصصة",
     "subscription": "الاشتراك",
     "users": "المستخدمين"
   },
@@ -553,7 +554,9 @@
     "apiKeysLink": "مفاتيح API",
     "apiKeysLinkDesc": "إنشاء مفاتيح للتكاملات الخارجية",
     "documentTemplatesLink": "قوالب المستندات",
-    "documentTemplatesLinkDesc": "نصوص الترويسة والتذييل لطباعة الفواتير والإيصالات"
+    "documentTemplatesLinkDesc": "نصوص الترويسة والتذييل لطباعة الفواتير والإيصالات",
+    "customFieldsLink": "حقول مخصصة",
+    "customFieldsLinkDesc": "حقول إضافية لجهات الاتصال والمنتجات والفواتير"
   },
   "taxRates": {
     "title": "المعدلات الضريبية",
@@ -866,6 +869,29 @@
     "type_CREDIT_NOTE": "إشعار دائن",
     "type_DELIVERY_NOTE": "إشعار تسليم",
     "type_RECEIPT": "إيصال / سند"
+  },
+  "customFields": {
+    "title": "الحقول المخصصة",
+    "subtitle": "تعريف حقول إضافية لجهات الاتصال والمنتجات والفواتير — مثل نظام وفاق",
+    "entityType": "الكيان",
+    "key": "مفتاح الحقل",
+    "label": "التسمية",
+    "labelEn": "التسمية بالإنجليزية",
+    "fieldType": "النوع",
+    "options": "الخيارات",
+    "optionsHint": "خيار واحد في كل سطر (للقوائم فقط)",
+    "sortOrder": "الترتيب",
+    "required": "مطلوب",
+    "active": "نشط",
+    "yes": "نعم",
+    "no": "لا",
+    "entity_CONTACT": "جهة اتصال",
+    "entity_PRODUCT": "منتج",
+    "entity_INVOICE": "فاتورة",
+    "type_TEXT": "نص",
+    "type_NUMBER": "رقم",
+    "type_DATE": "تاريخ",
+    "type_SELECT": "قائمة"
   },
   "purchasesHub": {
     "title": "مركز المشتريات",

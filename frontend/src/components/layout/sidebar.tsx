@@ -19,6 +19,7 @@ import {
   Percent,
   KeyRound,
   FileStack,
+  FormInput,
   ChevronLeft,
   ChevronRight,
   Calculator,
@@ -68,6 +69,7 @@ const settingsItems = [
   { href: "/tax-rates", icon: Percent, label: "taxRates" },
   { href: "/api-keys", icon: KeyRound, label: "apiKeys" },
   { href: "/document-templates", icon: FileStack, label: "documentTemplates" },
+  { href: "/custom-fields", icon: FormInput, label: "customFields" },
   { href: "/subscription", icon: Crown, label: "subscription" },
   { href: "/users", icon: Shield, label: "users" },
 ];

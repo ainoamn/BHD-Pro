@@ -68,20 +68,33 @@ export class ProductsService {
     if (existing) throw new ConflictException('SKU already exists');
 
     const warehouse = await this.ensureDefaultWarehouse(companyId);
+    const { customFieldsJson, ...rest } = dto;
 
     return this.prisma.product.create({
       data: {
-        ...dto,
+        ...rest,
         companyId,
         images: [],
         warehouseId: warehouse.id,
+        ...(customFieldsJson !== undefined
+          ? { customFieldsJson: customFieldsJson as object }
+          : {}),
       },
     });
   }
 
   async update(companyId: string, id: string, dto: UpdateProductDto) {
     await this.findOne(companyId, id);
-    return this.prisma.product.update({ where: { id }, data: dto });
+    const { customFieldsJson, ...rest } = dto;
+    return this.prisma.product.update({
+      where: { id },
+      data: {
+        ...rest,
+        ...(customFieldsJson !== undefined
+          ? { customFieldsJson: customFieldsJson as object }
+          : {}),
+      },
+    });
   }
 
   async findOne(companyId: string, id: string) {

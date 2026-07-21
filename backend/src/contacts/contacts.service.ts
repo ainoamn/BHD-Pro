@@ -65,8 +65,16 @@ export class ContactsService {
   }
 
   async create(companyId: string, dto: CreateContactDto) {
+    const { customFieldsJson, ...rest } = dto;
     return this.prisma.contact.create({
-      data: { ...dto, companyId, country: 'OM' },
+      data: {
+        ...rest,
+        companyId,
+        country: 'OM',
+        ...(customFieldsJson !== undefined
+          ? { customFieldsJson: customFieldsJson as object }
+          : {}),
+      },
     });
   }
 
@@ -80,7 +88,16 @@ export class ContactsService {
 
   async update(companyId: string, id: string, dto: UpdateContactDto) {
     await this.findOne(companyId, id);
-    return this.prisma.contact.update({ where: { id }, data: dto });
+    const { customFieldsJson, ...rest } = dto;
+    return this.prisma.contact.update({
+      where: { id },
+      data: {
+        ...rest,
+        ...(customFieldsJson !== undefined
+          ? { customFieldsJson: customFieldsJson as object }
+          : {}),
+      },
+    });
   }
 
   async remove(companyId: string, id: string) {

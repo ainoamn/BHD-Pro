@@ -33,6 +33,10 @@ import {
 } from "@/lib/phone";
 import { useAuthStore } from "@/store/auth";
 import { PageHeader, EmptyState, LoadingSpinner, GlassCard } from "@/components/ui/page-shell";
+import {
+  CustomFieldsInputs,
+  type CustomFieldDef,
+} from "@/components/custom-fields/custom-fields-inputs";
 
 type TabType = "CUSTOMER" | "SUPPLIER";
 type ViewMode = "table" | "cards";
@@ -47,6 +51,7 @@ interface ContactRow {
   taxId?: string;
   address?: string;
   city?: string;
+  customFieldsJson?: Record<string, string | number>;
   outstandingBalance?: number;
   receivableBalance?: number;
   payableBalance?: number;
@@ -63,6 +68,7 @@ const emptyContact = (type: TabType) => ({
   taxId: "",
   address: "",
   city: "",
+  customFields: {} as Record<string, string | number>,
 });
 
 type ContactForm = ReturnType<typeof emptyContact>;
@@ -80,12 +86,13 @@ function contactToForm(contact: ContactRow, tab: TabType): ContactForm {
     taxId: contact.taxId || "",
     address: contact.address || "",
     city: contact.city || "",
+    customFields: (contact.customFieldsJson as Record<string, string | number>) || {},
   };
 }
 
 function formToPayload(form: ContactForm) {
   const phone = combinePhone(form.phoneDialCode, form.phoneLocal);
-  const payload: Record<string, string> = {
+  const payload: Record<string, unknown> = {
     type: form.type,
     name: form.name.trim(),
   };
@@ -95,6 +102,9 @@ function formToPayload(form: ContactForm) {
   if (form.taxId?.trim()) payload.taxId = form.taxId.trim();
   if (form.address?.trim()) payload.address = form.address.trim();
   if (form.city?.trim()) payload.city = form.city.trim();
+  if (form.customFields && Object.keys(form.customFields).length > 0) {
+    payload.customFieldsJson = form.customFields;
+  }
   return payload;
 }
 
@@ -136,6 +146,14 @@ function ContactsContent() {
     queryFn: async () => {
       const res = await api.getContacts(tab);
       return res.data as ContactRow[];
+    },
+  });
+
+  const { data: contactFields = [] } = useQuery({
+    queryKey: ["custom-fields", "CONTACT"],
+    queryFn: async () => {
+      const res = await api.getCustomFields("CONTACT");
+      return res.data as CustomFieldDef[];
     },
   });
 
@@ -547,6 +565,11 @@ function ContactsContent() {
                   className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
+              <CustomFieldsInputs
+                fields={contactFields}
+                values={form.customFields}
+                onChange={(customFields) => setForm({ ...form, customFields })}
+              />
             </div>
 
             <div className="flex justify-end gap-3 p-5 border-t border-slate-800">

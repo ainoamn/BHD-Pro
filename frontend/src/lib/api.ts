@@ -586,6 +586,24 @@ class ApiClient {
     return this.delete(`/document-templates/${id}`);
   }
 
+  getCustomFields(entityType?: string) {
+    return this.get('/custom-fields', {
+      params: entityType ? { entityType } : {},
+    });
+  }
+
+  createCustomField(data: unknown) {
+    return this.post('/custom-fields', data);
+  }
+
+  updateCustomField(id: string, data: unknown) {
+    return this.put(`/custom-fields/${id}`, data);
+  }
+
+  deleteCustomField(id: string) {
+    return this.delete(`/custom-fields/${id}`);
+  }
+
   getDeliveryNotes() {
     return this.get('/delivery-notes');
   }

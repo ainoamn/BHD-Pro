@@ -8,6 +8,7 @@ import {
   IsEnum,
   IsArray,
   IsBoolean,
+  IsObject,
   ValidateNested,
   Min,
   IsDateString,
@@ -91,6 +92,10 @@ export class CreateInvoiceDto {
   @IsOptional()
   @IsEnum(PaymentMethod)
   paymentMethod?: PaymentMethod;
+
+  @IsOptional()
+  @IsObject()
+  customFieldsJson?: Record<string, unknown>;
 
   @IsArray()
   @ArrayMinSize(1)

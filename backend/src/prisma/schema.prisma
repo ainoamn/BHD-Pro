@@ -62,6 +62,7 @@ model Company {
   apiKeys CompanyApiKey[]
   employeeClaims EmployeeClaim[]
   documentTemplates DocumentTemplate[]
+  customFieldDefinitions CustomFieldDefinition[]
 
   @@index([vatNumber])
   @@index([crNumber])
@@ -273,6 +274,29 @@ model DocumentTemplate {
   @@index([companyId])
   @@index([companyId, type])
   @@map("document_templates")
+}
+
+model CustomFieldDefinition {
+  id          String            @id @default(uuid())
+  companyId   String            @map("company_id")
+  company     Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  entityType  CustomFieldEntity @map("entity_type")
+  key         String
+  label       String
+  labelEn     String?           @map("label_en")
+  fieldType   CustomFieldType   @map("field_type")
+  optionsJson Json?             @map("options_json")
+  sortOrder   Int               @default(0) @map("sort_order")
+  isRequired  Boolean           @default(false) @map("is_required")
+  isActive    Boolean           @default(true) @map("is_active")
+
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  @@unique([companyId, entityType, key])
+  @@index([companyId, entityType])
+  @@map("custom_field_definitions")
 }
 
 model JournalLine {
@@ -623,6 +647,8 @@ model Invoice {
   items       InvoiceItem[]
   payments    Payment[]
 
+  customFieldsJson Json @default("{}") @map("custom_fields_json")
+
   @@unique([companyId, number])
   @@index([companyId])
   @@index([contactId])
@@ -819,6 +845,8 @@ model Product {
 
   images      String[]
 
+  customFieldsJson Json @default("{}") @map("custom_fields_json")
+
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
@@ -952,6 +980,7 @@ model Contact {
   website     String?
   notes       String?
   isActive    Boolean  @default(true) @map("is_active")
+  customFieldsJson Json @default("{}") @map("custom_fields_json")
 
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
@@ -1186,6 +1215,19 @@ enum DocumentTemplateType {
   CREDIT_NOTE
   DELIVERY_NOTE
   RECEIPT
+}
+
+enum CustomFieldEntity {
+  CONTACT
+  PRODUCT
+  INVOICE
+}
+
+enum CustomFieldType {
+  TEXT
+  NUMBER
+  DATE
+  SELECT
 }
 
 enum PaymentGatewaySlug {

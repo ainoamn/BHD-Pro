@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsEmail, IsEnum, ValidateIf } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsEmail, IsEnum, IsObject, ValidateIf } from 'class-validator';
 import { ContactType } from '@prisma/client';
 
 export class CreateContactDto {
@@ -32,4 +32,8 @@ export class CreateContactDto {
   @IsOptional()
   @IsString()
   city?: string;
+
+  @IsOptional()
+  @IsObject()
+  customFieldsJson?: Record<string, unknown>;
 }

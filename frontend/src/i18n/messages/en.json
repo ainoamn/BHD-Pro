@@ -47,6 +47,7 @@
     "taxRates": "Tax Rates",
     "apiKeys": "API Keys",
     "documentTemplates": "Document Templates",
+    "customFields": "Custom Fields",
     "subscription": "Subscription",
     "users": "Users"
   },
@@ -553,7 +554,9 @@
     "apiKeysLink": "API keys",
     "apiKeysLinkDesc": "Create keys for external integrations",
     "documentTemplatesLink": "Document templates",
-    "documentTemplatesLinkDesc": "Header and footer text for printed invoices and receipts"
+    "documentTemplatesLinkDesc": "Header and footer text for printed invoices and receipts",
+    "customFieldsLink": "Custom fields",
+    "customFieldsLinkDesc": "Extra fields for contacts, products, and invoices"
   },
   "taxRates": {
     "title": "Tax Rates",
@@ -866,6 +869,29 @@
     "type_CREDIT_NOTE": "Credit note",
     "type_DELIVERY_NOTE": "Delivery note",
     "type_RECEIPT": "Receipt"
+  },
+  "customFields": {
+    "title": "Custom Fields",
+    "subtitle": "Define extra fields for contacts, products, and invoices — Wafeq-style",
+    "entityType": "Entity",
+    "key": "Field key",
+    "label": "Label",
+    "labelEn": "English label",
+    "fieldType": "Type",
+    "options": "Options",
+    "optionsHint": "One option per line (SELECT only)",
+    "sortOrder": "Sort order",
+    "required": "Required",
+    "active": "Active",
+    "yes": "Yes",
+    "no": "No",
+    "entity_CONTACT": "Contact",
+    "entity_PRODUCT": "Product",
+    "entity_INVOICE": "Invoice",
+    "type_TEXT": "Text",
+    "type_NUMBER": "Number",
+    "type_DATE": "Date",
+    "type_SELECT": "Select"
   },
   "purchasesHub": {
     "title": "Purchases Center",

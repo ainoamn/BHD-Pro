@@ -182,6 +182,9 @@ export class InvoicesService {
         costCenterId: dto.costCenterId || null,
         projectId: dto.projectId || null,
         createdById: userId,
+        ...(dto.customFieldsJson !== undefined
+          ? { customFieldsJson: dto.customFieldsJson as object }
+          : {}),
         items: { create: itemsData },
       },
       include: {
