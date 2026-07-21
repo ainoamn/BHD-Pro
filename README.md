@@ -258,6 +258,7 @@ POST {API_PUBLIC_URL}/api/payments/webhooks/paypal
 | GET/POST | `/employees` | الموظفين |
 | GET/POST | `/payroll` | مسير الرواتب |
 | GET/POST | `/assets` | الأصول الثابتة |
+| POST | `/assets/:id/depreciate` | إهلاك شهري للأصل |
 | GET/POST | `/bank-accounts` | الحسابات البنكية |
 | GET/POST | `/invoices` | فواتير CRUD |
 | POST | `/invoices/:id/payments` | تسجيل تحصيل |
