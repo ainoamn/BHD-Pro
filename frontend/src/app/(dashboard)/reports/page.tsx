@@ -15,6 +15,7 @@ import {
   Layers,
   FolderKanban,
   Landmark,
+  Wallet,
 } from "lucide-react";
 import { ModuleHub } from "@/components/hub/module-hub";
 
@@ -27,6 +28,12 @@ export default function ReportsHubPage() {
       icon: BarChart3,
       title: t("financial"),
       description: t("financialDesc"),
+    },
+    {
+      href: "/reports/financial?tab=cashForecast",
+      icon: Wallet,
+      title: t("cashForecast"),
+      description: t("cashForecastDesc"),
     },
     {
       href: "/reports/sales",

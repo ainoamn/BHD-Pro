@@ -190,6 +190,160 @@ export class ReportsService {
     };
   }
 
+  /**
+   * Forward-looking cash forecast: opening cash/bank + unpaid AR/AP by due-date weeks.
+   */
+  async cashFlowForecast(companyId: string, weeks = 8) {
+    const weeksCount = Math.min(Math.max(Number(weeks) || 8, 4), 16);
+    const base = this.notCancelled(companyId);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const [cashAccounts, openInvoices] = await Promise.all([
+      this.prisma.account.findMany({
+        where: {
+          companyId,
+          isActive: true,
+          OR: [{ isBank: true }, { code: { in: ['1100', '1200'] } }],
+        },
+        select: { currentBalance: true, code: true },
+      }),
+      this.prisma.invoice.findMany({
+        where: {
+          ...base,
+          type: { in: [InvoiceType.SALES, InvoiceType.PURCHASE] },
+          paymentStatus: { in: ['UNPAID', 'PARTIAL'] },
+        },
+        select: {
+          type: true,
+          number: true,
+          dueDate: true,
+          total: true,
+          paidAmount: true,
+          contact: { select: { name: true } },
+        },
+        orderBy: { dueDate: 'asc' },
+      }),
+    ]);
+
+    const openingCash = cashAccounts.reduce((s, a) => s + Number(a.currentBalance), 0);
+
+    const weekStart = (d: Date) => {
+      const x = new Date(d);
+      x.setHours(0, 0, 0, 0);
+      const day = x.getDay(); // 0 Sun
+      const diff = day === 0 ? -6 : 1 - day; // Monday start
+      x.setDate(x.getDate() + diff);
+      return x;
+    };
+
+    const start = weekStart(today);
+    const buckets: Array<{
+      weekStart: string;
+      weekEnd: string;
+      label: string;
+      inflow: number;
+      outflow: number;
+      net: number;
+      cumulative: number;
+      items: Array<{
+        type: string;
+        number: string;
+        contactName: string;
+        dueDate: string;
+        amount: number;
+      }>;
+    }> = [];
+
+    for (let i = 0; i < weeksCount; i++) {
+      const ws = new Date(start);
+      ws.setDate(start.getDate() + i * 7);
+      const we = new Date(ws);
+      we.setDate(ws.getDate() + 6);
+      buckets.push({
+        weekStart: ws.toISOString().slice(0, 10),
+        weekEnd: we.toISOString().slice(0, 10),
+        label: `${ws.toISOString().slice(5, 10)} → ${we.toISOString().slice(5, 10)}`,
+        inflow: 0,
+        outflow: 0,
+        net: 0,
+        cumulative: 0,
+        items: [],
+      });
+    }
+
+    const overdue = { inflow: 0, outflow: 0, items: [] as typeof buckets[0]['items'] };
+    const beyond = { inflow: 0, outflow: 0, items: [] as typeof buckets[0]['items'] };
+    const horizonEnd = new Date(start);
+    horizonEnd.setDate(start.getDate() + weeksCount * 7 - 1);
+
+    for (const inv of openInvoices) {
+      const outstanding = Number(inv.total) - Number(inv.paidAmount || 0);
+      if (outstanding <= 0.0005) continue;
+
+      const due = new Date(inv.dueDate);
+      due.setHours(0, 0, 0, 0);
+      const isIn = inv.type === InvoiceType.SALES;
+      const item = {
+        type: inv.type,
+        number: inv.number,
+        contactName: inv.contact?.name || '—',
+        dueDate: due.toISOString().slice(0, 10),
+        amount: Number(outstanding.toFixed(3)),
+      };
+
+      if (due < today) {
+        if (isIn) overdue.inflow += outstanding;
+        else overdue.outflow += outstanding;
+        overdue.items.push(item);
+        continue;
+      }
+
+      if (due > horizonEnd) {
+        if (isIn) beyond.inflow += outstanding;
+        else beyond.outflow += outstanding;
+        beyond.items.push(item);
+        continue;
+      }
+
+      const idx = Math.floor((due.getTime() - start.getTime()) / (7 * 86400000));
+      if (idx >= 0 && idx < buckets.length) {
+        if (isIn) buckets[idx].inflow += outstanding;
+        else buckets[idx].outflow += outstanding;
+        buckets[idx].items.push(item);
+      }
+    }
+
+    let running = openingCash + overdue.inflow - overdue.outflow;
+    for (const b of buckets) {
+      b.inflow = Number(b.inflow.toFixed(3));
+      b.outflow = Number(b.outflow.toFixed(3));
+      b.net = Number((b.inflow - b.outflow).toFixed(3));
+      running = Number((running + b.net).toFixed(3));
+      b.cumulative = running;
+    }
+
+    return {
+      openingCash: Number(openingCash.toFixed(3)),
+      weeks: weeksCount,
+      overdue: {
+        inflow: Number(overdue.inflow.toFixed(3)),
+        outflow: Number(overdue.outflow.toFixed(3)),
+        net: Number((overdue.inflow - overdue.outflow).toFixed(3)),
+        items: overdue.items,
+      },
+      beyond: {
+        inflow: Number(beyond.inflow.toFixed(3)),
+        outflow: Number(beyond.outflow.toFixed(3)),
+        net: Number((beyond.inflow - beyond.outflow).toFixed(3)),
+        count: beyond.items.length,
+      },
+      buckets,
+      projectedClosing: running,
+      currency: 'OMR',
+    };
+  }
+
   private agingBuckets() {
     return [
       { key: 'current', label: 'غير مستحق', minDays: -9999, maxDays: 0 },

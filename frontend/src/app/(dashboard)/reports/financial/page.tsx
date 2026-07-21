@@ -16,6 +16,7 @@ type ReportTab =
   | "balanceSheet"
   | "trialBalance"
   | "cashFlow"
+  | "cashForecast"
   | "arAging"
   | "apAging"
   | "contactStatement";
@@ -28,6 +29,30 @@ interface AgingData {
     contactName: string;
     total: number;
     buckets: Record<string, number>;
+  }[];
+}
+
+interface ForecastData {
+  openingCash: number;
+  weeks: number;
+  projectedClosing: number;
+  overdue: { inflow: number; outflow: number; net: number };
+  beyond: { inflow: number; outflow: number; net: number; count: number };
+  buckets: {
+    weekStart: string;
+    weekEnd: string;
+    label: string;
+    inflow: number;
+    outflow: number;
+    net: number;
+    cumulative: number;
+    items: {
+      type: string;
+      number: string;
+      contactName: string;
+      dueDate: string;
+      amount: number;
+    }[];
   }[];
 }
 
@@ -44,6 +69,7 @@ function ReportsPageContent() {
         "balanceSheet",
         "trialBalance",
         "cashFlow",
+        "cashForecast",
         "arAging",
         "apAging",
         "contactStatement",
@@ -52,6 +78,7 @@ function ReportsPageContent() {
       : "profitLoss"
   );
   const [contactId, setContactId] = useState("");
+  const [forecastWeeks, setForecastWeeks] = useState(8);
 
   useEffect(() => {
     if (
@@ -61,6 +88,7 @@ function ReportsPageContent() {
         "balanceSheet",
         "trialBalance",
         "cashFlow",
+        "cashForecast",
         "arAging",
         "apAging",
         "contactStatement",
@@ -117,6 +145,15 @@ function ReportsPageContent() {
     enabled: tab === "cashFlow",
   });
 
+  const { data: forecast, isLoading: loadingForecast } = useQuery({
+    queryKey: ["report-cash-forecast", forecastWeeks],
+    queryFn: async () => {
+      const res = await api.getCashFlowForecast(forecastWeeks);
+      return res.data as ForecastData;
+    },
+    enabled: tab === "cashForecast",
+  });
+
   const { data: arAging, isLoading: loadingAr } = useQuery({
     queryKey: ["report-ar-aging"],
     queryFn: async () => {
@@ -166,13 +203,21 @@ function ReportsPageContent() {
   });
 
   const isLoading =
-    loadingPL || loadingBS || loadingTB || loadingCF || loadingAr || loadingAp || loadingStatement;
+    loadingPL ||
+    loadingBS ||
+    loadingTB ||
+    loadingCF ||
+    loadingForecast ||
+    loadingAr ||
+    loadingAp ||
+    loadingStatement;
 
   const tabs: { key: ReportTab; label: string }[] = [
     { key: "profitLoss", label: t("profitLoss") },
     { key: "balanceSheet", label: t("balanceSheet") },
-    { key: "trialBalance", label: t("trialBalance" ) },
+    { key: "trialBalance", label: t("trialBalance") },
     { key: "cashFlow", label: t("cashFlow") },
+    { key: "cashForecast", label: t("cashForecast") },
     { key: "arAging", label: t("arAging") },
     { key: "apAging", label: t("apAging") },
     { key: "contactStatement", label: t("contactStatement") },
@@ -440,6 +485,124 @@ function ReportsPageContent() {
                     <span className="text-white font-semibold">{formatMoney(item.value, currency)}</span>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {tab === "cashForecast" && forecast && (
+              <div className="space-y-6">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <h2 className="text-lg font-semibold text-white">{t("cashForecast")}</h2>
+                  <select
+                    value={forecastWeeks}
+                    onChange={(e) => setForecastWeeks(Number(e.target.value))}
+                    className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm"
+                  >
+                    {[4, 8, 12, 16].map((w) => (
+                      <option key={w} value={w}>
+                        {t("weeksCount", { count: w })}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <p className="text-sm text-slate-400">{t("cashForecastHint")}</p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {[
+                    { label: t("openingCash"), value: forecast.openingCash },
+                    {
+                      label: t("overdueNet"),
+                      value: forecast.overdue.net,
+                    },
+                    {
+                      label: t("projectedClosing"),
+                      value: forecast.projectedClosing,
+                    },
+                    {
+                      label: t("beyondHorizon"),
+                      value: forecast.beyond.net,
+                    },
+                  ].map((card) => (
+                    <div key={card.label} className="rounded-xl bg-slate-800/50 p-4">
+                      <p className="text-xs text-slate-400">{card.label}</p>
+                      <p
+                        className={cn(
+                          "text-lg font-semibold mt-1",
+                          card.value < 0 ? "text-rose-400" : "text-emerald-400"
+                        )}
+                      >
+                        {formatMoney(card.value, currency)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-800 text-slate-400">
+                        <th className="text-right p-3">{t("week")}</th>
+                        <th className="text-right p-3">{t("inflow")}</th>
+                        <th className="text-right p-3">{t("outflow")}</th>
+                        <th className="text-right p-3">{t("netCashFlow")}</th>
+                        <th className="text-right p-3">{t("cumulative")}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {forecast.buckets.map((b) => (
+                        <tr key={b.weekStart} className="border-b border-slate-800/50">
+                          <td className="p-3 text-white">{b.label}</td>
+                          <td className="p-3 text-emerald-400">{formatMoney(b.inflow, currency)}</td>
+                          <td className="p-3 text-rose-400">{formatMoney(b.outflow, currency)}</td>
+                          <td
+                            className={cn(
+                              "p-3 font-medium",
+                              b.net < 0 ? "text-rose-400" : "text-white"
+                            )}
+                          >
+                            {formatMoney(b.net, currency)}
+                          </td>
+                          <td
+                            className={cn(
+                              "p-3 font-semibold",
+                              b.cumulative < 0 ? "text-rose-400" : "text-emerald-400"
+                            )}
+                          >
+                            {formatMoney(b.cumulative, currency)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="md:hidden space-y-3">
+                  {forecast.buckets.map((b) => (
+                    <div
+                      key={`m-${b.weekStart}`}
+                      className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 space-y-2"
+                    >
+                      <p className="text-white font-medium text-sm">{b.label}</p>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-500">{t("inflow")}</span>
+                        <span className="text-emerald-400">{formatMoney(b.inflow, currency)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-500">{t("outflow")}</span>
+                        <span className="text-rose-400">{formatMoney(b.outflow, currency)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-500">{t("cumulative")}</span>
+                        <span
+                          className={cn(
+                            "font-semibold",
+                            b.cumulative < 0 ? "text-rose-400" : "text-emerald-400"
+                          )}
+                        >
+                          {formatMoney(b.cumulative, currency)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 

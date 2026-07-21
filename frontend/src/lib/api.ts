@@ -475,6 +475,12 @@ class ApiClient {
     return this.get('/reports/cash-flow');
   }
 
+  getCashFlowForecast(weeks?: number) {
+    return this.get('/reports/cash-flow-forecast', {
+      params: weeks ? { weeks } : {},
+    });
+  }
+
   getArAging() {
     return this.get('/reports/ar-aging');
   }

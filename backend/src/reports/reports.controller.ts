@@ -32,6 +32,19 @@ export class ReportsController {
     return this.reportsService.cashFlow(user.companyId);
   }
 
+  @Get('cash-flow-forecast')
+  @ApiOperation({ summary: 'Cash flow forecast from unpaid AR/AP by due date' })
+  @ApiQuery({ name: 'weeks', required: false, description: '4–16 weeks (default 8)' })
+  cashFlowForecast(
+    @CurrentUser() user: TokenPayload,
+    @Query('weeks') weeks?: string,
+  ) {
+    return this.reportsService.cashFlowForecast(
+      user.companyId,
+      weeks ? Number(weeks) : 8,
+    );
+  }
+
   @Get('ar-aging')
   @ApiOperation({ summary: 'Accounts receivable aging (sales)' })
   arAging(@CurrentUser() user: TokenPayload) {
