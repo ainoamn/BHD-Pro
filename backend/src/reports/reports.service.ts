@@ -98,6 +98,30 @@ export class ReportsService {
   }
 
   async trialBalance(companyId: string) {
+    const accounts = await this.prisma.account.findMany({
+      where: { companyId, isActive: true },
+      orderBy: { code: 'asc' },
+    });
+
+    if (accounts.length > 0) {
+      const lines = accounts
+        .map((a) => {
+          const balance = Number(a.currentBalance);
+          const isDebitNature = a.type === 'ASSET' || a.type === 'EXPENSE';
+          return {
+            code: a.code,
+            name: a.name,
+            debit: isDebitNature && balance > 0 ? balance : balance < 0 && !isDebitNature ? Math.abs(balance) : 0,
+            credit: !isDebitNature && balance > 0 ? balance : balance < 0 && isDebitNature ? Math.abs(balance) : 0,
+          };
+        })
+        .filter((l) => l.debit > 0 || l.credit > 0);
+
+      const totalDebit = lines.reduce((s, l) => s + l.debit, 0);
+      const totalCredit = lines.reduce((s, l) => s + l.credit, 0);
+      return { lines, totalDebit, totalCredit, currency: 'OMR', source: 'ledger' as const };
+    }
+
     const pl = await this.profitAndLoss(companyId);
 
     const lines = [
@@ -124,7 +148,7 @@ export class ReportsService {
     const totalDebit = lines.reduce((s, l) => s + l.debit, 0);
     const totalCredit = lines.reduce((s, l) => s + l.credit, 0);
 
-    return { lines, totalDebit, totalCredit, currency: 'OMR' };
+    return { lines, totalDebit, totalCredit, currency: 'OMR', source: 'estimated' as const };
   }
 
   async cashFlow(companyId: string) {

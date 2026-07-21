@@ -10,12 +10,16 @@ import { UpdateInvoiceDto } from './dto/update-invoice.dto';
 import { InvoiceStatus, PaymentStatus, InvoiceType, PaymentMethod } from '@prisma/client';
 import { RecordPaymentDto } from './dto/record-payment.dto';
 import { BatchRecordPaymentDto } from './dto/batch-record-payment.dto';
+import { GlPostingService } from '../journal/gl-posting.service';
 
 const OMAN_VAT_RATE = 5;
 
 @Injectable()
 export class InvoicesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private glPosting: GlPostingService,
+  ) {}
 
   private calcLine(item: { quantity: number; unitPrice: number; discount?: number; taxRate?: number }) {
     const discount = item.discount || 0;
@@ -222,7 +226,7 @@ export class InvoicesService {
     });
   }
 
-  async updateStatus(companyId: string, id: string, status: InvoiceStatus) {
+  async updateStatus(companyId: string, userId: string, id: string, status: InvoiceStatus) {
     const invoice = await this.findOne(companyId, id);
 
     const data: {
@@ -256,11 +260,27 @@ export class InvoicesService {
       data.paidAmount = 0;
     }
 
-    return this.prisma.invoice.update({
+    const updated = await this.prisma.invoice.update({
       where: { id },
       data,
-      include: { contact: true, items: true },
+      include: { contact: true, items: true, payments: true },
     });
+
+    if (
+      ([InvoiceStatus.SENT, InvoiceStatus.VIEWED, InvoiceStatus.OVERDUE, InvoiceStatus.PAID] as InvoiceStatus[]).includes(
+        status,
+      )
+    ) {
+      await this.glPosting.postInvoice(companyId, userId, updated);
+    }
+
+    if (status === InvoiceStatus.PAID && updated.payments.length > 0) {
+      for (const pay of updated.payments) {
+        await this.glPosting.postPayment(companyId, userId, pay, updated);
+      }
+    }
+
+    return updated;
   }
 
   /** Fix legacy rows where status=PAID but paymentStatus was not updated */
@@ -277,6 +297,8 @@ export class InvoicesService {
   }
 
   private async applyPayment(
+    companyId: string,
+    userId: string,
     invoice: Awaited<ReturnType<InvoicesService['findOne']>>,
     amount: number,
     meta: {
@@ -312,7 +334,7 @@ export class InvoicesService {
     const status =
       paymentStatus === PaymentStatus.PAID ? InvoiceStatus.PAID : invoice.status;
 
-    await this.prisma.payment.create({
+    const payment = await this.prisma.payment.create({
       data: {
         invoiceId: invoice.id,
         amount,
@@ -323,7 +345,7 @@ export class InvoicesService {
       },
     });
 
-    return this.prisma.invoice.update({
+    const updated = await this.prisma.invoice.update({
       where: { id: invoice.id },
       data: {
         paidAmount: newPaid,
@@ -332,16 +354,21 @@ export class InvoicesService {
       },
       include: { contact: true, items: true, payments: true },
     });
+
+    await this.glPosting.postInvoice(companyId, userId, updated);
+    await this.glPosting.postPayment(companyId, userId, payment, updated);
+
+    return updated;
   }
 
-  async recordPayment(companyId: string, id: string, dto: RecordPaymentDto) {
+  async recordPayment(companyId: string, userId: string, id: string, dto: RecordPaymentDto) {
     const invoice = await this.findOne(companyId, id);
     const total = Number(invoice.total);
     const alreadyPaid = Number(invoice.paidAmount);
     const remaining = Number((total - alreadyPaid).toFixed(3));
     const amount = dto.amount != null ? Number(dto.amount) : remaining;
 
-    return this.applyPayment(invoice, amount, {
+    return this.applyPayment(companyId, userId, invoice, amount, {
       method: dto.method,
       date: dto.date,
       reference: dto.reference,
@@ -349,7 +376,7 @@ export class InvoicesService {
     });
   }
 
-  async recordBatchPayment(companyId: string, dto: BatchRecordPaymentDto) {
+  async recordBatchPayment(companyId: string, userId: string, dto: BatchRecordPaymentDto) {
     const allocations = dto.allocations.map((a) => ({
       invoiceId: a.invoiceId,
       amount: Number(a.amount),
@@ -370,7 +397,7 @@ export class InvoicesService {
     return this.prisma.$transaction(async () => {
       const updated: Awaited<ReturnType<InvoicesService['applyPayment']>>[] = [];
       for (let i = 0; i < allocations.length; i++) {
-        const result = await this.applyPayment(invoices[i], allocations[i].amount, {
+        const result = await this.applyPayment(companyId, userId, invoices[i], allocations[i].amount, {
           method: dto.method,
           date: dto.date,
           reference: dto.reference,
@@ -482,7 +509,7 @@ export class InvoicesService {
     });
   }
 
-  async reversePayment(companyId: string, invoiceId: string, paymentId: string) {
+  async reversePayment(companyId: string, userId: string, invoiceId: string, paymentId: string) {
     const invoice = await this.findOne(companyId, invoiceId);
 
     if (invoice.status === InvoiceStatus.CANCELLED) {
@@ -494,6 +521,7 @@ export class InvoicesService {
       throw new NotFoundException('Payment not found on this invoice');
     }
 
+    await this.glPosting.reversePaymentEntry(companyId, userId, payment, invoice);
     await this.prisma.payment.delete({ where: { id: paymentId } });
 
     const remaining = await this.prisma.payment.findMany({
@@ -512,7 +540,7 @@ export class InvoicesService {
     });
   }
 
-  async reverseAllPayments(companyId: string, invoiceId: string) {
+  async reverseAllPayments(companyId: string, userId: string, invoiceId: string) {
     let invoice = await this.findOne(companyId, invoiceId);
 
     if (invoice.status === InvoiceStatus.CANCELLED) {
@@ -527,6 +555,9 @@ export class InvoicesService {
     }
 
     if (hasPayments) {
+      for (const pay of invoice.payments) {
+        await this.glPosting.reversePaymentEntry(companyId, userId, pay, invoice);
+      }
       await this.prisma.payment.deleteMany({ where: { invoiceId } });
     }
 
@@ -539,14 +570,17 @@ export class InvoicesService {
     });
   }
 
-  async send(companyId: string, id: string, email?: string) {
+  async send(companyId: string, userId: string, id: string, email?: string) {
     const invoice = await this.findOne(companyId, id);
     const recipient = email || invoice.contact.email;
 
-    await this.prisma.invoice.update({
+    const updated = await this.prisma.invoice.update({
       where: { id },
       data: { status: InvoiceStatus.SENT },
+      include: { contact: true, items: true, payments: true },
     });
+
+    await this.glPosting.postInvoice(companyId, userId, updated);
 
     if (!recipient) {
       return {

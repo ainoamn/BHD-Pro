@@ -64,29 +64,53 @@ export class JournalService {
 
     const number = await this.generateNumber(companyId);
 
-    return this.prisma.journal.create({
-      data: {
-        companyId,
-        number,
-        date: new Date(dto.date),
-        description: dto.description,
-        reference: dto.reference,
-        totalDebit,
-        totalCredit,
-        isBalanced: true,
-        createdById: userId,
-        lines: {
-          create: dto.lines.map((l) => ({
-            accountId: l.accountId,
-            description: l.description,
-            debit: l.debit,
-            credit: l.credit,
-          })),
+    const accountIds = [...new Set(dto.lines.map((l) => l.accountId))];
+    const accountRows = await this.prisma.account.findMany({
+      where: { companyId, id: { in: accountIds } },
+    });
+    const typeMap = new Map(accountRows.map((a) => [a.id, a.type]));
+
+    return this.prisma.$transaction(async (tx) => {
+      const journal = await tx.journal.create({
+        data: {
+          companyId,
+          number,
+          date: new Date(dto.date),
+          description: dto.description,
+          reference: dto.reference,
+          totalDebit,
+          totalCredit,
+          isBalanced: true,
+          createdById: userId,
+          lines: {
+            create: dto.lines.map((l) => ({
+              accountId: l.accountId,
+              description: l.description,
+              debit: l.debit,
+              credit: l.credit,
+            })),
+          },
         },
-      },
-      include: {
-        lines: { include: { account: { select: { code: true, name: true } } } },
-      },
+        include: {
+          lines: { include: { account: { select: { code: true, name: true } } } },
+        },
+      });
+
+      for (const line of dto.lines) {
+        const accountType = typeMap.get(line.accountId);
+        if (!accountType) continue;
+        const debit = Number(line.debit);
+        const credit = Number(line.credit);
+        const net = debit - credit;
+        const delta = accountType === 'ASSET' || accountType === 'EXPENSE' ? net : -net;
+        if (Math.abs(delta) < 0.0005) continue;
+        await tx.account.update({
+          where: { id: line.accountId },
+          data: { currentBalance: { increment: delta } },
+        });
+      }
+
+      return journal;
     });
   }
 

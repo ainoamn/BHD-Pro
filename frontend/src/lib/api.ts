@@ -483,6 +483,10 @@ class ApiClient {
     return this.delete(`/scheduled-invoices/${id}`);
   }
 
+  processDueScheduledInvoices() {
+    return this.post('/scheduled-invoices/process-due');
+  }
+
   // Company settings
   getCompany() {
     return this.get('/companies/me');

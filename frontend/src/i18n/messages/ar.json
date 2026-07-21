@@ -658,7 +658,9 @@
     "freq_WEEKLY": "أسبوعي",
     "freq_MONTHLY": "شهري",
     "freq_QUARTERLY": "ربع سنوي",
-    "freq_YEARLY": "سنوي"
+    "freq_YEARLY": "سنوي",
+    "processDue": "إصدار المستحق",
+    "processDueDone": "تم إصدار {count} فاتورة مجدولة"
   },
   "receipts": {
     "salesTitle": "سندات القبض",

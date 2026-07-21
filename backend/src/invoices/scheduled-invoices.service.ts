@@ -205,4 +205,26 @@ export class ScheduledInvoicesService {
 
     return invoice;
   }
+
+  async processDueSchedules() {
+    const endOfToday = new Date();
+    endOfToday.setHours(23, 59, 59, 999);
+
+    const due = await this.prisma.scheduledInvoice.findMany({
+      where: { isActive: true, nextDate: { lte: endOfToday } },
+      select: { id: true, companyId: true, createdById: true, name: true },
+    });
+
+    let generated = 0;
+    for (const row of due) {
+      try {
+        await this.generateNow(row.companyId, row.createdById, row.id);
+        generated += 1;
+      } catch {
+        // skip failed rows; cron will retry next run
+      }
+    }
+
+    return { checked: due.length, generated };
+  }
 }

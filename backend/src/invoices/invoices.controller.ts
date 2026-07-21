@@ -80,7 +80,7 @@ export class InvoicesController {
     @Param('id') id: string,
     @Body('status') status: InvoiceStatus,
   ) {
-    return this.invoicesService.updateStatus(user.companyId, id, status);
+    return this.invoicesService.updateStatus(user.companyId, user.sub, id, status);
   }
 
   @Post('payments/batch')
@@ -89,7 +89,7 @@ export class InvoicesController {
     @CurrentUser() user: TokenPayload,
     @Body() dto: BatchRecordPaymentDto,
   ) {
-    return this.invoicesService.recordBatchPayment(user.companyId, dto);
+    return this.invoicesService.recordBatchPayment(user.companyId, user.sub, dto);
   }
 
   @Post(':id/payments')
@@ -99,7 +99,7 @@ export class InvoicesController {
     @Param('id') id: string,
     @Body() dto: RecordPaymentDto,
   ) {
-    return this.invoicesService.recordPayment(user.companyId, id, dto);
+    return this.invoicesService.recordPayment(user.companyId, user.sub, id, dto);
   }
 
   @Post(':id/unsend')
@@ -124,13 +124,13 @@ export class InvoicesController {
     @Param('id') id: string,
     @Param('paymentId') paymentId: string,
   ) {
-    return this.invoicesService.reversePayment(user.companyId, id, paymentId);
+    return this.invoicesService.reversePayment(user.companyId, user.sub, id, paymentId);
   }
 
   @Post(':id/payments/reverse-all')
   @ApiOperation({ summary: 'Reverse all payment receipts on an invoice' })
   reverseAllPayments(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
-    return this.invoicesService.reverseAllPayments(user.companyId, id);
+    return this.invoicesService.reverseAllPayments(user.companyId, user.sub, id);
   }
 
   @Post(':id/send')
@@ -140,7 +140,7 @@ export class InvoicesController {
     @Param('id') id: string,
     @Body('email') email?: string,
   ) {
-    return this.invoicesService.send(user.companyId, id, email);
+    return this.invoicesService.send(user.companyId, user.sub, id, email);
   }
 
   @Delete(':id')

@@ -161,6 +161,17 @@ export function ProcurementPage({ mode }: ProcurementPageProps) {
     onError: () => toast.error(tCommon("error")),
   });
 
+  const processDueMutation = useMutation({
+    mutationFn: () => api.processDueScheduledInvoices(),
+    onSuccess: (res) => {
+      const data = res.data as { checked: number; generated: number };
+      queryClient.invalidateQueries({ queryKey: [queryKey] });
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      toast.success(t("processDueDone", { count: data.generated }));
+    },
+    onError: () => toast.error(tCommon("error")),
+  });
+
   const lineTotal = lines.reduce((s, l) => {
     const sub = l.quantity * l.unitPrice - (l.discount || 0);
     return s + sub * 1.05;
@@ -172,13 +183,24 @@ export function ProcurementPage({ mode }: ProcurementPageProps) {
         title={t("title")}
         subtitle={t("subtitle")}
         action={
-          <button
-            onClick={() => setOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium"
-          >
-            <Plus className="w-4 h-4" />
-            {t("new")}
-          </button>
+          <div className="flex items-center gap-2">
+            {!isPO && (
+              <button
+                onClick={() => processDueMutation.mutate()}
+                disabled={processDueMutation.isPending}
+                className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm font-medium border border-slate-700"
+              >
+                {t("processDue")}
+              </button>
+            )}
+            <button
+              onClick={() => setOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium"
+            >
+              <Plus className="w-4 h-4" />
+              {t("new")}
+            </button>
+          </div>
         }
       />
 

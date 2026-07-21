@@ -169,6 +169,8 @@ model Journal {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   lines       JournalLine[]
+  invoicePosting Invoice? @relation("InvoiceGlJournal")
+  paymentPosting Payment? @relation("PaymentGlJournal")
 
   @@index([companyId])
   @@index([date])
@@ -427,6 +429,9 @@ model Invoice {
   notes       String?
   terms       String?
 
+  glJournalId String?  @unique @map("gl_journal_id")
+  glJournal   Journal? @relation("InvoiceGlJournal", fields: [glJournalId], references: [id])
+
   createdById String   @map("created_by_id")
   createdBy   User     @relation("CreatedBy", fields: [createdById], references: [id])
 
@@ -478,6 +483,9 @@ model Payment {
   reference   String?
   date        DateTime
   notes       String?
+
+  glJournalId String?  @unique @map("gl_journal_id")
+  glJournal   Journal? @relation("PaymentGlJournal", fields: [glJournalId], references: [id])
 
   createdAt   DateTime @default(now()) @map("created_at")
 

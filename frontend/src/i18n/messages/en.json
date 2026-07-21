@@ -658,7 +658,9 @@
     "freq_WEEKLY": "Weekly",
     "freq_MONTHLY": "Monthly",
     "freq_QUARTERLY": "Quarterly",
-    "freq_YEARLY": "Yearly"
+    "freq_YEARLY": "Yearly",
+    "processDue": "Run due schedules",
+    "processDueDone": "Generated {count} scheduled invoice(s)"
   },
   "receipts": {
     "salesTitle": "Receipt Vouchers",
