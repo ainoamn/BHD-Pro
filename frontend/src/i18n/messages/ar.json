@@ -579,6 +579,12 @@
     "depreciate": "إهلاك شهري",
     "depreciateConfirm": "تطبيق إهلاك شهري على هذا الأصل؟",
     "depreciated": "تم تطبيق الإهلاك",
+    "glAccount": "حساب دفتر الأستاذ",
+    "assetCat_BUILDING": "مباني",
+    "assetCat_VEHICLE": "مركبات",
+    "assetCat_EQUIPMENT": "معدات",
+    "assetCat_IT": "تقنية معلومات",
+    "assetCat_OTHER": "أخرى",
     "payrollTab": "مسير الرواتب",
     "employeesTab": "الموظفين",
     "createPayroll": "إنشاء مسير رواتب",
@@ -672,7 +678,12 @@
     "freq_QUARTERLY": "ربع سنوي",
     "freq_YEARLY": "سنوي",
     "processDue": "إصدار المستحق",
-    "processDueDone": "تم إصدار {count} فاتورة مجدولة"
+    "processDueDone": "تم إصدار {count} فاتورة مجدولة",
+    "status": "الحالة",
+    "active": "نشط",
+    "paused": "متوقف",
+    "pause": "إيقاف",
+    "resume": "استئناف"
   },
   "receipts": {
     "salesTitle": "سندات القبض",

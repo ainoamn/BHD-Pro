@@ -165,6 +165,15 @@ export class ScheduledInvoicesService {
     return { message: 'Deleted' };
   }
 
+  async toggleActive(companyId: string, id: string) {
+    const schedule = await this.findOne(companyId, id);
+    return this.prisma.scheduledInvoice.update({
+      where: { id },
+      data: { isActive: !schedule.isActive },
+      include: { contact: true, items: true },
+    });
+  }
+
   async generateNow(companyId: string, userId: string, id: string) {
     const schedule = await this.findOne(companyId, id);
     if (!schedule.isActive) {

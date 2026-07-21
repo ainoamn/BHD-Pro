@@ -342,4 +342,45 @@ export class GlPostingService {
       reference: `REV-PAY:${payment.id}`,
     }, lines);
   }
+
+  async postAssetDepreciation(
+    companyId: string,
+    userId: string,
+    asset: { id: string; code: string; name: string; accountId?: string | null },
+    amount: number,
+  ) {
+    const [depExpense, accumDep, fixedAsset, fallbackExpense] = await Promise.all([
+      this.accountByCode(companyId, '5300'),
+      this.accountByCode(companyId, '1510'),
+      asset.accountId
+        ? this.prisma.account.findFirst({ where: { id: asset.accountId, companyId } })
+        : this.accountByCode(companyId, '1500'),
+      this.accountByCode(companyId, '5200'),
+    ]);
+
+    const expense = depExpense || fallbackExpense;
+    const creditAccount = accumDep || fixedAsset;
+    if (!expense || !creditAccount) return null;
+
+    const lines: JournalLineInput[] = [
+      {
+        accountId: expense.id,
+        description: `إهلاك ${asset.code}`,
+        debit: amount,
+        credit: 0,
+      },
+      {
+        accountId: creditAccount.id,
+        description: `إهلاك ${asset.code}`,
+        debit: 0,
+        credit: amount,
+      },
+    ];
+
+    return this.createEntry(companyId, userId, {
+      date: new Date(),
+      description: `إهلاك أصل ${asset.name}`,
+      reference: `DEP:${asset.id}`,
+    }, lines);
+  }
 }

@@ -161,6 +161,15 @@ export function ProcurementPage({ mode }: ProcurementPageProps) {
     onError: () => toast.error(tCommon("error")),
   });
 
+  const toggleScheduleMutation = useMutation({
+    mutationFn: (id: string) => api.toggleScheduledInvoice(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [queryKey] });
+      toast.success(tCommon("saved"));
+    },
+    onError: () => toast.error(tCommon("error")),
+  });
+
   const processDueMutation = useMutation({
     mutationFn: () => api.processDueScheduledInvoices(),
     onSuccess: (res) => {
@@ -223,6 +232,11 @@ export function ProcurementPage({ mode }: ProcurementPageProps) {
                       {t(`status_${row.status}` as "status_DRAFT")}
                     </span>
                   )}
+                  {!isPO && row.isActive === false && (
+                    <span className="text-xs px-2 py-1 rounded bg-amber-500/10 text-amber-400 shrink-0">
+                      {t("paused")}
+                    </span>
+                  )}
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-500">{formatDate(isPO ? row.date! : row.nextDate!)}</span>
@@ -235,7 +249,7 @@ export function ProcurementPage({ mode }: ProcurementPageProps) {
                     {t("frequency")}: {t(`freq_${row.frequency}` as "freq_MONTHLY")}
                   </p>
                 )}
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   {(isPO ? row.status !== "RECEIVED" && row.status !== "CANCELLED" : row.isActive !== false) && (
                     <button
                       onClick={() => convertMutation.mutate(row.id)}
@@ -243,6 +257,15 @@ export function ProcurementPage({ mode }: ProcurementPageProps) {
                       className="text-xs px-2 py-1 rounded bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
                     >
                       {isPO ? t("convert") : t("generateNow")}
+                    </button>
+                  )}
+                  {!isPO && (
+                    <button
+                      onClick={() => toggleScheduleMutation.mutate(row.id)}
+                      disabled={toggleScheduleMutation.isPending}
+                      className="text-xs px-2 py-1 rounded bg-slate-800 text-slate-300 hover:text-white"
+                    >
+                      {row.isActive === false ? t("resume") : t("pause")}
                     </button>
                   )}
                   <button
@@ -265,6 +288,7 @@ export function ProcurementPage({ mode }: ProcurementPageProps) {
                   <th className="text-right px-4 py-3">{t("contact")}</th>
                   <th className="text-right px-4 py-3">{t("date")}</th>
                   {!isPO && <th className="text-right px-4 py-3">{t("frequency")}</th>}
+                  {!isPO && <th className="text-right px-4 py-3">{t("status")}</th>}
                   <th className="text-right px-4 py-3">{t("total")}</th>
                   {isPO && <th className="text-right px-4 py-3">{t("status")}</th>}
                   <th className="text-right px-4 py-3">{tCommon("actions")}</th>
@@ -283,6 +307,20 @@ export function ProcurementPage({ mode }: ProcurementPageProps) {
                     {!isPO && (
                       <td className="px-4 py-3 text-slate-400">
                         {t(`freq_${row.frequency}` as "freq_MONTHLY")}
+                      </td>
+                    )}
+                    {!isPO && (
+                      <td className="px-4 py-3">
+                        <span
+                          className={cn(
+                            "text-xs px-2 py-1 rounded",
+                            row.isActive === false
+                              ? "bg-amber-500/10 text-amber-400"
+                              : "bg-emerald-500/10 text-emerald-400"
+                          )}
+                        >
+                          {row.isActive === false ? t("paused") : t("active")}
+                        </span>
                       </td>
                     )}
                     <td className="px-4 py-3 text-emerald-400">
@@ -304,6 +342,15 @@ export function ProcurementPage({ mode }: ProcurementPageProps) {
                             className="text-xs px-2 py-1 rounded bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
                           >
                             {isPO ? t("convert") : t("generateNow")}
+                          </button>
+                        )}
+                        {!isPO && (
+                          <button
+                            onClick={() => toggleScheduleMutation.mutate(row.id)}
+                            disabled={toggleScheduleMutation.isPending}
+                            className="text-xs px-2 py-1 rounded bg-slate-800 text-slate-300 hover:text-white"
+                          >
+                            {row.isActive === false ? t("resume") : t("pause")}
                           </button>
                         )}
                         <button

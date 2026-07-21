@@ -518,6 +518,10 @@ class ApiClient {
     return this.delete(`/scheduled-invoices/${id}`);
   }
 
+  toggleScheduledInvoice(id: string) {
+    return this.post(`/scheduled-invoices/${id}/toggle-active`);
+  }
+
   processDueScheduledInvoices() {
     return this.post('/scheduled-invoices/process-due');
   }

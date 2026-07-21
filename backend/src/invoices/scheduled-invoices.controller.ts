@@ -55,6 +55,12 @@ export class ScheduledInvoicesController {
     return this.service.update(user.companyId, id, dto);
   }
 
+  @Post(':id/toggle-active')
+  @ApiOperation({ summary: 'Pause or resume a scheduled invoice' })
+  toggleActive(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
+    return this.service.toggleActive(user.companyId, id);
+  }
+
   @Post(':id/generate')
   @ApiOperation({ summary: 'Generate sales invoice from schedule now' })
   generateNow(@CurrentUser() user: TokenPayload, @Param('id') id: string) {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { ErpCrudPage, formatMoney } from "@/components/erp/erp-crud-page";
@@ -12,12 +12,15 @@ interface AssetRow {
   code: string;
   name: string;
   category: string;
+  accountId?: string | null;
   purchaseDate?: string | null;
   purchaseCost: number;
   currentValue: number;
   depreciationRate: number;
   location?: string | null;
 }
+
+const CATEGORIES = ["BUILDING", "VEHICLE", "EQUIPMENT", "IT", "OTHER"] as const;
 
 export default function AssetsPage() {
   const t = useTranslations("erp");
@@ -26,10 +29,26 @@ export default function AssetsPage() {
   const currency = company?.currency || "OMR";
   const queryClient = useQueryClient();
 
+  const { data: accounts = [] } = useQuery({
+    queryKey: ["accounts"],
+    queryFn: async () => {
+      const res = await api.getAccounts();
+      return res.data as { id: string; code: string; name: string; type: string }[];
+    },
+  });
+
+  const assetAccounts = accounts.filter((a) => a.type === "ASSET");
+
+  const categoryOptions = CATEGORIES.map((c) => ({
+    value: c,
+    label: t(`assetCat_${c}` as "assetCat_BUILDING"),
+  }));
+
   const depreciateMutation = useMutation({
     mutationFn: (id: string) => api.depreciateAsset(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["assets"] });
+      queryClient.invalidateQueries({ queryKey: ["accounts-tree"] });
       toast.success(t("depreciated"));
     },
     onError: (err: { response?: { data?: { message?: string } } }) => {
@@ -52,6 +71,7 @@ export default function AssetsPage() {
         code: row.code,
         name: row.name,
         category: row.category,
+        accountId: row.accountId || "",
         purchaseDate: row.purchaseDate ? String(row.purchaseDate).split("T")[0] : "",
         purchaseCost: Number(row.purchaseCost),
         currentValue: Number(row.currentValue),
@@ -61,7 +81,11 @@ export default function AssetsPage() {
       columns={[
         { key: "code", label: t("code") },
         { key: "name", label: t("name") },
-        { key: "category", label: t("category") },
+        {
+          key: "category",
+          label: t("category"),
+          render: (r) => t(`assetCat_${r.category}` as "assetCat_BUILDING"),
+        },
         {
           key: "purchaseCost",
           label: t("purchaseCost"),
@@ -81,17 +105,12 @@ export default function AssetsPage() {
       fields={[
         { key: "code", label: t("code"), required: true },
         { key: "name", label: t("name"), required: true },
+        { key: "category", label: t("category"), type: "select", options: categoryOptions },
         {
-          key: "category",
-          label: t("category"),
+          key: "accountId",
+          label: t("glAccount"),
           type: "select",
-          options: [
-            { value: "BUILDING", label: "Building" },
-            { value: "VEHICLE", label: "Vehicle" },
-            { value: "EQUIPMENT", label: "Equipment" },
-            { value: "IT", label: "IT" },
-            { value: "OTHER", label: "Other" },
-          ],
+          options: assetAccounts.map((a) => ({ value: a.id, label: `${a.code} — ${a.name}` })),
         },
         { key: "purchaseDate", label: t("purchaseDate"), type: "date" },
         { key: "purchaseCost", label: t("purchaseCost"), type: "number" },

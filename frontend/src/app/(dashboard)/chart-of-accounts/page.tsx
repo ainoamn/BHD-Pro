@@ -19,6 +19,18 @@ interface TreeNode {
   children: TreeNode[];
 }
 
+function flattenTree(nodes: TreeNode[]): TreeNode[] {
+  const out: TreeNode[] = [];
+  const walk = (list: TreeNode[]) => {
+    for (const n of list) {
+      out.push(n);
+      if (n.children.length) walk(n.children);
+    }
+  };
+  walk(nodes);
+  return out;
+}
+
 function TreeRow({
   node,
   depth,
@@ -86,6 +98,7 @@ export default function ChartOfAccountsPage() {
   const currency = company?.currency || "OMR";
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState({
     code: "",
     name: "",
@@ -94,6 +107,7 @@ export default function ChartOfAccountsPage() {
     parentId: "",
     openingBalance: 0,
   });
+  const [editForm, setEditForm] = useState({ code: "", name: "" });
 
   const { data: tree = [], isLoading } = useQuery({
     queryKey: ["accounts-tree"],
@@ -111,6 +125,8 @@ export default function ChartOfAccountsPage() {
     },
   });
 
+  const flatNodes = flattenTree(tree);
+
   const saveMutation = useMutation({
     mutationFn: () =>
       api.createAccount({
@@ -126,6 +142,17 @@ export default function ChartOfAccountsPage() {
     onError: () => toast.error(tCommon("error")),
   });
 
+  const updateMutation = useMutation({
+    mutationFn: () => api.updateAccount(editId!, editForm),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["accounts-tree"] });
+      queryClient.invalidateQueries({ queryKey: ["accounts"] });
+      toast.success(tCommon("saved"));
+      setEditId(null);
+    },
+    onError: () => toast.error(tCommon("error")),
+  });
+
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.deleteAccount(id),
     onSuccess: () => {
@@ -134,6 +161,15 @@ export default function ChartOfAccountsPage() {
     },
     onError: () => toast.error(tCommon("error")),
   });
+
+  const openEdit = (node: TreeNode) => {
+    setEditId(node.id);
+    setEditForm({ code: node.code, name: node.name });
+  };
+
+  const handleDelete = (id: string) => {
+    if (confirm(tCommon("confirmDelete"))) deleteMutation.mutate(id);
+  };
 
   return (
     <div className="space-y-6">
@@ -154,35 +190,66 @@ export default function ChartOfAccountsPage() {
       {isLoading ? (
         <LoadingSpinner />
       ) : (
-        <GlassCard className="overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-800 text-slate-400">
-                  <th className="p-3 text-right">{t("code")}</th>
-                  <th className="p-3 text-right">{t("name")}</th>
-                  <th className="p-3 text-right">{t("type")}</th>
-                  <th className="p-3 text-right">{t("balance")}</th>
-                  <th className="p-3 w-20" />
-                </tr>
-              </thead>
-              <tbody>
-                {tree.map((node) => (
-                  <TreeRow
-                    key={node.id}
-                    node={node}
-                    depth={0}
-                    currency={currency}
-                    onEdit={() => {}}
-                    onDelete={(id) => {
-                      if (confirm(tCommon("confirmDelete"))) deleteMutation.mutate(id);
-                    }}
-                  />
-                ))}
-              </tbody>
-            </table>
+        <>
+          <div className="md:hidden space-y-3">
+            {flatNodes.map((node) => (
+              <GlassCard key={node.id} className="p-4 space-y-2">
+                <div className="flex justify-between gap-2">
+                  <div>
+                    <p className="text-white font-mono font-semibold">{node.code}</p>
+                    <p className="text-sm text-slate-300 mt-0.5">{node.name}</p>
+                  </div>
+                  <p className="text-emerald-400 text-sm shrink-0">
+                    {formatMoney(node.currentBalance, currency)}
+                  </p>
+                </div>
+                <p className="text-xs text-slate-500">{node.type}</p>
+                <div className="flex gap-2 justify-end">
+                  <button
+                    onClick={() => openEdit(node)}
+                    className="p-1.5 rounded text-slate-400 hover:text-white hover:bg-slate-700"
+                  >
+                    <Edit className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(node.id)}
+                    className="p-1.5 rounded text-rose-400 hover:bg-rose-500/10"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </GlassCard>
+            ))}
           </div>
-        </GlassCard>
+
+          <GlassCard className="hidden md:block overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-800 text-slate-400">
+                    <th className="p-3 text-right">{t("code")}</th>
+                    <th className="p-3 text-right">{t("name")}</th>
+                    <th className="p-3 text-right">{t("type")}</th>
+                    <th className="p-3 text-right">{t("balance")}</th>
+                    <th className="p-3 w-20" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {tree.map((node) => (
+                    <TreeRow
+                      key={node.id}
+                      node={node}
+                      depth={0}
+                      currency={currency}
+                      onEdit={openEdit}
+                      onDelete={handleDelete}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </GlassCard>
+        </>
       )}
 
       {open && (
@@ -232,6 +299,39 @@ export default function ChartOfAccountsPage() {
               className="w-full h-10 bg-emerald-600 text-white rounded-lg flex items-center justify-center gap-2"
             >
               {saveMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+              {tCommon("save")}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {editId && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center pt-16 bg-black/70 p-4">
+          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
+            <div className="flex justify-between items-center">
+              <h2 className="text-lg font-semibold text-white">{tCommon("edit")}</h2>
+              <button onClick={() => setEditId(null)}>
+                <X className="w-5 h-5 text-slate-400" />
+              </button>
+            </div>
+            <input
+              placeholder={t("code")}
+              value={editForm.code}
+              onChange={(e) => setEditForm({ ...editForm, code: e.target.value })}
+              className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white"
+            />
+            <input
+              placeholder={t("name")}
+              value={editForm.name}
+              onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+              className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white"
+            />
+            <button
+              onClick={() => updateMutation.mutate()}
+              disabled={updateMutation.isPending}
+              className="w-full h-10 bg-emerald-600 text-white rounded-lg flex items-center justify-center gap-2"
+            >
+              {updateMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
               {tCommon("save")}
             </button>
           </div>

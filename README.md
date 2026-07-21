@@ -258,7 +258,8 @@ POST {API_PUBLIC_URL}/api/payments/webhooks/paypal
 | GET/POST | `/employees` | الموظفين |
 | GET/POST | `/payroll` | مسير الرواتب |
 | GET/POST | `/assets` | الأصول الثابتة |
-| POST | `/assets/:id/depreciate` | إهلاك شهري للأصل |
+| POST | `/assets/:id/depreciate` | إهلاك شهري للأصل (تحديث القيمة + قيد GL: Dr 5300 / Cr 1510 أو حساب الأصل) |
+| POST | `/scheduled-invoices/:id/toggle-active` | إيقاف / استئناف جدولة فاتورة دورية |
 | GET/POST | `/bank-accounts` | الحسابات البنكية |
 | GET/POST | `/invoices` | فواتير CRUD |
 | POST | `/invoices/:id/payments` | تسجيل تحصيل |

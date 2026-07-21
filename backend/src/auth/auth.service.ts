@@ -189,6 +189,8 @@ export class AuthService {
       { code: '1200', name: 'البنك', type: 'ASSET', category: 'CURRENT_ASSET', isBank: true },
       { code: '1300', name: 'العملاء', type: 'ASSET', category: 'CURRENT_ASSET' },
       { code: '1400', name: 'المخزون', type: 'ASSET', category: 'CURRENT_ASSET' },
+      { code: '1500', name: 'الأصول الثابتة', type: 'ASSET', category: 'FIXED_ASSET' },
+      { code: '1510', name: 'مجمع الإهلاك', type: 'ASSET', category: 'FIXED_ASSET' },
       { code: '2000', name: 'الخصوم', type: 'LIABILITY', category: 'CURRENT_LIABILITY' },
       { code: '2100', name: 'الموردين', type: 'LIABILITY', category: 'CURRENT_LIABILITY' },
       { code: '2200', name: 'ضريبة القيمة المضافة', type: 'LIABILITY', category: 'CURRENT_LIABILITY' },
@@ -200,6 +202,7 @@ export class AuthService {
       { code: '5000', name: 'المصروفات', type: 'EXPENSE', category: 'OPERATING_EXPENSE' },
       { code: '5100', name: 'تكلفة البضاعة المباعة', type: 'EXPENSE', category: 'COST_OF_SALES' },
       { code: '5200', name: 'مصروفات تشغيلية', type: 'EXPENSE', category: 'OPERATING_EXPENSE' },
+      { code: '5300', name: 'مصروف الإهلاك', type: 'EXPENSE', category: 'OPERATING_EXPENSE' },
     ];
 
     await this.prisma.account.createMany({

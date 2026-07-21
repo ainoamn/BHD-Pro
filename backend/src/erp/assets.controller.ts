@@ -28,6 +28,6 @@ export class AssetsController {
 
   @Post(':id/depreciate')
   depreciate(@CurrentUser() u: TokenPayload, @Param('id') id: string) {
-    return this.erp.depreciateAsset(u.companyId, id);
+    return this.erp.depreciateAsset(u.companyId, u.sub, id);
   }
 }

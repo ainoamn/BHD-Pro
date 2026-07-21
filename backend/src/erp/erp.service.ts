@@ -15,10 +15,14 @@ import {
   CreatePayrollDto,
 } from './dto/erp.dto';
 import { AccountCategory, AccountType, PayrollStatus } from '@prisma/client';
+import { GlPostingService } from '../journal/gl-posting.service';
 
 @Injectable()
 export class ErpService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private glPosting: GlPostingService,
+  ) {}
 
   // ─── Branches ───
   findBranches(companyId: string) {
@@ -247,7 +251,7 @@ export class ErpService {
     return { message: 'Deleted' };
   }
 
-  async depreciateAsset(companyId: string, id: string) {
+  async depreciateAsset(companyId: string, userId: string, id: string) {
     const asset = await this.ensureAsset(companyId, id);
     const rate = Number(asset.depreciationRate || 0);
     if (rate <= 0) {
@@ -268,10 +272,24 @@ export class ErpService {
     const amount = Math.min(monthly, current);
     const nextValue = Number((current - amount).toFixed(3));
 
-    return this.prisma.fixedAsset.update({
+    const updated = await this.prisma.fixedAsset.update({
       where: { id },
       data: { currentValue: nextValue },
     });
+
+    await this.glPosting.postAssetDepreciation(
+      companyId,
+      userId,
+      {
+        id: asset.id,
+        code: asset.code,
+        name: asset.name,
+        accountId: asset.accountId,
+      },
+      amount,
+    );
+
+    return updated;
   }
 
   private async ensureAsset(companyId: string, id: string) {
