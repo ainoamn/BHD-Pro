@@ -57,12 +57,20 @@ export class InvoicesService {
     return `${prefix}${String(nextSeq).padStart(4, '0')}`;
   }
 
-  async findAll(companyId: string) {
+  async findAll(
+    companyId: string,
+    filters?: { isCash?: boolean; type?: InvoiceType },
+  ) {
     return this.prisma.invoice.findMany({
-      where: { companyId },
+      where: {
+        companyId,
+        ...(filters?.isCash != null ? { isCash: filters.isCash } : {}),
+        ...(filters?.type ? { type: filters.type } : {}),
+      },
       include: {
         contact: { select: { id: true, name: true, nameEn: true, email: true } },
         items: true,
+        payments: true,
         createdBy: { select: { id: true, name: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -117,6 +125,12 @@ export class InvoicesService {
 
     if (!dto.items?.length) throw new BadRequestException('At least one line item required');
 
+    if (dto.payImmediately) {
+      if (dto.type !== InvoiceType.SALES && dto.type !== InvoiceType.PURCHASE) {
+        throw new BadRequestException('Cash payment is only allowed for sales or purchase invoices');
+      }
+    }
+
     await this.validateAnalytics(companyId, dto.costCenterId, dto.projectId);
 
     const taxRate = dto.taxRate ?? OMAN_VAT_RATE;
@@ -145,15 +159,17 @@ export class InvoicesService {
     const total = Number((subtotal + taxAmount - discount).toFixed(3));
 
     const number = await this.generateNumber(companyId, dto.type);
+    const cash = !!dto.payImmediately;
+    const dueDate = cash ? new Date(dto.date) : new Date(dto.dueDate);
 
-    return this.prisma.invoice.create({
+    const created = await this.prisma.invoice.create({
       data: {
         companyId,
         number,
         type: dto.type,
         contactId: dto.contactId,
         date: new Date(dto.date),
-        dueDate: new Date(dto.dueDate),
+        dueDate,
         subtotal,
         discount,
         taxRate,
@@ -161,6 +177,7 @@ export class InvoicesService {
         total,
         status: InvoiceStatus.DRAFT,
         paymentStatus: PaymentStatus.UNPAID,
+        isCash: cash,
         notes: dto.notes,
         costCenterId: dto.costCenterId || null,
         projectId: dto.projectId || null,
@@ -173,6 +190,14 @@ export class InvoicesService {
         costCenter: { select: { id: true, code: true, name: true } },
         project: { select: { id: true, code: true, name: true } },
       },
+    });
+
+    if (!cash) return created;
+
+    return this.recordPayment(companyId, userId, created.id, {
+      method: dto.paymentMethod ?? PaymentMethod.CASH,
+      date: dto.date,
+      notes: dto.notes || 'Cash payment',
     });
   }
 

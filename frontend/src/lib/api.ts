@@ -142,8 +142,13 @@ class ApiClient {
   }
 
   // Invoices
-  getInvoices() {
-    return this.get('/invoices');
+  getInvoices(params?: { isCash?: boolean; type?: string }) {
+    return this.get('/invoices', {
+      params: {
+        ...(params?.isCash != null ? { isCash: String(params.isCash) } : {}),
+        ...(params?.type ? { type: params.type } : {}),
+      },
+    });
   }
 
   getInvoiceStats(type?: string) {

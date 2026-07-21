@@ -35,7 +35,7 @@ export default function PurchasesHubPage() {
       description: t("receiptsDesc"),
     },
     {
-      href: "/accounting?tab=purchases&paymentFilter=PAID",
+      href: "/purchases/cash",
       icon: Banknote,
       title: t("cashExpenses"),
       description: t("cashExpensesDesc"),

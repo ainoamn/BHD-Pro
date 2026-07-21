@@ -30,8 +30,23 @@ export class InvoicesController {
 
   @Get()
   @ApiOperation({ summary: 'List all invoices for company' })
-  findAll(@CurrentUser() user: TokenPayload) {
-    return this.invoicesService.findAll(user.companyId);
+  @ApiQuery({ name: 'isCash', required: false, type: Boolean })
+  @ApiQuery({ name: 'type', required: false, enum: InvoiceType })
+  findAll(
+    @CurrentUser() user: TokenPayload,
+    @Query('isCash') isCash?: string,
+    @Query('type') type?: InvoiceType,
+  ) {
+    const cashFilter =
+      isCash === 'true' || isCash === '1'
+        ? true
+        : isCash === 'false' || isCash === '0'
+          ? false
+          : undefined;
+    return this.invoicesService.findAll(user.companyId, {
+      isCash: cashFilter,
+      type,
+    });
   }
 
   @Get('stats')

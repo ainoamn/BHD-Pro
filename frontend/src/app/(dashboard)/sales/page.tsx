@@ -61,7 +61,7 @@ export default function SalesHubPage() {
       description: t("creditNotesDesc"),
     },
     {
-      href: "/accounting?tab=sales&paymentFilter=PAID",
+      href: "/sales/cash",
       icon: Banknote,
       title: t("cashInvoices"),
       description: t("cashInvoicesDesc"),

@@ -495,6 +495,7 @@ model Invoice {
 
   status      InvoiceStatus @default(DRAFT)
   paymentStatus PaymentStatus @default(UNPAID) @map("payment_status")
+  isCash      Boolean  @default(false) @map("is_cash")
 
   vatUuid     String?  @map("vat_uuid") @unique
   xmlContent  String?  @map("xml_content")
@@ -531,6 +532,7 @@ model Invoice {
   @@index([costCenterId])
   @@index([projectId])
   @@index([vatUuid])
+  @@index([isCash])
   @@map("invoices")
 }
 

@@ -7,12 +7,13 @@ import {
   IsUUID,
   IsEnum,
   IsArray,
+  IsBoolean,
   ValidateNested,
   Min,
   IsDateString,
   ArrayMinSize,
 } from 'class-validator';
-import { InvoiceType } from '@prisma/client';
+import { InvoiceType, PaymentMethod } from '@prisma/client';
 
 export class InvoiceItemDto {
   @IsOptional()
@@ -81,6 +82,15 @@ export class CreateInvoiceDto {
   @IsOptional()
   @IsUUID()
   projectId?: string;
+
+  /** Create as cash document and record full payment immediately */
+  @IsOptional()
+  @IsBoolean()
+  payImmediately?: boolean;
+
+  @IsOptional()
+  @IsEnum(PaymentMethod)
+  paymentMethod?: PaymentMethod;
 
   @IsArray()
   @ArrayMinSize(1)
