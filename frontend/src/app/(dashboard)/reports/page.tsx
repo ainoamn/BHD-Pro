@@ -1,21 +1,73 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
-import { BarChart3 } from "lucide-react";
+import { BarChart3, Clock, Users } from "lucide-react";
 import api from "@/lib/api";
-import { cn, formatMoney } from "@/lib/utils";
+import { cn, formatMoney, formatDate } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
 import { PageHeader, LoadingSpinner, GlassCard } from "@/components/ui/page-shell";
 
-type ReportTab = "profitLoss" | "balanceSheet" | "trialBalance" | "cashFlow";
+type ReportTab =
+  | "profitLoss"
+  | "balanceSheet"
+  | "trialBalance"
+  | "cashFlow"
+  | "arAging"
+  | "apAging"
+  | "contactStatement";
 
-export default function ReportsPage() {
+interface AgingData {
+  grandTotal: number;
+  buckets: { key: string; label: string; amount: number; count: number }[];
+  contacts: {
+    contactId: string;
+    contactName: string;
+    total: number;
+    buckets: Record<string, number>;
+  }[];
+}
+
+function ReportsPageContent() {
   const t = useTranslations("reports");
+  const searchParams = useSearchParams();
   const { company } = useAuthStore();
   const currency = company?.currency || "OMR";
-  const [tab, setTab] = useState<ReportTab>("profitLoss");
+  const tabFromUrl = searchParams.get("tab") as ReportTab | null;
+  const [tab, setTab] = useState<ReportTab>(
+    tabFromUrl &&
+      [
+        "profitLoss",
+        "balanceSheet",
+        "trialBalance",
+        "cashFlow",
+        "arAging",
+        "apAging",
+        "contactStatement",
+      ].includes(tabFromUrl)
+      ? tabFromUrl
+      : "profitLoss"
+  );
+  const [contactId, setContactId] = useState("");
+
+  useEffect(() => {
+    if (
+      tabFromUrl &&
+      [
+        "profitLoss",
+        "balanceSheet",
+        "trialBalance",
+        "cashFlow",
+        "arAging",
+        "apAging",
+        "contactStatement",
+      ].includes(tabFromUrl)
+    ) {
+      setTab(tabFromUrl);
+    }
+  }, [tabFromUrl]);
 
   const { data: profitLoss, isLoading: loadingPL } = useQuery({
     queryKey: ["report-profit-loss"],
@@ -64,13 +116,65 @@ export default function ReportsPage() {
     enabled: tab === "cashFlow",
   });
 
-  const isLoading = loadingPL || loadingBS || loadingTB || loadingCF;
+  const { data: arAging, isLoading: loadingAr } = useQuery({
+    queryKey: ["report-ar-aging"],
+    queryFn: async () => {
+      const res = await api.getArAging();
+      return res.data as AgingData;
+    },
+    enabled: tab === "arAging",
+  });
+
+  const { data: apAging, isLoading: loadingAp } = useQuery({
+    queryKey: ["report-ap-aging"],
+    queryFn: async () => {
+      const res = await api.getApAging();
+      return res.data as AgingData;
+    },
+    enabled: tab === "apAging",
+  });
+
+  const { data: contacts = [] } = useQuery({
+    queryKey: ["contacts"],
+    queryFn: async () => {
+      const res = await api.getContacts();
+      return res.data as { id: string; name: string; type: string }[];
+    },
+    enabled: tab === "contactStatement",
+  });
+
+  const { data: statement, isLoading: loadingStatement } = useQuery({
+    queryKey: ["report-contact-statement", contactId],
+    queryFn: async () => {
+      const res = await api.getContactStatement(contactId);
+      return res.data as {
+        contact: { id: string; name: string; type: string };
+        outstanding: number;
+        entries: {
+          date: string;
+          kind: string;
+          reference: string;
+          docType: string;
+          debit: number;
+          credit: number;
+          balance: number;
+        }[];
+      };
+    },
+    enabled: tab === "contactStatement" && !!contactId,
+  });
+
+  const isLoading =
+    loadingPL || loadingBS || loadingTB || loadingCF || loadingAr || loadingAp || loadingStatement;
 
   const tabs: { key: ReportTab; label: string }[] = [
     { key: "profitLoss", label: t("profitLoss") },
     { key: "balanceSheet", label: t("balanceSheet") },
-    { key: "trialBalance", label: t("trialBalance") },
+    { key: "trialBalance", label: t("trialBalance" ) },
     { key: "cashFlow", label: t("cashFlow") },
+    { key: "arAging", label: t("arAging") },
+    { key: "apAging", label: t("apAging") },
+    { key: "contactStatement", label: t("contactStatement") },
   ];
 
   const renderAccountSection = (
@@ -90,6 +194,60 @@ export default function ReportsPage() {
         <span>{t("total")}</span>
         <span>{formatMoney(total, currency)}</span>
       </div>
+    </div>
+  );
+
+  const renderAging = (data: AgingData, title: string) => (
+    <div className="space-y-6">
+      <div className="flex items-center gap-3">
+        <Clock className="w-6 h-6 text-emerald-400" />
+        <h2 className="text-lg font-semibold text-white">{title}</h2>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="bg-slate-800/50 rounded-xl p-4 col-span-2 md:col-span-1">
+          <p className="text-xs text-slate-400">{t("agingTotal")}</p>
+          <p className="text-xl font-bold text-emerald-400 mt-1">
+            {formatMoney(data.grandTotal, currency)}
+          </p>
+        </div>
+        {data.buckets.map((b) => (
+          <div key={b.key} className="bg-slate-800/50 rounded-xl p-4">
+            <p className="text-xs text-slate-400">{b.label}</p>
+            <p className="text-lg font-bold text-white mt-1">{formatMoney(b.amount, currency)}</p>
+            <p className="text-[10px] text-slate-500 mt-1">{b.count} {t("invoicesCount")}</p>
+          </div>
+        ))}
+      </div>
+      {data.contacts.length > 0 && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-800 text-slate-400">
+                <th className="text-right p-3">{t("contact")}</th>
+                <th className="text-right p-3">{t("agingCurrent")}</th>
+                <th className="text-right p-3">1–30</th>
+                <th className="text-right p-3">31–60</th>
+                <th className="text-right p-3">61–90</th>
+                <th className="text-right p-3">90+</th>
+                <th className="text-right p-3">{t("total")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.contacts.map((c) => (
+                <tr key={c.contactId} className="border-b border-slate-800/50">
+                  <td className="p-3 text-white">{c.contactName}</td>
+                  <td className="p-3 text-slate-300">{formatMoney(c.buckets.current || 0, currency)}</td>
+                  <td className="p-3 text-slate-300">{formatMoney(c.buckets.days1_30 || 0, currency)}</td>
+                  <td className="p-3 text-slate-300">{formatMoney(c.buckets.days31_60 || 0, currency)}</td>
+                  <td className="p-3 text-slate-300">{formatMoney(c.buckets.days61_90 || 0, currency)}</td>
+                  <td className="p-3 text-slate-300">{formatMoney(c.buckets.over90 || 0, currency)}</td>
+                  <td className="p-3 text-emerald-400 font-medium">{formatMoney(c.total, currency)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 
@@ -196,9 +354,83 @@ export default function ReportsPage() {
                 ))}
               </div>
             )}
+
+            {tab === "arAging" && arAging && renderAging(arAging, t("arAging"))}
+            {tab === "apAging" && apAging && renderAging(apAging, t("apAging"))}
+
+            {tab === "contactStatement" && (
+              <div className="space-y-6">
+                <div className="flex items-center gap-3">
+                  <Users className="w-6 h-6 text-emerald-400" />
+                  <h2 className="text-lg font-semibold text-white">{t("contactStatement")}</h2>
+                </div>
+                <select
+                  value={contactId}
+                  onChange={(e) => setContactId(e.target.value)}
+                  className="w-full max-w-md bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white text-sm"
+                >
+                  <option value="">{t("selectContact")}</option>
+                  {contacts.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} ({c.type === "CUSTOMER" ? t("customer") : t("supplier")})
+                    </option>
+                  ))}
+                </select>
+                {statement && (
+                  <>
+                    <div className="bg-slate-800/50 rounded-xl p-4 inline-block">
+                      <p className="text-xs text-slate-400">{t("outstanding")}</p>
+                      <p className="text-xl font-bold text-emerald-400">
+                        {formatMoney(statement.outstanding, currency)}
+                      </p>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-slate-800 text-slate-400">
+                            <th className="text-right p-3">{t("date")}</th>
+                            <th className="text-right p-3">{t("reference")}</th>
+                            <th className="text-right p-3">{t("docType")}</th>
+                            <th className="text-right p-3">{t("debit")}</th>
+                            <th className="text-right p-3">{t("credit")}</th>
+                            <th className="text-right p-3">{t("balance")}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {statement.entries.map((e, i) => (
+                            <tr key={i} className="border-b border-slate-800/50">
+                              <td className="p-3 text-slate-300">{formatDate(e.date)}</td>
+                              <td className="p-3 text-white">{e.reference}</td>
+                              <td className="p-3 text-slate-400">{e.docType}</td>
+                              <td className="p-3 text-slate-300">
+                                {e.debit > 0 ? formatMoney(e.debit, currency) : "—"}
+                              </td>
+                              <td className="p-3 text-slate-300">
+                                {e.credit > 0 ? formatMoney(e.credit, currency) : "—"}
+                              </td>
+                              <td className="p-3 text-emerald-400 font-medium">
+                                {formatMoney(e.balance, currency)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </>
         )}
       </GlassCard>
     </div>
+  );
+}
+
+export default function ReportsPage() {
+  return (
+    <Suspense fallback={<LoadingSpinner />}>
+      <ReportsPageContent />
+    </Suspense>
   );
 }

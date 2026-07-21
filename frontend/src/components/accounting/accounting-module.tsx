@@ -86,6 +86,9 @@ interface LineItemForm {
 }
 
 type InvoiceType = "SALES" | "PURCHASE";
+type DocumentType = InvoiceType | "QUOTATION" | "CREDIT_NOTE" | "DEBIT_NOTE";
+
+const DOC_TYPES = new Set(["SALES", "PURCHASE", "QUOTATION", "CREDIT_NOTE", "DEBIT_NOTE"]);
 
 const emptyLine = (): LineItemForm => ({
   description: "",
@@ -106,6 +109,9 @@ export function AccountingModule() {
 
   const tabFromUrl = searchParams.get("tab") as AccountingHubTab | null;
   const typeFromUrl = searchParams.get("type");
+  const docTypeFromUrl = searchParams.get("docType") || typeFromUrl;
+  const initialDocType: DocumentType | null =
+    docTypeFromUrl && DOC_TYPES.has(docTypeFromUrl) ? (docTypeFromUrl as DocumentType) : null;
   const initialHub: AccountingHubTab =
     tabFromUrl === "overview" || tabFromUrl === "sales" || tabFromUrl === "purchases" || tabFromUrl === "documents"
       ? tabFromUrl
@@ -123,6 +129,14 @@ export function AccountingModule() {
 
   const [hubTab, setHubTab] = useState<AccountingHubTab>(initialHub);
   const [invoiceType, setInvoiceType] = useState<InvoiceType>(initialType);
+  const [documentType, setDocumentType] = useState<DocumentType>(
+    initialDocType ||
+      (initialHub === "purchases"
+        ? "PURCHASE"
+        : initialHub === "sales"
+          ? "SALES"
+          : "SALES")
+  );
   const [modalOpen, setModalOpen] = useState(false);
   const [printInvoice, setPrintInvoice] = useState<Invoice | null>(null);
   const [documentVariant, setDocumentVariant] = useState<"invoice" | "receipt">("invoice");
@@ -146,8 +160,10 @@ export function AccountingModule() {
 
   useEffect(() => {
     const action = searchParams.get("action");
-    const type = searchParams.get("type") as InvoiceType | null;
+    const type = searchParams.get("type");
+    const docType = searchParams.get("docType") || type;
     const tabParam = searchParams.get("tab") as AccountingHubTab | null;
+    const paymentParam = searchParams.get("paymentFilter");
     if (
       tabParam === "overview" ||
       tabParam === "sales" ||
@@ -156,11 +172,30 @@ export function AccountingModule() {
     ) {
       setHubTab(tabParam);
     }
-    if (type === "SALES" || type === "PURCHASE") setInvoiceType(type);
+    if (docType && DOC_TYPES.has(docType)) {
+      const dt = docType as DocumentType;
+      setDocumentType(dt);
+      if (dt === "PURCHASE" || dt === "DEBIT_NOTE") {
+        setInvoiceType("PURCHASE");
+        if (tabParam !== "documents") setHubTab("purchases");
+      } else if (dt === "SALES" || dt === "QUOTATION" || dt === "CREDIT_NOTE") {
+        setInvoiceType("SALES");
+        if (tabParam !== "documents") setHubTab("sales");
+      }
+    } else if (type === "SALES" || type === "PURCHASE") {
+      setInvoiceType(type);
+      setDocumentType(type);
+    }
+    if (paymentParam) setPaymentFilter(paymentParam);
     if (action === "new") {
       setModalOpen(true);
-      if (type === "SALES" || type === "PURCHASE") {
+      if (docType && DOC_TYPES.has(docType)) {
+        const dt = docType as DocumentType;
+        setDocumentType(dt);
+        setHubTab(dt === "PURCHASE" || dt === "DEBIT_NOTE" ? "purchases" : "sales");
+      } else if (type === "SALES" || type === "PURCHASE") {
         setInvoiceType(type);
+        setDocumentType(type);
         setHubTab(type === "SALES" ? "sales" : "purchases");
       }
     }
@@ -188,7 +223,15 @@ export function AccountingModule() {
   });
 
   const listTypeFilter =
-    hubTab === "sales" ? "SALES" : hubTab === "purchases" ? "PURCHASE" : undefined;
+    hubTab === "sales"
+      ? documentType === "QUOTATION" || documentType === "CREDIT_NOTE"
+        ? documentType
+        : "SALES"
+      : hubTab === "purchases"
+        ? documentType === "DEBIT_NOTE"
+          ? "DEBIT_NOTE"
+          : "PURCHASE"
+        : undefined;
 
   const filteredInvoices = invoices
     .filter((inv) => !listTypeFilter || inv.type === listTypeFilter)
@@ -404,7 +447,7 @@ export function AccountingModule() {
       }
 
       const payload = {
-        type: invoiceType,
+        type: documentType,
         contactId,
         date,
         dueDate,

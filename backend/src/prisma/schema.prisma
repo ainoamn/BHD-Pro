@@ -45,6 +45,13 @@ model Company {
   warehouses  Warehouse[]
   paymentGateways CompanyPaymentGateway[]
   billingInvoices BillingInvoice[]
+  branches      Branch[]
+  costCenters   CostCenter[]
+  projects      Project[]
+  employees     Employee[]
+  payrollRuns   PayrollRun[]
+  fixedAssets   FixedAsset[]
+  bankAccounts  BankAccount[]
 
   @@index([vatNumber])
   @@index([crNumber])
@@ -127,6 +134,8 @@ model Account {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   journalLines JournalLine[]
+  fixedAssets  FixedAsset[]
+  bankAccounts BankAccount[]
 
   @@unique([companyId, code])
   @@index([companyId])
@@ -175,12 +184,207 @@ model JournalLine {
   debit       Decimal  @default(0)
   credit      Decimal  @default(0)
   costCenterId String? @map("cost_center_id")
+  costCenter   CostCenter? @relation(fields: [costCenterId], references: [id])
+  projectId    String? @map("project_id")
+  project      Project? @relation(fields: [projectId], references: [id])
 
   createdAt   DateTime @default(now()) @map("created_at")
 
   @@index([journalId])
   @@index([accountId])
+  @@index([costCenterId])
+  @@index([projectId])
   @@map("journal_lines")
+}
+
+model Branch {
+  id           String   @id @default(uuid())
+  companyId    String   @map("company_id")
+  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  code         String
+  name         String
+  nameEn       String?  @map("name_en")
+  address      String?
+  city         String?
+  phone        String?
+  isHeadOffice Boolean  @default(false) @map("is_head_office")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  employees    Employee[]
+  projects     Project[]
+  costCenters  CostCenter[]
+  fixedAssets  FixedAsset[]
+  bankAccounts BankAccount[]
+  payrollRuns  PayrollRun[]
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@map("branches")
+}
+
+model CostCenter {
+  id          String   @id @default(uuid())
+  companyId   String   @map("company_id")
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branchId    String?  @map("branch_id")
+  branch      Branch?  @relation(fields: [branchId], references: [id])
+  code        String
+  name        String
+  nameEn      String?  @map("name_en")
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  journalLines JournalLine[]
+  projects     Project[]
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@map("cost_centers")
+}
+
+model Project {
+  id            String        @id @default(uuid())
+  companyId     String        @map("company_id")
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branchId      String?       @map("branch_id")
+  branch        Branch?       @relation(fields: [branchId], references: [id])
+  costCenterId  String?       @map("cost_center_id")
+  costCenter    CostCenter?   @relation(fields: [costCenterId], references: [id])
+  code          String
+  name          String
+  nameEn        String?       @map("name_en")
+  description   String?
+  startDate     DateTime?     @map("start_date")
+  endDate       DateTime?     @map("end_date")
+  budget        Decimal       @default(0)
+  status        ProjectStatus @default(ACTIVE)
+  isActive      Boolean       @default(true) @map("is_active")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  journalLines  JournalLine[]
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@map("projects")
+}
+
+model Employee {
+  id             String   @id @default(uuid())
+  companyId      String   @map("company_id")
+  company        Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branchId       String?  @map("branch_id")
+  branch         Branch?  @relation(fields: [branchId], references: [id])
+  employeeNumber String   @map("employee_number")
+  name           String
+  nameEn         String?  @map("name_en")
+  email          String?
+  phone          String?
+  jobTitle       String?  @map("job_title")
+  department     String?
+  baseSalary     Decimal  @default(0) @map("base_salary")
+  hireDate       DateTime? @map("hire_date")
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  payrollLines   PayrollLine[]
+
+  @@unique([companyId, employeeNumber])
+  @@index([companyId])
+  @@map("employees")
+}
+
+model PayrollRun {
+  id          String        @id @default(uuid())
+  companyId   String        @map("company_id")
+  company     Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branchId    String?       @map("branch_id")
+  branch      Branch?       @relation(fields: [branchId], references: [id])
+  number      String
+  periodMonth Int           @map("period_month")
+  periodYear  Int           @map("period_year")
+  date        DateTime      @default(now())
+  status      PayrollStatus @default(DRAFT)
+  totalNet    Decimal       @default(0) @map("total_net")
+  notes       String?
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  lines       PayrollLine[]
+
+  @@unique([companyId, number])
+  @@index([companyId])
+  @@map("payroll_runs")
+}
+
+model PayrollLine {
+  id           String     @id @default(uuid())
+  payrollRunId String     @map("payroll_run_id")
+  payrollRun   PayrollRun @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
+  employeeId   String     @map("employee_id")
+  employee     Employee   @relation(fields: [employeeId], references: [id])
+  baseSalary   Decimal    @default(0) @map("base_salary")
+  allowances   Decimal    @default(0)
+  deductions   Decimal    @default(0)
+  netSalary    Decimal    @default(0) @map("net_salary")
+
+  @@index([payrollRunId])
+  @@index([employeeId])
+  @@map("payroll_lines")
+}
+
+model FixedAsset {
+  id                String        @id @default(uuid())
+  companyId         String        @map("company_id")
+  company           Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branchId          String?       @map("branch_id")
+  branch            Branch?       @relation(fields: [branchId], references: [id])
+  accountId         String?       @map("account_id")
+  account           Account?      @relation(fields: [accountId], references: [id])
+  code              String
+  name              String
+  nameEn            String?       @map("name_en")
+  category          AssetCategory @default(OTHER)
+  purchaseDate      DateTime?     @map("purchase_date")
+  purchaseCost      Decimal       @default(0) @map("purchase_cost")
+  currentValue      Decimal       @default(0) @map("current_value")
+  depreciationRate  Decimal       @default(0) @map("depreciation_rate")
+  location          String?
+  isActive          Boolean       @default(true) @map("is_active")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@map("fixed_assets")
+}
+
+model BankAccount {
+  id             String   @id @default(uuid())
+  companyId      String   @map("company_id")
+  company        Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branchId       String?  @map("branch_id")
+  branch         Branch?  @relation(fields: [branchId], references: [id])
+  accountId      String?  @map("account_id")
+  glAccount      Account? @relation(fields: [accountId], references: [id])
+  name           String
+  bankName       String   @map("bank_name")
+  accountNumber  String   @map("account_number")
+  iban           String?
+  currency       String   @default("OMR")
+  openingBalance Decimal  @default(0) @map("opening_balance")
+  currentBalance Decimal  @default(0) @map("current_balance")
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([companyId])
+  @@map("bank_accounts")
 }
 
 // ==================== INVOICE TABLES ====================
@@ -463,6 +667,29 @@ enum AccountCategory {
   OPERATING_EXPENSE
   OTHER_EXPENSE
   OTHER_INCOME
+}
+
+enum ProjectStatus {
+  PLANNED
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+enum PayrollStatus {
+  DRAFT
+  APPROVED
+  PAID
+}
+
+enum AssetCategory {
+  BUILDING
+  VEHICLE
+  EQUIPMENT
+  FURNITURE
+  IT
+  OTHER
 }
 
 enum InvoiceType {

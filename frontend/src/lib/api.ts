@@ -305,6 +305,115 @@ class ApiClient {
     return this.delete(`/contacts/${id}`);
   }
 
+  // Chart of Accounts
+  getAccounts() {
+    return this.get('/accounts');
+  }
+  getAccountsTree() {
+    return this.get('/accounts/tree');
+  }
+  createAccount(data: unknown) {
+    return this.post('/accounts', data);
+  }
+  updateAccount(id: string, data: unknown) {
+    return this.put(`/accounts/${id}`, data);
+  }
+  deleteAccount(id: string) {
+    return this.delete(`/accounts/${id}`);
+  }
+
+  // ERP modules
+  getBranches() {
+    return this.get('/branches');
+  }
+  createBranch(data: unknown) {
+    return this.post('/branches', data);
+  }
+  updateBranch(id: string, data: unknown) {
+    return this.put(`/branches/${id}`, data);
+  }
+  deleteBranch(id: string) {
+    return this.delete(`/branches/${id}`);
+  }
+
+  getCostCenters() {
+    return this.get('/cost-centers');
+  }
+  createCostCenter(data: unknown) {
+    return this.post('/cost-centers', data);
+  }
+  updateCostCenter(id: string, data: unknown) {
+    return this.put(`/cost-centers/${id}`, data);
+  }
+  deleteCostCenter(id: string) {
+    return this.delete(`/cost-centers/${id}`);
+  }
+
+  getProjects() {
+    return this.get('/projects');
+  }
+  createProject(data: unknown) {
+    return this.post('/projects', data);
+  }
+  updateProject(id: string, data: unknown) {
+    return this.put(`/projects/${id}`, data);
+  }
+  deleteProject(id: string) {
+    return this.delete(`/projects/${id}`);
+  }
+
+  getEmployees() {
+    return this.get('/employees');
+  }
+  createEmployee(data: unknown) {
+    return this.post('/employees', data);
+  }
+  updateEmployee(id: string, data: unknown) {
+    return this.put(`/employees/${id}`, data);
+  }
+  deleteEmployee(id: string) {
+    return this.delete(`/employees/${id}`);
+  }
+
+  getAssets() {
+    return this.get('/assets');
+  }
+  createAsset(data: unknown) {
+    return this.post('/assets', data);
+  }
+  updateAsset(id: string, data: unknown) {
+    return this.put(`/assets/${id}`, data);
+  }
+  deleteAsset(id: string) {
+    return this.delete(`/assets/${id}`);
+  }
+
+  getBankAccounts() {
+    return this.get('/bank-accounts');
+  }
+  createBankAccount(data: unknown) {
+    return this.post('/bank-accounts', data);
+  }
+  updateBankAccount(id: string, data: unknown) {
+    return this.put(`/bank-accounts/${id}`, data);
+  }
+  deleteBankAccount(id: string) {
+    return this.delete(`/bank-accounts/${id}`);
+  }
+
+  getPayrollRuns() {
+    return this.get('/payroll');
+  }
+  createPayrollRun(data: unknown) {
+    return this.post('/payroll', data);
+  }
+  updatePayrollStatus(id: string, status: string) {
+    return this.patch(`/payroll/${id}/status`, { status });
+  }
+  deletePayrollRun(id: string) {
+    return this.delete(`/payroll/${id}`);
+  }
+
   // Reports
   getProfitLoss() {
     return this.get('/reports/profit-loss');
@@ -320,6 +429,22 @@ class ApiClient {
 
   getCashFlowReport() {
     return this.get('/reports/cash-flow');
+  }
+
+  getArAging() {
+    return this.get('/reports/ar-aging');
+  }
+
+  getApAging() {
+    return this.get('/reports/ap-aging');
+  }
+
+  getContactStatement(contactId: string) {
+    return this.get('/reports/contact-statement', { params: { contactId } });
+  }
+
+  getPaymentVouchers(type?: 'SALES' | 'PURCHASE') {
+    return this.get('/invoices/payments/list', { params: type ? { type } : {} });
   }
 
   // Company settings

@@ -15,6 +15,8 @@ import { UsersModule } from './users/users.module';
 import { VatModule } from './vat/vat.module';
 import { AiModule } from './ai/ai.module';
 import { PaymentsModule } from './payments/payments.module';
+import { AccountsModule } from './accounts/accounts.module';
+import { ErpModule } from './erp/erp.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -34,6 +36,8 @@ import { HealthController } from './health.controller';
     AiModule,
     SubscriptionsModule,
     PaymentsModule,
+    AccountsModule,
+    ErpModule,
   ],
   controllers: [HealthController],
 })

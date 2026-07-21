@@ -41,6 +41,16 @@ export class InvoicesController {
     return this.invoicesService.getStats(user.companyId, type);
   }
 
+  @Get('payments/list')
+  @ApiOperation({ summary: 'List payment vouchers (receipts / disbursements)' })
+  @ApiQuery({ name: 'type', required: false, enum: ['SALES', 'PURCHASE'] })
+  listPayments(
+    @CurrentUser() user: TokenPayload,
+    @Query('type') type?: 'SALES' | 'PURCHASE',
+  ) {
+    return this.invoicesService.listPayments(user.companyId, type);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get invoice by ID' })
   findOne(@CurrentUser() user: TokenPayload, @Param('id') id: string) {

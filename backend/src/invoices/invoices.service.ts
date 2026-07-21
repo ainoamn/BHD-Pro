@@ -609,4 +609,42 @@ export class InvoicesService {
       pendingCollectionCount: pendingCollection,
     };
   }
+
+  async listPayments(companyId: string, invoiceType?: 'SALES' | 'PURCHASE') {
+    const types = invoiceType
+      ? invoiceType === 'SALES'
+        ? (['SALES', 'CREDIT_NOTE'] as const)
+        : (['PURCHASE', 'DEBIT_NOTE'] as const)
+      : undefined;
+
+    const payments = await this.prisma.payment.findMany({
+      where: {
+        invoice: {
+          companyId,
+          ...(types ? { type: { in: [...types] } } : {}),
+        },
+      },
+      include: {
+        invoice: {
+          select: {
+            id: true,
+            number: true,
+            type: true,
+            contact: { select: { id: true, name: true, nameEn: true } },
+          },
+        },
+      },
+      orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+    });
+
+    return payments.map((p) => ({
+      id: p.id,
+      amount: Number(p.amount),
+      method: p.method,
+      reference: p.reference,
+      date: p.date,
+      notes: p.notes,
+      invoice: p.invoice,
+    }));
+  }
 }
