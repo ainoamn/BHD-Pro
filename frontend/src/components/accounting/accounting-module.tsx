@@ -39,6 +39,10 @@ import {
 } from "@/components/accounting/accounting-hub-tabs";
 import { AccountingOverviewTab } from "@/components/accounting/accounting-overview-tab";
 import { PageHeader, LoadingSpinner } from "@/components/ui/page-shell";
+import {
+  CustomFieldsInputs,
+  type CustomFieldDef,
+} from "@/components/custom-fields/custom-fields-inputs";
 
 interface Contact {
   id: string;
@@ -76,6 +80,7 @@ interface Invoice {
   status: string;
   paymentStatus: string;
   notes?: string;
+  customFieldsJson?: Record<string, string | number>;
   costCenterId?: string | null;
   projectId?: string | null;
   costCenter?: { id: string; code: string; name: string } | null;
@@ -156,6 +161,7 @@ export function AccountingModule() {
     new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0]
   );
   const [notes, setNotes] = useState("");
+  const [customFields, setCustomFields] = useState<Record<string, string | number>>({});
   const [discount, setDiscount] = useState(0);
   const [lines, setLines] = useState<LineItemForm[]>([emptyLine()]);
   const [quickCustomerOpen, setQuickCustomerOpen] = useState(false);
@@ -323,6 +329,14 @@ export function AccountingModule() {
     },
   });
 
+  const { data: invoiceFields = [] } = useQuery({
+    queryKey: ["custom-fields", "INVOICE"],
+    queryFn: async () => {
+      const res = await api.getCustomFields("INVOICE");
+      return res.data as CustomFieldDef[];
+    },
+  });
+
   const contactType = invoiceType === "SALES" ? "CUSTOMER" : "SUPPLIER";
 
   const resetForm = () => {
@@ -333,6 +347,7 @@ export function AccountingModule() {
     setDate(new Date().toISOString().split("T")[0]);
     setDueDate(new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0]);
     setNotes("");
+    setCustomFields({});
     setDiscount(0);
     setLines([emptyLine()]);
     setQuickCustomerOpen(false);
@@ -358,6 +373,7 @@ export function AccountingModule() {
     setDate(inv.date.split("T")[0]);
     setDueDate(inv.dueDate.split("T")[0]);
     setNotes(inv.notes || "");
+    setCustomFields(inv.customFieldsJson || {});
     setDiscount(Number(inv.discount));
     setLines(
       inv.items.map((i) => ({
@@ -513,6 +529,7 @@ export function AccountingModule() {
         notes: notes || undefined,
         costCenterId: costCenterId || undefined,
         projectId: projectId || undefined,
+        customFieldsJson: customFields,
         items,
       };
       if (editingId) return api.updateInvoice(editingId, payload);
@@ -1307,6 +1324,12 @@ export function AccountingModule() {
                   className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:border-emerald-500"
                 />
               </div>
+
+              <CustomFieldsInputs
+                fields={invoiceFields}
+                values={customFields}
+                onChange={setCustomFields}
+              />
 
               <div className="bg-slate-800/50 rounded-lg p-4 space-y-2 text-sm">
                 <div className="flex justify-between text-slate-400">

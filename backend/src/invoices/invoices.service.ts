@@ -261,6 +261,9 @@ export class InvoicesService {
           ...(dto.notes !== undefined && { notes: dto.notes }),
           ...(dto.costCenterId !== undefined && { costCenterId: dto.costCenterId || null }),
           ...(dto.projectId !== undefined && { projectId: dto.projectId || null }),
+          ...(dto.customFieldsJson !== undefined && {
+            customFieldsJson: dto.customFieldsJson as object,
+          }),
           subtotal,
           discount,
           taxRate,
@@ -282,6 +285,9 @@ export class InvoicesService {
         ...(dto.discount !== undefined && { discount: dto.discount }),
         ...(dto.costCenterId !== undefined && { costCenterId: dto.costCenterId || null }),
         ...(dto.projectId !== undefined && { projectId: dto.projectId || null }),
+        ...(dto.customFieldsJson !== undefined && {
+          customFieldsJson: dto.customFieldsJson as object,
+        }),
       },
       include: { contact: true, items: true, costCenter: true, project: true },
     });

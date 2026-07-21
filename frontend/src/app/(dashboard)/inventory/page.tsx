@@ -23,6 +23,10 @@ import { useAuthStore } from "@/store/auth";
 import { PageHeader, EmptyState, LoadingSpinner, GlassCard } from "@/components/ui/page-shell";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { Product } from "@/types";
+import {
+  CustomFieldsInputs,
+  type CustomFieldDef,
+} from "@/components/custom-fields/custom-fields-inputs";
 
 interface ProductStats {
   total: number;
@@ -44,6 +48,7 @@ const emptyProduct = () => ({
   minQuantity: 5,
   unit: "pcs",
   description: "",
+  customFields: {} as Record<string, string | number>,
 });
 
 export default function InventoryPage() {
@@ -67,7 +72,15 @@ export default function InventoryPage() {
     queryKey: ["products"],
     queryFn: async () => {
       const res = await api.getProducts();
-      return res.data as Product[];
+      return res.data as (Product & { customFieldsJson?: Record<string, string | number> })[];
+    },
+  });
+
+  const { data: productFields = [] } = useQuery({
+    queryKey: ["custom-fields", "PRODUCT"],
+    queryFn: async () => {
+      const res = await api.getCustomFields("PRODUCT");
+      return res.data as CustomFieldDef[];
     },
   });
 
@@ -97,7 +110,7 @@ export default function InventoryPage() {
     setModalOpen(true);
   };
 
-  const openEdit = (product: Product) => {
+  const openEdit = (product: Product & { customFieldsJson?: Record<string, string | number> }) => {
     setEditingId(product.id);
     setForm({
       sku: product.sku,
@@ -110,6 +123,7 @@ export default function InventoryPage() {
       minQuantity: Number(product.minQuantity),
       unit: product.unit,
       description: product.description || "",
+      customFields: product.customFieldsJson || {},
     });
     setModalOpen(true);
   };
@@ -127,8 +141,15 @@ export default function InventoryPage() {
 
   const saveMutation = useMutation({
     mutationFn: () => {
-      if (editingId) return api.updateProduct(editingId, form);
-      return api.createProduct(form);
+      const { customFields, ...rest } = form;
+      const payload = {
+        ...rest,
+        ...(Object.keys(customFields).length > 0
+          ? { customFieldsJson: customFields }
+          : { customFieldsJson: {} }),
+      };
+      if (editingId) return api.updateProduct(editingId, payload);
+      return api.createProduct(payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
@@ -483,6 +504,11 @@ export default function InventoryPage() {
                   />
                 </div>
               </div>
+              <CustomFieldsInputs
+                fields={productFields}
+                values={form.customFields}
+                onChange={(customFields) => setForm({ ...form, customFields })}
+              />
             </div>
 
             <div className="flex justify-end gap-3 p-5 border-t border-slate-800">
