@@ -16,6 +16,7 @@ import {
   FolderKanban,
   Landmark,
   Wallet,
+  ScrollText,
 } from "lucide-react";
 import { ModuleHub } from "@/components/hub/module-hub";
 
@@ -34,6 +35,12 @@ export default function ReportsHubPage() {
       icon: Wallet,
       title: t("cashForecast"),
       description: t("cashForecastDesc"),
+    },
+    {
+      href: "/reports/audit",
+      icon: ScrollText,
+      title: t("auditLog"),
+      description: t("auditLogDesc"),
     },
     {
       href: "/reports/sales",

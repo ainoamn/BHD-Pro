@@ -481,6 +481,10 @@ class ApiClient {
     });
   }
 
+  getAuditLog(params?: { limit?: number; entity?: string; action?: string }) {
+    return this.get('/reports/audit-log', { params: params || {} });
+  }
+
   getArAging() {
     return this.get('/reports/ar-aging');
   }

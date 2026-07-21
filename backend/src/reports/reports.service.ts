@@ -1070,4 +1070,60 @@ export class ReportsService {
       currency: 'OMR',
     };
   }
+
+  async auditLog(
+    companyId: string,
+    opts: { limit?: number; entity?: string; action?: string } = {},
+  ) {
+    const take = Math.min(Math.max(opts.limit ?? 100, 1), 500);
+    const where: {
+      companyId: string;
+      entity?: string;
+      action?: string;
+    } = { companyId };
+    if (opts.entity) where.entity = opts.entity;
+    if (opts.action) where.action = opts.action;
+
+    const [rows, total] = await Promise.all([
+      this.prisma.auditLog.findMany({
+        where,
+        include: {
+          user: { select: { id: true, name: true, email: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take,
+      }),
+      this.prisma.auditLog.count({ where }),
+    ]);
+
+    return {
+      total,
+      limit: take,
+      rows: rows.map((r) => ({
+        id: r.id,
+        action: r.action,
+        entity: r.entity,
+        entityId: r.entityId,
+        userName: r.user?.name || '—',
+        userEmail: r.user?.email || null,
+        ipAddress: r.ipAddress,
+        createdAt: r.createdAt,
+        summary: this.auditSummary(r.action, r.entity, r.newValues),
+      })),
+    };
+  }
+
+  private auditSummary(action: string, entity: string, newValues: unknown) {
+    const nv = newValues as {
+      result?: { number?: string; id?: string; message?: string };
+      request?: { name?: string; code?: string };
+    } | null;
+    const ref =
+      nv?.result?.number ||
+      nv?.request?.name ||
+      nv?.request?.code ||
+      nv?.result?.id ||
+      '';
+    return `${action} ${entity}${ref ? `: ${ref}` : ''}`.trim();
+  }
 }

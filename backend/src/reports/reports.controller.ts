@@ -118,4 +118,22 @@ export class ReportsController {
   projectBudget(@CurrentUser() user: TokenPayload) {
     return this.reportsService.projectBudgetVsActual(user.companyId);
   }
+
+  @Get('audit-log')
+  @ApiOperation({ summary: 'Company audit trail of write actions' })
+  @ApiQuery({ name: 'limit', required: false })
+  @ApiQuery({ name: 'entity', required: false })
+  @ApiQuery({ name: 'action', required: false })
+  auditLog(
+    @CurrentUser() user: TokenPayload,
+    @Query('limit') limit?: string,
+    @Query('entity') entity?: string,
+    @Query('action') action?: string,
+  ) {
+    return this.reportsService.auditLog(user.companyId, {
+      limit: limit ? Number(limit) : 100,
+      entity,
+      action,
+    });
+  }
 }

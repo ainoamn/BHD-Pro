@@ -768,6 +768,8 @@
     "financialDesc": "P&L, balance sheet, cash flow",
     "cashForecast": "Cash flow forecast",
     "cashForecastDesc": "Expected collections and payments by due date",
+    "auditLog": "Audit log",
+    "auditLogDesc": "Track create, update, and delete actions",
     "sales": "Sales report",
     "salesDesc": "Monthly revenue and top customers",
     "purchases": "Purchases report",
@@ -821,6 +823,19 @@
   "reportsExport": {
     "csv": "Export CSV",
     "print": "Print / PDF"
+  },
+  "auditLog": {
+    "title": "Audit Log",
+    "subtitle": "Company document activity trail — Wafeq-style",
+    "entity": "Entity",
+    "action": "Action",
+    "allActions": "All actions",
+    "when": "When",
+    "user": "User",
+    "summary": "Summary",
+    "empty": "No audit entries yet",
+    "emptyHint": "Entries appear after documents are created or changed",
+    "showing": "Showing {count} of {total}"
   },
   "reportsSales": {
     "title": "Sales Report",
