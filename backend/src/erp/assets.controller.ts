@@ -25,4 +25,9 @@ export class AssetsController {
   @Delete(':id') remove(@CurrentUser() u: TokenPayload, @Param('id') id: string) {
     return this.erp.deleteAsset(u.companyId, id);
   }
+
+  @Post(':id/depreciate')
+  depreciate(@CurrentUser() u: TokenPayload, @Param('id') id: string) {
+    return this.erp.depreciateAsset(u.companyId, id);
+  }
 }

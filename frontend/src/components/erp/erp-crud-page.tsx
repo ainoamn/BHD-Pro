@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { Plus, Edit, Trash2, X, Loader2, Inbox } from "lucide-react";
@@ -36,6 +36,7 @@ interface ErpCrudPageProps<T extends { id: string }> {
   remove: (id: string) => Promise<unknown>;
   toForm?: (row: T) => Record<string, unknown>;
   currency?: string;
+  rowActions?: (row: T) => ReactNode;
 }
 
 export function ErpCrudPage<T extends { id: string }>({
@@ -51,6 +52,7 @@ export function ErpCrudPage<T extends { id: string }>({
   remove,
   toForm,
   currency = "OMR",
+  rowActions,
 }: ErpCrudPageProps<T>) {
   const tCommon = useTranslations("common");
   const queryClient = useQueryClient();
@@ -101,6 +103,31 @@ export function ErpCrudPage<T extends { id: string }>({
     setOpen(true);
   };
 
+  const actionsFor = (row: T) => (
+    <div className="flex gap-1 items-center justify-end flex-wrap">
+      {rowActions?.(row)}
+      <button
+        onClick={() => openEdit(row)}
+        className="p-1.5 rounded text-slate-400 hover:text-white hover:bg-slate-700"
+      >
+        <Edit className="w-4 h-4" />
+      </button>
+      <button
+        onClick={() => {
+          if (confirm(tCommon("confirmDelete"))) deleteMutation.mutate(row.id);
+        }}
+        className="p-1.5 rounded text-rose-400 hover:bg-rose-500/10"
+      >
+        <Trash2 className="w-4 h-4" />
+      </button>
+    </div>
+  );
+
+  const cellValue = (row: T, c: ErpColumn<T>) =>
+    c.render ? c.render(row) : String((row as Record<string, unknown>)[c.key] ?? "—");
+
+  const mobileColumns = columns.slice(0, 4);
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -122,53 +149,54 @@ export function ErpCrudPage<T extends { id: string }>({
       ) : rows.length === 0 ? (
         <EmptyState icon={Inbox} title={emptyLabel} />
       ) : (
-        <GlassCard className="overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-800 text-slate-400">
-                  {columns.map((c) => (
-                    <th key={c.key} className="p-4 text-right font-medium">
-                      {c.label}
-                    </th>
+        <>
+          <div className="md:hidden space-y-3">
+            {rows.map((row) => (
+              <GlassCard key={row.id} className="p-4 space-y-3">
+                <div className="space-y-1.5">
+                  {mobileColumns.map((c, i) => (
+                    <div key={c.key} className="flex justify-between gap-3 text-sm">
+                      <span className="text-slate-500 shrink-0">{c.label}</span>
+                      <span className={cn("text-right", i === 0 ? "text-white font-medium" : "text-slate-300")}>
+                        {cellValue(row, c)}
+                      </span>
+                    </div>
                   ))}
-                  <th className="p-4 w-24" />
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => (
-                  <tr key={row.id} className="border-b border-slate-800/50 hover:bg-slate-800/30">
-                    {columns.map((c) => (
-                      <td key={c.key} className="p-4 text-slate-200">
-                        {c.render
-                          ? c.render(row)
-                          : String((row as Record<string, unknown>)[c.key] ?? "—")}
-                      </td>
-                    ))}
-                    <td className="p-4">
-                      <div className="flex gap-1 justify-end">
-                        <button
-                          onClick={() => openEdit(row)}
-                          className="p-1.5 rounded text-slate-400 hover:text-white hover:bg-slate-700"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (confirm(tCommon("confirmDelete"))) deleteMutation.mutate(row.id);
-                          }}
-                          className="p-1.5 rounded text-rose-400 hover:bg-rose-500/10"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                </div>
+                {actionsFor(row)}
+              </GlassCard>
+            ))}
           </div>
-        </GlassCard>
+
+          <GlassCard className="hidden md:block overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-800 text-slate-400">
+                    {columns.map((c) => (
+                      <th key={c.key} className="p-4 text-right font-medium">
+                        {c.label}
+                      </th>
+                    ))}
+                    <th className="p-4 w-28" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => (
+                    <tr key={row.id} className="border-b border-slate-800/50 hover:bg-slate-800/30">
+                      {columns.map((c) => (
+                        <td key={c.key} className="p-4 text-slate-200">
+                          {cellValue(row, c)}
+                        </td>
+                      ))}
+                      <td className="p-4">{actionsFor(row)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </GlassCard>
+        </>
       )}
 
       {open && (

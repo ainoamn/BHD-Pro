@@ -247,6 +247,33 @@ export class ErpService {
     return { message: 'Deleted' };
   }
 
+  async depreciateAsset(companyId: string, id: string) {
+    const asset = await this.ensureAsset(companyId, id);
+    const rate = Number(asset.depreciationRate || 0);
+    if (rate <= 0) {
+      throw new BadRequestException('Asset has no depreciation rate');
+    }
+    const cost = Number(asset.purchaseCost);
+    const current = Number(asset.currentValue);
+    if (current <= 0) {
+      throw new BadRequestException('Asset is already fully depreciated');
+    }
+
+    // Straight-line monthly: annual rate / 12 applied to purchase cost
+    const monthly = Number(((cost * rate) / 100 / 12).toFixed(3));
+    if (monthly <= 0) {
+      throw new BadRequestException('Depreciation amount is zero');
+    }
+
+    const amount = Math.min(monthly, current);
+    const nextValue = Number((current - amount).toFixed(3));
+
+    return this.prisma.fixedAsset.update({
+      where: { id },
+      data: { currentValue: nextValue },
+    });
+  }
+
   private async ensureAsset(companyId: string, id: string) {
     const row = await this.prisma.fixedAsset.findFirst({ where: { id, companyId } });
     if (!row) throw new NotFoundException('Asset not found');

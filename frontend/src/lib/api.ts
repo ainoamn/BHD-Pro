@@ -387,6 +387,9 @@ class ApiClient {
   deleteAsset(id: string) {
     return this.delete(`/assets/${id}`);
   }
+  depreciateAsset(id: string) {
+    return this.post(`/assets/${id}/depreciate`);
+  }
 
   getBankAccounts() {
     return this.get('/bank-accounts');
