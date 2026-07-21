@@ -20,6 +20,7 @@ import { AccountsModule } from './accounts/accounts.module';
 import { ErpModule } from './erp/erp.module';
 import { PeriodsModule } from './periods/periods.module';
 import { AuditModule } from './audit/audit.module';
+import { TaxRatesModule } from './tax-rates/tax-rates.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -44,6 +45,7 @@ import { HealthController } from './health.controller';
     ErpModule,
     PeriodsModule,
     AuditModule,
+    TaxRatesModule,
   ],
   controllers: [HealthController],
 })

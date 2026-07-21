@@ -16,6 +16,7 @@ import {
   Crown,
   Shield,
   Lock,
+  Percent,
   ChevronLeft,
   ChevronRight,
   Calculator,
@@ -56,6 +57,7 @@ const navItems = [
 const settingsItems = [
   { href: "/settings", icon: Settings, label: "settings" },
   { href: "/period-locks", icon: Lock, label: "periodLocks" },
+  { href: "/tax-rates", icon: Percent, label: "taxRates" },
   { href: "/subscription", icon: Crown, label: "subscription" },
   { href: "/users", icon: Shield, label: "users" },
 ];

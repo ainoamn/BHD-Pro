@@ -485,6 +485,26 @@ class ApiClient {
     return this.get('/reports/audit-log', { params: params || {} });
   }
 
+  getTaxRates() {
+    return this.get('/tax-rates');
+  }
+
+  createTaxRate(data: unknown) {
+    return this.post('/tax-rates', data);
+  }
+
+  updateTaxRate(id: string, data: unknown) {
+    return this.put(`/tax-rates/${id}`, data);
+  }
+
+  deleteTaxRate(id: string) {
+    return this.delete(`/tax-rates/${id}`);
+  }
+
+  setDefaultTaxRate(id: string) {
+    return this.post(`/tax-rates/${id}/set-default`);
+  }
+
   getArAging() {
     return this.get('/reports/ar-aging');
   }

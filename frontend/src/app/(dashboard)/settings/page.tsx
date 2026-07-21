@@ -254,6 +254,24 @@ export default function SettingsPage() {
         </div>
       </GlassCard>
 
+      <GlassCard className="p-6">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="flex items-start gap-3">
+            <Percent className="w-6 h-6 text-emerald-400 shrink-0 mt-0.5" />
+            <div>
+              <h2 className="text-lg font-semibold text-white">{t("taxRatesLink")}</h2>
+              <p className="text-sm text-slate-400 mt-1">{t("taxRatesLinkDesc")}</p>
+            </div>
+          </div>
+          <Link
+            href="/tax-rates"
+            className="text-sm px-4 py-2 rounded-lg bg-slate-800 text-emerald-400 hover:bg-slate-700"
+          >
+            {t("taxRatesLink")}
+          </Link>
+        </div>
+      </GlassCard>
+
       <GlassCard>
         <PaymentGatewaysSettings />
       </GlassCard>

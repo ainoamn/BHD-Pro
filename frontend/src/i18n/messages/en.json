@@ -41,6 +41,7 @@
     "aiAnalytics": "AI Analytics",
     "settings": "Company Settings",
     "periodLocks": "Period Locking",
+    "taxRates": "Tax Rates",
     "subscription": "Subscription",
     "users": "Users"
   },
@@ -540,7 +541,22 @@
     "saved": "Settings saved successfully",
     "saveError": "Failed to save settings",
     "periodLocks": "Period locking",
-    "periodLocksDesc": "Prevent edits in locked months"
+    "periodLocksDesc": "Prevent edits in locked months",
+    "taxRatesLink": "Tax rates",
+    "taxRatesLinkDesc": "Manage VAT rates and the company default"
+  },
+  "taxRates": {
+    "title": "Tax Rates",
+    "subtitle": "Configure company tax rates — Wafeq-style",
+    "code": "Code",
+    "name": "Name",
+    "nameEn": "English name",
+    "rate": "Rate %",
+    "default": "Default",
+    "setDefault": "Set as default",
+    "defaultSet": "Default tax rate updated",
+    "yes": "Yes",
+    "no": "No"
   },
   "periodLocks": {
     "title": "Accounting Period Locking",

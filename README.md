@@ -272,6 +272,8 @@ POST {API_PUBLIC_URL}/api/payments/webhooks/paypal
 | POST | `/periods/:year/:month/unlock` | فتح فترة (مدير فقط) |
 | GET | `/reports/cash-flow-forecast?weeks=` | توقعات التدفق النقدي من AR/AP حسب الاستحقاق (4–16 أسبوع) |
 | GET | `/reports/audit-log` | سجل التدقيق (عمليات الإنشاء/التعديل/الحذف) |
+| GET/POST | `/tax-rates` | المعدلات الضريبية |
+| POST | `/tax-rates/:id/set-default` | تعيين معدل ضريبي كافتراضي للشركة |
 | GET/POST | `/invoices` | فواتير CRUD |
 | POST | `/invoices/:id/payments` | تسجيل تحصيل |
 | POST | `/invoices/payments/batch` | تحصيل على عدة فواتير (FIFO / يدوي) |
