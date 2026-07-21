@@ -689,4 +689,231 @@ export class ReportsService {
       currency: 'OMR',
     };
   }
+
+  async costCenterProfitLoss(companyId: string) {
+    const [centers, lines, invoices] = await Promise.all([
+      this.prisma.costCenter.findMany({
+        where: { companyId, isActive: true },
+        select: { id: true, code: true, name: true },
+        orderBy: { code: 'asc' },
+      }),
+      this.prisma.journalLine.findMany({
+        where: {
+          journal: { companyId },
+          costCenterId: { not: null },
+        },
+        include: {
+          account: { select: { type: true } },
+          costCenter: { select: { id: true, code: true, name: true } },
+        },
+      }),
+      this.prisma.invoice.findMany({
+        where: {
+          companyId,
+          costCenterId: { not: null },
+          status: { notIn: ['DRAFT', 'CANCELLED'] },
+          type: { in: ['SALES', 'PURCHASE', 'CREDIT_NOTE', 'DEBIT_NOTE'] },
+        },
+        select: {
+          type: true,
+          subtotal: true,
+          discount: true,
+          total: true,
+          costCenterId: true,
+        },
+      }),
+    ]);
+
+    type Row = {
+      id: string;
+      code: string;
+      name: string;
+      revenue: number;
+      expenses: number;
+      netProfit: number;
+    };
+
+    const map = new Map<string, Row>();
+    for (const c of centers) {
+      map.set(c.id, {
+        id: c.id,
+        code: c.code,
+        name: c.name,
+        revenue: 0,
+        expenses: 0,
+        netProfit: 0,
+      });
+    }
+
+    const ensure = (id: string, code: string, name: string) => {
+      if (!map.has(id)) {
+        map.set(id, { id, code, name, revenue: 0, expenses: 0, netProfit: 0 });
+      }
+      return map.get(id)!;
+    };
+
+    // Prefer GL journal lines (posted with analytics)
+    if (lines.length > 0) {
+      for (const line of lines) {
+        if (!line.costCenter) continue;
+        const row = ensure(line.costCenter.id, line.costCenter.code, line.costCenter.name);
+        const debit = Number(line.debit);
+        const credit = Number(line.credit);
+        if (line.account.type === 'REVENUE') {
+          row.revenue += credit - debit;
+        } else if (line.account.type === 'EXPENSE') {
+          row.expenses += debit - credit;
+        }
+      }
+    } else {
+      // Fallback: invoices tagged with cost center (before/without GL)
+      for (const inv of invoices) {
+        if (!inv.costCenterId) continue;
+        const center = centers.find((c) => c.id === inv.costCenterId);
+        if (!center) continue;
+        const row = ensure(center.id, center.code, center.name);
+        const net = Number(inv.subtotal) - Number(inv.discount || 0);
+        if (inv.type === 'SALES') row.revenue += net;
+        else if (inv.type === 'CREDIT_NOTE') row.revenue -= net;
+        else if (inv.type === 'PURCHASE') row.expenses += net;
+        else if (inv.type === 'DEBIT_NOTE') row.expenses -= net;
+      }
+    }
+
+    const rows = [...map.values()]
+      .map((r) => ({
+        ...r,
+        revenue: Number(r.revenue.toFixed(3)),
+        expenses: Number(r.expenses.toFixed(3)),
+        netProfit: Number((r.revenue - r.expenses).toFixed(3)),
+      }))
+      .filter((r) => r.revenue !== 0 || r.expenses !== 0)
+      .sort((a, b) => a.code.localeCompare(b.code));
+
+    const totals = rows.reduce(
+      (acc, r) => {
+        acc.revenue += r.revenue;
+        acc.expenses += r.expenses;
+        acc.netProfit += r.netProfit;
+        return acc;
+      },
+      { revenue: 0, expenses: 0, netProfit: 0 },
+    );
+
+    return {
+      rows,
+      totals: {
+        revenue: Number(totals.revenue.toFixed(3)),
+        expenses: Number(totals.expenses.toFixed(3)),
+        netProfit: Number(totals.netProfit.toFixed(3)),
+      },
+      centerCount: centers.length,
+      currency: 'OMR',
+    };
+  }
+
+  async projectBudgetVsActual(companyId: string) {
+    const [projects, lines, invoices] = await Promise.all([
+      this.prisma.project.findMany({
+        where: { companyId, isActive: true },
+        include: {
+          costCenter: { select: { id: true, code: true, name: true } },
+        },
+        orderBy: { code: 'asc' },
+      }),
+      this.prisma.journalLine.findMany({
+        where: {
+          journal: { companyId },
+          projectId: { not: null },
+        },
+        include: {
+          account: { select: { type: true } },
+        },
+      }),
+      this.prisma.invoice.findMany({
+        where: {
+          companyId,
+          projectId: { not: null },
+          status: { notIn: ['DRAFT', 'CANCELLED'] },
+          type: { in: ['SALES', 'PURCHASE', 'CREDIT_NOTE', 'DEBIT_NOTE'] },
+        },
+        select: {
+          type: true,
+          subtotal: true,
+          discount: true,
+          projectId: true,
+        },
+      }),
+    ]);
+
+    const actualByProject = new Map<string, { revenue: number; expenses: number }>();
+
+    if (lines.length > 0) {
+      for (const line of lines) {
+        if (!line.projectId) continue;
+        const cur = actualByProject.get(line.projectId) || { revenue: 0, expenses: 0 };
+        const debit = Number(line.debit);
+        const credit = Number(line.credit);
+        if (line.account.type === 'REVENUE') cur.revenue += credit - debit;
+        else if (line.account.type === 'EXPENSE') cur.expenses += debit - credit;
+        actualByProject.set(line.projectId, cur);
+      }
+    } else {
+      for (const inv of invoices) {
+        if (!inv.projectId) continue;
+        const cur = actualByProject.get(inv.projectId) || { revenue: 0, expenses: 0 };
+        const net = Number(inv.subtotal) - Number(inv.discount || 0);
+        if (inv.type === 'SALES') cur.revenue += net;
+        else if (inv.type === 'CREDIT_NOTE') cur.revenue -= net;
+        else if (inv.type === 'PURCHASE') cur.expenses += net;
+        else if (inv.type === 'DEBIT_NOTE') cur.expenses -= net;
+        actualByProject.set(inv.projectId, cur);
+      }
+    }
+
+    const rows = projects.map((p) => {
+      const actual = actualByProject.get(p.id) || { revenue: 0, expenses: 0 };
+      const budget = Number(p.budget || 0);
+      const actualExpense = Number(actual.expenses.toFixed(3));
+      const actualRevenue = Number(actual.revenue.toFixed(3));
+      const variance = Number((budget - actualExpense).toFixed(3));
+      const usedPct = budget > 0 ? Number(((actualExpense / budget) * 100).toFixed(1)) : 0;
+      return {
+        id: p.id,
+        code: p.code,
+        name: p.name,
+        status: p.status,
+        costCenter: p.costCenter?.name || null,
+        budget,
+        actualRevenue,
+        actualExpense,
+        variance,
+        usedPct,
+      };
+    });
+
+    const totals = rows.reduce(
+      (acc, r) => {
+        acc.budget += r.budget;
+        acc.actualRevenue += r.actualRevenue;
+        acc.actualExpense += r.actualExpense;
+        acc.variance += r.variance;
+        return acc;
+      },
+      { budget: 0, actualRevenue: 0, actualExpense: 0, variance: 0 },
+    );
+
+    return {
+      rows,
+      totals: {
+        budget: Number(totals.budget.toFixed(3)),
+        actualRevenue: Number(totals.actualRevenue.toFixed(3)),
+        actualExpense: Number(totals.actualExpense.toFixed(3)),
+        variance: Number(totals.variance.toFixed(3)),
+      },
+      projectCount: projects.length,
+      overBudgetCount: rows.filter((r) => r.budget > 0 && r.actualExpense > r.budget).length,
+      currency: 'OMR',
+    };
+  }
 }

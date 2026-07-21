@@ -12,6 +12,8 @@ import {
   FileSpreadsheet,
   Package,
   UserCircle,
+  Layers,
+  FolderKanban,
 } from "lucide-react";
 import { ModuleHub } from "@/components/hub/module-hub";
 
@@ -48,6 +50,18 @@ export default function ReportsHubPage() {
       icon: BookOpen,
       title: t("ledger"),
       description: t("ledgerDesc"),
+    },
+    {
+      href: "/reports/cost-centers",
+      icon: Layers,
+      title: t("costCenters"),
+      description: t("costCentersDesc"),
+    },
+    {
+      href: "/reports/projects",
+      icon: FolderKanban,
+      title: t("projects"),
+      description: t("projectsDesc"),
     },
     {
       href: "/reports/inventory",

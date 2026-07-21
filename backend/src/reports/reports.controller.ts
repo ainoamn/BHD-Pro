@@ -93,4 +93,16 @@ export class ReportsController {
   payrollSummary(@CurrentUser() user: TokenPayload) {
     return this.reportsService.payrollSummary(user.companyId);
   }
+
+  @Get('cost-center-pl')
+  @ApiOperation({ summary: 'Profit & loss by cost center' })
+  costCenterPl(@CurrentUser() user: TokenPayload) {
+    return this.reportsService.costCenterProfitLoss(user.companyId);
+  }
+
+  @Get('project-budget')
+  @ApiOperation({ summary: 'Project budget vs actual' })
+  projectBudget(@CurrentUser() user: TokenPayload) {
+    return this.reportsService.projectBudgetVsActual(user.companyId);
+  }
 }

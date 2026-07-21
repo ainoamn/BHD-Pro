@@ -467,6 +467,14 @@ class ApiClient {
     return this.get('/reports/payroll-summary');
   }
 
+  getCostCenterProfitLoss() {
+    return this.get('/reports/cost-center-pl');
+  }
+
+  getProjectBudgetReport() {
+    return this.get('/reports/project-budget');
+  }
+
   getPaymentVouchers(type?: 'SALES' | 'PURCHASE') {
     return this.get('/invoices/payments/list', { params: type ? { type } : {} });
   }
