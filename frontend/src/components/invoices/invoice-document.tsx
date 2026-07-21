@@ -19,6 +19,9 @@ export interface InvoiceDocumentData {
   taxRate: number;
   taxAmount: number;
   total: number;
+  currency?: string;
+  exchangeRate?: number;
+  foreignTotal?: number | null;
   status: string;
   paidAmount?: number;
   paymentStatus?: string;
@@ -56,6 +59,7 @@ interface InvoiceDocumentProps {
   invoice: InvoiceDocumentData;
   company?: CompanyInfo | null;
   currency?: string;
+  baseCurrency?: string;
   variant?: "invoice" | "receipt";
   headerNote?: string | null;
   footerNote?: string | null;
@@ -76,6 +80,7 @@ export function InvoiceDocument({
   invoice,
   company,
   currency = "OMR",
+  baseCurrency = "OMR",
   variant = "invoice",
   headerNote,
   footerNote,
@@ -95,6 +100,24 @@ export function InvoiceDocument({
   const tCommon = useTranslations("common");
   const tStatus = useTranslations("status");
   const printRef = useRef<HTMLDivElement>(null);
+
+  const docCurrency = (invoice.currency || currency).toUpperCase();
+  const rate = Number(invoice.exchangeRate || 1) || 1;
+  const isFx =
+    !!invoice.foreignTotal &&
+    docCurrency !== baseCurrency.toUpperCase() &&
+    rate !== 1;
+  const displayCurrency = isFx ? docCurrency : baseCurrency;
+  const displaySubtotal = isFx
+    ? invoice.items.reduce((s, i) => s + Number(i.quantity) * Number(i.unitPrice) - Number(i.discount), 0)
+    : Number(invoice.subtotal);
+  const displayTax = isFx
+    ? invoice.items.reduce((s, i) => s + Number(i.taxAmount), 0)
+    : Number(invoice.taxAmount);
+  const displayDiscount = isFx
+    ? Number((Number(invoice.discount) / rate).toFixed(3))
+    : Number(invoice.discount);
+  const displayTotal = isFx ? Number(invoice.foreignTotal) : Number(invoice.total);
 
   const isReceipt = variant === "receipt";
   const docTitle = isReceipt ? t("receiptDoc") : t("invoiceDoc");
@@ -369,7 +392,11 @@ export function InvoiceDocument({
                 <p><strong>{t("dueDate")}:</strong> {formatDate(invoice.dueDate)}</p>
               )}
               {isReceipt && (
-                <p><strong>{t("amountPaid")}:</strong> {formatMoney(Number(invoice.total), currency)}</p>
+                <p><strong>{t("amountPaid")}:</strong> {formatMoney(displayTotal, displayCurrency)}</p>
+              )}
+              <p><strong>{t("currency")}:</strong> {displayCurrency}</p>
+              {isFx && (
+                <p><strong>{t("exchangeRate")}:</strong> {rate}</p>
               )}
             </div>
           </div>
@@ -407,10 +434,10 @@ export function InvoiceDocument({
                 <tr key={i} className="border-b border-slate-200">
                   <td className="p-2">{item.description}</td>
                   <td className="p-2">{Number(item.quantity)}</td>
-                  <td className="p-2">{formatMoney(Number(item.unitPrice), currency)}</td>
-                  <td className="p-2">{formatMoney(Number(item.discount), currency)}</td>
-                  <td className="p-2">{formatMoney(Number(item.taxAmount), currency)}</td>
-                  <td className="p-2 font-medium">{formatMoney(Number(item.total), currency)}</td>
+                  <td className="p-2">{formatMoney(Number(item.unitPrice), displayCurrency)}</td>
+                  <td className="p-2">{formatMoney(Number(item.discount), displayCurrency)}</td>
+                  <td className="p-2">{formatMoney(Number(item.taxAmount), displayCurrency)}</td>
+                  <td className="p-2 font-medium">{formatMoney(Number(item.total), displayCurrency)}</td>
                 </tr>
               ))}
             </tbody>
@@ -419,20 +446,26 @@ export function InvoiceDocument({
           <div className="totals mr-auto w-72 text-sm space-y-1">
             <div className="flex justify-between">
               <span>{t("subtotal")}</span>
-              <span>{formatMoney(Number(invoice.subtotal), currency)}</span>
+              <span>{formatMoney(displaySubtotal, displayCurrency)}</span>
             </div>
             <div className="flex justify-between">
               <span>{t("tax")}</span>
-              <span>{formatMoney(Number(invoice.taxAmount), currency)}</span>
+              <span>{formatMoney(displayTax, displayCurrency)}</span>
             </div>
             <div className="flex justify-between">
               <span>{t("discount")}</span>
-              <span>{formatMoney(Number(invoice.discount), currency)}</span>
+              <span>{formatMoney(displayDiscount, displayCurrency)}</span>
             </div>
             <div className="flex justify-between grand font-bold text-base border-t-2 border-emerald-600 pt-2 text-emerald-700">
               <span>{t("grandTotal")}</span>
-              <span>{formatMoney(Number(invoice.total), currency)}</span>
+              <span>{formatMoney(displayTotal, displayCurrency)}</span>
             </div>
+            {isFx && (
+              <div className="flex justify-between text-slate-500 pt-1">
+                <span>{t("baseEquivalent")} ({baseCurrency})</span>
+                <span>{formatMoney(Number(invoice.total), baseCurrency)}</span>
+              </div>
+            )}
           </div>
 
           {invoice.notes && (

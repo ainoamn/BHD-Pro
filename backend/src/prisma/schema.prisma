@@ -637,6 +637,13 @@ model Invoice {
   total       Decimal 
   paidAmount  Decimal  @default(0) @map("paid_amount")
 
+  /// Document currency (defaults to company currency)
+  currency       String   @default("OMR")
+  /// Rate from document currency → company base currency
+  exchangeRate   Decimal  @default(1) @map("exchange_rate")
+  /// Total in document currency when currency differs from company base
+  foreignTotal   Decimal? @map("foreign_total")
+
   status      InvoiceStatus @default(DRAFT)
   paymentStatus PaymentStatus @default(UNPAID) @map("payment_status")
   isCash      Boolean  @default(false) @map("is_cash")

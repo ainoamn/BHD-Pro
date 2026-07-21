@@ -76,6 +76,9 @@ interface Invoice {
   taxRate: number;
   taxAmount: number;
   total: number;
+  currency?: string;
+  exchangeRate?: number;
+  foreignTotal?: number | null;
   paidAmount?: number;
   status: string;
   paymentStatus: string;
@@ -100,6 +103,8 @@ type InvoiceType = "SALES" | "PURCHASE";
 type DocumentType = InvoiceType | "QUOTATION" | "CREDIT_NOTE" | "DEBIT_NOTE";
 
 const DOC_TYPES = new Set(["SALES", "PURCHASE", "QUOTATION", "CREDIT_NOTE", "DEBIT_NOTE"]);
+
+const INVOICE_CURRENCIES = ["OMR", "USD", "EUR", "SAR", "AED", "KWD", "BHD", "QAR", "GBP"];
 
 const emptyLine = (): LineItemForm => ({
   description: "",
@@ -163,6 +168,9 @@ export function AccountingModule() {
   const [notes, setNotes] = useState("");
   const [customFields, setCustomFields] = useState<Record<string, string | number>>({});
   const [discount, setDiscount] = useState(0);
+  const [docCurrency, setDocCurrency] = useState("OMR");
+  const [exchangeRate, setExchangeRate] = useState(1);
+  const [rateLoading, setRateLoading] = useState(false);
   const [lines, setLines] = useState<LineItemForm[]>([emptyLine()]);
   const [quickCustomerOpen, setQuickCustomerOpen] = useState(false);
   const [quickCustomerName, setQuickCustomerName] = useState("");
@@ -172,6 +180,10 @@ export function AccountingModule() {
   const [statusFilter, setStatusFilter] = useState("");
   const [paymentFilter, setPaymentFilter] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+
+  const baseCurrency = company?.currency || "OMR";
+  const isForeignCurrency = docCurrency.toUpperCase() !== baseCurrency.toUpperCase();
+  const rateSafe = exchangeRate > 0 ? exchangeRate : 1;
 
   useEffect(() => {
     const action = searchParams.get("action");
@@ -228,6 +240,27 @@ export function AccountingModule() {
     setQuickCustomerOpen(false);
     setQuickCustomerName("");
   }, [invoiceType]);
+
+  const loadExchangeRate = useCallback(
+    async (from: string, asOf: string) => {
+      const to = (company?.currency || "OMR").toUpperCase();
+      if (from.toUpperCase() === to) {
+        setExchangeRate(1);
+        return;
+      }
+      setRateLoading(true);
+      try {
+        const res = await api.convertExchangeRate({ from, to, amount: 1, date: asOf });
+        const data = res.data as { rate?: number };
+        if (data.rate && data.rate > 0) setExchangeRate(Number(data.rate));
+      } catch {
+        /* keep manual rate */
+      } finally {
+        setRateLoading(false);
+      }
+    },
+    [company?.currency]
+  );
 
   const { data: invoices = [], isLoading } = useQuery({
     queryKey: ["invoices"],
@@ -349,6 +382,8 @@ export function AccountingModule() {
     setNotes("");
     setCustomFields({});
     setDiscount(0);
+    setDocCurrency(company?.currency || "OMR");
+    setExchangeRate(1);
     setLines([emptyLine()]);
     setQuickCustomerOpen(false);
     setQuickCustomerName("");
@@ -374,7 +409,16 @@ export function AccountingModule() {
     setDueDate(inv.dueDate.split("T")[0]);
     setNotes(inv.notes || "");
     setCustomFields(inv.customFieldsJson || {});
-    setDiscount(Number(inv.discount));
+    const rate = Number(inv.exchangeRate || 1) || 1;
+    const invCurrency = (inv.currency || company?.currency || "OMR").toUpperCase();
+    setDocCurrency(invCurrency);
+    setExchangeRate(rate);
+    const base = (company?.currency || "OMR").toUpperCase();
+    const discountDoc =
+      invCurrency !== base && rate > 0
+        ? Number((Number(inv.discount) / rate).toFixed(3))
+        : Number(inv.discount);
+    setDiscount(discountDoc);
     setLines(
       inv.items.map((i) => ({
         description: i.description,
@@ -530,6 +574,8 @@ export function AccountingModule() {
         costCenterId: costCenterId || undefined,
         projectId: projectId || undefined,
         customFieldsJson: customFields,
+        currency: docCurrency,
+        exchangeRate: isForeignCurrency ? Number(rateSafe) : 1,
         items,
       };
       if (editingId) return api.updateInvoice(editingId, payload);
@@ -705,6 +751,9 @@ export function AccountingModule() {
     taxRate: Number(inv.taxRate),
     taxAmount: Number(inv.taxAmount),
     total: Number(inv.total),
+    currency: inv.currency,
+    exchangeRate: inv.exchangeRate != null ? Number(inv.exchangeRate) : undefined,
+    foreignTotal: inv.foreignTotal != null ? Number(inv.foreignTotal) : null,
     items: inv.items.map((i) => ({
       ...i,
       quantity: Number(i.quantity),
@@ -1046,7 +1095,8 @@ export function AccountingModule() {
         <InvoiceDocument
           invoice={toDocumentData(activeDocumentInvoice)}
           company={company}
-          currency={company?.currency || "OMR"}
+          currency={activeDocumentInvoice.currency || company?.currency || "OMR"}
+          baseCurrency={company?.currency || "OMR"}
           variant={documentVariant}
           headerNote={
             resolveDocTemplate(activeDocumentInvoice.type, documentVariant)?.headerText
@@ -1208,6 +1258,38 @@ export function AccountingModule() {
                       className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500" />
                   </div>
                 </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-sm text-slate-400 mb-1">{t("currency")}</label>
+                    <select
+                      value={docCurrency}
+                      onChange={(e) => {
+                        const next = e.target.value;
+                        setDocCurrency(next);
+                        void loadExchangeRate(next, date);
+                      }}
+                      className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500"
+                    >
+                      {INVOICE_CURRENCIES.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm text-slate-400 mb-1">
+                      {t("exchangeRate")}
+                      {rateLoading ? "…" : ""}
+                    </label>
+                    <DecimalInput
+                      value={exchangeRate}
+                      onChange={setExchangeRate}
+                      disabled={!isForeignCurrency}
+                      className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500 disabled:opacity-50"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1334,7 +1416,7 @@ export function AccountingModule() {
               <div className="bg-slate-800/50 rounded-lg p-4 space-y-2 text-sm">
                 <div className="flex justify-between text-slate-400">
                   <span>{t("subtotal")}</span>
-                  <span className="text-white">{formatMoney(subtotal, company?.currency || "OMR")}</span>
+                  <span className="text-white">{formatMoney(subtotal, docCurrency)}</span>
                 </div>
                 {applyVat && (
                   <div className="flex justify-between text-slate-400">
@@ -1343,7 +1425,7 @@ export function AccountingModule() {
                       {pricesIncludeTax ? ` — ${t("taxIncluded")}` : ""}
                       {` (${vatRate}%)`}
                     </span>
-                    <span className="text-white">{formatMoney(taxAmount, company?.currency || "OMR")}</span>
+                    <span className="text-white">{formatMoney(taxAmount, docCurrency)}</span>
                   </div>
                 )}
                 {!applyVat && (
@@ -1363,8 +1445,18 @@ export function AccountingModule() {
                 </div>
                 <div className="flex justify-between font-bold text-white border-t border-slate-700 pt-2">
                   <span>{t("grandTotal")}</span>
-                  <span>{formatMoney(grandTotal, company?.currency || "OMR")}</span>
+                  <span>{formatMoney(grandTotal, docCurrency)}</span>
                 </div>
+                {isForeignCurrency && (
+                  <div className="flex justify-between text-slate-400 text-xs pt-1">
+                    <span>
+                      {t("baseEquivalent")} ({baseCurrency} × {rateSafe})
+                    </span>
+                    <span className="text-emerald-400">
+                      {formatMoney(Number((grandTotal * rateSafe).toFixed(3)), baseCurrency)}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 

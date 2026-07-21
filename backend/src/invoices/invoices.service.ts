@@ -156,7 +156,26 @@ export class InvoicesService {
     subtotal = Number(subtotal.toFixed(3));
     taxAmount = Number(taxAmount.toFixed(3));
     const discount = dto.discount || 0;
-    const total = Number((subtotal + taxAmount - discount).toFixed(3));
+    const docTotal = Number((subtotal + taxAmount - discount).toFixed(3));
+
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { currency: true },
+    });
+    const baseCurrency = (company?.currency || 'OMR').toUpperCase();
+    const currency = (dto.currency || baseCurrency).toUpperCase();
+    let exchangeRate = dto.exchangeRate != null ? Number(dto.exchangeRate) : 1;
+    if (currency === baseCurrency) exchangeRate = 1;
+    if (exchangeRate <= 0) throw new BadRequestException('Exchange rate must be positive');
+
+    const isForeign = currency !== baseCurrency;
+    const foreignTotal = isForeign ? docTotal : null;
+    const scale = isForeign ? exchangeRate : 1;
+    // Header totals in company base currency for GL; line items stay in document currency
+    const total = Number((docTotal * scale).toFixed(3));
+    const baseSubtotal = Number((subtotal * scale).toFixed(3));
+    const baseTaxAmount = Number((taxAmount * scale).toFixed(3));
+    const baseDiscount = Number((discount * scale).toFixed(3));
 
     const number = await this.generateNumber(companyId, dto.type);
     const cash = !!dto.payImmediately;
@@ -170,11 +189,14 @@ export class InvoicesService {
         contactId: dto.contactId,
         date: new Date(dto.date),
         dueDate,
-        subtotal,
-        discount,
+        subtotal: baseSubtotal,
+        discount: baseDiscount,
         taxRate,
-        taxAmount,
+        taxAmount: baseTaxAmount,
         total,
+        currency,
+        exchangeRate,
+        foreignTotal,
         status: InvoiceStatus.DRAFT,
         paymentStatus: PaymentStatus.UNPAID,
         isCash: cash,
@@ -246,8 +268,35 @@ export class InvoicesService {
 
       subtotal = Number(subtotal.toFixed(3));
       taxAmount = Number(taxAmount.toFixed(3));
-      const discount = dto.discount ?? Number(existing.discount);
-      const total = Number((subtotal + taxAmount - discount).toFixed(3));
+
+      const company = await this.prisma.company.findUnique({
+        where: { id: companyId },
+        select: { currency: true },
+      });
+      const baseCurrency = (company?.currency || 'OMR').toUpperCase();
+      const currency = (dto.currency || existing.currency || baseCurrency).toUpperCase();
+      let exchangeRate =
+        dto.exchangeRate != null
+          ? Number(dto.exchangeRate)
+          : Number(existing.exchangeRate || 1);
+      if (currency === baseCurrency) exchangeRate = 1;
+      if (exchangeRate <= 0) throw new BadRequestException('Exchange rate must be positive');
+
+      const existingRate = Number(existing.exchangeRate || 1);
+      const existingDocDiscount =
+        (existing.currency || baseCurrency).toUpperCase() !== baseCurrency && existingRate > 0
+          ? Number((Number(existing.discount) / existingRate).toFixed(3))
+          : Number(existing.discount);
+      const discount = dto.discount ?? existingDocDiscount;
+      const docTotal = Number((subtotal + taxAmount - discount).toFixed(3));
+
+      const isForeign = currency !== baseCurrency;
+      const foreignTotal = isForeign ? docTotal : null;
+      const scale = isForeign ? exchangeRate : 1;
+      const total = Number((docTotal * scale).toFixed(3));
+      const baseSubtotal = Number((subtotal * scale).toFixed(3));
+      const baseTaxAmount = Number((taxAmount * scale).toFixed(3));
+      const baseDiscount = Number((discount * scale).toFixed(3));
 
       await this.prisma.invoiceItem.createMany({ data: itemsData });
 
@@ -264,10 +313,13 @@ export class InvoicesService {
           ...(dto.customFieldsJson !== undefined && {
             customFieldsJson: dto.customFieldsJson as object,
           }),
-          subtotal,
-          discount,
+          currency,
+          exchangeRate,
+          foreignTotal,
+          subtotal: baseSubtotal,
+          discount: baseDiscount,
           taxRate,
-          taxAmount,
+          taxAmount: baseTaxAmount,
           total,
         },
         include: { contact: true, items: true, costCenter: true, project: true },
@@ -288,6 +340,8 @@ export class InvoicesService {
         ...(dto.customFieldsJson !== undefined && {
           customFieldsJson: dto.customFieldsJson as object,
         }),
+        ...(dto.currency !== undefined && { currency: dto.currency.toUpperCase() }),
+        ...(dto.exchangeRate !== undefined && { exchangeRate: dto.exchangeRate }),
       },
       include: { contact: true, items: true, costCenter: true, project: true },
     });
