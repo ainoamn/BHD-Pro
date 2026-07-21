@@ -11,6 +11,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { PaymentGatewaySlug, UserRole } from '@prisma/client';
 import { Request, Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -152,6 +153,7 @@ export class PaymentsController {
   }
 
   @Post('webhooks/:slug')
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @ApiOperation({ summary: 'Platform payment webhook' })
   async platformWebhook(
     @Param('slug') slug: PaymentGatewaySlug,
@@ -161,7 +163,7 @@ export class PaymentsController {
     const rawBody = req.rawBody?.toString('utf8') ?? JSON.stringify(body ?? {});
     const headers: Record<string, string> = {};
     for (const [k, v] of Object.entries(req.headers)) {
-      if (typeof v === 'string') headers[k] = v;
+      if (typeof v === 'string') headers[k.toLowerCase()] = v;
     }
     return this.payments.handleWebhook(slug, rawBody, headers, 'platform');
   }
@@ -176,12 +178,18 @@ export class PlatformGatewaysController {
   constructor(private platformGateways: PlatformGatewaysService) {}
 
   @Get()
-  listAll() {
-    return this.platformGateways.listAll();
+  listAll(@CurrentUser() user: TokenPayload) {
+    this.platformGateways.assertPlatformAdmin(user.email);
+    return this.platformGateways.listAllSafe();
   }
 
   @Patch(':slug')
-  update(@Param('slug') slug: PaymentGatewaySlug, @Body() dto: UpdatePlatformGatewayDto) {
-    return this.platformGateways.update(slug, dto);
+  update(
+    @CurrentUser() user: TokenPayload,
+    @Param('slug') slug: PaymentGatewaySlug,
+    @Body() dto: UpdatePlatformGatewayDto,
+  ) {
+    this.platformGateways.assertPlatformAdmin(user.email);
+    return this.platformGateways.update(slug, dto).then((g) => this.platformGateways.toSafeAdmin(g));
   }
 }

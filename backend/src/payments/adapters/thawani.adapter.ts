@@ -1,3 +1,4 @@
+import * as crypto from 'crypto';
 import { PaymentGatewaySlug } from '@prisma/client';
 import type { PaymentAdapter } from '../payment.types';
 
@@ -5,6 +6,41 @@ function checkoutHost(isTestMode: boolean, baseUrl: string) {
   if (baseUrl.includes('uat')) return 'https://uatcheckout.thawani.om';
   if (!isTestMode) return 'https://checkout.thawani.om';
   return 'https://uatcheckout.thawani.om';
+}
+
+function verifyThawaniWebhook(
+  rawBody: string,
+  headers: Record<string, string>,
+  webhookSecret: string,
+): boolean {
+  const secret = webhookSecret.trim();
+  if (!secret) return false;
+
+  const headerSig =
+    headers['thawani-signature'] ||
+    headers['x-thawani-signature'] ||
+    headers['x-webhook-signature'] ||
+    headers['authorization']?.replace(/^Bearer\s+/i, '');
+
+  if (!headerSig) return false;
+
+  // Shared-secret bearer style
+  if (headerSig === secret) return true;
+
+  const expected = crypto.createHmac('sha256', secret).update(rawBody, 'utf8').digest('hex');
+  const provided = headerSig.replace(/^sha256=/i, '').trim();
+  try {
+    const a = Buffer.from(expected, 'hex');
+    const b = Buffer.from(provided, 'hex');
+    if (a.length !== b.length) return false;
+    return crypto.timingSafeEqual(a, b);
+  } catch {
+    try {
+      return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(provided));
+    } catch {
+      return false;
+    }
+  }
 }
 
 export const thawaniAdapter: PaymentAdapter = {
@@ -79,7 +115,11 @@ export const thawaniAdapter: PaymentAdapter = {
     return { paid: status === 'paid', externalId: sessionId };
   },
 
-  async handleWebhook(config, rawBody) {
+  async handleWebhook(config, rawBody, headers) {
+    const webhookSecret = config.webhookSecret?.trim();
+    if (!webhookSecret) return null; // fail closed — never fulfill without secret
+    if (!verifyThawaniWebhook(rawBody, headers, webhookSecret)) return null;
+
     try {
       const payload = JSON.parse(rawBody) as {
         data?: { session_id?: string; payment_status?: string; client_reference_id?: string };

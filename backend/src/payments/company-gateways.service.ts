@@ -2,6 +2,14 @@ import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/commo
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentGatewaySlug } from '@prisma/client';
 import { GATEWAY_META } from './gateway.constants';
+import {
+  decryptConfigSecrets,
+  encryptConfigSecrets,
+} from '../common/crypto/secrets.crypto';
+
+function secretKeysFor(slug: PaymentGatewaySlug): string[] {
+  return (GATEWAY_META[slug]?.configKeys || []).filter((k) => k.secret).map((k) => k.key);
+}
 
 @Injectable()
 export class CompanyGatewaysService {
@@ -46,6 +54,11 @@ export class CompanyGatewaysService {
     return gw;
   }
 
+  decryptedConfig(gateway: { slug: PaymentGatewaySlug; configJson: unknown }): Record<string, string> {
+    const raw = (gateway.configJson as Record<string, string>) || {};
+    return decryptConfigSecrets(raw, secretKeysFor(gateway.slug));
+  }
+
   async update(
     companyId: string,
     slug: PaymentGatewaySlug,
@@ -58,13 +71,23 @@ export class CompanyGatewaysService {
 
     const existing = await this.get(companyId, slug);
     const currentConfig = (existing.configJson as Record<string, string>) || {};
+    let nextConfig = currentConfig;
+    if (data.configJson) {
+      const merged = { ...currentConfig, ...data.configJson };
+      nextConfig = encryptConfigSecrets(merged, secretKeysFor(slug));
+      for (const key of secretKeysFor(slug)) {
+        if (data.configJson[key] === '••••••••' || data.configJson[key] === undefined) {
+          nextConfig[key] = currentConfig[key] ?? '';
+        }
+      }
+    }
 
     return this.prisma.companyPaymentGateway.update({
       where: { companyId_slug: { companyId, slug } },
       data: {
         ...(data.isEnabled !== undefined && { isEnabled: data.isEnabled }),
         ...(data.isTestMode !== undefined && { isTestMode: data.isTestMode }),
-        ...(data.configJson && { configJson: { ...currentConfig, ...data.configJson } }),
+        ...(data.configJson && { configJson: nextConfig }),
       },
     });
   }

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Plan } from '@prisma/client';
 
@@ -88,20 +88,13 @@ export class SubscriptionsService {
     };
   }
 
-  async upgrade(companyId: string, plan: Plan, billing: 'monthly' | 'yearly') {
-    const company = await this.prisma.company.findUnique({ where: { id: companyId } });
-    if (!company) throw new NotFoundException('Company not found');
-
-    const expiry = new Date();
-    if (billing === 'yearly') {
-      expiry.setFullYear(expiry.getFullYear() + 1);
-    } else {
-      expiry.setMonth(expiry.getMonth() + 1);
-    }
-
-    return this.prisma.company.update({
-      where: { id: companyId },
-      data: { plan, planExpiry: expiry },
-    });
+  /**
+   * Direct plan changes are disabled — upgrades must go through paid checkout
+   * (`POST /payments/subscription/checkout`) and webhook/return fulfillment.
+   */
+  async upgrade(_companyId: string, _plan: Plan, _billing: 'monthly' | 'yearly') {
+    throw new BadRequestException(
+      'Direct plan upgrades are disabled. Use the payment checkout flow to upgrade.',
+    );
   }
 }

@@ -15,7 +15,10 @@
     "noAccount": "Don't have an account?",
     "hasAccount": "Already have an account?",
     "logout": "Sign Out",
-    "demoHint": "Demo: admin@bhd.om / Admin123!"
+    "demoHint": "Demo: admin@bhd.om / Admin123!",
+    "passwordHint": "At least 10 characters with upper, lower, and a number",
+    "starterOnlyHint": "New accounts always start on the Starter plan — upgrades require payment",
+    "upgradeLater": "You can upgrade later from Subscription after checkout"
   },
   "nav": {
     "dashboard": "Dashboard",

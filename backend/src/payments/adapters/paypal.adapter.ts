@@ -24,6 +24,57 @@ async function paypalAccessToken(config: Record<string, string>, isTestMode: boo
   return { token: body.access_token, base };
 }
 
+async function verifyPayPalWebhook(
+  config: Record<string, string>,
+  rawBody: string,
+  headers: Record<string, string>,
+  isTestMode: boolean,
+): Promise<boolean> {
+  const webhookId = config.webhookId?.trim();
+  if (!webhookId) return false;
+
+  const transmissionId = headers['paypal-transmission-id'] || headers['Paypal-Transmission-Id'];
+  const transmissionTime =
+    headers['paypal-transmission-time'] || headers['Paypal-Transmission-Time'];
+  const certUrl = headers['paypal-cert-url'] || headers['Paypal-Cert-Url'];
+  const authAlgo = headers['paypal-auth-algo'] || headers['Paypal-Auth-Algo'];
+  const transmissionSig =
+    headers['paypal-transmission-sig'] || headers['Paypal-Transmission-Sig'];
+
+  if (!transmissionId || !transmissionTime || !certUrl || !authAlgo || !transmissionSig) {
+    return false;
+  }
+
+  let event: unknown;
+  try {
+    event = JSON.parse(rawBody);
+  } catch {
+    return false;
+  }
+
+  const { token, base } = await paypalAccessToken(config, isTestMode);
+  const resp = await fetch(`${base}/v1/notifications/verify-webhook-signature`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      transmission_id: transmissionId,
+      transmission_time: transmissionTime,
+      cert_url: certUrl,
+      auth_algo: authAlgo,
+      transmission_sig: transmissionSig,
+      webhook_id: webhookId,
+      webhook_event: event,
+    }),
+  });
+
+  if (!resp.ok) return false;
+  const body = (await resp.json()) as { verification_status?: string };
+  return body.verification_status === 'SUCCESS';
+}
+
 export const paypalAdapter: PaymentAdapter = {
   slug: PaymentGatewaySlug.PAYPAL,
 
@@ -90,18 +141,24 @@ export const paypalAdapter: PaymentAdapter = {
     return { paid: body.status === 'COMPLETED', externalId: body.id ?? token };
   },
 
-  async handleWebhook(_config, rawBody) {
+  async handleWebhook(config, rawBody, headers, isTestMode) {
+    const ok = await verifyPayPalWebhook(config, rawBody, headers, isTestMode);
+    if (!ok) return null;
+
     try {
       const event = JSON.parse(rawBody) as {
         event_type?: string;
-        resource?: { id?: string; custom_id?: string; status?: string };
+        resource?: { id?: string; custom_id?: string; status?: string; purchase_units?: Array<{ custom_id?: string }> };
       };
       if (
         event.event_type === 'CHECKOUT.ORDER.APPROVED' ||
         event.event_type === 'PAYMENT.CAPTURE.COMPLETED'
       ) {
+        const invoiceNumber =
+          event.resource?.custom_id ||
+          event.resource?.purchase_units?.[0]?.custom_id;
         return {
-          invoiceNumber: event.resource?.custom_id,
+          invoiceNumber,
           externalId: event.resource?.id,
           paid: true,
         };

@@ -1,4 +1,4 @@
-import { IsEmail, IsString, IsNotEmpty, MinLength, IsIn } from 'class-validator';
+import { IsEmail, IsString, IsNotEmpty, MinLength, Matches, IsOptional } from 'class-validator';
 
 export class RegisterDto {
   @IsString()
@@ -10,14 +10,18 @@ export class RegisterDto {
   email: string;
 
   @IsString()
-  @MinLength(8, { message: 'Password must be at least 8 characters' })
+  @MinLength(10, { message: 'Password must be at least 10 characters' })
+  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/, {
+    message: 'Password must include upper, lower, and a number',
+  })
   password: string;
 
   @IsString()
   @IsNotEmpty({ message: 'Company name is required' })
   companyName: string;
 
+  /** Ignored server-side — new companies always start on STARTER */
+  @IsOptional()
   @IsString()
-  @IsIn(['STARTER', 'PROFESSIONAL', 'ENTERPRISE'], { message: 'Invalid plan' })
-  plan: string = 'STARTER';
+  plan?: string;
 }

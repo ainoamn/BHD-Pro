@@ -56,7 +56,7 @@ export class PaymentsService {
   }
 
   private configOf(gateway: GatewayRecord): Record<string, string> {
-    return (gateway.configJson as Record<string, string>) || {};
+    return this.platformGateways.decryptedConfig(gateway);
   }
 
   async listPlatformGatewaysPublic() {

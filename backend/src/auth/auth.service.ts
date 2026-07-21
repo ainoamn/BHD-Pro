@@ -4,10 +4,11 @@ import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 
 import { PrismaService } from '../prisma/prisma.service';
-import { AccountCategory, AccountType } from '@prisma/client';
+import { AccountCategory, AccountType, Plan } from '@prisma/client';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { TokenPayload } from './interfaces/token-payload.interface';
+import { hashToken } from '../common/crypto/secrets.crypto';
 
 @Injectable()
 export class AuthService {
@@ -55,8 +56,8 @@ export class AuthService {
     await this.prisma.session.create({
       data: {
         userId: user.id,
-        token: tokens.accessToken,
-        expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+        token: hashToken(tokens.refreshToken),
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         ipAddress: dto.ipAddress,
         userAgent: dto.userAgent,
       },
@@ -80,10 +81,11 @@ export class AuthService {
       throw new ForbiddenException('Email already registered');
     }
 
+    // Always start on STARTER — paid upgrades go through payment checkout only
     const company = await this.prisma.company.create({
       data: {
         name: dto.companyName,
-        plan: dto.plan as any,
+        plan: Plan.STARTER,
         currency: 'OMR',
         language: 'ar',
         country: 'OM',
@@ -106,6 +108,14 @@ export class AuthService {
 
     const tokens = await this.generateTokens({ ...user, company });
 
+    await this.prisma.session.create({
+      data: {
+        userId: user.id,
+        token: hashToken(tokens.refreshToken),
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      },
+    });
+
     return {
       user: { id: user.id, name: user.name, email: user.email, role: user.role, company },
       ...tokens,
@@ -118,25 +128,52 @@ export class AuthService {
         secret: this.config.get<string>('jwt.refreshSecret'),
       });
 
+      const tokenHash = hashToken(refreshToken);
+      const session = await this.prisma.session.findFirst({
+        where: {
+          userId: payload.sub,
+          token: tokenHash,
+          expiresAt: { gt: new Date() },
+        },
+      });
+      if (!session) {
+        throw new UnauthorizedException('Session revoked or expired');
+      }
+
       const user = await this.prisma.user.findUnique({
         where: { id: payload.sub },
         include: { company: true },
       });
 
-      if (!user || !user.isActive) {
+      if (!user || !user.isActive || !user.company?.isActive) {
         throw new UnauthorizedException();
       }
 
-      return this.generateTokens(user);
-    } catch {
+      const tokens = await this.generateTokens(user);
+
+      // Rotate refresh token — invalidate previous session row
+      await this.prisma.$transaction([
+        this.prisma.session.delete({ where: { id: session.id } }),
+        this.prisma.session.create({
+          data: {
+            userId: user.id,
+            token: hashToken(tokens.refreshToken),
+            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            ipAddress: session.ipAddress,
+            userAgent: session.userAgent,
+          },
+        }),
+      ]);
+
+      return tokens;
+    } catch (err) {
+      if (err instanceof UnauthorizedException) throw err;
       throw new UnauthorizedException('Invalid refresh token');
     }
   }
 
-  async logout(userId: string, token: string) {
-    await this.prisma.session.deleteMany({
-      where: { userId, token },
-    });
+  async logout(userId: string, _accessToken?: string) {
+    await this.prisma.session.deleteMany({ where: { userId } });
     return { message: 'Logged out successfully' };
   }
 
@@ -208,7 +245,7 @@ export class AuthService {
     ];
 
     await this.prisma.account.createMany({
-      data: defaultAccounts.map(acc => ({ ...acc, companyId })),
+      data: defaultAccounts.map((acc) => ({ ...acc, companyId })),
     });
   }
 }

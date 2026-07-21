@@ -103,11 +103,23 @@ function verifyStripeSignature(payload: string, header: string, secret: string):
   const signature = parts.v1;
   if (!timestamp || !signature) return false;
 
+  const ts = Number(timestamp);
+  if (!Number.isFinite(ts)) return false;
+  const skew = Math.abs(Math.floor(Date.now() / 1000) - ts);
+  if (skew > 300) return false; // 5-minute replay window
+
   const signed = `${timestamp}.${payload}`;
-  const expected = crypto.createHmac('sha256', secret).update(signed, 'utf8').digest('hex');
+  const expected = crypto.createHmac('sha256', secret).update(signed, 'utf8').digest();
+  let provided: Buffer;
+  try {
+    provided = Buffer.from(signature, 'hex');
+  } catch {
+    return false;
+  }
+  if (provided.length !== expected.length) return false;
 
   try {
-    return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+    return crypto.timingSafeEqual(provided, expected);
   } catch {
     return false;
   }

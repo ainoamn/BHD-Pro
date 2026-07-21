@@ -204,11 +204,15 @@ npm run dev
 | المتغير | الوصف |
 |---------|--------|
 | `DATABASE_URL` | PostgreSQL |
-| `JWT_SECRET` | سر JWT (32+ حرف في الإنتاج) |
-| `CORS_ORIGIN` | `http://localhost:3000` |
+| `JWT_SECRET` / `JWT_REFRESH_SECRET` | أسرار JWT قوية (≥32 حرف) — إلزامي في الإنتاج |
+| `PAYMENT_SECRETS_KEY` | تشفير أسرار بوابات الدفع (AES-GCM) — إلزامي في الإنتاج |
+| `PLATFORM_ADMIN_EMAILS` | إيميلات مشغّل المنصة لإدارة بوابات الاشتراك |
+| `CORS_ORIGIN` | أصل الواجهة HTTPS في الإنتاج |
 | `FRONTEND_URL` | رابط الواجهة للتحويل بعد الدفع |
 | `API_PUBLIC_URL` | رابط الـ API العام (webhooks / return URL) |
 | `STRIPE_*` / `THAWANI_*` / `PAYPAL_*` | بوابات دفع اشتراك المنصة |
+
+راجع أيضاً [`SECURITY.md`](./SECURITY.md) لقائمة جاهزية النشر.
 
 Frontend (اختياري `.env.local`):
 

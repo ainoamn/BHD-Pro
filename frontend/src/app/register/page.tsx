@@ -8,12 +8,6 @@ import { Calculator, Mail, Lock, User, Building2, Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
 
-const plans = [
-  { id: "STARTER", nameKey: "starter" as const, price: "5" },
-  { id: "PROFESSIONAL", nameKey: "professional" as const, price: "15" },
-  { id: "ENTERPRISE", nameKey: "enterprise" as const, price: "35" },
-];
-
 export default function RegisterPage() {
   const t = useTranslations("auth");
   const tApp = useTranslations("app");
@@ -24,19 +18,24 @@ export default function RegisterPage() {
     email: "",
     password: "",
     companyName: "",
-    plan: "STARTER",
   });
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (form.password.length < 10) {
+      toast.error(t("passwordHint"));
+      return;
+    }
     setLoading(true);
     try {
       await api.register(form);
       toast.success(t("register"));
       router.push("/dashboard");
-    } catch {
-      toast.error("Registration failed");
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { message?: string | string[] } } };
+      const msg = axiosErr?.response?.data?.message;
+      toast.error(Array.isArray(msg) ? msg.join(" — ") : msg || "Registration failed");
     } finally {
       setLoading(false);
     }
@@ -55,6 +54,7 @@ export default function RegisterPage() {
 
         <form onSubmit={handleSubmit} className="glass rounded-2xl p-6 space-y-4">
           <h2 className="text-lg font-semibold text-white">{t("register")}</h2>
+          <p className="text-xs text-slate-500">{t("starterOnlyHint")}</p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -108,34 +108,17 @@ export default function RegisterPage() {
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
                 className="w-full h-10 pr-10 pl-3 bg-slate-800/50 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500"
-                minLength={8}
+                minLength={10}
+                autoComplete="new-password"
                 required
               />
             </div>
+            <p className="text-xs text-slate-500 mt-1">{t("passwordHint")}</p>
           </div>
 
-          <div>
-            <label className="block text-sm text-slate-400 mb-2">{tSub("title")}</label>
-            <div className="grid grid-cols-3 gap-2">
-              {plans.map((plan) => (
-                <button
-                  key={plan.id}
-                  type="button"
-                  onClick={() => setForm({ ...form, plan: plan.id })}
-                  className={`p-3 rounded-lg border text-center transition-all ${
-                    form.plan === plan.id
-                      ? "border-emerald-500 bg-emerald-500/10 text-emerald-400"
-                      : "border-slate-700 text-slate-400 hover:border-slate-600"
-                  }`}
-                >
-                  <p className="text-sm font-medium">{tSub(plan.nameKey)}</p>
-                  <p className="text-xs mt-1">
-                    {plan.price} {tSub("omr")}{tSub("perMonth")}
-                  </p>
-                </button>
-              ))}
-            </div>
-          </div>
+          <p className="text-xs text-slate-500">
+            {tSub("starter")} — {t("upgradeLater")}
+          </p>
 
           <button
             type="submit"

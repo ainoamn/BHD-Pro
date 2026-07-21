@@ -92,16 +92,6 @@ function SubscriptionContent() {
     onError: () => toast.error(tPay("paymentFailed")),
   });
 
-  const upgradeMutation = useMutation({
-    mutationFn: ({ plan, billing }: { plan: string; billing: "monthly" | "yearly" }) =>
-      api.upgradeSubscription(plan, billing),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["subscription-current"] });
-      toast.success(t("upgraded"));
-    },
-    onError: () => toast.error("Upgrade failed"),
-  });
-
   const planName = (plan: Plan) => {
     const locale = typeof document !== "undefined" ? document.documentElement.lang : "ar";
     return locale === "en" ? plan.nameEn : plan.nameAr;
@@ -246,9 +236,7 @@ function SubscriptionContent() {
               <button
                 disabled={isCurrent || checkoutMutation.isPending}
                 onClick={() => {
-                  if (plan.id === "STARTER") {
-                    upgradeMutation.mutate({ plan: plan.id, billing });
-                  } else if (platformGateways.length > 0) {
+                  if (platformGateways.length > 0) {
                     setCheckoutPlan(plan.id);
                   } else {
                     toast.error(tPay("noPlatformGateways"));

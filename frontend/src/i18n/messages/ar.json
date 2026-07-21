@@ -15,7 +15,10 @@
     "noAccount": "ليس لديك حساب؟",
     "hasAccount": "لديك حساب؟",
     "logout": "تسجيل الخروج",
-    "demoHint": "حساب تجريبي: admin@bhd.om / Admin123!"
+    "demoHint": "حساب تجريبي: admin@bhd.om / Admin123!",
+    "passwordHint": "١٠ أحرف على الأقل، مع حرف كبير وصغير ورقم",
+    "starterOnlyHint": "التسجيل يبدأ دائماً بالخطة الابتدائية — الترقية عبر الدفع فقط",
+    "upgradeLater": "يمكنك الترقية لاحقاً من صفحة الاشتراك بعد الدفع"
   },
   "nav": {
     "dashboard": "لوحة التحكم",
