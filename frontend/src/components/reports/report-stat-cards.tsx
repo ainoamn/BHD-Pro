@@ -7,6 +7,7 @@ interface StatCard {
   label: string;
   value: number | string;
   isMoney?: boolean;
+  isCount?: boolean;
   currency?: string;
   color?: string;
 }

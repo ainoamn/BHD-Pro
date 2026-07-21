@@ -10,6 +10,8 @@ import {
   Clock,
   Users,
   FileSpreadsheet,
+  Package,
+  UserCircle,
 } from "lucide-react";
 import { ModuleHub } from "@/components/hub/module-hub";
 
@@ -46,6 +48,18 @@ export default function ReportsHubPage() {
       icon: BookOpen,
       title: t("ledger"),
       description: t("ledgerDesc"),
+    },
+    {
+      href: "/reports/inventory",
+      icon: Package,
+      title: t("inventory"),
+      description: t("inventoryDesc"),
+    },
+    {
+      href: "/reports/payroll",
+      icon: UserCircle,
+      title: t("payroll"),
+      description: t("payrollDesc"),
     },
     {
       href: "/reports/financial?tab=arAging",

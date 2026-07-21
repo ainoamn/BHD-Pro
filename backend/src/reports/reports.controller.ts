@@ -81,4 +81,16 @@ export class ReportsController {
   ) {
     return this.reportsService.generalLedger(user.companyId, accountId);
   }
+
+  @Get('inventory-summary')
+  @ApiOperation({ summary: 'Inventory valuation and low stock' })
+  inventorySummary(@CurrentUser() user: TokenPayload) {
+    return this.reportsService.inventorySummary(user.companyId);
+  }
+
+  @Get('payroll-summary')
+  @ApiOperation({ summary: 'Payroll and employee cost summary' })
+  payrollSummary(@CurrentUser() user: TokenPayload) {
+    return this.reportsService.payrollSummary(user.companyId);
+  }
 }

@@ -698,7 +698,15 @@
     "contactStatement": "كشف حساب",
     "contactStatementDesc": "كشف عميل أو مورد",
     "trialBalance": "ميزان المراجعة",
-    "trialBalanceDesc": "أرصدة الحسابات من دفتر الأستاذ"
+    "trialBalanceDesc": "أرصدة الحسابات من دفتر الأستاذ",
+    "inventory": "تقرير المخزون",
+    "inventoryDesc": "قيمة المخزون والنواقص",
+    "payroll": "تقرير الرواتب",
+    "payrollDesc": "الموظفين ومسيرات الرواتب"
+  },
+  "reportsExport": {
+    "csv": "تصدير CSV",
+    "print": "طباعة / PDF"
   },
   "reportsSales": {
     "title": "تقرير المبيعات",
@@ -735,7 +743,9 @@
     "netVat": "صافي الضريبة المستحقة",
     "invoiceCount": "فواتير (مبيعات/مشتريات)",
     "salesTotal": "إجمالي المبيعات",
-    "purchaseTotal": "إجمالي المشتريات"
+    "purchaseTotal": "إجمالي المشتريات",
+    "item": "البند",
+    "amount": "المبلغ"
   },
   "reportsLedger": {
     "title": "دفتر الأستاذ العام",
@@ -749,5 +759,31 @@
     "debit": "مدين",
     "credit": "دائن",
     "balance": "الرصيد"
+  },
+  "reportsInventory": {
+    "title": "تقرير المخزون",
+    "subtitle": "قيمة المخزون والمنتجات منخفضة الكمية",
+    "productCount": "عدد المنتجات",
+    "lowStock": "مخزون منخفض",
+    "costValue": "قيمة التكلفة",
+    "saleValue": "قيمة البيع",
+    "lowStockList": "منتجات تحت الحد الأدنى",
+    "noLowStock": "لا يوجد مخزون منخفض",
+    "sku": "SKU",
+    "product": "المنتج",
+    "quantity": "الكمية",
+    "minQty": "الحد الأدنى"
+  },
+  "reportsPayroll": {
+    "title": "تقرير الرواتب",
+    "subtitle": "ملخص الموظفين ومسيرات الرواتب",
+    "employees": "الموظفين النشطين",
+    "monthlySalaries": "إجمالي الرواتب الشهرية",
+    "payrollRuns": "مسيرات الرواتب",
+    "recentRuns": "آخر المسيرات",
+    "noRuns": "لا توجد مسيرات رواتب",
+    "period": "الفترة",
+    "status": "الحالة",
+    "totalNet": "صافي الإجمالي"
   }
 }

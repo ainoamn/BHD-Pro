@@ -459,6 +459,14 @@ class ApiClient {
     return this.get('/reports/general-ledger', { params: accountId ? { accountId } : {} });
   }
 
+  getInventorySummary() {
+    return this.get('/reports/inventory-summary');
+  }
+
+  getPayrollSummary() {
+    return this.get('/reports/payroll-summary');
+  }
+
   getPaymentVouchers(type?: 'SALES' | 'PURCHASE') {
     return this.get('/invoices/payments/list', { params: type ? { type } : {} });
   }

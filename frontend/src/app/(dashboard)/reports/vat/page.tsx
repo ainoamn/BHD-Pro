@@ -7,6 +7,7 @@ import { formatMoney } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
 import { PageHeader, LoadingSpinner, GlassCard } from "@/components/ui/page-shell";
 import { ReportStatCards } from "@/components/reports/report-stat-cards";
+import { ExportButtons } from "@/components/reports/export-buttons";
 
 export default function VatReportPage() {
   const t = useTranslations("reportsVat");
@@ -31,9 +32,28 @@ export default function VatReportPage() {
 
   if (isLoading || !data) return <LoadingSpinner />;
 
+  const exportRows: (string | number)[][] = [
+    [t("outputVat"), data.outputVat],
+    [t("inputVat"), data.inputVat],
+    [t("netVat"), data.netVat],
+    [t("salesTotal"), data.salesTotal],
+    [t("purchaseTotal"), data.purchaseTotal],
+  ];
+
   return (
     <div className="space-y-6">
-      <PageHeader title={t("title")} subtitle={t("subtitle")} />
+      <PageHeader
+        title={t("title")}
+        subtitle={t("subtitle")}
+        action={
+          <ExportButtons
+            filename="vat-report"
+            headers={[t("item"), t("amount")]}
+            rows={exportRows}
+            printTitle={t("title")}
+          />
+        }
+      />
 
       <ReportStatCards
         currency={currency}

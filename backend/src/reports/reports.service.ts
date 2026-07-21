@@ -599,4 +599,90 @@ export class ReportsService {
 
     return { entries, currency: 'OMR' };
   }
+
+  async inventorySummary(companyId: string) {
+    const products = await this.prisma.product.findMany({
+      where: { companyId, isActive: true },
+      select: {
+        id: true,
+        sku: true,
+        name: true,
+        category: true,
+        quantity: true,
+        minQuantity: true,
+        costPrice: true,
+        salePrice: true,
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    const lowStock = products.filter(
+      (p) => Number(p.quantity) <= Number(p.minQuantity),
+    );
+    const totalCostValue = products.reduce(
+      (s, p) => s + Number(p.quantity) * Number(p.costPrice),
+      0,
+    );
+    const totalSaleValue = products.reduce(
+      (s, p) => s + Number(p.quantity) * Number(p.salePrice),
+      0,
+    );
+
+    return {
+      productCount: products.length,
+      lowStockCount: lowStock.length,
+      totalCostValue: Number(totalCostValue.toFixed(3)),
+      totalSaleValue: Number(totalSaleValue.toFixed(3)),
+      lowStock: lowStock.slice(0, 20).map((p) => ({
+        id: p.id,
+        sku: p.sku,
+        name: p.name,
+        quantity: Number(p.quantity),
+        minQuantity: Number(p.minQuantity),
+      })),
+      currency: 'OMR',
+    };
+  }
+
+  async payrollSummary(companyId: string) {
+    const [employees, runs] = await Promise.all([
+      this.prisma.employee.findMany({
+        where: { companyId, isActive: true },
+        select: { id: true, name: true, baseSalary: true, department: true },
+      }),
+      this.prisma.payrollRun.findMany({
+        where: { companyId },
+        include: { _count: { select: { lines: true } } },
+        orderBy: [{ periodYear: 'desc' }, { periodMonth: 'desc' }],
+        take: 12,
+      }),
+    ]);
+
+    const monthlySalary = employees.reduce((s, e) => s + Number(e.baseSalary || 0), 0);
+    const lastRun = runs[0];
+    const periodLabel = (year: number, month: number) =>
+      `${year}-${String(month).padStart(2, '0')}`;
+
+    return {
+      employeeCount: employees.length,
+      monthlySalaryTotal: Number(monthlySalary.toFixed(3)),
+      payrollRunCount: runs.length,
+      lastRun: lastRun
+        ? {
+            id: lastRun.id,
+            period: periodLabel(lastRun.periodYear, lastRun.periodMonth),
+            status: lastRun.status,
+            totalNet: Number(lastRun.totalNet),
+            lineCount: lastRun._count.lines,
+          }
+        : null,
+      recentRuns: runs.map((r) => ({
+        id: r.id,
+        period: periodLabel(r.periodYear, r.periodMonth),
+        status: r.status,
+        totalNet: Number(r.totalNet),
+      })),
+      currency: 'OMR',
+    };
+  }
 }

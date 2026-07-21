@@ -11,6 +11,7 @@ import {
   Loader2,
   UserPlus,
   Receipt,
+  Download,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
@@ -30,6 +31,7 @@ import {
 } from "@/components/invoices/invoice-actions";
 import { RecordPaymentModal } from "@/components/invoices/record-payment-modal";
 import { ReversePaymentModal } from "@/components/invoices/reverse-payment-modal";
+import { downloadCsv } from "@/lib/export-csv";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import {
   AccountingHubTabs,
@@ -788,6 +790,34 @@ export function AccountingModule() {
         <p className="text-xs text-slate-500 ms-auto self-center">
           {t("resultsCount", { count: filteredInvoices.length })}
         </p>
+        {filteredInvoices.length > 0 && (
+          <button
+            type="button"
+            onClick={() => {
+              const headers = [
+                t("number"),
+                ...(isDocuments ? [t("type")] : []),
+                isPurchaseList ? t("supplier") : t("customer"),
+                t("date"),
+                t("amount"),
+                t("status"),
+              ];
+              const rows = filteredInvoices.map((inv) => [
+                inv.number,
+                ...(isDocuments ? [inv.type] : []),
+                inv.contact?.name || "",
+                formatDate(inv.date),
+                Number(inv.total),
+                inv.status,
+              ]);
+              downloadCsv("invoices", headers, rows);
+            }}
+            className="h-9 px-3 flex items-center gap-1.5 text-sm text-slate-400 hover:text-white border border-slate-700 rounded-lg"
+          >
+            <Download className="w-4 h-4" />
+            {tCommon("export")}
+          </button>
+        )}
       </div>
 
       <div className="glass rounded-xl overflow-hidden">
@@ -805,7 +835,50 @@ export function AccountingModule() {
             </button>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="md:hidden p-3 space-y-3">
+            {filteredInvoices.map((inv) => (
+              <div
+                key={inv.id}
+                className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 space-y-3"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-white font-semibold">{inv.number}</p>
+                    <p className="text-sm text-slate-400 mt-0.5">{inv.contact?.name}</p>
+                  </div>
+                  <span className={cn("px-2 py-1 rounded-full text-xs font-medium shrink-0", statusColor(inv.status))}>
+                    {statusLabel(inv.status)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500">{formatDate(inv.date)}</span>
+                  <span className="text-emerald-400 font-semibold">
+                    {formatMoney(Number(inv.total), company?.currency || "OMR")}
+                  </span>
+                </div>
+                <InvoiceActions
+                  status={inv.status}
+                  paymentStatus={inv.paymentStatus}
+                  paidAmount={Number(inv.paidAmount || 0)}
+                  invoiceType={inv.type}
+                  disabled={actionsBusy}
+                  onView={() => openDocument(inv, "invoice")}
+                  onReceipt={() => openDocument(inv, "receipt")}
+                  onEdit={() => openEdit(inv)}
+                  onSend={() => sendMutation.mutate(inv.id)}
+                  onMarkSent={() => handleMarkSent(inv.id)}
+                  onMarkPaid={() => handleMarkPaid(inv.id)}
+                  onUnsend={() => handleUnsend(inv.id)}
+                  onReversePayment={() => handleOpenReversePayment(inv)}
+                  onCancel={() => handleCancel(inv.id)}
+                  onDelete={() => handleDelete(inv.id)}
+                  onConvertToInvoice={() => convertQuotationMutation.mutate(inv.id)}
+                />
+              </div>
+            ))}
+          </div>
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-800 text-slate-400">
@@ -875,6 +948,7 @@ export function AccountingModule() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
 

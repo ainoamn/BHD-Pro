@@ -44,3 +44,21 @@ body {
     @apply bg-slate-900/60 backdrop-blur-xl border border-slate-800/50;
   }
 }
+
+@media print {
+  aside,
+  header,
+  .print\\:hidden {
+    display: none !important;
+  }
+
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+}

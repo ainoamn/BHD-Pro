@@ -7,6 +7,7 @@ import { formatMoney } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
 import { PageHeader, LoadingSpinner, GlassCard } from "@/components/ui/page-shell";
 import { ReportStatCards } from "@/components/reports/report-stat-cards";
+import { ExportButtons } from "@/components/reports/export-buttons";
 
 export default function PurchasesReportPage() {
   const t = useTranslations("reportsPurchases");
@@ -29,9 +30,22 @@ export default function PurchasesReportPage() {
 
   if (isLoading || !data) return <LoadingSpinner />;
 
+  const exportRows = data.topSuppliers.map((s) => [s.name, s.count, s.total]);
+
   return (
     <div className="space-y-6">
-      <PageHeader title={t("title")} subtitle={t("subtitle")} />
+      <PageHeader
+        title={t("title")}
+        subtitle={t("subtitle")}
+        action={
+          <ExportButtons
+            filename="purchases-report"
+            headers={[t("supplier"), t("invoices"), t("total")]}
+            rows={exportRows}
+            printTitle={t("title")}
+          />
+        }
+      />
 
       <ReportStatCards
         currency={currency}

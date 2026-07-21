@@ -7,6 +7,7 @@ import api from "@/lib/api";
 import { formatMoney, formatDate } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
 import { PageHeader, LoadingSpinner, GlassCard, EmptyState } from "@/components/ui/page-shell";
+import { ExportButtons } from "@/components/reports/export-buttons";
 import { BookOpen } from "lucide-react";
 
 export default function LedgerReportPage() {
@@ -46,7 +47,38 @@ export default function LedgerReportPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title={t("title")} subtitle={t("subtitle")} />
+      <PageHeader
+        title={t("title")}
+        subtitle={t("subtitle")}
+        action={
+          data?.entries.length ? (
+            <ExportButtons
+              filename="general-ledger"
+              headers={[
+                t("date"),
+                t("journal"),
+                t("account"),
+                t("description"),
+                t("debit"),
+                t("credit"),
+                t("balance"),
+              ]}
+              rows={
+                data?.entries.map((e) => [
+                  formatDate(e.date),
+                  e.journalNumber,
+                  e.accountCode,
+                  e.description || "",
+                  e.debit,
+                  e.credit,
+                  e.balance,
+                ]) || []
+              }
+              printTitle={t("title")}
+            />
+          ) : undefined
+        }
+      />
 
       <select
         value={accountId}

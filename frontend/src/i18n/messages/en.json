@@ -698,7 +698,15 @@
     "contactStatement": "Account statement",
     "contactStatementDesc": "Customer or supplier statement",
     "trialBalance": "Trial balance",
-    "trialBalanceDesc": "Account balances from ledger"
+    "trialBalanceDesc": "Account balances from ledger",
+    "inventory": "Inventory report",
+    "inventoryDesc": "Stock value and low items",
+    "payroll": "Payroll report",
+    "payrollDesc": "Employees and payroll runs"
+  },
+  "reportsExport": {
+    "csv": "Export CSV",
+    "print": "Print / PDF"
   },
   "reportsSales": {
     "title": "Sales Report",
@@ -735,7 +743,35 @@
     "netVat": "Net VAT payable",
     "invoiceCount": "Invoices (sales/purchases)",
     "salesTotal": "Total sales",
-    "purchaseTotal": "Total purchases"
+    "purchaseTotal": "Total purchases",
+    "item": "Item",
+    "amount": "Amount"
+  },
+  "reportsInventory": {
+    "title": "Inventory Report",
+    "subtitle": "Stock valuation and low quantity items",
+    "productCount": "Products",
+    "lowStock": "Low stock",
+    "costValue": "Cost value",
+    "saleValue": "Sale value",
+    "lowStockList": "Below minimum stock",
+    "noLowStock": "No low stock items",
+    "sku": "SKU",
+    "product": "Product",
+    "quantity": "Qty",
+    "minQty": "Min qty"
+  },
+  "reportsPayroll": {
+    "title": "Payroll Report",
+    "subtitle": "Employees and payroll run summary",
+    "employees": "Active employees",
+    "monthlySalaries": "Monthly salary total",
+    "payrollRuns": "Payroll runs",
+    "recentRuns": "Recent runs",
+    "noRuns": "No payroll runs yet",
+    "period": "Period",
+    "status": "Status",
+    "totalNet": "Net total"
   },
   "reportsLedger": {
     "title": "General Ledger",
