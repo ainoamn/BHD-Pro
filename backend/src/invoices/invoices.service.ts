@@ -76,11 +76,32 @@ export class InvoicesService {
         contact: true,
         items: { include: { product: true } },
         payments: true,
+        costCenter: { select: { id: true, code: true, name: true } },
+        project: { select: { id: true, code: true, name: true } },
         createdBy: { select: { id: true, name: true, email: true } },
       },
     });
     if (!invoice) throw new NotFoundException('Invoice not found');
     return invoice;
+  }
+
+  private async validateAnalytics(
+    companyId: string,
+    costCenterId?: string | null,
+    projectId?: string | null,
+  ) {
+    if (costCenterId) {
+      const cc = await this.prisma.costCenter.findFirst({
+        where: { id: costCenterId, companyId },
+      });
+      if (!cc) throw new BadRequestException('Cost center not found');
+    }
+    if (projectId) {
+      const project = await this.prisma.project.findFirst({
+        where: { id: projectId, companyId },
+      });
+      if (!project) throw new BadRequestException('Project not found');
+    }
   }
 
   async findOne(companyId: string, id: string) {
@@ -95,6 +116,8 @@ export class InvoicesService {
     if (!contact) throw new BadRequestException('Contact not found');
 
     if (!dto.items?.length) throw new BadRequestException('At least one line item required');
+
+    await this.validateAnalytics(companyId, dto.costCenterId, dto.projectId);
 
     const taxRate = dto.taxRate ?? OMAN_VAT_RATE;
     let subtotal = 0;
@@ -139,12 +162,16 @@ export class InvoicesService {
         status: InvoiceStatus.DRAFT,
         paymentStatus: PaymentStatus.UNPAID,
         notes: dto.notes,
+        costCenterId: dto.costCenterId || null,
+        projectId: dto.projectId || null,
         createdById: userId,
         items: { create: itemsData },
       },
       include: {
         contact: true,
         items: true,
+        costCenter: { select: { id: true, code: true, name: true } },
+        project: { select: { id: true, code: true, name: true } },
       },
     });
   }
@@ -162,6 +189,8 @@ export class InvoicesService {
         'Cannot edit invoice with recorded payments — reverse the receipt first',
       );
     }
+
+    await this.validateAnalytics(companyId, dto.costCenterId, dto.projectId);
 
     if (dto.items) {
       await this.prisma.invoiceItem.deleteMany({ where: { invoiceId: id } });
@@ -202,13 +231,15 @@ export class InvoicesService {
           ...(dto.date && { date: new Date(dto.date) }),
           ...(dto.dueDate && { dueDate: new Date(dto.dueDate) }),
           ...(dto.notes !== undefined && { notes: dto.notes }),
+          ...(dto.costCenterId !== undefined && { costCenterId: dto.costCenterId || null }),
+          ...(dto.projectId !== undefined && { projectId: dto.projectId || null }),
           subtotal,
           discount,
           taxRate,
           taxAmount,
           total,
         },
-        include: { contact: true, items: true },
+        include: { contact: true, items: true, costCenter: true, project: true },
       });
     }
 
@@ -221,8 +252,10 @@ export class InvoicesService {
         ...(dto.dueDate && { dueDate: new Date(dto.dueDate) }),
         ...(dto.notes !== undefined && { notes: dto.notes }),
         ...(dto.discount !== undefined && { discount: dto.discount }),
+        ...(dto.costCenterId !== undefined && { costCenterId: dto.costCenterId || null }),
+        ...(dto.projectId !== undefined && { projectId: dto.projectId || null }),
       },
-      include: { contact: true, items: true },
+      include: { contact: true, items: true, costCenter: true, project: true },
     });
   }
 

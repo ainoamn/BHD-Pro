@@ -11,6 +11,8 @@ type JournalLineInput = {
   description?: string;
   debit: number;
   credit: number;
+  costCenterId?: string | null;
+  projectId?: string | null;
 };
 
 @Injectable()
@@ -104,6 +106,8 @@ export class GlPostingService {
               description: l.description,
               debit: l.debit,
               credit: l.credit,
+              costCenterId: l.costCenterId || null,
+              projectId: l.projectId || null,
             })),
           },
         },
@@ -124,6 +128,19 @@ export class GlPostingService {
     });
   }
 
+  private withAnalytics(
+    line: JournalLineInput,
+    costCenterId?: string | null,
+    projectId?: string | null,
+  ): JournalLineInput {
+    if (!costCenterId && !projectId) return line;
+    return {
+      ...line,
+      ...(costCenterId ? { costCenterId } : {}),
+      ...(projectId ? { projectId } : {}),
+    };
+  }
+
   async postInvoice(
     companyId: string,
     userId: string,
@@ -137,6 +154,8 @@ export class GlPostingService {
       taxAmount: unknown;
       total: unknown;
       glJournalId?: string | null;
+      costCenterId?: string | null;
+      projectId?: string | null;
     },
   ) {
     if (invoice.glJournalId) return null;
@@ -148,6 +167,8 @@ export class GlPostingService {
     const tax = Number(invoice.taxAmount);
     const total = Number(invoice.total);
     const netRevenue = Number((subtotal - discount).toFixed(3));
+    const cc = invoice.costCenterId;
+    const proj = invoice.projectId;
 
     let lines: JournalLineInput[] = [];
 
@@ -155,7 +176,11 @@ export class GlPostingService {
       if (!accounts.ar || !accounts.revenue) return null;
       lines = [
         { accountId: accounts.ar.id, description: invoice.number, debit: total, credit: 0 },
-        { accountId: accounts.revenue.id, description: invoice.number, debit: 0, credit: netRevenue },
+        this.withAnalytics(
+          { accountId: accounts.revenue.id, description: invoice.number, debit: 0, credit: netRevenue },
+          cc,
+          proj,
+        ),
       ];
       if (tax > 0 && accounts.vat) {
         lines.push({ accountId: accounts.vat.id, description: 'VAT', debit: 0, credit: tax });
@@ -163,7 +188,11 @@ export class GlPostingService {
     } else if (invoice.type === InvoiceType.PURCHASE) {
       if (!accounts.ap || !accounts.expense) return null;
       lines = [
-        { accountId: accounts.expense.id, description: invoice.number, debit: netRevenue, credit: 0 },
+        this.withAnalytics(
+          { accountId: accounts.expense.id, description: invoice.number, debit: netRevenue, credit: 0 },
+          cc,
+          proj,
+        ),
         { accountId: accounts.ap.id, description: invoice.number, debit: 0, credit: total },
       ];
       if (tax > 0 && accounts.vat) {
@@ -172,7 +201,11 @@ export class GlPostingService {
     } else if (invoice.type === InvoiceType.CREDIT_NOTE) {
       if (!accounts.ar || !accounts.revenue) return null;
       lines = [
-        { accountId: accounts.revenue.id, description: invoice.number, debit: netRevenue, credit: 0 },
+        this.withAnalytics(
+          { accountId: accounts.revenue.id, description: invoice.number, debit: netRevenue, credit: 0 },
+          cc,
+          proj,
+        ),
         { accountId: accounts.ar.id, description: invoice.number, debit: 0, credit: total },
       ];
       if (tax > 0 && accounts.vat) {
@@ -182,7 +215,11 @@ export class GlPostingService {
       if (!accounts.ap || !accounts.expense) return null;
       lines = [
         { accountId: accounts.ap.id, description: invoice.number, debit: total, credit: 0 },
-        { accountId: accounts.expense.id, description: invoice.number, debit: 0, credit: netRevenue },
+        this.withAnalytics(
+          { accountId: accounts.expense.id, description: invoice.number, debit: 0, credit: netRevenue },
+          cc,
+          proj,
+        ),
       ];
       if (tax > 0 && accounts.vat) {
         lines.push({ accountId: accounts.vat.id, description: 'VAT', debit: 0, credit: tax });

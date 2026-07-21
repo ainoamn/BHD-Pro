@@ -574,6 +574,8 @@ export class ReportsService {
       },
       include: {
         account: { select: { id: true, code: true, name: true } },
+        costCenter: { select: { id: true, code: true, name: true } },
+        project: { select: { id: true, code: true, name: true } },
         journal: { select: { id: true, number: true, date: true, description: true, reference: true } },
       },
       orderBy: [{ journal: { date: 'asc' } }, { createdAt: 'asc' }],
@@ -591,6 +593,8 @@ export class ReportsService {
         description: line.description || line.journal.description,
         accountCode: line.account.code,
         accountName: line.account.name,
+        costCenter: line.costCenter?.name || null,
+        project: line.project?.name || null,
         debit: Number(line.debit),
         credit: Number(line.credit),
         balance: running,

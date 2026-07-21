@@ -788,6 +788,8 @@
     "journal": "Journal #",
     "account": "Account",
     "description": "Description",
+    "costCenter": "Cost center",
+    "project": "Project",
     "debit": "Debit",
     "credit": "Credit",
     "balance": "Balance"

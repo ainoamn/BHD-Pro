@@ -37,6 +37,8 @@ export default function LedgerReportPage() {
           description?: string;
           accountCode: string;
           accountName: string;
+          costCenter?: string | null;
+          project?: string | null;
           debit: number;
           credit: number;
           balance: number;
@@ -59,6 +61,8 @@ export default function LedgerReportPage() {
                 t("journal"),
                 t("account"),
                 t("description"),
+                t("costCenter"),
+                t("project"),
                 t("debit"),
                 t("credit"),
                 t("balance"),
@@ -69,6 +73,8 @@ export default function LedgerReportPage() {
                   e.journalNumber,
                   e.accountCode,
                   e.description || "",
+                  e.costCenter || "",
+                  e.project || "",
                   e.debit,
                   e.credit,
                   e.balance,
@@ -107,6 +113,8 @@ export default function LedgerReportPage() {
                   <th className="text-right px-3 py-3">{t("journal")}</th>
                   <th className="text-right px-3 py-3">{t("account")}</th>
                   <th className="text-right px-3 py-3">{t("description")}</th>
+                  <th className="text-right px-3 py-3">{t("costCenter")}</th>
+                  <th className="text-right px-3 py-3">{t("project")}</th>
                   <th className="text-right px-3 py-3">{t("debit")}</th>
                   <th className="text-right px-3 py-3">{t("credit")}</th>
                   <th className="text-right px-3 py-3">{t("balance")}</th>
@@ -121,6 +129,8 @@ export default function LedgerReportPage() {
                     <td className="px-3 py-2 text-slate-400 max-w-[200px] truncate">
                       {e.description || "—"}
                     </td>
+                    <td className="px-3 py-2 text-slate-400">{e.costCenter || "—"}</td>
+                    <td className="px-3 py-2 text-slate-400">{e.project || "—"}</td>
                     <td className="px-3 py-2 text-slate-300">
                       {e.debit > 0 ? formatMoney(e.debit, currency) : "—"}
                     </td>

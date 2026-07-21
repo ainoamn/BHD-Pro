@@ -762,6 +762,8 @@
     "journal": "رقم القيد",
     "account": "الحساب",
     "description": "الوصف",
+    "costCenter": "مركز التكلفة",
+    "project": "المشروع",
     "debit": "مدين",
     "credit": "دائن",
     "balance": "الرصيد"

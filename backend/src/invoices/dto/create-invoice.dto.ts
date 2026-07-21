@@ -74,6 +74,14 @@ export class CreateInvoiceDto {
   @IsString()
   notes?: string;
 
+  @IsOptional()
+  @IsUUID()
+  costCenterId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  projectId?: string;
+
   @IsArray()
   @ArrayMinSize(1)
   @ValidateNested({ each: true })

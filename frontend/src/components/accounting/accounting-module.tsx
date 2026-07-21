@@ -76,6 +76,10 @@ interface Invoice {
   status: string;
   paymentStatus: string;
   notes?: string;
+  costCenterId?: string | null;
+  projectId?: string | null;
+  costCenter?: { id: string; code: string; name: string } | null;
+  project?: { id: string; code: string; name: string } | null;
   contact: Contact;
   items: InvoiceItem[];
 }
@@ -102,6 +106,7 @@ const emptyLine = (): LineItemForm => ({
 export function AccountingModule() {
   const t = useTranslations("invoices");
   const tAcc = useTranslations("accounting");
+  const tErp = useTranslations("erp");
   const tStatus = useTranslations("status");
   const tCommon = useTranslations("common");
   const { company } = useAuthStore();
@@ -144,6 +149,8 @@ export function AccountingModule() {
   const [documentVariant, setDocumentVariant] = useState<"invoice" | "receipt">("invoice");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [contactId, setContactId] = useState("");
+  const [costCenterId, setCostCenterId] = useState("");
+  const [projectId, setProjectId] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [dueDate, setDueDate] = useState(
     new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0]
@@ -272,11 +279,29 @@ export function AccountingModule() {
     },
   });
 
+  const { data: costCenters = [] } = useQuery({
+    queryKey: ["cost-centers"],
+    queryFn: async () => {
+      const res = await api.getCostCenters();
+      return res.data as { id: string; code: string; name: string }[];
+    },
+  });
+
+  const { data: projects = [] } = useQuery({
+    queryKey: ["projects"],
+    queryFn: async () => {
+      const res = await api.getProjects();
+      return res.data as { id: string; code: string; name: string; costCenterId?: string | null }[];
+    },
+  });
+
   const contactType = invoiceType === "SALES" ? "CUSTOMER" : "SUPPLIER";
 
   const resetForm = () => {
     setEditingId(null);
     setContactId("");
+    setCostCenterId("");
+    setProjectId("");
     setDate(new Date().toISOString().split("T")[0]);
     setDueDate(new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0]);
     setNotes("");
@@ -300,6 +325,8 @@ export function AccountingModule() {
     setEditingId(inv.id);
     setInvoiceType(inv.type as InvoiceType);
     setContactId(inv.contact?.id || "");
+    setCostCenterId(inv.costCenterId || inv.costCenter?.id || "");
+    setProjectId(inv.projectId || inv.project?.id || "");
     setDate(inv.date.split("T")[0]);
     setDueDate(inv.dueDate.split("T")[0]);
     setNotes(inv.notes || "");
@@ -456,6 +483,8 @@ export function AccountingModule() {
         discount: Number(discount || 0),
         taxRate: Number(taxRate),
         notes: notes || undefined,
+        costCenterId: costCenterId || undefined,
+        projectId: projectId || undefined,
         items,
       };
       if (editingId) return api.updateInvoice(editingId, payload);
@@ -1127,6 +1156,40 @@ export function AccountingModule() {
                     <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)}
                       className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500" />
                   </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-slate-400 mb-1">{tErp("costCenter")}</label>
+                  <select
+                    value={costCenterId}
+                    onChange={(e) => setCostCenterId(e.target.value)}
+                    className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500"
+                  >
+                    <option value="">—</option>
+                    {costCenters.map((c) => (
+                      <option key={c.id} value={c.id}>{c.code} — {c.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-slate-400 mb-1">{tErp("projectsTitle")}</label>
+                  <select
+                    value={projectId}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      setProjectId(next);
+                      const proj = projects.find((p) => p.id === next);
+                      if (proj?.costCenterId) setCostCenterId(proj.costCenterId);
+                    }}
+                    className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500"
+                  >
+                    <option value="">—</option>
+                    {projects.map((p) => (
+                      <option key={p.id} value={p.id}>{p.code} — {p.name}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
