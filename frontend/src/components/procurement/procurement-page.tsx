@@ -209,7 +209,54 @@ export function ProcurementPage({ mode }: ProcurementPageProps) {
       ) : rows.length === 0 ? (
         <EmptyState icon={FileInput} title={t("empty")} />
       ) : (
-        <GlassCard className="overflow-hidden">
+        <>
+          <div className="md:hidden space-y-3">
+            {rows.map((row) => (
+              <GlassCard key={row.id} className="p-4 space-y-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-white font-semibold">{isPO ? row.number : row.name}</p>
+                    <p className="text-sm text-slate-400 mt-0.5">{row.contact.name}</p>
+                  </div>
+                  {isPO && (
+                    <span className="text-xs px-2 py-1 rounded bg-slate-800 text-slate-300 shrink-0">
+                      {t(`status_${row.status}` as "status_DRAFT")}
+                    </span>
+                  )}
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500">{formatDate(isPO ? row.date! : row.nextDate!)}</span>
+                  <span className="text-emerald-400 font-semibold">
+                    {formatMoney(Number(row.total), currency)}
+                  </span>
+                </div>
+                {!isPO && (
+                  <p className="text-xs text-slate-400">
+                    {t("frequency")}: {t(`freq_${row.frequency}` as "freq_MONTHLY")}
+                  </p>
+                )}
+                <div className="flex items-center gap-2">
+                  {(isPO ? row.status !== "RECEIVED" && row.status !== "CANCELLED" : row.isActive !== false) && (
+                    <button
+                      onClick={() => convertMutation.mutate(row.id)}
+                      disabled={convertMutation.isPending}
+                      className="text-xs px-2 py-1 rounded bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
+                    >
+                      {isPO ? t("convert") : t("generateNow")}
+                    </button>
+                  )}
+                  <button
+                    onClick={() => deleteMutation.mutate(row.id)}
+                    className="p-1.5 text-slate-400 hover:text-rose-400"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </GlassCard>
+            ))}
+          </div>
+
+          <GlassCard className="hidden md:block overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -273,6 +320,7 @@ export function ProcurementPage({ mode }: ProcurementPageProps) {
             </table>
           </div>
         </GlassCard>
+        </>
       )}
 
       {open && (

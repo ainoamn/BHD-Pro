@@ -226,7 +226,9 @@
     "supplierPayment": "Supplier Payment",
     "supplierPaymentHint": "Record payment to a supplier",
     "quote": "Quotation",
+    "quoteHint": "Create a quotation for a customer",
     "creditNote": "Credit Note",
+    "creditNoteHint": "Issue a credit note to a customer",
     "comingSoon": "Coming soon",
     "allDocuments": "View all documents",
     "todayReceived": "Received today",
@@ -556,6 +558,7 @@
     "type": "Type",
     "balance": "Balance",
     "branch": "Branch",
+    "costCenter": "Cost Center",
     "headOffice": "Head office",
     "budget": "Budget",
     "status": "Status",
@@ -676,7 +679,10 @@
     "invoice": "Invoice",
     "method": "Payment method",
     "reference": "Reference",
-    "amount": "Amount"
+    "amount": "Amount",
+    "view": "View",
+    "print": "Print",
+    "actions": "Actions"
   },
   "reportsHub": {
     "title": "Reports Center",

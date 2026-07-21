@@ -9,6 +9,7 @@ import api from "@/lib/api";
 import { cn, formatMoney, formatDate } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
 import { PageHeader, LoadingSpinner, GlassCard } from "@/components/ui/page-shell";
+import { ExportButtons } from "@/components/reports/export-buttons";
 
 type ReportTab =
   | "profitLoss"
@@ -251,9 +252,96 @@ function ReportsPageContent() {
     </div>
   );
 
+  const exportConfig = (() => {
+    if (tab === "profitLoss" && profitLoss) {
+      return {
+        filename: "profit-loss",
+        title: t("profitLoss"),
+        headers: [t("profitLoss"), t("total")],
+        rows: [
+          [t("revenue"), profitLoss.revenue],
+          [t("expenses"), profitLoss.expenses],
+          [t("netProfit"), profitLoss.netProfit],
+          [t("margin"), `${profitLoss.margin.toFixed(1)}%`],
+        ],
+      };
+    }
+    if (tab === "trialBalance" && trialBalance) {
+      return {
+        filename: "trial-balance",
+        title: t("trialBalance"),
+        headers: [t("account"), t("debit"), t("credit")],
+        rows: trialBalance.lines
+          .filter((l) => l.debit > 0 || l.credit > 0)
+          .map((l) => [`${l.code} — ${l.name}`, l.debit, l.credit]),
+      };
+    }
+    if (tab === "arAging" && arAging?.contacts.length) {
+      return {
+        filename: "ar-aging",
+        title: t("arAging"),
+        headers: [t("contact"), t("agingCurrent"), "1–30", "31–60", "61–90", "90+", t("total")],
+        rows: arAging.contacts.map((c) => [
+          c.contactName,
+          c.buckets.current || 0,
+          c.buckets.days1_30 || 0,
+          c.buckets.days31_60 || 0,
+          c.buckets.days61_90 || 0,
+          c.buckets.over90 || 0,
+          c.total,
+        ]),
+      };
+    }
+    if (tab === "apAging" && apAging?.contacts.length) {
+      return {
+        filename: "ap-aging",
+        title: t("apAging"),
+        headers: [t("contact"), t("agingCurrent"), "1–30", "31–60", "61–90", "90+", t("total")],
+        rows: apAging.contacts.map((c) => [
+          c.contactName,
+          c.buckets.current || 0,
+          c.buckets.days1_30 || 0,
+          c.buckets.days31_60 || 0,
+          c.buckets.days61_90 || 0,
+          c.buckets.over90 || 0,
+          c.total,
+        ]),
+      };
+    }
+    if (tab === "contactStatement" && statement?.entries.length) {
+      return {
+        filename: "contact-statement",
+        title: t("contactStatement"),
+        headers: [t("date"), t("reference"), t("docType"), t("debit"), t("credit"), t("balance")],
+        rows: statement.entries.map((e) => [
+          e.date,
+          e.reference,
+          e.docType,
+          e.debit,
+          e.credit,
+          e.balance,
+        ]),
+      };
+    }
+    return null;
+  })();
+
   return (
     <div className="space-y-6">
-      <PageHeader title={t("title")} subtitle={t("subtitle")} />
+      <PageHeader
+        title={t("title")}
+        subtitle={t("subtitle")}
+        action={
+          exportConfig ? (
+            <ExportButtons
+              filename={exportConfig.filename}
+              headers={exportConfig.headers}
+              rows={exportConfig.rows}
+              printTitle={exportConfig.title}
+            />
+          ) : undefined
+        }
+      />
 
       <div className="flex flex-wrap gap-2">
         {tabs.map(({ key, label }) => (

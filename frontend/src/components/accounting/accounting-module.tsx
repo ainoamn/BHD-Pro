@@ -605,6 +605,17 @@ export function AccountingModule() {
     updateUrl(nextTab, { action: "new", type });
   };
 
+  const openNewDocument = (docType: DocumentType) => {
+    const isPurchase = docType === "PURCHASE" || docType === "DEBIT_NOTE";
+    setDocumentType(docType);
+    setInvoiceType(isPurchase ? "PURCHASE" : "SALES");
+    const nextTab = isPurchase ? "purchases" : "sales";
+    setHubTab(nextTab);
+    resetForm();
+    setModalOpen(true);
+    updateUrl(nextTab, { action: "new", docType });
+  };
+
   const showList = hubTab === "sales" || hubTab === "purchases" || hubTab === "documents";
   const isSalesList = hubTab === "sales";
   const isPurchaseList = hubTab === "purchases";
@@ -691,6 +702,8 @@ export function AccountingModule() {
           pendingAmount={Number(stats?.pendingAmount ?? 0)}
           onNewSalesInvoice={() => openNewInvoice("SALES")}
           onNewPurchaseInvoice={() => openNewInvoice("PURCHASE")}
+          onNewQuotation={() => openNewDocument("QUOTATION")}
+          onNewCreditNote={() => openNewDocument("CREDIT_NOTE")}
           onCollect={() => {
             setCollectInvoiceId(undefined);
             setCollectOpen(true);

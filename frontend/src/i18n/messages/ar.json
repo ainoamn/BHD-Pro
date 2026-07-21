@@ -226,7 +226,9 @@
     "supplierPayment": "دفع مورد",
     "supplierPaymentHint": "تسجيل دفعة لمورد",
     "quote": "عرض سعر",
+    "quoteHint": "إنشاء عرض سعر لعميل",
     "creditNote": "إشعار دائن",
+    "creditNoteHint": "إصدار إشعار دائن لعميل",
     "comingSoon": "قريباً",
     "allDocuments": "عرض كل المستندات",
     "todayReceived": "استلمنا اليوم",
@@ -556,6 +558,7 @@
     "type": "النوع",
     "balance": "الرصيد",
     "branch": "الفرع",
+    "costCenter": "مركز التكلفة",
     "headOffice": "المقر الرئيسي",
     "budget": "الميزانية",
     "status": "الحالة",
@@ -676,7 +679,10 @@
     "invoice": "الفاتورة",
     "method": "طريقة الدفع",
     "reference": "المرجع",
-    "amount": "المبلغ"
+    "amount": "المبلغ",
+    "view": "عرض",
+    "print": "طباعة",
+    "actions": "إجراءات"
   },
   "reportsHub": {
     "title": "مركز التقارير",

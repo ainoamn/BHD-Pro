@@ -19,6 +19,8 @@ interface AccountingOverviewTabProps {
   pendingAmount?: number;
   onNewSalesInvoice: () => void;
   onNewPurchaseInvoice: () => void;
+  onNewQuotation: () => void;
+  onNewCreditNote: () => void;
   onCollect: () => void;
   onViewDocuments: () => void;
   onViewSales: () => void;
@@ -84,6 +86,8 @@ export function AccountingOverviewTab({
   pendingAmount = 0,
   onNewSalesInvoice,
   onNewPurchaseInvoice,
+  onNewQuotation,
+  onNewCreditNote,
   onCollect,
   onViewDocuments,
   onViewSales,
@@ -145,8 +149,9 @@ export function AccountingOverviewTab({
           <ModuleCard
             icon={FileText}
             title={t("quote")}
-            hint={t("comingSoon")}
-            variant="muted"
+            hint={t("quoteHint")}
+            variant="sales"
+            onClick={onNewQuotation}
           />
         </div>
       </div>
@@ -184,8 +189,9 @@ export function AccountingOverviewTab({
           <ModuleCard
             icon={Clock}
             title={t("creditNote")}
-            hint={t("comingSoon")}
-            variant="muted"
+            hint={t("creditNoteHint")}
+            variant="sales"
+            onClick={onNewCreditNote}
           />
         </div>
       </div>

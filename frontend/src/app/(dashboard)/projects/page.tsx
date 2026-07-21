@@ -13,6 +13,10 @@ export default function ProjectsPage() {
     queryKey: ["branches"],
     queryFn: async () => (await api.getBranches()).data as { id: string; name: string }[],
   });
+  const { data: costCenters = [] } = useQuery({
+    queryKey: ["cost-centers"],
+    queryFn: async () => (await api.getCostCenters()).data as { id: string; name: string; code: string }[],
+  });
 
   return (
     <ErpCrudPage
@@ -29,6 +33,14 @@ export default function ProjectsPage() {
         { key: "code", label: t("code") },
         { key: "name", label: t("name") },
         {
+          key: "costCenter",
+          label: t("costCenter"),
+          render: (r) => {
+            const cc = (r as Record<string, unknown>).costCenter as { name?: string } | null;
+            return cc?.name || "—";
+          },
+        },
+        {
           key: "budget",
           label: t("budget"),
           render: (r) => formatMoney(Number((r as Record<string, unknown>).budget), company?.currency || "OMR"),
@@ -44,6 +56,12 @@ export default function ProjectsPage() {
           label: t("branch"),
           type: "select",
           options: branches.map((b) => ({ value: b.id, label: b.name })),
+        },
+        {
+          key: "costCenterId",
+          label: t("costCenter"),
+          type: "select",
+          options: costCenters.map((c) => ({ value: c.id, label: `${c.code} — ${c.name}` })),
         },
         {
           key: "status",
