@@ -13,6 +13,7 @@ import {
   AssetDto,
   BankAccountDto,
   BankStatementLineDto,
+  WarehouseDto,
   CreatePayrollDto,
 } from './dto/erp.dto';
 import { AccountCategory, AccountType, PayrollStatus } from '@prisma/client';
@@ -65,6 +66,61 @@ export class ErpService {
   private async ensureBranch(companyId: string, id: string) {
     const row = await this.prisma.branch.findFirst({ where: { id, companyId } });
     if (!row) throw new NotFoundException('Branch not found');
+    return row;
+  }
+
+  // ─── Warehouses ───
+  findWarehouses(companyId: string) {
+    return this.prisma.warehouse.findMany({
+      where: { companyId },
+      orderBy: { code: 'asc' },
+    });
+  }
+
+  async createWarehouse(companyId: string, dto: WarehouseDto) {
+    const dup = await this.prisma.warehouse.findFirst({
+      where: { companyId, code: dto.code },
+    });
+    if (dup) throw new ConflictException('Warehouse code exists');
+    return this.prisma.warehouse.create({
+      data: {
+        companyId,
+        code: dto.code.trim(),
+        name: dto.name.trim(),
+        address: dto.address?.trim() || null,
+        isActive: dto.isActive ?? true,
+      },
+    });
+  }
+
+  async updateWarehouse(companyId: string, id: string, dto: Partial<WarehouseDto>) {
+    await this.ensureWarehouse(companyId, id);
+    return this.prisma.warehouse.update({
+      where: { id },
+      data: {
+        ...(dto.code !== undefined && { code: dto.code.trim() }),
+        ...(dto.name !== undefined && { name: dto.name.trim() }),
+        ...(dto.address !== undefined && { address: dto.address?.trim() || null }),
+        ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+      },
+    });
+  }
+
+  async deleteWarehouse(companyId: string, id: string) {
+    await this.ensureWarehouse(companyId, id);
+    const inUse = await this.prisma.product.count({
+      where: { companyId, warehouseId: id, isActive: true },
+    });
+    if (inUse > 0) {
+      throw new BadRequestException('Warehouse has products assigned');
+    }
+    await this.prisma.warehouse.delete({ where: { id } });
+    return { message: 'Deleted' };
+  }
+
+  private async ensureWarehouse(companyId: string, id: string) {
+    const row = await this.prisma.warehouse.findFirst({ where: { id, companyId } });
+    if (!row) throw new NotFoundException('Warehouse not found');
     return row;
   }
 

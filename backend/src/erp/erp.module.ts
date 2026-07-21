@@ -7,6 +7,7 @@ import { ProjectsController } from './projects.controller';
 import { EmployeesController } from './employees.controller';
 import { AssetsController } from './assets.controller';
 import { BankAccountsController } from './bank-accounts.controller';
+import { WarehousesController } from './warehouses.controller';
 import { PayrollController } from './payroll.controller';
 
 @Module({
@@ -18,6 +19,7 @@ import { PayrollController } from './payroll.controller';
     EmployeesController,
     AssetsController,
     BankAccountsController,
+    WarehousesController,
     PayrollController,
   ],
   providers: [ErpService],

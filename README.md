@@ -264,6 +264,9 @@ POST {API_PUBLIC_URL}/api/payments/webhooks/paypal
 | GET/POST | `/bank-accounts/:id/statement-lines` | بنود كشف الحساب للتسوية |
 | GET | `/bank-accounts/:id/reconciliation` | تقرير التسوية المصرفية |
 | POST | `/bank-accounts/statement-lines/:lineId/toggle-reconciled` | تعليم بند كمسوّى / غير مسوّى |
+| GET/POST | `/warehouses` | المستودعات |
+| POST | `/products/:id/adjust` | تعديل مخزون منتج (IN / OUT / SET) |
+| GET | `/products/:id/movements` | حركات المخزون للمنتج |
 | GET/POST | `/invoices` | فواتير CRUD |
 | POST | `/invoices/:id/payments` | تسجيل تحصيل |
 | POST | `/invoices/payments/batch` | تحصيل على عدة فواتير (FIFO / يدوي) |

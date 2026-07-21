@@ -1,9 +1,20 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Package, Trash2, Edit, X, Loader2, AlertTriangle } from "lucide-react";
+import {
+  Plus,
+  Package,
+  Trash2,
+  Edit,
+  X,
+  Loader2,
+  AlertTriangle,
+  ArrowLeftRight,
+  Warehouse,
+} from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { cn, formatMoney } from "@/lib/utils";
@@ -18,6 +29,8 @@ interface ProductStats {
   totalValue: number;
   lowStockItems: Product[];
 }
+
+type AdjustMode = "IN" | "OUT" | "SET";
 
 const emptyProduct = () => ({
   sku: "",
@@ -42,6 +55,12 @@ export default function InventoryPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyProduct());
+  const [adjustProduct, setAdjustProduct] = useState<Product | null>(null);
+  const [adjustMode, setAdjustMode] = useState<AdjustMode>("IN");
+  const [adjustQty, setAdjustQty] = useState(0);
+  const [adjustNotes, setAdjustNotes] = useState("");
+  const [adjustRef, setAdjustRef] = useState("");
+  const [adjustWarehouseId, setAdjustWarehouseId] = useState("");
 
   const { data: products = [], isLoading } = useQuery({
     queryKey: ["products"],
@@ -56,6 +75,14 @@ export default function InventoryPage() {
     queryFn: async () => {
       const res = await api.getProductStats();
       return res.data as ProductStats;
+    },
+  });
+
+  const { data: warehouses = [] } = useQuery({
+    queryKey: ["warehouses"],
+    queryFn: async () => {
+      const res = await api.getWarehouses();
+      return res.data as { id: string; code: string; name: string }[];
     },
   });
 
@@ -86,6 +113,17 @@ export default function InventoryPage() {
     setModalOpen(true);
   };
 
+  const openAdjust = (product: Product) => {
+    setAdjustProduct(product);
+    setAdjustMode("IN");
+    setAdjustQty(0);
+    setAdjustNotes("");
+    setAdjustRef("");
+    setAdjustWarehouseId(
+      (product as Product & { warehouseId?: string }).warehouseId || ""
+    );
+  };
+
   const saveMutation = useMutation({
     mutationFn: () => {
       if (editingId) return api.updateProduct(editingId, form);
@@ -110,6 +148,26 @@ export default function InventoryPage() {
     },
   });
 
+  const adjustMutation = useMutation({
+    mutationFn: () =>
+      api.adjustProductStock(adjustProduct!.id, {
+        mode: adjustMode,
+        quantity: Number(adjustQty),
+        warehouseId: adjustWarehouseId || undefined,
+        notes: adjustNotes.trim() || undefined,
+        reference: adjustRef.trim() || undefined,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["product-stats"] });
+      toast.success(t("adjusted"));
+      setAdjustProduct(null);
+    },
+    onError: (err: { response?: { data?: { message?: string } } }) => {
+      toast.error(err.response?.data?.message || tCommon("error"));
+    },
+  });
+
   const isLowStock = (p: Product) =>
     Number(p.quantity) <= Number(p.minQuantity);
 
@@ -119,13 +177,22 @@ export default function InventoryPage() {
         title={t("title")}
         subtitle={t("subtitle")}
         action={
-          <button
-            onClick={openCreate}
-            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-lg font-medium hover:opacity-90"
-          >
-            <Plus className="w-4 h-4" />
-            {t("newProduct")}
-          </button>
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            <Link
+              href="/warehouses"
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800 text-slate-200 text-sm hover:bg-slate-700"
+            >
+              <Warehouse className="w-4 h-4" />
+              {t("warehousesLink")}
+            </Link>
+            <button
+              onClick={openCreate}
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-lg font-medium hover:opacity-90"
+            >
+              <Plus className="w-4 h-4" />
+              {t("newProduct")}
+            </button>
+          </div>
         }
       />
 
@@ -214,6 +281,12 @@ export default function InventoryPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <button
+                        onClick={() => openAdjust(product)}
+                        className="text-xs px-2 py-1 rounded bg-amber-500/10 text-amber-400 hover:bg-amber-500/20"
+                      >
+                        {t("adjust")}
+                      </button>
+                      <button
                         onClick={() => openEdit(product)}
                         className="p-1.5 rounded-lg hover:bg-slate-700 text-slate-400"
                       >
@@ -279,6 +352,12 @@ export default function InventoryPage() {
                         </td>
                         <td className="p-4">
                           <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => openAdjust(product)}
+                              className="text-xs px-2 py-1 rounded bg-amber-500/10 text-amber-400 hover:bg-amber-500/20"
+                            >
+                              {t("adjust")}
+                            </button>
                             <button
                               onClick={() => openEdit(product)}
                               className="p-1.5 rounded-lg hover:bg-slate-700 text-slate-400"
@@ -409,6 +488,102 @@ export default function InventoryPage() {
               >
                 {saveMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
                 {tCommon("save")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {adjustProduct && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center pt-16 bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl">
+            <div className="flex items-center justify-between p-5 border-b border-slate-800">
+              <div>
+                <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                  <ArrowLeftRight className="w-5 h-5 text-amber-400" />
+                  {t("adjustStock")}
+                </h2>
+                <p className="text-sm text-slate-400 mt-1">
+                  {adjustProduct.name} — {t("currentQty")}: {Number(adjustProduct.quantity)}{" "}
+                  {adjustProduct.unit}
+                </p>
+              </div>
+              <button onClick={() => setAdjustProduct(null)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-sm text-slate-400 mb-1">{t("adjustMode")}</label>
+                <select
+                  value={adjustMode}
+                  onChange={(e) => setAdjustMode(e.target.value as AdjustMode)}
+                  className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white"
+                >
+                  <option value="IN">{t("modeIn")}</option>
+                  <option value="OUT">{t("modeOut")}</option>
+                  <option value="SET">{t("modeSet")}</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm text-slate-400 mb-1">{t("adjustQty")}</label>
+                <DecimalInput
+                  value={adjustQty}
+                  min={0}
+                  decimals={3}
+                  onChange={setAdjustQty}
+                  className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white"
+                />
+              </div>
+              {warehouses.length > 0 && (
+                <div>
+                  <label className="block text-sm text-slate-400 mb-1">{t("warehouse")}</label>
+                  <select
+                    value={adjustWarehouseId}
+                    onChange={(e) => setAdjustWarehouseId(e.target.value)}
+                    className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white"
+                  >
+                    <option value="">—</option>
+                    {warehouses.map((w) => (
+                      <option key={w.id} value={w.id}>
+                        {w.code} — {w.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <div>
+                <label className="block text-sm text-slate-400 mb-1">{t("reference")}</label>
+                <input
+                  value={adjustRef}
+                  onChange={(e) => setAdjustRef(e.target.value)}
+                  className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-slate-400 mb-1">{t("notes")}</label>
+                <textarea
+                  value={adjustNotes}
+                  onChange={(e) => setAdjustNotes(e.target.value)}
+                  rows={2}
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 p-5 border-t border-slate-800">
+              <button
+                onClick={() => setAdjustProduct(null)}
+                className="px-4 py-2 text-slate-400 hover:text-white"
+              >
+                {tCommon("cancel")}
+              </button>
+              <button
+                onClick={() => adjustMutation.mutate()}
+                disabled={adjustMutation.isPending || (adjustMode !== "SET" && adjustQty <= 0)}
+                className="flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-500 disabled:opacity-50"
+              >
+                {adjustMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                {t("adjust")}
               </button>
             </div>
           </div>

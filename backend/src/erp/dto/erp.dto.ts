@@ -97,6 +97,13 @@ export class BankStatementLineDto {
   amount: number;
 }
 
+export class WarehouseDto {
+  @ApiProperty() @IsString() code: string;
+  @ApiProperty() @IsString() name: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() address?: string;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
+}
+
 export class CreatePayrollDto {
   @ApiProperty() @IsInt() @Min(1) @Max(12) periodMonth: number;
   @ApiProperty() @IsInt() @Min(2000) periodYear: number;

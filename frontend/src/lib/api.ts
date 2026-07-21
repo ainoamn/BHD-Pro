@@ -297,6 +297,14 @@ class ApiClient {
     return this.delete(`/products/${id}`);
   }
 
+  adjustProductStock(id: string, data: unknown) {
+    return this.post(`/products/${id}/adjust`, data);
+  }
+
+  getProductMovements(id: string) {
+    return this.get(`/products/${id}/movements`);
+  }
+
   updateContact(id: string, data: unknown) {
     return this.put(`/contacts/${id}`, data);
   }
@@ -334,6 +342,19 @@ class ApiClient {
   }
   deleteBranch(id: string) {
     return this.delete(`/branches/${id}`);
+  }
+
+  getWarehouses() {
+    return this.get('/warehouses');
+  }
+  createWarehouse(data: unknown) {
+    return this.post('/warehouses', data);
+  }
+  updateWarehouse(id: string, data: unknown) {
+    return this.put(`/warehouses/${id}`, data);
+  }
+  deleteWarehouse(id: string) {
+    return this.delete(`/warehouses/${id}`);
   }
 
   getCostCenters() {

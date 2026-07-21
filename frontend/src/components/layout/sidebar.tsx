@@ -25,6 +25,7 @@ import {
   FolderKanban,
   HardDrive,
   UserCircle,
+  Warehouse,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUIStore } from "@/store/ui";
@@ -44,6 +45,7 @@ const navItems = [
   { href: "/assets", icon: HardDrive, label: "assets" },
   { href: "/employees", icon: UserCircle, label: "employees" },
   { href: "/inventory", icon: Package, label: "inventory" },
+  { href: "/warehouses", icon: Warehouse, label: "warehouses" },
   { href: "/contacts", icon: Users, label: "addressBook" },
   { href: "/reports", icon: BarChart3, label: "reports" },
   { href: "/vat", icon: Receipt, label: "vat" },
