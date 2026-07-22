@@ -76,7 +76,9 @@ export class CompanyGatewaysService {
       const merged = { ...currentConfig, ...data.configJson };
       nextConfig = encryptConfigSecrets(merged, secretKeysFor(slug));
       for (const key of secretKeysFor(slug)) {
-        if (data.configJson[key] === '••••••••' || data.configJson[key] === undefined) {
+        const incoming = data.configJson[key];
+        // Keep existing encrypted secret when UI sends mask or blank (user did not re-enter)
+        if (incoming === '••••••••' || incoming === undefined || incoming === '') {
           nextConfig[key] = currentConfig[key] ?? '';
         }
       }

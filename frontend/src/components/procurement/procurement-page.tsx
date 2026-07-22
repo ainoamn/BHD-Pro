@@ -10,6 +10,7 @@ import { formatMoney, formatDate, cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
 import { PageHeader, LoadingSpinner, EmptyState, GlassCard } from "@/components/ui/page-shell";
 import { DecimalInput } from "@/components/ui/decimal-input";
+import { FormLabel, LineFieldLabel, LineItemsGrid } from "@/components/ui/form-field";
 
 interface LineForm {
   description: string;
@@ -463,56 +464,81 @@ export function ProcurementPage({ mode }: ProcurementPageProps) {
                   </button>
                 </div>
                 <div className="space-y-2">
+                  <LineItemsGrid
+                    headerColumns={[
+                      { key: "desc", label: tInvoices("description"), className: "col-span-5" },
+                      { key: "qty", label: tInvoices("quantity"), className: "col-span-2" },
+                      { key: "price", label: tInvoices("unitPrice"), className: "col-span-2" },
+                      { key: "disc", label: tInvoices("discount"), className: "col-span-2" },
+                      { key: "act", label: "", className: "col-span-1" },
+                    ]}
+                  >
                   {lines.map((line, idx) => (
-                    <div key={idx} className="grid grid-cols-12 gap-2 items-end">
+                    <div key={idx} className="grid grid-cols-12 gap-2 items-end sm:items-center">
+                      <div className="col-span-12 sm:col-span-5">
+                        <LineFieldLabel>{tInvoices("description")}</LineFieldLabel>
                       <input
-                        placeholder={tInvoices("description")}
+                        aria-label={tInvoices("description")}
                         value={line.description}
                         onChange={(e) => {
                           const next = [...lines];
                           next[idx].description = e.target.value;
                           setLines(next);
                         }}
-                        className="col-span-5 bg-slate-800 border border-slate-700 rounded-lg px-2 py-2 text-white text-sm"
+                        className="col-span-5 bg-slate-800 border border-slate-700 rounded-lg px-2 py-2 text-white text-sm w-full"
                       />
+                      </div>
+                      <div className="col-span-4 sm:col-span-2">
+                        <LineFieldLabel>{tInvoices("quantity")}</LineFieldLabel>
                       <DecimalInput
+                        aria-label={tInvoices("quantity")}
                         value={line.quantity}
                         onChange={(v) => {
                           const next = [...lines];
                           next[idx].quantity = v;
                           setLines(next);
                         }}
-                        className="col-span-2 bg-slate-800 border border-slate-700 rounded-lg px-2 py-2 text-white text-sm"
+                        className="col-span-2 bg-slate-800 border border-slate-700 rounded-lg px-2 py-2 text-white text-sm w-full"
                       />
+                      </div>
+                      <div className="col-span-4 sm:col-span-2">
+                        <LineFieldLabel>{tInvoices("unitPrice")}</LineFieldLabel>
                       <DecimalInput
+                        aria-label={tInvoices("unitPrice")}
                         value={line.unitPrice}
                         onChange={(v) => {
                           const next = [...lines];
                           next[idx].unitPrice = v;
                           setLines(next);
                         }}
-                        className="col-span-2 bg-slate-800 border border-slate-700 rounded-lg px-2 py-2 text-white text-sm"
+                        className="col-span-2 bg-slate-800 border border-slate-700 rounded-lg px-2 py-2 text-white text-sm w-full"
                       />
+                      </div>
+                      <div className="col-span-4 sm:col-span-2">
+                        <LineFieldLabel>{tInvoices("discount")}</LineFieldLabel>
                       <DecimalInput
+                        aria-label={tInvoices("discount")}
                         value={line.discount}
                         onChange={(v) => {
                           const next = [...lines];
                           next[idx].discount = v;
                           setLines(next);
                         }}
-                        className="col-span-2 bg-slate-800 border border-slate-700 rounded-lg px-2 py-2 text-white text-sm"
+                        className="col-span-2 bg-slate-800 border border-slate-700 rounded-lg px-2 py-2 text-white text-sm w-full"
                       />
+                      </div>
                       {lines.length > 1 && (
                         <button
                           type="button"
                           onClick={() => setLines(lines.filter((_, i) => i !== idx))}
-                          className="col-span-1 text-slate-400 hover:text-rose-400 p-2"
+                          className="col-span-12 sm:col-span-1 text-slate-400 hover:text-rose-400 p-2 flex justify-end sm:justify-center"
                         >
                           <X className="w-4 h-4" />
                         </button>
                       )}
                     </div>
                   ))}
+                  </LineItemsGrid>
                 </div>
                 <p className="text-sm text-slate-400 mt-2">
                   {t("estimatedTotal")}: {formatMoney(lineTotal, currency)}

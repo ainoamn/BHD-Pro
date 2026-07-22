@@ -12,8 +12,12 @@ export default function LoginPage() {
   const t = useTranslations("auth");
   const tApp = useTranslations("app");
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState(
+    process.env.NODE_ENV === "development" ? "admin@bhd.om" : ""
+  );
+  const [password, setPassword] = useState(
+    process.env.NODE_ENV === "development" ? "Admin123!" : ""
+  );
   const [totpCode, setTotpCode] = useState("");
   const [tempToken, setTempToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -40,9 +44,20 @@ export default function LoginPage() {
       }
       finishLogin();
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { message?: string | string[] } } };
+      const axiosErr = err as {
+        response?: { data?: { message?: string | string[] }; status?: number };
+        code?: string;
+        message?: string;
+      };
       const msg = axiosErr?.response?.data?.message;
-      toast.error(Array.isArray(msg) ? msg.join(" — ") : msg || t("invalidCredentials"));
+      const status = axiosErr?.response?.status;
+      if (!axiosErr?.response) {
+        toast.error(t("networkError"));
+      } else if (status === 403 && typeof msg === "string" && msg.includes("locked")) {
+        toast.error(t("accountLocked"));
+      } else {
+        toast.error(Array.isArray(msg) ? msg.join(" — ") : msg || t("invalidCredentials"));
+      }
     } finally {
       setLoading(false);
     }

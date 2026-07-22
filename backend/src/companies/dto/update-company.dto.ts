@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsEmail, IsIn, IsBoolean, IsNumber, Min, Max } from 'class-validator';
+import { IsString, IsOptional, IsEmail, IsIn, IsBoolean, IsNumber, Min, Max, MaxLength, Matches } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class UpdateCompanyDto {
@@ -34,6 +34,12 @@ export class UpdateCompanyDto {
   @IsString()
   website?: string;
 
+  /** Base64 data URL or external image URL */
+  @IsOptional()
+  @IsString()
+  @MaxLength(900000)
+  logo?: string | null;
+
   @IsOptional()
   @IsString()
   language?: string;
@@ -59,4 +65,16 @@ export class UpdateCompanyDto {
   @Min(0)
   @Max(100)
   vatRate?: number;
+
+  /** ELECTRONIC = e-signature note on docs; MANUAL = blank signature lines */
+  @IsOptional()
+  @IsString()
+  @IsIn(['ELECTRONIC', 'MANUAL'])
+  signatureMode?: 'ELECTRONIC' | 'MANUAL';
+
+  /** Primary accent color for invoices / receipts (#RRGGBB) */
+  @IsOptional()
+  @IsString()
+  @Matches(/^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/)
+  documentColor?: string;
 }

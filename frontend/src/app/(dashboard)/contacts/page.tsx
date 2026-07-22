@@ -31,8 +31,10 @@ import {
   buildContactWhatsAppLink,
   formatPhoneForWhatsApp,
 } from "@/lib/phone";
+import { openExternalUrl } from "@/lib/open-external-url";
 import { useAuthStore } from "@/store/auth";
 import { PageHeader, EmptyState, LoadingSpinner, GlassCard } from "@/components/ui/page-shell";
+import { FormLabel } from "@/components/ui/form-field";
 import {
   CustomFieldsInputs,
   type CustomFieldDef,
@@ -114,7 +116,7 @@ function openWhatsApp(contact: ContactRow, t: (key: string) => string) {
     toast.error(t("whatsappNeedPhone"));
     return;
   }
-  window.open(buildContactWhatsAppLink(contact.phone, contact.name), "_blank");
+  openExternalUrl(buildContactWhatsAppLink(contact.phone, contact.name));
 }
 
 function ContactsContent() {
@@ -497,13 +499,14 @@ function ContactsContent() {
                 />
               </div>
               <div>
-                <label className="block text-sm text-slate-400 mb-1">{t("phone")}</label>
+                <FormLabel required>{t("phone")}</FormLabel>
                 <div className="flex gap-2">
+                  <div className="w-full sm:w-44 shrink-0">
+                    <span className="text-xs text-slate-500 mb-1 block">{t("phoneCountryCode")}</span>
                   <select
                     value={form.phoneDialCode}
                     onChange={(e) => setForm({ ...form, phoneDialCode: e.target.value })}
-                    className="w-full sm:w-44 shrink-0 h-10 px-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:border-emerald-500"
-                    title={t("phoneCountryCode")}
+                    className="w-full h-10 px-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:border-emerald-500"
                   >
                     {PHONE_DIAL_CODES.map((dc) => (
                       <option key={dc.code} value={dc.code}>
@@ -511,6 +514,9 @@ function ContactsContent() {
                       </option>
                     ))}
                   </select>
+                  </div>
+                  <div className="flex-1">
+                    <span className="text-xs text-slate-500 mb-1 block">{t("phoneLocalNumber")}</span>
                   <input
                     type="tel"
                     inputMode="numeric"
@@ -519,9 +525,9 @@ function ContactsContent() {
                       const v = e.target.value.replace(/\D/g, "").replace(/^0+/, "");
                       setForm({ ...form, phoneLocal: v });
                     }}
-                    placeholder={t("phoneLocalPlaceholder")}
-                    className="flex-1 h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500"
+                    className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500"
                   />
+                  </div>
                 </div>
                 <p className="text-xs text-slate-500 mt-1">{t("phoneHint")}</p>
                 {form.phoneLocal && (

@@ -14,6 +14,11 @@ import { Company } from "@/types";
 import { cn } from "@/lib/utils";
 import { PaymentGatewaysSettings } from "@/components/payments/payment-gateways-settings";
 import { TwoFactorSettings } from "@/components/auth/two-factor-settings";
+import { CompanyLogoUpload } from "@/components/company/company-logo-upload";
+import {
+  DOCUMENT_COLOR_PRESETS,
+  normalizeDocumentColor,
+} from "@/lib/document-theme";
 
 const CURRENCIES = [
   { code: "OMR", labelAr: "ريال عماني (ر.ع)" },
@@ -32,6 +37,8 @@ export default function SettingsPage() {
   const { company: authCompany, setCompany } = useAuthStore();
   const queryClient = useQueryClient();
 
+  const [logo, setLogo] = useState<string | null>(null);
+
   const [form, setForm] = useState({
     name: "",
     crNumber: "",
@@ -46,6 +53,8 @@ export default function SettingsPage() {
     applyVat: true,
     pricesIncludeTax: false,
     vatRate: 5,
+    signatureMode: "MANUAL" as "ELECTRONIC" | "MANUAL",
+    documentColor: "#059669",
   });
 
   const { data: company, isLoading } = useQuery({
@@ -72,7 +81,10 @@ export default function SettingsPage() {
         applyVat: company.applyVat !== false,
         pricesIncludeTax: !!company.pricesIncludeTax,
         vatRate: company.vatRate ?? 5,
+        signatureMode: company.signatureMode === "ELECTRONIC" ? "ELECTRONIC" : "MANUAL",
+        documentColor: company.documentColor || "#059669",
       });
+      setLogo(company.logo || null);
       if (authCompany) {
         setCompany({ ...authCompany, ...company });
       }
@@ -81,7 +93,7 @@ export default function SettingsPage() {
   }, [company]);
 
   const saveMutation = useMutation({
-    mutationFn: () => api.updateCompany(form),
+    mutationFn: () => api.updateCompany({ ...form, logo }),
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ["company"] });
       const updated = res.data as Company;
@@ -166,6 +178,139 @@ export default function SettingsPage() {
                       </option>
                     ))}
                   </select>
+                </div>
+              </div>
+
+              <div className="mt-6 pt-6 border-t border-slate-800">
+                <CompanyLogoUpload
+                  value={logo}
+                  companyName={form.name}
+                  onChange={setLogo}
+                  disabled={saveMutation.isPending}
+                />
+              </div>
+
+              <div className="mt-6 pt-6 border-t border-slate-800 space-y-3">
+                <div>
+                  <h3 className="text-sm font-medium text-white">{t("documentColor")}</h3>
+                  <p className="text-xs text-slate-500 mt-1">{t("documentColorHint")}</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <label className="relative inline-flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="color"
+                      value={normalizeDocumentColor(form.documentColor)}
+                      onChange={(e) =>
+                        setForm({ ...form, documentColor: normalizeDocumentColor(e.target.value) })
+                      }
+                      className="w-10 h-10 rounded-lg border border-slate-600 bg-transparent cursor-pointer p-0.5"
+                      disabled={saveMutation.isPending}
+                    />
+                    <span className="text-sm text-slate-300 font-mono">
+                      {normalizeDocumentColor(form.documentColor)}
+                    </span>
+                  </label>
+                  <input
+                    type="text"
+                    value={form.documentColor}
+                    onChange={(e) => setForm({ ...form, documentColor: e.target.value })}
+                    onBlur={() =>
+                      setForm({
+                        ...form,
+                        documentColor: normalizeDocumentColor(form.documentColor),
+                      })
+                    }
+                    maxLength={7}
+                    className="w-28 h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm font-mono focus:outline-none focus:border-emerald-500"
+                    disabled={saveMutation.isPending}
+                  />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {DOCUMENT_COLOR_PRESETS.map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      title={preset}
+                      onClick={() => setForm({ ...form, documentColor: preset })}
+                      disabled={saveMutation.isPending}
+                      className={cn(
+                        "w-8 h-8 rounded-full border-2 transition-transform hover:scale-110",
+                        normalizeDocumentColor(form.documentColor) === preset
+                          ? "border-white scale-110"
+                          : "border-transparent"
+                      )}
+                      style={{ backgroundColor: preset }}
+                    />
+                  ))}
+                </div>
+                <div
+                  className="rounded-lg border overflow-hidden text-[11px]"
+                  style={{ borderColor: normalizeDocumentColor(form.documentColor) }}
+                >
+                  <div
+                    className="px-3 py-1.5 text-white font-semibold"
+                    style={{ backgroundColor: normalizeDocumentColor(form.documentColor) }}
+                  >
+                    {t("documentColorPreview")}
+                  </div>
+                  <div className="px-3 py-2 bg-white text-slate-700 flex justify-between">
+                    <span>{t("companyName")}</span>
+                    <span
+                      className="font-bold"
+                      style={{ color: normalizeDocumentColor(form.documentColor) }}
+                    >
+                      100.000
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 pt-6 border-t border-slate-800 space-y-3">
+                <div>
+                  <h3 className="text-sm font-medium text-white">{t("signatureMode")}</h3>
+                  <p className="text-xs text-slate-500 mt-1">{t("signatureModeHint")}</p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <label
+                    className={cn(
+                      "flex items-start gap-3 p-4 rounded-xl border cursor-pointer",
+                      form.signatureMode === "ELECTRONIC"
+                        ? "border-emerald-500 bg-emerald-500/10"
+                        : "border-slate-700 bg-slate-800/50 hover:border-slate-600"
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      name="signatureMode"
+                      checked={form.signatureMode === "ELECTRONIC"}
+                      onChange={() => setForm({ ...form, signatureMode: "ELECTRONIC" })}
+                      className="mt-1 text-emerald-600 focus:ring-emerald-500"
+                    />
+                    <div>
+                      <p className="text-white font-medium text-sm">{t("signatureElectronic")}</p>
+                      <p className="text-xs text-slate-400 mt-1">{t("signatureElectronicHint")}</p>
+                    </div>
+                  </label>
+                  <label
+                    className={cn(
+                      "flex items-start gap-3 p-4 rounded-xl border cursor-pointer",
+                      form.signatureMode === "MANUAL"
+                        ? "border-emerald-500 bg-emerald-500/10"
+                        : "border-slate-700 bg-slate-800/50 hover:border-slate-600"
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      name="signatureMode"
+                      checked={form.signatureMode === "MANUAL"}
+                      onChange={() => setForm({ ...form, signatureMode: "MANUAL" })}
+                      className="mt-1 text-emerald-600 focus:ring-emerald-500"
+                    />
+                    <div>
+                      <p className="text-white font-medium text-sm">{t("signatureManual")}</p>
+                      <p className="text-xs text-slate-400 mt-1">{t("signatureManualHint")}</p>
+                    </div>
+                  </label>
                 </div>
               </div>
             </div>

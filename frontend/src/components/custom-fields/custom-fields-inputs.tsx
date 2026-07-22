@@ -2,6 +2,7 @@
 
 import { useLocale } from "next-intl";
 import { DecimalInput } from "@/components/ui/decimal-input";
+import { FormLabel } from "@/components/ui/form-field";
 
 export interface CustomFieldDef {
   id: string;
@@ -38,10 +39,7 @@ export function CustomFieldsInputs({
         const options = Array.isArray(field.optionsJson) ? field.optionsJson : [];
         return (
           <div key={field.id}>
-            <label className="block text-sm text-slate-400 mb-1">
-              {label}
-              {field.isRequired ? " *" : ""}
-            </label>
+            <FormLabel required={field.isRequired}>{label}</FormLabel>
             {field.fieldType === "SELECT" ? (
               <select
                 value={String(values[field.key] ?? "")}

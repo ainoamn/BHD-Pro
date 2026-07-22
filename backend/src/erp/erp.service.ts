@@ -18,6 +18,7 @@ import {
 } from './dto/erp.dto';
 import { AccountCategory, AccountType, PayrollStatus } from '@prisma/client';
 import { GlPostingService } from '../journal/gl-posting.service';
+import { ensureDefaultCostCentersAndProjects } from './default-analytics.seed';
 
 @Injectable()
 export class ErpService {
@@ -125,7 +126,8 @@ export class ErpService {
   }
 
   // ─── Cost Centers ───
-  findCostCenters(companyId: string) {
+  async findCostCenters(companyId: string) {
+    await ensureDefaultCostCentersAndProjects(this.prisma, companyId);
     return this.prisma.costCenter.findMany({
       where: { companyId },
       include: { branch: { select: { id: true, name: true, code: true } } },
@@ -156,8 +158,13 @@ export class ErpService {
     return row;
   }
 
+  async seedDefaultAnalytics(companyId: string) {
+    return ensureDefaultCostCentersAndProjects(this.prisma, companyId);
+  }
+
   // ─── Projects ───
-  findProjects(companyId: string) {
+  async findProjects(companyId: string) {
+    await ensureDefaultCostCentersAndProjects(this.prisma, companyId);
     return this.prisma.project.findMany({
       where: { companyId },
       include: {

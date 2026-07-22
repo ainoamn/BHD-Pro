@@ -32,22 +32,32 @@ export class ContactsService {
     const openInvoices = await this.prisma.invoice.findMany({
       where: {
         companyId,
+        type: { notIn: ['QUOTATION'] },
         paymentStatus: { in: [PaymentStatus.UNPAID, PaymentStatus.PARTIAL] },
         status: { not: InvoiceStatus.CANCELLED },
       },
-      select: { contactId: true, type: true, total: true },
+      select: { contactId: true, type: true, total: true, paidAmount: true },
     });
 
     type BalanceAgg = { receivable: number; payable: number };
     const balanceMap = new Map<string, BalanceAgg>();
 
     for (const inv of openInvoices) {
+      const remaining = Math.max(
+        0,
+        Number(inv.total) - Number(inv.paidAmount || 0),
+      );
+      if (remaining <= 0) continue;
+
       const cur = balanceMap.get(inv.contactId) || { receivable: 0, payable: 0 };
-      const amount = Number(inv.total);
       if (inv.type === 'SALES') {
-        cur.receivable += amount;
+        cur.receivable += remaining;
       } else if (inv.type === 'PURCHASE') {
-        cur.payable += amount;
+        cur.payable += remaining;
+      } else if (inv.type === 'CREDIT_NOTE') {
+        cur.receivable = Math.max(0, cur.receivable - remaining);
+      } else if (inv.type === 'DEBIT_NOTE') {
+        cur.payable = Math.max(0, cur.payable - remaining);
       }
       balanceMap.set(inv.contactId, cur);
     }

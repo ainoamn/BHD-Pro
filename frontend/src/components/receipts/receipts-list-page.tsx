@@ -3,12 +3,14 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
-import { Eye, Printer, Receipt } from "lucide-react";
+import { Eye, Download, Send, Receipt } from "lucide-react";
 import api from "@/lib/api";
 import { formatMoney, formatDate } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
 import { PageHeader, LoadingSpinner, EmptyState, GlassCard } from "@/components/ui/page-shell";
 import { InvoiceDocument, InvoiceDocumentData } from "@/components/invoices/invoice-document";
+import { SendDocumentModal } from "@/components/invoices/send-document-modal";
+import { openInvoicePrintDialog } from "@/lib/invoice-print";
 
 interface ReceiptRow {
   id: string;
@@ -72,6 +74,7 @@ export function ReceiptsListPage({
   const { company } = useAuthStore();
   const currency = company?.currency || "OMR";
   const [documentInvoice, setDocumentInvoice] = useState<InvoiceDocumentData | null>(null);
+  const [shareDocument, setShareDocument] = useState<InvoiceDocumentData | null>(null);
   const [loadingDoc, setLoadingDoc] = useState<string | null>(null);
 
   const { data: rows = [], isLoading } = useQuery({
@@ -102,25 +105,88 @@ export function ReceiptsListPage({
     }
   };
 
+  const downloadReceipt = async (invoiceId: string) => {
+    setLoadingDoc(invoiceId);
+    try {
+      const res = await api.getInvoice(invoiceId);
+      const data = toDocumentData(res.data as Record<string, unknown>);
+      openInvoicePrintDialog(data, company, {
+        variant: "receipt",
+        baseCurrency: currency,
+        headerNote: receiptTemplate?.headerText,
+        footerNote: receiptTemplate?.footerText,
+        labels: {
+          docTitle: tInvoices("receiptDoc"),
+          number: tInvoices("number"),
+          date: tInvoices("date"),
+          dueDate: tInvoices("dueDate"),
+          customer: tInvoices("customer"),
+          supplier: tInvoices("supplier"),
+          description: tInvoices("description"),
+          quantity: tInvoices("quantity"),
+          unitPrice: tInvoices("unitPrice"),
+          discount: tInvoices("discount"),
+          tax: tInvoices("tax"),
+          lineTotal: tInvoices("lineTotal"),
+          subtotal: tInvoices("subtotal"),
+          grandTotal: tInvoices("grandTotal"),
+          notes: tInvoices("notes"),
+          amountPaid: tInvoices("amountPaid"),
+          receiptDoc: tInvoices("receiptDoc"),
+          receiptPaidNote: tInvoices("receiptPaidNote"),
+          paid: tInvoices("paid"),
+          currency: tInvoices("currency"),
+          exchangeRate: tInvoices("exchangeRate"),
+          baseEquivalent: tInvoices("baseEquivalent"),
+          vatNumber: tInvoices("vatNumber"),
+          taxId: tInvoices("taxId"),
+          printFooter: tInvoices("printFooter"),
+          receiptFooter: tInvoices("receiptFooter"),
+        },
+      });
+    } finally {
+      setLoadingDoc(null);
+    }
+  };
+
+  const shareReceipt = async (invoiceId: string) => {
+    setLoadingDoc(invoiceId);
+    try {
+      const res = await api.getInvoice(invoiceId);
+      setShareDocument(toDocumentData(res.data as Record<string, unknown>));
+    } finally {
+      setLoadingDoc(null);
+    }
+  };
+
   const renderActions = (row: ReceiptRow) => (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 flex-wrap">
       <button
         type="button"
         onClick={() => openReceipt(row.invoice.id)}
         disabled={loadingDoc === row.invoice.id}
-        className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 border border-slate-700"
+        className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg font-semibold bg-white text-slate-900 hover:bg-slate-100 border border-slate-200"
       >
         <Eye className="w-3.5 h-3.5" />
         {t("view")}
       </button>
       <button
         type="button"
-        onClick={() => openReceipt(row.invoice.id)}
+        onClick={() => downloadReceipt(row.invoice.id)}
         disabled={loadingDoc === row.invoice.id}
-        className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
+        className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg font-semibold bg-slate-100 text-slate-900 hover:bg-white border border-slate-300"
       >
-        <Printer className="w-3.5 h-3.5" />
-        {t("print")}
+        <Download className="w-3.5 h-3.5" />
+        {tInvoices("download")}
+      </button>
+      <button
+        type="button"
+        onClick={() => shareReceipt(row.invoice.id)}
+        disabled={loadingDoc === row.invoice.id}
+        className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg font-semibold bg-blue-600 text-white hover:bg-blue-500"
+      >
+        <Send className="w-3.5 h-3.5" />
+        {tInvoices("sendDocument")}
       </button>
     </div>
   );
@@ -217,6 +283,15 @@ export function ReceiptsListPage({
           headerNote={receiptTemplate?.headerText}
           footerNote={receiptTemplate?.footerText}
           onClose={() => setDocumentInvoice(null)}
+        />
+      )}
+
+      {shareDocument && (
+        <SendDocumentModal
+          invoice={shareDocument}
+          companyName={company?.name}
+          variant="receipt"
+          onClose={() => setShareDocument(null)}
         />
       )}
     </div>

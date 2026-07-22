@@ -1,12 +1,22 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { X, Printer, Download, Mail, MessageCircle, CheckCircle, Ban, Edit, Send, Receipt, Undo2 } from "lucide-react";
-import toast from "react-hot-toast";
+import { X, Printer, Download, Send, CheckCircle, Ban, Edit, Receipt, Undo2, FileOutput } from "lucide-react";
 import { formatMoney, formatDate } from "@/lib/utils";
-import { buildInvoiceEmailBody, buildWhatsAppLink } from "@/lib/invoice-share";
-import { formatPhoneForWhatsApp } from "@/lib/phone";
+import { openInvoicePrintDialog } from "@/lib/invoice-print";
+import { DocumentWorkflowSteps } from "@/components/invoices/document-workflow-steps";
+import { SendDocumentModal } from "@/components/invoices/send-document-modal";
+import { CompanyLogo } from "@/components/company/company-logo";
+import api from "@/lib/api";
+import { buildDocumentQrDataUrl } from "@/lib/document-qr";
+import { toAppAbsoluteUrl } from "@/lib/app-url";
+import { formatContactAddressLines, formatCompanyAddressCompact } from "@/lib/contact-address";
+import {
+  documentColorDark,
+  documentColorSoft,
+  normalizeDocumentColor,
+} from "@/lib/document-theme";
 
 export interface InvoiceDocumentData {
   id: string;
@@ -31,9 +41,13 @@ export interface InvoiceDocumentData {
     name: string;
     email?: string;
     phone?: string;
+    phone2?: string;
     address?: string;
     city?: string;
+    country?: string;
+    zipCode?: string;
     taxId?: string;
+    crNumber?: string;
   };
   items: {
     description: string;
@@ -53,6 +67,9 @@ interface CompanyInfo {
   email?: string;
   vatNumber?: string;
   crNumber?: string;
+  logo?: string | null;
+  signatureMode?: "ELECTRONIC" | "MANUAL";
+  documentColor?: string | null;
 }
 
 interface InvoiceDocumentProps {
@@ -63,8 +80,9 @@ interface InvoiceDocumentProps {
   variant?: "invoice" | "receipt";
   headerNote?: string | null;
   footerNote?: string | null;
+  /** When set (e.g. public share page), QR points here instead of creating a new link */
+  verifyUrl?: string | null;
   onClose: () => void;
-  onSendEmail?: () => void;
   onMarkPaid?: () => void;
   onCancel?: () => void;
   onEdit?: () => void;
@@ -73,6 +91,7 @@ interface InvoiceDocumentProps {
   onReversePayment?: () => void;
   onViewReceipt?: () => void;
   onViewInvoice?: () => void;
+  onConvertToInvoice?: () => void;
   actionsDisabled?: boolean;
 }
 
@@ -84,8 +103,8 @@ export function InvoiceDocument({
   variant = "invoice",
   headerNote,
   footerNote,
+  verifyUrl: verifyUrlProp,
   onClose,
-  onSendEmail,
   onMarkPaid,
   onCancel,
   onEdit,
@@ -94,12 +113,44 @@ export function InvoiceDocument({
   onReversePayment,
   onViewReceipt,
   onViewInvoice,
+  onConvertToInvoice,
   actionsDisabled,
 }: InvoiceDocumentProps) {
   const t = useTranslations("invoices");
   const tCommon = useTranslations("common");
   const tStatus = useTranslations("status");
   const printRef = useRef<HTMLDivElement>(null);
+  const [sendOpen, setSendOpen] = useState(false);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const signatureMode = company?.signatureMode === "ELECTRONIC" ? "ELECTRONIC" : "MANUAL";
+  const docColor = normalizeDocumentColor(company?.documentColor);
+  const docColorDark = documentColorDark(docColor);
+  const docColorSoft = documentColorSoft(docColor);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        let url = verifyUrlProp || null;
+        if (!url && invoice.id) {
+          const res = await api.createDocumentVerifyLink(invoice.id, variant);
+          url = res.data.verifyPath
+            ? toAppAbsoluteUrl(res.data.verifyPath)
+            : toAppAbsoluteUrl(res.data.verifyUrl);
+        } else if (url) {
+          url = toAppAbsoluteUrl(url);
+        }
+        if (!url || cancelled) return;
+        const dataUrl = await buildDocumentQrDataUrl(url, 200);
+        if (!cancelled) setQrDataUrl(dataUrl);
+      } catch {
+        if (!cancelled) setQrDataUrl(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [invoice.id, variant, verifyUrlProp]);
 
   const docCurrency = (invoice.currency || currency).toUpperCase();
   const rate = Number(invoice.exchangeRate || 1) || 1;
@@ -118,80 +169,83 @@ export function InvoiceDocument({
     ? Number((Number(invoice.discount) / rate).toFixed(3))
     : Number(invoice.discount);
   const displayTotal = isFx ? Number(invoice.foreignTotal) : Number(invoice.total);
+  const headerTaxRate = Number(invoice.taxRate ?? 0);
+  const taxLabel =
+    headerTaxRate > 0
+      ? t("taxAtRate", { rate: headerTaxRate })
+      : t("taxExempt");
 
   const isReceipt = variant === "receipt";
-  const docTitle = isReceipt ? t("receiptDoc") : t("invoiceDoc");
-  const printTitle = isReceipt ? `${t("receiptDoc")} ${invoice.number}` : invoice.number;
+  const isQuotation = invoice.type === "QUOTATION";
+  const isCreditNote = invoice.type === "CREDIT_NOTE";
+  const isCustomerDoc = ["SALES", "QUOTATION", "CREDIT_NOTE"].includes(invoice.type);
 
-  const handlePrint = () => {
-    const content = printRef.current;
-    if (!content) return;
-
-    const win = window.open("", "_blank", "width=800,height=900");
-    if (!win) return;
-
-    win.document.write(`
-      <!DOCTYPE html>
-      <html dir="rtl" lang="ar">
-      <head>
-        <meta charset="utf-8" />
-        <title>${printTitle}</title>
-        <style>
-          * { box-sizing: border-box; margin: 0; padding: 0; }
-          body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; padding: 32px; color: #111; direction: rtl; }
-          .header { display: flex; justify-content: space-between; margin-bottom: 32px; border-bottom: 2px solid #059669; padding-bottom: 16px; }
-          .company { font-size: 20px; font-weight: bold; color: #059669; }
-          .meta { text-align: left; font-size: 13px; color: #555; }
-          .parties { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
-          .box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; }
-          .box h3 { font-size: 12px; color: #64748b; margin-bottom: 8px; text-transform: uppercase; }
-          table { width: 100%; border-collapse: collapse; margin: 24px 0; font-size: 13px; }
-          th { background: #059669; color: white; padding: 10px; text-align: right; }
-          td { padding: 10px; border-bottom: 1px solid #e2e8f0; }
-          .totals { margin-right: auto; width: 280px; font-size: 14px; }
-          .totals div { display: flex; justify-content: space-between; padding: 6px 0; }
-          .grand { font-weight: bold; font-size: 16px; border-top: 2px solid #059669; padding-top: 8px !important; color: #059669; }
-          .footer { margin-top: 32px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 16px; }
-          @media print { body { padding: 16px; } }
-        </style>
-      </head>
-      <body>${content.innerHTML}</body>
-      </html>
-    `);
-    win.document.close();
-    win.focus();
-    setTimeout(() => {
-      win.print();
-      win.close();
-    }, 400);
+  const documentTypeLabel = () => {
+    if (isReceipt) return t("receiptDoc");
+    if (isQuotation) return t("quotationDoc");
+    if (isCreditNote) return t("creditNoteDoc");
+    if (invoice.type === "SALES") return t("salesInvoice");
+    if (invoice.type === "PURCHASE") return t("purchaseInvoice");
+    if (invoice.type === "DEBIT_NOTE") return t("creditNoteDoc");
+    return t("invoiceDoc");
   };
 
-  const handleDownloadPdf = async () => {
+  const docTitle = documentTypeLabel();
+
+  const printLabels = {
+    docTitle,
+    number: t("number"),
+    date: t("date"),
+    dueDate: t("dueDate"),
+    customer: t("customer"),
+    supplier: t("supplier"),
+    description: t("description"),
+    quantity: t("quantity"),
+    unitPrice: t("unitPrice"),
+    discount: t("discount"),
+    tax: t("tax"),
+    lineTotal: t("lineTotal"),
+    subtotal: t("subtotal"),
+    grandTotal: t("grandTotal"),
+    notes: t("notes"),
+    amountPaid: t("amountPaid"),
+    receiptDoc: t("receiptDoc"),
+    receiptPaidNote: t("receiptPaidNote"),
+    paid: tStatus("paid"),
+    currency: t("currency"),
+    exchangeRate: t("exchangeRate"),
+    baseEquivalent: t("baseEquivalent"),
+    vatNumber: t("vatNumber"),
+    taxId: t("taxId"),
+    crNumber: t("crNumber"),
+    printFooter: t("printFooter"),
+    receiptFooter: t("receiptFooter"),
+    electronicSignatureNote: t("electronicSignatureNote"),
+    signatureAuthorized: t("signatureAuthorized"),
+    signatureStamp: t("signatureStamp"),
+    signatureCustomer: t("signatureCustomer"),
+    verifyQrTitle: t("verifyQrTitle"),
+    verifyQrHint: t("verifyQrHint"),
+  };
+
+  const handlePrint = () => {
+    openInvoicePrintDialog(invoice, company, {
+      variant,
+      baseCurrency,
+      headerNote,
+      footerNote,
+      signatureMode,
+      qrDataUrl,
+      documentColor: docColor,
+      labels: printLabels,
+    });
+  };
+
+  const handleDownloadPdf = () => {
     handlePrint();
   };
 
-  const handleWhatsApp = () => {
-    if (!formatPhoneForWhatsApp(invoice.contact.phone)) {
-      toast.error(t("whatsappNeedPhone"));
-      return;
-    }
-    const link = buildWhatsAppLink(invoice.contact.phone, invoice, company?.name);
-    window.open(link, "_blank");
-  };
-
-  const handleEmail = () => {
-    if (onSendEmail) {
-      onSendEmail();
-      return;
-    }
-    const email = invoice.contact.email;
-    if (!email) return;
-    const subject = encodeURIComponent(`${t("invoiceDoc")} ${invoice.number}`);
-    const body = encodeURIComponent(buildInvoiceEmailBody(invoice, company?.name));
-    window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
-  };
-
-  const isSales = invoice.type === "SALES";
+  const isSales = isCustomerDoc;
   const hasPayments =
     Number(invoice.paidAmount || 0) > 0 ||
     invoice.paymentStatus === "PARTIAL" ||
@@ -216,7 +270,7 @@ export function InvoiceDocument({
               <button
                 onClick={onViewInvoice}
                 disabled={actionsDisabled}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-slate-800 text-slate-200 rounded-lg hover:bg-slate-700 disabled:opacity-40"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold bg-white text-slate-900 rounded-lg hover:bg-slate-100 disabled:opacity-40"
               >
                 {t("invoiceDoc")}
               </button>
@@ -225,7 +279,7 @@ export function InvoiceDocument({
               <button
                 onClick={onReversePayment}
                 disabled={actionsDisabled}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-amber-600 text-white rounded-lg hover:bg-amber-500 disabled:opacity-40"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold bg-orange-600 text-white rounded-lg hover:bg-orange-500 disabled:opacity-40"
               >
                 <Undo2 className="w-4 h-4" />
                 {t("reversePayment")}
@@ -235,7 +289,7 @@ export function InvoiceDocument({
               <button
                 onClick={onViewReceipt}
                 disabled={actionsDisabled}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 disabled:opacity-40"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 disabled:opacity-40"
               >
                 <Receipt className="w-4 h-4" />
                 {t("receipt")}
@@ -243,39 +297,27 @@ export function InvoiceDocument({
             )}
             <button
               onClick={handlePrint}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-slate-800 text-slate-200 rounded-lg hover:bg-slate-700"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold bg-white text-slate-900 rounded-lg hover:bg-slate-100"
               title={tCommon("print")}
             >
               <Printer className="w-4 h-4" />
               {tCommon("print")}
             </button>
-            {!isReceipt && (
-              <>
-                <button
-                  onClick={handleDownloadPdf}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-slate-800 text-slate-200 rounded-lg hover:bg-slate-700"
-                >
-                  <Download className="w-4 h-4" />
-                  PDF
-                </button>
-                <button
-                  onClick={handleEmail}
-                  disabled={(!invoice.contact.email && !onSendEmail) || actionsDisabled}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-40"
-                >
-                  <Mail className="w-4 h-4" />
-                  {t("sendEmail")}
-                </button>
-                <button
-                  onClick={handleWhatsApp}
-                  disabled={actionsDisabled}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-500 disabled:opacity-40"
-                >
-                  <MessageCircle className="w-4 h-4" />
-                  WhatsApp
-                </button>
-              </>
-            )}
+            <button
+              onClick={handleDownloadPdf}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold bg-slate-100 text-slate-900 rounded-lg hover:bg-white border border-slate-300"
+            >
+              <Download className="w-4 h-4" />
+              {t("download")}
+            </button>
+            <button
+              onClick={() => setSendOpen(true)}
+              disabled={actionsDisabled}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-40"
+            >
+              <Send className="w-4 h-4" />
+              {t("sendDocument")}
+            </button>
             <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-white">
               <X className="w-5 h-5" />
             </button>
@@ -283,7 +325,24 @@ export function InvoiceDocument({
         </div>
 
         {showWorkflowActions && (
-          <div className="flex flex-wrap gap-2 px-4 py-3 border-b border-slate-800 bg-slate-900/80">
+          <div className="px-4 py-3 border-b border-slate-800 bg-slate-900/80 space-y-3">
+            <DocumentWorkflowSteps
+              docType={invoice.type}
+              status={invoice.status}
+              paymentStatus={invoice.paymentStatus}
+            />
+            <div className="flex flex-wrap gap-2">
+            {isQuotation && onConvertToInvoice && invoice.status !== "CANCELLED" && (
+              <button
+                type="button"
+                onClick={onConvertToInvoice}
+                disabled={actionsDisabled}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-40"
+              >
+                <FileOutput className="w-4 h-4" />
+                {t("convertQuotation")}
+              </button>
+            )}
             {onEdit &&
               invoice.status !== "PAID" &&
               invoice.status !== "CANCELLED" &&
@@ -292,7 +351,7 @@ export function InvoiceDocument({
                 type="button"
                 onClick={onEdit}
                 disabled={actionsDisabled}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-slate-800 text-slate-200 hover:bg-slate-700 disabled:opacity-40"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-lg bg-violet-600 text-white hover:bg-violet-500 disabled:opacity-40"
               >
                 <Edit className="w-4 h-4" />
                 {tCommon("edit")}
@@ -303,7 +362,7 @@ export function InvoiceDocument({
                 type="button"
                 onClick={onUnsend}
                 disabled={actionsDisabled}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-amber-600/20 text-amber-300 hover:bg-amber-600/30 disabled:opacity-40"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-lg bg-amber-500 text-white hover:bg-amber-400 disabled:opacity-40"
               >
                 <Undo2 className="w-4 h-4" />
                 {t("undoSend")}
@@ -314,7 +373,7 @@ export function InvoiceDocument({
                 type="button"
                 onClick={onReversePayment}
                 disabled={actionsDisabled}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-rose-600/20 text-rose-300 hover:bg-rose-600/30 disabled:opacity-40"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-lg bg-orange-600 text-white hover:bg-orange-500 disabled:opacity-40"
               >
                 <Undo2 className="w-4 h-4" />
                 {t("reversePayment")}
@@ -325,18 +384,20 @@ export function InvoiceDocument({
                 type="button"
                 onClick={onMarkSent}
                 disabled={actionsDisabled}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-blue-600/20 text-blue-300 hover:bg-blue-600/30 disabled:opacity-40"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-40"
               >
                 <Send className="w-4 h-4" />
-                {t("markSent")}
+                {isQuotation ? t("sendQuotation") : t("issueInvoice")}
               </button>
             )}
-            {onMarkPaid && ["SENT", "OVERDUE", "VIEWED", "DRAFT"].includes(invoice.status) && (
+            {onMarkPaid &&
+              !isQuotation &&
+              ["SENT", "OVERDUE", "VIEWED", "DRAFT"].includes(invoice.status) && (
               <button
                 type="button"
                 onClick={onMarkPaid}
                 disabled={actionsDisabled}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600/30 disabled:opacity-40"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-40"
               >
                 <CheckCircle className="w-4 h-4" />
                 {t("recordReceipt")}
@@ -347,46 +408,68 @@ export function InvoiceDocument({
                 type="button"
                 onClick={onCancel}
                 disabled={actionsDisabled}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-amber-600/20 text-amber-300 hover:bg-amber-600/30 disabled:opacity-40"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-lg bg-amber-700 text-white hover:bg-amber-600 disabled:opacity-40"
               >
                 <Ban className="w-4 h-4" />
                 {t("cancelInvoice")}
               </button>
             )}
+            </div>
           </div>
         )}
 
-        <div className="p-6 bg-white text-slate-900 rounded-b-2xl" ref={printRef}>
+        <div className="p-5 bg-white text-slate-900 rounded-b-2xl" ref={printRef}>
           {isReceipt && (
-            <div className="mb-6 flex items-center justify-between rounded-lg border-2 border-emerald-600 bg-emerald-50 px-4 py-3">
+            <div
+              className="mb-4 flex items-center justify-between rounded-md border px-3 py-2"
+              style={{ borderColor: docColor, backgroundColor: docColorSoft }}
+            >
               <div>
-                <p className="text-lg font-bold text-emerald-700">{t("receiptDoc")}</p>
-                <p className="text-sm text-emerald-600">{t("receiptPaidNote")}</p>
+                <p className="text-sm font-bold" style={{ color: docColorDark }}>
+                  {t("receiptDoc")}
+                </p>
+                <p className="text-xs" style={{ color: docColor }}>
+                  {t("receiptPaidNote")}
+                </p>
               </div>
-              <span className="rounded-full bg-emerald-600 px-4 py-1 text-sm font-bold text-white">
+              <span
+                className="rounded-full px-3 py-0.5 text-xs font-bold text-white"
+                style={{ backgroundColor: docColor }}
+              >
                 {tStatus("paid")}
               </span>
             </div>
           )}
-          <div className="header flex justify-between items-start mb-8 pb-4 border-b-2 border-emerald-600">
-            <div>
-              <div className="company text-xl font-bold text-emerald-600">{company?.name || "BHD Pro"}</div>
-              {company?.address && <p className="text-sm text-slate-600 mt-1">{company.address}</p>}
-              {company?.city && <p className="text-sm text-slate-600">{company.city}</p>}
-              {company?.phone && <p className="text-sm text-slate-600">{company.phone}</p>}
-              {company?.vatNumber && (
-                <p className="text-xs text-slate-500 mt-1">{t("vatNumber")}: {company.vatNumber}</p>
-              )}
+          <div
+            className="header flex justify-between items-start gap-4 mb-5 pb-3 border-b-2"
+            style={{ borderColor: docColor }}
+          >
+            <div className="flex items-start gap-3 min-w-0 flex-1">
+              <CompanyLogo src={company?.logo} name={company?.name} size="md" className="shrink-0 mt-0.5" />
+              <div className="min-w-0">
+                <div className="company text-base sm:text-lg font-bold leading-tight" style={{ color: docColorDark }}>
+                  {company?.name || "BHD Pro"}
+                </div>
+                {formatCompanyAddressCompact(company) && (
+                  <p className="text-xs sm:text-sm text-slate-700 mt-1 leading-snug font-medium">
+                    {formatCompanyAddressCompact(company)}
+                  </p>
+                )}
+                {company?.vatNumber && (
+                  <p className="text-xs text-slate-600 mt-1 font-medium">
+                    {t("vatNumber")}: {company.vatNumber}
+                  </p>
+                )}
+                {company?.crNumber && (
+                  <p className="text-xs text-slate-600 font-medium">
+                    {t("crNumber")}: {company.crNumber}
+                  </p>
+                )}
+              </div>
             </div>
-            <div className="meta text-left text-sm text-slate-600">
-              <p className="text-lg font-bold text-slate-900">
-                {isReceipt
-                  ? t("receiptDoc")
-                  : isSales
-                    ? t("salesInvoice")
-                    : t("purchaseInvoice")}
-              </p>
-              <p className="mt-2"><strong>{t("number")}:</strong> {invoice.number}</p>
+            <div className="meta text-left shrink-0 text-xs sm:text-sm text-slate-700 leading-relaxed">
+              <p className="text-base font-bold text-slate-900 mb-1.5">{documentTypeLabel()}</p>
+              <p><strong>{t("number")}:</strong> {invoice.number}</p>
               <p><strong>{t("date")}:</strong> {formatDate(invoice.date)}</p>
               {!isReceipt && (
                 <p><strong>{t("dueDate")}:</strong> {formatDate(invoice.dueDate)}</p>
@@ -402,25 +485,36 @@ export function InvoiceDocument({
           </div>
 
           {headerNote && (
-            <div className="mb-6 text-sm text-slate-600 whitespace-pre-wrap">{headerNote}</div>
+            <div className="mb-3 text-[11px] text-slate-500 whitespace-pre-wrap leading-snug">{headerNote}</div>
           )}
 
-          <div className="parties grid grid-cols-2 gap-6 mb-6">
-            <div className="box bg-slate-50 border border-slate-200 rounded-lg p-4">
-              <h3 className="text-xs text-slate-500 uppercase mb-2">{isSales ? t("customer") : t("supplier")}</h3>
-              <p className="font-semibold">{invoice.contact.name}</p>
-              {invoice.contact.address && <p className="text-sm text-slate-600 mt-1">{invoice.contact.address}</p>}
-              {invoice.contact.city && <p className="text-sm text-slate-600">{invoice.contact.city}</p>}
-              {invoice.contact.phone && <p className="text-sm text-slate-600">{invoice.contact.phone}</p>}
-              {invoice.contact.taxId && (
-                <p className="text-xs text-slate-500 mt-1">{t("taxId")}: {invoice.contact.taxId}</p>
+          <div className="parties mb-4">
+            <div className="box border border-slate-200 rounded-md px-3 py-2 bg-slate-50/80">
+              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                <span className="text-[10px] uppercase tracking-wide text-slate-400">
+                  {isSales ? t("customer") : t("supplier")}
+                </span>
+                <span className="text-xs font-semibold text-slate-900">{invoice.contact.name}</span>
+              </div>
+              {(formatContactAddressLines(invoice.contact).length > 0 ||
+                invoice.contact.taxId ||
+                invoice.contact.crNumber) && (
+                <p className="mt-1 text-[11px] text-slate-500 leading-snug">
+                  {[
+                    ...formatContactAddressLines(invoice.contact),
+                    invoice.contact.taxId ? `${t("taxId")}: ${invoice.contact.taxId}` : null,
+                    invoice.contact.crNumber ? `${t("crNumber")}: ${invoice.contact.crNumber}` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </p>
               )}
             </div>
           </div>
 
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-emerald-600 text-white">
+              <tr className="text-white" style={{ backgroundColor: docColor }}>
                 <th className="p-2 text-right">{t("description")}</th>
                 <th className="p-2 text-right">{t("quantity")}</th>
                 <th className="p-2 text-right">{t("unitPrice")}</th>
@@ -449,14 +543,17 @@ export function InvoiceDocument({
               <span>{formatMoney(displaySubtotal, displayCurrency)}</span>
             </div>
             <div className="flex justify-between">
-              <span>{t("tax")}</span>
+              <span>{taxLabel}</span>
               <span>{formatMoney(displayTax, displayCurrency)}</span>
             </div>
             <div className="flex justify-between">
               <span>{t("discount")}</span>
               <span>{formatMoney(displayDiscount, displayCurrency)}</span>
             </div>
-            <div className="flex justify-between grand font-bold text-base border-t-2 border-emerald-600 pt-2 text-emerald-700">
+            <div
+              className="flex justify-between grand font-bold text-base border-t-2 pt-2"
+              style={{ borderColor: docColor, color: docColorDark }}
+            >
               <span>{t("grandTotal")}</span>
               <span>{formatMoney(displayTotal, displayCurrency)}</span>
             </div>
@@ -474,11 +571,60 @@ export function InvoiceDocument({
             </div>
           )}
 
+          <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-6 items-end border-t border-slate-200 pt-6">
+            <div>
+              {signatureMode === "ELECTRONIC" ? (
+                <div className="rounded-lg border-2 border-red-600 bg-red-50 px-4 py-3">
+                  <p className="font-bold text-sm sm:text-base text-red-700 leading-snug">
+                    {t("electronicSignatureNote")}
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-4 text-xs text-slate-500">
+                  <div className="pt-10 border-b border-slate-400 text-center pb-1">
+                    {t("signatureAuthorized")}
+                  </div>
+                  <div className="pt-10 border-b border-slate-400 text-center pb-1">
+                    {t("signatureStamp")}
+                  </div>
+                  {isCustomerDoc && (
+                    <div className="col-span-2 pt-10 border-b border-slate-400 text-center pb-1">
+                      {t("signatureCustomer")}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            {qrDataUrl && (
+              <div className="flex flex-col items-center sm:items-end gap-1.5 text-center sm:text-right">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={qrDataUrl}
+                  alt={t("verifyQrTitle")}
+                  className="w-[160px] h-[160px] border border-slate-200 rounded bg-white p-1"
+                />
+                <p className="text-sm font-bold text-slate-800">{t("verifyQrTitle")}</p>
+                <p className="text-xs text-slate-600 max-w-[220px] leading-snug">
+                  {t("verifyQrHint")}
+                </p>
+              </div>
+            )}
+          </div>
+
           <div className="footer mt-8 text-center text-xs text-slate-400 border-t pt-4 whitespace-pre-wrap">
             {footerNote || (isReceipt ? t("receiptFooter") : t("printFooter"))}
           </div>
         </div>
       </div>
+
+      {sendOpen && (
+        <SendDocumentModal
+          invoice={invoice}
+          companyName={company?.name}
+          variant={variant}
+          onClose={() => setSendOpen(false)}
+        />
+      )}
     </div>
   );
 }

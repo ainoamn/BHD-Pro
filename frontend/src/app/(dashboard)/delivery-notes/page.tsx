@@ -9,6 +9,7 @@ import api from "@/lib/api";
 import { formatDate, cn } from "@/lib/utils";
 import { PageHeader, LoadingSpinner, EmptyState, GlassCard } from "@/components/ui/page-shell";
 import { DecimalInput } from "@/components/ui/decimal-input";
+import { FormLabel, LineFieldLabel, LineItemsGrid } from "@/components/ui/form-field";
 
 interface LineForm {
   productId: string;
@@ -314,7 +315,7 @@ export default function DeliveryNotesPage() {
             <div className="p-5 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-slate-400">{t("contact")}</label>
+                  <FormLabel required>{t("contact")}</FormLabel>
                   <select
                     value={contactId}
                     onChange={(e) => setContactId(e.target.value)}
@@ -327,7 +328,7 @@ export default function DeliveryNotesPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs text-slate-400">{t("date")}</label>
+                  <FormLabel required>{t("date")}</FormLabel>
                   <input
                     type="date"
                     value={date}
@@ -336,7 +337,7 @@ export default function DeliveryNotesPage() {
                   />
                 </div>
                 <div className="md:col-span-2">
-                  <label className="text-xs text-slate-400">{t("warehouse")}</label>
+                  <FormLabel>{t("warehouse")}</FormLabel>
                   <select
                     value={warehouseId}
                     onChange={(e) => setWarehouseId(e.target.value)}
@@ -352,7 +353,7 @@ export default function DeliveryNotesPage() {
 
               <div>
                 <div className="flex justify-between mb-2">
-                  <label className="text-xs text-slate-400">{t("items")}</label>
+                  <FormLabel className="mb-0">{t("items")}</FormLabel>
                   <button
                     type="button"
                     onClick={() => setLines([...lines, emptyLine()])}
@@ -362,9 +363,20 @@ export default function DeliveryNotesPage() {
                   </button>
                 </div>
                 <div className="space-y-2">
+                  <LineItemsGrid
+                    headerColumns={[
+                      { key: "product", label: t("product"), className: "col-span-4" },
+                      { key: "desc", label: t("description"), className: "col-span-4" },
+                      { key: "qty", label: t("quantity"), className: "col-span-2" },
+                      { key: "act", label: "", className: "col-span-2" },
+                    ]}
+                  >
                   {lines.map((line, idx) => (
                     <div key={idx} className="grid grid-cols-12 gap-2 items-end">
+                      <div className="col-span-12 sm:col-span-4">
+                        <LineFieldLabel>{t("product")}</LineFieldLabel>
                       <select
+                        aria-label={t("product")}
                         value={line.productId}
                         onChange={(e) => {
                           const next = [...lines];
@@ -376,7 +388,7 @@ export default function DeliveryNotesPage() {
                           }
                           setLines(next);
                         }}
-                        className="col-span-4 bg-slate-800 border border-slate-700 rounded-lg px-2 py-2 text-white text-sm"
+                        className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2 py-2 text-white text-sm"
                       >
                         <option value="">{t("selectProduct")}</option>
                         {activeProducts.map((p) => (
@@ -385,41 +397,50 @@ export default function DeliveryNotesPage() {
                           </option>
                         ))}
                       </select>
+                      </div>
+                      <div className="col-span-12 sm:col-span-4">
+                        <LineFieldLabel>{t("description")}</LineFieldLabel>
                       <input
+                        aria-label={t("description")}
                         value={line.description}
                         onChange={(e) => {
                           const next = [...lines];
                           next[idx].description = e.target.value;
                           setLines(next);
                         }}
-                        placeholder={t("description")}
-                        className="col-span-4 bg-slate-800 border border-slate-700 rounded-lg px-2 py-2 text-white text-sm"
+                        className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2 py-2 text-white text-sm"
                       />
+                      </div>
+                      <div className="col-span-8 sm:col-span-2">
+                        <LineFieldLabel>{t("quantity")}</LineFieldLabel>
                       <DecimalInput
+                        aria-label={t("quantity")}
                         value={line.quantity}
                         onChange={(v) => {
                           const next = [...lines];
                           next[idx].quantity = v;
                           setLines(next);
                         }}
-                        className="col-span-2 bg-slate-800 border border-slate-700 rounded-lg px-2 py-2 text-white text-sm"
+                        className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2 py-2 text-white text-sm"
                       />
+                      </div>
                       {lines.length > 1 && (
                         <button
                           type="button"
                           onClick={() => setLines(lines.filter((_, i) => i !== idx))}
-                          className="col-span-2 text-slate-400 hover:text-rose-400 p-2"
+                          className="col-span-4 sm:col-span-2 text-slate-400 hover:text-rose-400 p-2 flex justify-end"
                         >
                           <X className="w-4 h-4" />
                         </button>
                       )}
                     </div>
                   ))}
+                  </LineItemsGrid>
                 </div>
               </div>
 
               <div>
-                <label className="text-xs text-slate-400">{t("notes")}</label>
+                <FormLabel>{t("notes")}</FormLabel>
                 <textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}

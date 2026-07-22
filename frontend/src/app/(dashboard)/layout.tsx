@@ -25,29 +25,26 @@ export default function DashboardLayout({
     setHydrated(true);
   }, []);
 
-  // Always validate session against cookies (even if local cache says authenticated)
+  // Validate session in background; show cached auth immediately when available
   useEffect(() => {
     if (!hydrated) return;
     let cancelled = false;
     (async () => {
-      const { setLoading } = useAuthStore.getState();
-      setLoading(true);
+      const store = useAuthStore.getState();
+      if (store.isAuthenticated) {
+        store.setLoading(false);
+      } else {
+        store.setLoading(true);
+      }
       await api.restoreSession();
-      if (!cancelled) setLoading(false);
+      if (!cancelled) useAuthStore.getState().setLoading(false);
     })();
     return () => {
       cancelled = true;
     };
   }, [hydrated]);
 
-  useEffect(() => {
-    if (!hydrated || isLoading) return;
-    if (!isAuthenticated) {
-      router.replace("/login");
-    }
-  }, [hydrated, isAuthenticated, isLoading, router]);
-
-  // Sync company (currency, etc.) from API so display matches إعدادات الشركة
+  // Sync company once per session (background refresh)
   useEffect(() => {
     if (!hydrated || !isAuthenticated) return;
     let cancelled = false;
@@ -67,6 +64,13 @@ export default function DashboardLayout({
       cancelled = true;
     };
   }, [hydrated, isAuthenticated, setCompany]);
+
+  useEffect(() => {
+    if (!hydrated || isLoading) return;
+    if (!isAuthenticated) {
+      router.replace("/login");
+    }
+  }, [hydrated, isAuthenticated, isLoading, router]);
 
   if (!hydrated || isLoading) {
     return (

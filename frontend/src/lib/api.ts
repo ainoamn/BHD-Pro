@@ -260,6 +260,28 @@ class ApiClient {
     return this.get(`/invoices/${id}`);
   }
 
+  createDocumentShareLink(id: string, variant: "invoice" | "receipt" = "invoice") {
+    return this.post<{
+      token: string;
+      shareUrl: string;
+      sharePath?: string;
+      expiresInDays: number;
+    }>(`/invoices/${id}/share-link`, { variant });
+  }
+
+  createDocumentVerifyLink(id: string, variant: "invoice" | "receipt" = "invoice") {
+    return this.post<{
+      token: string;
+      verifyUrl: string;
+      verifyPath?: string;
+      documentNumber: string;
+    }>(`/invoices/${id}/verify-link`, { variant });
+  }
+
+  getPublicDocument(token: string) {
+    return this.client.get(`/public/documents/${token}`);
+  }
+
   createInvoice(data: unknown) {
     return this.post('/invoices', data);
   }
@@ -461,6 +483,10 @@ class ApiClient {
   }
   deleteWarehouse(id: string) {
     return this.delete(`/warehouses/${id}`);
+  }
+
+  seedDefaultAnalytics() {
+    return this.post('/cost-centers/seed-defaults');
   }
 
   getCostCenters() {

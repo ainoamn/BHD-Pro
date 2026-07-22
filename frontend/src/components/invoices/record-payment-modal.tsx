@@ -8,6 +8,7 @@ import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { cn, formatMoney } from "@/lib/utils";
 import { DecimalInput } from "@/components/ui/decimal-input";
+import { FormLabel } from "@/components/ui/form-field";
 
 export interface CollectibleInvoice {
   id: string;
@@ -321,10 +322,7 @@ export function RecordPaymentModal({
               {contactId && contactInvoices.length > 0 && (
                 <>
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                    <p className="text-sm text-slate-400 flex items-center gap-1.5">
-                      <ArrowDownUp className="w-4 h-4 text-emerald-500" />
-                      {t("beneficiaryInvoices")} — {t("oldestFirst")}
-                    </p>
+                    <FormLabel className="mb-0">{t("distributionMode")}</FormLabel>
                     <div className="flex rounded-lg border border-slate-700 overflow-hidden text-sm">
                       <button
                         type="button"
@@ -352,6 +350,10 @@ export function RecordPaymentModal({
                       </button>
                     </div>
                   </div>
+                  <p className="text-sm text-slate-400 flex items-center gap-1.5">
+                    <ArrowDownUp className="w-4 h-4 text-emerald-500" />
+                    {t("beneficiaryInvoices")} — {t("oldestFirst")}
+                  </p>
 
                   <div className="rounded-xl border border-slate-800 overflow-hidden">
                     <div className="overflow-x-auto max-h-56 overflow-y-auto">

@@ -7,10 +7,27 @@ import {
   TrendingDown,
   Files,
   Receipt,
+  ClipboardList,
+  FileMinus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type AccountingHubTab = "overview" | "sales" | "purchases" | "documents";
+export type AccountingHubTab =
+  | "overview"
+  | "quotations"
+  | "sales"
+  | "creditNotes"
+  | "purchases"
+  | "documents";
+
+export const ACCOUNTING_HUB_TABS: AccountingHubTab[] = [
+  "overview",
+  "quotations",
+  "sales",
+  "creditNotes",
+  "purchases",
+  "documents",
+];
 
 interface AccountingHubTabsProps {
   active: AccountingHubTab;
@@ -20,7 +37,9 @@ interface AccountingHubTabsProps {
 
 const tabs: { id: AccountingHubTab; icon: typeof LayoutGrid; labelKey: string }[] = [
   { id: "overview", icon: LayoutGrid, labelKey: "tabOverview" },
-  { id: "sales", icon: TrendingUp, labelKey: "tabSales" },
+  { id: "quotations", icon: ClipboardList, labelKey: "tabQuotations" },
+  { id: "sales", icon: TrendingUp, labelKey: "tabSalesInvoices" },
+  { id: "creditNotes", icon: FileMinus, labelKey: "tabCreditNotes" },
   { id: "purchases", icon: TrendingDown, labelKey: "tabPurchases" },
   { id: "documents", icon: Files, labelKey: "tabDocuments" },
 ];
@@ -38,7 +57,7 @@ export function AccountingHubTabs({ active, onChange, pendingCount = 0 }: Accoun
           className={cn(
             "relative flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all",
             active === id
-              ? id === "sales"
+              ? id === "sales" || id === "quotations" || id === "creditNotes"
                 ? "bg-emerald-600 text-white shadow-lg shadow-emerald-900/30"
                 : id === "purchases"
                   ? "bg-rose-600 text-white shadow-lg shadow-rose-900/30"

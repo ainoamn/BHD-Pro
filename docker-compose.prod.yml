@@ -1,0 +1,59 @@
+# Production stack for hisaby.pro
+# Usage on server:
+#   1. cp .env.production.example .env.production  (fill secrets)
+#   2. docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: hisaby
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: hisaby_pro
+    volumes:
+      - hisaby_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hisaby -d hisaby_pro"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: /backend-api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      BACKEND_URL: http://backend:3001
+      NEXT_PUBLIC_API_URL: /backend-api
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://hisaby:${POSTGRES_PASSWORD}@db:5432/hisaby_pro?schema=public
+      CORS_ORIGIN: https://hisaby.pro
+      FRONTEND_URL: https://hisaby.pro
+      API_PUBLIC_URL: https://hisaby.pro
+      PORT: 3001
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "3001:3001"
+
+  # Optional: put Caddy/Nginx in front for SSL — see deploy/nginx-hisaby.pro.conf
+  # Or terminate SSL at Cloudflare / host load balancer and proxy to frontend:3000
+
+volumes:
+  hisaby_pg:

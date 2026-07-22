@@ -10,6 +10,7 @@ import { formatDate, formatMoney, cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
 import { PageHeader, LoadingSpinner, EmptyState, GlassCard } from "@/components/ui/page-shell";
 import { DecimalInput } from "@/components/ui/decimal-input";
+import { FormLabel, LineFieldLabel, LineItemsGrid } from "@/components/ui/form-field";
 
 interface LineForm {
   description: string;
@@ -48,11 +49,12 @@ export function CashDocumentsPage({
   docType: "SALES" | "PURCHASE";
 }) {
   const t = useTranslations("cashDocs");
+  const tInv = useTranslations("invoices");
   const tCommon = useTranslations("common");
   const queryClient = useQueryClient();
   const baseCurrency = useAuthStore((s) => s.user?.company?.currency) || "OMR";
-  const vatRate = Number(useAuthStore((s) => s.user?.company?.vatRate) ?? 5);
-  const applyVat = useAuthStore((s) => s.user?.company?.applyVat) !== false;
+  const companyApplyVat = useAuthStore((s) => s.user?.company?.applyVat) !== false;
+  const companyVatRate = Number(useAuthStore((s) => s.user?.company?.vatRate) ?? 5);
 
   const [open, setOpen] = useState(false);
   const [contactId, setContactId] = useState("");
@@ -63,6 +65,8 @@ export function CashDocumentsPage({
   const [exchangeRate, setExchangeRate] = useState(1);
   const [rateLoading, setRateLoading] = useState(false);
   const [lines, setLines] = useState<LineForm[]>([emptyLine()]);
+  const [docApplyVat, setDocApplyVat] = useState(true);
+  const [docTaxRate, setDocTaxRate] = useState(5);
 
   const contactType = docType === "SALES" ? "CUSTOMER" : "SUPPLIER";
   const isForeign = docCurrency.toUpperCase() !== baseCurrency.toUpperCase();
@@ -84,7 +88,7 @@ export function CashDocumentsPage({
     },
   });
 
-  const taxRate = applyVat ? vatRate : 0;
+  const taxRate = docApplyVat ? docTaxRate : 0;
   const lineNet = (l: LineForm) => l.quantity * l.unitPrice;
   const subtotal = lines.reduce((s, l) => s + lineNet(l), 0);
   const taxAmount = Number(((subtotal * taxRate) / 100).toFixed(3));
@@ -120,6 +124,8 @@ export function CashDocumentsPage({
     setDocCurrency(baseCurrency);
     setExchangeRate(1);
     setLines([emptyLine()]);
+    setDocApplyVat(companyApplyVat);
+    setDocTaxRate(companyVatRate);
   };
 
   const invalidate = () => {
@@ -145,7 +151,7 @@ export function CashDocumentsPage({
           description: l.description.trim(),
           quantity: Number(l.quantity),
           unitPrice: Number(l.unitPrice),
-          taxRate,
+          taxRate: docApplyVat ? Number(docTaxRate) : 0,
         }));
       if (!contactId || items.length === 0) throw new Error(t("needItems"));
       return api.createInvoice({
@@ -154,7 +160,7 @@ export function CashDocumentsPage({
         date,
         dueDate: date,
         notes: notes || undefined,
-        taxRate,
+        taxRate: docApplyVat ? Number(docTaxRate) : 0,
         payImmediately: true,
         paymentMethod: method,
         currency: docCurrency,
@@ -302,7 +308,7 @@ export function CashDocumentsPage({
             <p className="text-sm text-slate-400">{t("hint")}</p>
 
             <div>
-              <label className="text-sm text-slate-400">{contactLabel}</label>
+              <FormLabel required>{contactLabel}</FormLabel>
               <select
                 value={contactId}
                 onChange={(e) => setContactId(e.target.value)}
@@ -319,7 +325,7 @@ export function CashDocumentsPage({
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-sm text-slate-400">{t("date")}</label>
+                <FormLabel required>{t("date")}</FormLabel>
                 <input
                   type="date"
                   value={date}
@@ -328,7 +334,7 @@ export function CashDocumentsPage({
                 />
               </div>
               <div>
-                <label className="text-sm text-slate-400">{t("method")}</label>
+                <FormLabel required>{t("method")}</FormLabel>
                 <select
                   value={method}
                   onChange={(e) => setMethod(e.target.value)}
@@ -343,7 +349,7 @@ export function CashDocumentsPage({
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-sm text-slate-400">{t("currency")}</label>
+                <FormLabel>{t("currency")}</FormLabel>
                 <select
                   value={docCurrency}
                   onChange={(e) => {
@@ -361,10 +367,10 @@ export function CashDocumentsPage({
                 </select>
               </div>
               <div>
-                <label className="text-sm text-slate-400">
+                <FormLabel>
                   {t("exchangeRate")}
                   {rateLoading ? "…" : ""}
-                </label>
+                </FormLabel>
                 <DecimalInput
                   value={exchangeRate}
                   onChange={setExchangeRate}
@@ -377,7 +383,7 @@ export function CashDocumentsPage({
 
             <div className="space-y-2">
               <div className="flex justify-between items-center">
-                <label className="text-sm text-slate-400">{t("items")}</label>
+                <FormLabel className="mb-0">{t("items")}</FormLabel>
                 <button
                   type="button"
                   onClick={() => setLines((prev) => [...prev, emptyLine()])}
@@ -386,22 +392,33 @@ export function CashDocumentsPage({
                   {t("addItem")}
                 </button>
               </div>
+              <LineItemsGrid
+                headerColumns={[
+                  { key: "desc", label: t("description"), className: "col-span-12 sm:col-span-5" },
+                  { key: "qty", label: t("quantity"), className: "col-span-4 sm:col-span-2" },
+                  { key: "price", label: t("unitPrice"), className: "col-span-5 sm:col-span-3" },
+                  { key: "act", label: "", className: "col-span-3 sm:col-span-2" },
+                ]}
+              >
               {lines.map((line, idx) => (
                 <div key={idx} className="grid grid-cols-12 gap-2 items-end">
                   <div className="col-span-12 sm:col-span-5">
+                    <LineFieldLabel>{t("description")}</LineFieldLabel>
                     <input
+                      aria-label={t("description")}
                       value={line.description}
                       onChange={(e) =>
                         setLines((prev) =>
                           prev.map((l, i) => (i === idx ? { ...l, description: e.target.value } : l)),
                         )
                       }
-                      placeholder={t("description")}
                       className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 text-white text-sm"
                     />
                   </div>
                   <div className="col-span-4 sm:col-span-2">
+                    <LineFieldLabel>{t("quantity")}</LineFieldLabel>
                     <DecimalInput
+                      aria-label={t("quantity")}
                       value={line.quantity}
                       onChange={(v) =>
                         setLines((prev) =>
@@ -412,7 +429,9 @@ export function CashDocumentsPage({
                     />
                   </div>
                   <div className="col-span-5 sm:col-span-3">
+                    <LineFieldLabel>{t("unitPrice")}</LineFieldLabel>
                     <DecimalInput
+                      aria-label={t("unitPrice")}
                       value={line.unitPrice}
                       onChange={(v) =>
                         setLines((prev) =>
@@ -428,6 +447,7 @@ export function CashDocumentsPage({
                         type="button"
                         onClick={() => setLines((prev) => prev.filter((_, i) => i !== idx))}
                         className="p-2 text-rose-400"
+                        title={tCommon("delete")}
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -435,6 +455,45 @@ export function CashDocumentsPage({
                   </div>
                 </div>
               ))}
+              </LineItemsGrid>
+            </div>
+
+            <div className="rounded-lg border border-slate-700 bg-slate-800/40 p-4 space-y-3">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={docApplyVat}
+                  onChange={(e) => {
+                    const on = e.target.checked;
+                    setDocApplyVat(on);
+                    if (on && docTaxRate <= 0) setDocTaxRate(companyVatRate);
+                  }}
+                  className="mt-1 w-4 h-4 rounded border-slate-600 text-emerald-600"
+                />
+                <div>
+                  <p className="text-white text-sm font-medium">{tInv("docApplyVat")}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {tInv("docApplyVatHint", { rate: companyVatRate })}
+                  </p>
+                </div>
+              </label>
+              {docApplyVat ? (
+                <div className="max-w-xs">
+                  <FormLabel>{tInv("docTaxRate")}</FormLabel>
+                  <div className="flex items-center gap-2">
+                    <DecimalInput
+                      value={docTaxRate}
+                      min={0}
+                      decimals={2}
+                      onChange={setDocTaxRate}
+                      className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 text-white"
+                    />
+                    <span className="text-slate-400 text-sm">%</span>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-amber-400/90">{tInv("taxExempt")}</p>
+              )}
             </div>
 
             <div className="rounded-lg bg-slate-800/50 p-3 text-sm space-y-1">
@@ -442,14 +501,14 @@ export function CashDocumentsPage({
                 <span>{t("subtotal")}</span>
                 <span>{formatMoney(subtotal, docCurrency)}</span>
               </div>
-              {taxRate > 0 && (
-                <div className="flex justify-between text-slate-400">
-                  <span>
-                    {t("vat")} ({taxRate}%)
-                  </span>
-                  <span>{formatMoney(taxAmount, docCurrency)}</span>
-                </div>
-              )}
+              <div className="flex justify-between text-slate-400">
+                <span>
+                  {docApplyVat && taxRate > 0
+                    ? tInv("taxAtRate", { rate: taxRate })
+                    : tInv("taxExempt")}
+                </span>
+                <span>{formatMoney(taxAmount, docCurrency)}</span>
+              </div>
               <div className="flex justify-between text-white font-medium pt-1 border-t border-slate-700">
                 <span>{t("total")}</span>
                 <span className="text-emerald-400">{formatMoney(total, docCurrency)}</span>
@@ -465,7 +524,7 @@ export function CashDocumentsPage({
             </div>
 
             <div>
-              <label className="text-sm text-slate-400">{t("notes")}</label>
+              <FormLabel>{t("notes")}</FormLabel>
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}

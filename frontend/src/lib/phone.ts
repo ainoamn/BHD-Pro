@@ -1,4 +1,5 @@
 /** GCC + common dial codes for WhatsApp (wa.me requires full international number) */
+import { isMobileDevice } from "@/lib/open-external-url";
 export const PHONE_DIAL_CODES = [
   { code: "968", country: "OM", labelAr: "🇴🇲 +968 عُمان", labelEn: "🇴🇲 +968 Oman" },
   { code: "966", country: "SA", labelAr: "🇸🇦 +966 السعودية", labelEn: "🇸🇦 +966 Saudi Arabia" },
@@ -87,8 +88,13 @@ export function buildContactWhatsAppLink(
 ): string {
   const waPhone = formatPhoneForWhatsApp(phone);
   const text = encodeURIComponent(message || `مرحباً ${contactName}،`);
+  const mobile = isMobileDevice();
   if (waPhone) {
-    return `https://wa.me/${waPhone}?text=${text}`;
+    return mobile
+      ? `https://wa.me/${waPhone}?text=${text}`
+      : `https://web.whatsapp.com/send?phone=${waPhone}&text=${text}`;
   }
-  return `https://wa.me/?text=${text}`;
+  return mobile
+    ? `https://wa.me/?text=${text}`
+    : `https://web.whatsapp.com/send?text=${text}`;
 }

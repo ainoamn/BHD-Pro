@@ -25,7 +25,7 @@ export default function SalesHubPage() {
       description: t("customersDesc"),
     },
     {
-      href: "/accounting?tab=sales&docType=QUOTATION",
+      href: "/accounting?tab=quotations",
       icon: ClipboardList,
       title: t("quotations"),
       description: t("quotationsDesc"),
@@ -55,7 +55,7 @@ export default function SalesHubPage() {
       description: t("scheduledDesc"),
     },
     {
-      href: "/accounting?tab=sales&docType=CREDIT_NOTE",
+      href: "/accounting?tab=creditNotes",
       icon: FileMinus,
       title: t("creditNotes"),
       description: t("creditNotesDesc"),

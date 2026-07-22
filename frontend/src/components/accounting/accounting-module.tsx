@@ -29,16 +29,20 @@ import {
   InvoiceActions,
   canEditInvoice,
 } from "@/components/invoices/invoice-actions";
+import { SendDocumentModal } from "@/components/invoices/send-document-modal";
+import { openInvoicePrintDialog } from "@/lib/invoice-print";
 import { RecordPaymentModal } from "@/components/invoices/record-payment-modal";
 import { ReversePaymentModal } from "@/components/invoices/reverse-payment-modal";
 import { downloadCsv } from "@/lib/export-csv";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import {
   AccountingHubTabs,
+  ACCOUNTING_HUB_TABS,
   type AccountingHubTab,
 } from "@/components/accounting/accounting-hub-tabs";
 import { AccountingOverviewTab } from "@/components/accounting/accounting-overview-tab";
 import { PageHeader, LoadingSpinner } from "@/components/ui/page-shell";
+import { FormLabel, LineFieldLabel, LineItemsGrid } from "@/components/ui/form-field";
 import {
   CustomFieldsInputs,
   type CustomFieldDef,
@@ -102,6 +106,37 @@ interface LineItemForm {
 type InvoiceType = "SALES" | "PURCHASE";
 type DocumentType = InvoiceType | "QUOTATION" | "CREDIT_NOTE" | "DEBIT_NOTE";
 
+const HUB_DOCUMENT_TYPE: Partial<Record<AccountingHubTab, DocumentType>> = {
+  quotations: "QUOTATION",
+  sales: "SALES",
+  creditNotes: "CREDIT_NOTE",
+  purchases: "PURCHASE",
+};
+
+const DOC_TYPE_HUB: Partial<Record<DocumentType, AccountingHubTab>> = {
+  QUOTATION: "quotations",
+  SALES: "sales",
+  CREDIT_NOTE: "creditNotes",
+  PURCHASE: "purchases",
+  DEBIT_NOTE: "purchases",
+};
+
+function resolveHubTab(
+  tab: string | null,
+  docType: string | null,
+  type: string | null
+): AccountingHubTab {
+  if (tab && ACCOUNTING_HUB_TABS.includes(tab as AccountingHubTab)) {
+    return tab as AccountingHubTab;
+  }
+  if (docType === "QUOTATION") return "quotations";
+  if (docType === "CREDIT_NOTE") return "creditNotes";
+  if (docType === "PURCHASE" || docType === "DEBIT_NOTE") return "purchases";
+  if (docType === "SALES" || type === "SALES") return "sales";
+  if (type === "PURCHASE") return "purchases";
+  return "overview";
+}
+
 const DOC_TYPES = new Set(["SALES", "PURCHASE", "QUOTATION", "CREDIT_NOTE", "DEBIT_NOTE"]);
 
 const INVOICE_CURRENCIES = ["OMR", "USD", "EUR", "SAR", "AED", "KWD", "BHD", "QAR", "GBP"];
@@ -129,14 +164,7 @@ export function AccountingModule() {
   const docTypeFromUrl = searchParams.get("docType") || typeFromUrl;
   const initialDocType: DocumentType | null =
     docTypeFromUrl && DOC_TYPES.has(docTypeFromUrl) ? (docTypeFromUrl as DocumentType) : null;
-  const initialHub: AccountingHubTab =
-    tabFromUrl === "overview" || tabFromUrl === "sales" || tabFromUrl === "purchases" || tabFromUrl === "documents"
-      ? tabFromUrl
-      : typeFromUrl === "PURCHASE"
-        ? "purchases"
-        : typeFromUrl === "SALES"
-          ? "sales"
-          : "overview";
+  const initialHub = resolveHubTab(tabFromUrl, docTypeFromUrl, typeFromUrl);
   const initialType: InvoiceType =
     typeFromUrl === "PURCHASE" || typeFromUrl === "SALES"
       ? typeFromUrl
@@ -147,12 +175,7 @@ export function AccountingModule() {
   const [hubTab, setHubTab] = useState<AccountingHubTab>(initialHub);
   const [invoiceType, setInvoiceType] = useState<InvoiceType>(initialType);
   const [documentType, setDocumentType] = useState<DocumentType>(
-    initialDocType ||
-      (initialHub === "purchases"
-        ? "PURCHASE"
-        : initialHub === "sales"
-          ? "SALES"
-          : "SALES")
+    initialDocType || HUB_DOCUMENT_TYPE[initialHub] || "SALES"
   );
   const [modalOpen, setModalOpen] = useState(false);
   const [printInvoice, setPrintInvoice] = useState<Invoice | null>(null);
@@ -168,6 +191,8 @@ export function AccountingModule() {
   const [notes, setNotes] = useState("");
   const [customFields, setCustomFields] = useState<Record<string, string | number>>({});
   const [discount, setDiscount] = useState(0);
+  const [docApplyVat, setDocApplyVat] = useState(true);
+  const [docTaxRate, setDocTaxRate] = useState(5);
   const [docCurrency, setDocCurrency] = useState("OMR");
   const [exchangeRate, setExchangeRate] = useState(1);
   const [rateLoading, setRateLoading] = useState(false);
@@ -177,11 +202,17 @@ export function AccountingModule() {
   const [collectOpen, setCollectOpen] = useState(false);
   const [collectInvoiceId, setCollectInvoiceId] = useState<string | undefined>();
   const [reversePaymentInvoice, setReversePaymentInvoice] = useState<Invoice | null>(null);
+  const [shareDocument, setShareDocument] = useState<{
+    invoice: InvoiceDocumentData;
+    variant: "invoice" | "receipt";
+  } | null>(null);
   const [statusFilter, setStatusFilter] = useState("");
   const [paymentFilter, setPaymentFilter] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
 
   const baseCurrency = company?.currency || "OMR";
+  const companyApplyVat = company?.applyVat !== false;
+  const companyVatRate = Number(company?.vatRate ?? 5);
   const isForeignCurrency = docCurrency.toUpperCase() !== baseCurrency.toUpperCase();
   const rateSafe = exchangeRate > 0 ? exchangeRate : 1;
 
@@ -189,37 +220,43 @@ export function AccountingModule() {
     const action = searchParams.get("action");
     const type = searchParams.get("type");
     const docType = searchParams.get("docType") || type;
-    const tabParam = searchParams.get("tab") as AccountingHubTab | null;
+    const tabParam = searchParams.get("tab");
     const paymentParam = searchParams.get("paymentFilter");
-    if (
-      tabParam === "overview" ||
-      tabParam === "sales" ||
-      tabParam === "purchases" ||
-      tabParam === "documents"
-    ) {
-      setHubTab(tabParam);
+
+    if (tabParam === "sales" && docType === "QUOTATION") {
+      router.replace("/accounting?tab=quotations");
+      return;
     }
-    if (docType && DOC_TYPES.has(docType)) {
+    if (tabParam === "sales" && docType === "CREDIT_NOTE") {
+      router.replace("/accounting?tab=creditNotes");
+      return;
+    }
+
+    const nextHub = resolveHubTab(tabParam, docType, type);
+    setHubTab(nextHub);
+
+    const hubDocType = HUB_DOCUMENT_TYPE[nextHub];
+    if (hubDocType) {
+      setDocumentType(hubDocType);
+      setInvoiceType(hubDocType === "PURCHASE" ? "PURCHASE" : "SALES");
+    } else if (docType && DOC_TYPES.has(docType)) {
       const dt = docType as DocumentType;
       setDocumentType(dt);
-      if (dt === "PURCHASE" || dt === "DEBIT_NOTE") {
-        setInvoiceType("PURCHASE");
-        if (tabParam !== "documents") setHubTab("purchases");
-      } else if (dt === "SALES" || dt === "QUOTATION" || dt === "CREDIT_NOTE") {
-        setInvoiceType("SALES");
-        if (tabParam !== "documents") setHubTab("sales");
-      }
+      setInvoiceType(dt === "PURCHASE" || dt === "DEBIT_NOTE" ? "PURCHASE" : "SALES");
     } else if (type === "SALES" || type === "PURCHASE") {
       setInvoiceType(type);
       setDocumentType(type);
     }
+
     if (paymentParam) setPaymentFilter(paymentParam);
     if (action === "new") {
       setModalOpen(true);
       if (docType && DOC_TYPES.has(docType)) {
         const dt = docType as DocumentType;
         setDocumentType(dt);
-        setHubTab(dt === "PURCHASE" || dt === "DEBIT_NOTE" ? "purchases" : "sales");
+        const newHub = DOC_TYPE_HUB[dt] || (dt === "PURCHASE" || dt === "DEBIT_NOTE" ? "purchases" : "sales");
+        setHubTab(newHub);
+        setInvoiceType(dt === "PURCHASE" || dt === "DEBIT_NOTE" ? "PURCHASE" : "SALES");
       } else if (type === "SALES" || type === "PURCHASE") {
         setInvoiceType(type);
         setDocumentType(type);
@@ -229,8 +266,9 @@ export function AccountingModule() {
     if (action === "collect") {
       setCollectOpen(true);
       setHubTab("sales");
+      setDocumentType("SALES");
     }
-  }, [searchParams]);
+  }, [searchParams, router]);
 
   // المصروفات: كل دفتر العناوين | الإيرادات: العملاء فقط
   const contactsQueryType = invoiceType === "SALES" ? "CUSTOMER" : undefined;
@@ -263,15 +301,17 @@ export function AccountingModule() {
   );
 
   const listTypeFilter =
-    hubTab === "sales"
-      ? documentType === "QUOTATION" || documentType === "CREDIT_NOTE"
-        ? documentType
-        : "SALES"
-      : hubTab === "purchases"
-        ? documentType === "DEBIT_NOTE"
-          ? "DEBIT_NOTE"
-          : "PURCHASE"
-        : undefined;
+    hubTab === "quotations"
+      ? "QUOTATION"
+      : hubTab === "creditNotes"
+        ? "CREDIT_NOTE"
+        : hubTab === "sales"
+          ? "SALES"
+          : hubTab === "purchases"
+            ? documentType === "DEBIT_NOTE"
+              ? "DEBIT_NOTE"
+              : "PURCHASE"
+            : undefined;
 
   const { data: invoices = [], isLoading } = useQuery({
     queryKey: ["invoices", listTypeFilter, statusFilter, paymentFilter, searchQuery],
@@ -376,15 +416,13 @@ export function AccountingModule() {
     setNotes("");
     setCustomFields({});
     setDiscount(0);
+    setDocApplyVat(companyApplyVat);
+    setDocTaxRate(companyVatRate);
     setDocCurrency(company?.currency || "OMR");
     setExchangeRate(1);
     setLines([emptyLine()]);
     setQuickCustomerOpen(false);
     setQuickCustomerName("");
-  };
-
-  const openCreate = () => {
-    openNewInvoice(invoiceType);
   };
 
   const openEdit = (inv: Invoice) => {
@@ -413,6 +451,9 @@ export function AccountingModule() {
         ? Number((Number(inv.discount) / rate).toFixed(3))
         : Number(inv.discount);
     setDiscount(discountDoc);
+    const invTaxRate = Number(inv.taxRate ?? 0);
+    setDocApplyVat(invTaxRate > 0);
+    setDocTaxRate(invTaxRate > 0 ? invTaxRate : companyVatRate);
     setLines(
       inv.items.map((i) => ({
         description: i.description,
@@ -429,9 +470,8 @@ export function AccountingModule() {
     0
   );
 
-  const applyVat = company?.applyVat !== false;
-  const pricesIncludeTax = !!company?.pricesIncludeTax && applyVat;
-  const vatRate = applyVat ? (company?.vatRate ?? 5) : 0;
+  const pricesIncludeTax = !!company?.pricesIncludeTax && docApplyVat;
+  const vatRate = docApplyVat ? docTaxRate : 0;
 
   let subtotal: number;
   let taxAmount: number;
@@ -478,9 +518,15 @@ export function AccountingModule() {
     queryClient.invalidateQueries({ queryKey: ["report-cash-flow"] });
   };
 
-  const openDocument = (inv: Invoice, variant: "invoice" | "receipt" = "invoice") => {
-    setPrintInvoice(inv);
+  const openDocument = async (inv: Invoice, variant: "invoice" | "receipt" = "invoice") => {
     setDocumentVariant(variant);
+    setPrintInvoice(inv);
+    try {
+      const res = await api.getInvoice(inv.id);
+      setPrintInvoice(res.data as Invoice);
+    } catch {
+      // keep list snapshot if refresh fails
+    }
   };
 
   const handleMarkPaid = (id: string) => {
@@ -563,7 +609,7 @@ export function AccountingModule() {
         date,
         dueDate,
         discount: Number(discount || 0),
-        taxRate: Number(taxRate),
+        taxRate: docApplyVat ? Number(docTaxRate) : 0,
         notes: notes || undefined,
         costCenterId: costCenterId || undefined,
         projectId: projectId || undefined,
@@ -617,15 +663,6 @@ export function AccountingModule() {
     onError: () => toast.error(t("actionError")),
   });
 
-  const sendMutation = useMutation({
-    mutationFn: (id: string) => api.sendInvoice(id),
-    onSuccess: () => {
-      invalidateInvoiceQueries();
-      toast.success(t("sentSuccess"));
-    },
-    onError: () => toast.error(t("sendError")),
-  });
-
   const unsendMutation = useMutation({
     mutationFn: (id: string) => api.unsendInvoice(id),
     onSuccess: () => {
@@ -640,9 +677,17 @@ export function AccountingModule() {
 
   const convertQuotationMutation = useMutation({
     mutationFn: (id: string) => api.convertQuotationToInvoice(id),
-    onSuccess: () => {
+    onSuccess: async (res) => {
       invalidateInvoiceQueries();
-      toast.success(t("convertQuotation"));
+      toast.success(t("convertQuotationSuccess"));
+      const data = res.data as { invoice?: Invoice };
+      if (data.invoice) {
+        setDocumentType("SALES");
+        setHubTab("sales");
+        updateUrl("sales", { docType: "SALES", action: null });
+        setPrintInvoice(data.invoice);
+        setDocumentVariant("invoice");
+      }
     },
     onError: () => toast.error(t("actionError")),
   });
@@ -657,7 +702,6 @@ export function AccountingModule() {
 
   const actionsBusy =
     statusMutation.isPending ||
-    sendMutation.isPending ||
     deleteMutation.isPending ||
     unsendMutation.isPending ||
     convertQuotationMutation.isPending;
@@ -707,7 +751,15 @@ export function AccountingModule() {
 
   const handleHubChange = (next: AccountingHubTab) => {
     setHubTab(next);
-    updateUrl(next, { action: null, type: null });
+    const hubDocType = HUB_DOCUMENT_TYPE[next];
+    if (hubDocType) {
+      setDocumentType(hubDocType);
+      setInvoiceType(hubDocType === "PURCHASE" ? "PURCHASE" : "SALES");
+    }
+    setStatusFilter("");
+    setPaymentFilter("");
+    setSearchQuery("");
+    updateUrl(next, { action: null, type: null, docType: null });
   };
 
   const openNewInvoice = (type: InvoiceType) => {
@@ -723,18 +775,74 @@ export function AccountingModule() {
     const isPurchase = docType === "PURCHASE" || docType === "DEBIT_NOTE";
     setDocumentType(docType);
     setInvoiceType(isPurchase ? "PURCHASE" : "SALES");
-    const nextTab = isPurchase ? "purchases" : "sales";
+    const nextTab = DOC_TYPE_HUB[docType] || (isPurchase ? "purchases" : "sales");
     setHubTab(nextTab);
     resetForm();
     setModalOpen(true);
     updateUrl(nextTab, { action: "new", docType });
   };
 
-  const showList = hubTab === "sales" || hubTab === "purchases" || hubTab === "documents";
+  const showList =
+    hubTab === "quotations" ||
+    hubTab === "sales" ||
+    hubTab === "creditNotes" ||
+    hubTab === "purchases" ||
+    hubTab === "documents";
+  const isQuotationView = hubTab === "quotations";
+  const isCreditNoteView = hubTab === "creditNotes";
   const isSalesList = hubTab === "sales";
   const isPurchaseList = hubTab === "purchases";
   const isDocuments = hubTab === "documents";
   const pendingCollection = stats?.pendingCollectionCount ?? 0;
+  const listTitle =
+    hubTab === "quotations"
+      ? tAcc("tabQuotations")
+      : hubTab === "creditNotes"
+        ? tAcc("tabCreditNotes")
+        : hubTab === "sales"
+          ? tAcc("tabSalesInvoices")
+          : hubTab === "purchases"
+            ? tAcc("tabPurchases")
+            : tAcc("tabDocuments");
+  const listNewLabel =
+    hubTab === "quotations"
+      ? t("newQuotation")
+      : hubTab === "creditNotes"
+        ? t("newCreditNote")
+        : isPurchaseList
+          ? t("newExpense")
+          : t("newRevenue");
+  const listNumberLabel =
+    hubTab === "quotations"
+      ? t("quoteNumber")
+      : hubTab === "creditNotes"
+        ? t("creditNoteNumber")
+        : t("number");
+  const listTotalLabel =
+    hubTab === "quotations"
+      ? t("totalQuotations")
+      : hubTab === "creditNotes"
+        ? t("totalCreditNotes")
+        : t("total");
+  const handleListNewClick = () => {
+    if (hubTab === "quotations") {
+      openNewDocument("QUOTATION");
+      return;
+    }
+    if (hubTab === "creditNotes") {
+      openNewDocument("CREDIT_NOTE");
+      return;
+    }
+    if (isPurchaseList) {
+      openNewInvoice("PURCHASE");
+      return;
+    }
+    openNewInvoice("SALES");
+  };
+
+  const openCreate = () => {
+    handleListNewClick();
+  };
 
   const toDocumentData = (inv: Invoice): InvoiceDocumentData => ({
     ...inv,
@@ -758,23 +866,104 @@ export function AccountingModule() {
     })),
   });
 
+  const buildPrintLabels = (inv: Invoice, variant: "invoice" | "receipt") => {
+    const isReceipt = variant === "receipt";
+    const isQuotation = inv.type === "QUOTATION";
+    const isCreditNote = inv.type === "CREDIT_NOTE";
+    const docTitle = isReceipt
+      ? t("receiptDoc")
+      : isQuotation
+        ? t("quotationDoc")
+        : isCreditNote
+          ? t("creditNoteDoc")
+          : inv.type === "SALES"
+            ? t("salesInvoice")
+            : t("purchaseInvoice");
+    return {
+      docTitle,
+      number: t("number"),
+      date: t("date"),
+      dueDate: t("dueDate"),
+      customer: t("customer"),
+      supplier: t("supplier"),
+      description: t("description"),
+      quantity: t("quantity"),
+      unitPrice: t("unitPrice"),
+      discount: t("discount"),
+      tax: t("tax"),
+      lineTotal: t("lineTotal"),
+      subtotal: t("subtotal"),
+      grandTotal: t("grandTotal"),
+      notes: t("notes"),
+      amountPaid: t("amountPaid"),
+      receiptDoc: t("receiptDoc"),
+      receiptPaidNote: t("receiptPaidNote"),
+      paid: tStatus("paid"),
+      currency: t("currency"),
+      exchangeRate: t("exchangeRate"),
+      baseEquivalent: t("baseEquivalent"),
+      vatNumber: t("vatNumber"),
+      taxId: t("taxId"),
+      crNumber: t("crNumber"),
+      printFooter: t("printFooter"),
+      receiptFooter: t("receiptFooter"),
+      electronicSignatureNote: t("electronicSignatureNote"),
+      signatureAuthorized: t("signatureAuthorized"),
+      signatureStamp: t("signatureStamp"),
+      signatureCustomer: t("signatureCustomer"),
+      verifyQrTitle: t("verifyQrTitle"),
+      verifyQrHint: t("verifyQrHint"),
+    };
+  };
+
+  const downloadInvoice = async (inv: Invoice, variant: "invoice" | "receipt" = "invoice") => {
+    let full = inv;
+    try {
+      const res = await api.getInvoice(inv.id);
+      full = res.data as Invoice;
+    } catch {
+      // fall back to list row
+    }
+    const data = toDocumentData(full);
+    const template = resolveDocTemplate(full.type, variant);
+    openInvoicePrintDialog(data, company, {
+      variant,
+      baseCurrency,
+      headerNote: template?.headerText,
+      footerNote: template?.footerText,
+      signatureMode: company?.signatureMode === "ELECTRONIC" ? "ELECTRONIC" : "MANUAL",
+      documentColor: company?.documentColor,
+      labels: buildPrintLabels(full, variant),
+    });
+  };
+
+  const openShareModal = async (inv: Invoice, variant: "invoice" | "receipt" = "invoice") => {
+    try {
+      const res = await api.getInvoice(inv.id);
+      setShareDocument({
+        invoice: toDocumentData(res.data as Invoice),
+        variant,
+      });
+    } catch {
+      toast.error(t("shareLinkError"));
+    }
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
-        title={
+        title={hubTab === "overview" ? tAcc("title") : listTitle}
+        subtitle={
           hubTab === "overview"
-            ? tAcc("title")
-            : hubTab === "sales"
-              ? tAcc("tabSales")
-              : hubTab === "purchases"
-                ? tAcc("tabPurchases")
-                : tAcc("tabDocuments")
+            ? tAcc("subtitle")
+            : isQuotationView
+              ? t("quotationSubtitle")
+              : t("subtitle")
         }
-        subtitle={hubTab === "overview" ? tAcc("subtitle") : t("subtitle")}
         action={
           showList ? (
             <div className="flex items-center gap-2">
-              {(isSalesList || isDocuments) && (
+              {(isSalesList || isDocuments) && !isQuotationView && !isCreditNoteView && (
                 <button
                   type="button"
                   onClick={() => {
@@ -788,7 +977,7 @@ export function AccountingModule() {
                 </button>
               )}
               <button
-                onClick={() => openNewInvoice(isPurchaseList ? "PURCHASE" : "SALES")}
+                onClick={handleListNewClick}
                 className={cn(
                   "flex items-center gap-2 px-4 py-2 text-white rounded-lg font-medium hover:opacity-90",
                   isPurchaseList
@@ -797,7 +986,7 @@ export function AccountingModule() {
                 )}
               >
                 <Plus className="w-4 h-4" />
-                {isPurchaseList ? t("newExpense") : t("newRevenue")}
+                {listNewLabel}
               </button>
             </div>
           ) : undefined
@@ -834,18 +1023,39 @@ export function AccountingModule() {
       {showList && (
       <>
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        {[
-          { label: t("total"), value: filteredInvoices.length, isCount: true },
-          { label: t("paid"), value: Number(stats?.paidAmount ?? 0) },
-          { label: t("pending"), value: Number(stats?.pendingAmount ?? 0) },
-          { label: t("overdue"), value: stats?.overdueCount ?? 0, isCount: true },
-          {
-            label: t("pendingCollection"),
-            value: stats?.pendingCollectionCount ?? 0,
-            isCount: true,
-            highlight: (stats?.pendingCollectionCount ?? 0) > 0,
-          },
-        ].map((s) => (
+        {(isQuotationView
+          ? [
+              { label: listTotalLabel, value: filteredInvoices.length, isCount: true },
+              {
+                label: tStatus("draft"),
+                value: filteredInvoices.filter((i) => i.status === "DRAFT").length,
+                isCount: true,
+              },
+              {
+                label: tStatus("sent"),
+                value: filteredInvoices.filter((i) =>
+                  ["SENT", "VIEWED", "OVERDUE"].includes(i.status)
+                ).length,
+                isCount: true,
+              },
+              {
+                label: t("quoteValue"),
+                value: filteredInvoices.reduce((s, i) => s + Number(i.total), 0),
+              },
+            ]
+          : [
+              { label: listTotalLabel, value: filteredInvoices.length, isCount: true },
+              { label: t("paid"), value: Number(stats?.paidAmount ?? 0) },
+              { label: t("pending"), value: Number(stats?.pendingAmount ?? 0) },
+              { label: t("overdue"), value: stats?.overdueCount ?? 0, isCount: true },
+              {
+                label: t("pendingCollection"),
+                value: stats?.pendingCollectionCount ?? 0,
+                isCount: true,
+                highlight: (stats?.pendingCollectionCount ?? 0) > 0,
+              },
+            ]
+        ).map((s) => (
           <div
             key={s.label}
             className={cn(
@@ -891,6 +1101,7 @@ export function AccountingModule() {
             <option value="CANCELLED">{tStatus("cancelled")}</option>
           </select>
         </div>
+        {!isQuotationView && (
         <div className="min-w-[140px]">
           <label className="block text-xs text-slate-500 mb-1">{t("paymentStatus")}</label>
           <select
@@ -904,6 +1115,7 @@ export function AccountingModule() {
             <option value="PAID">{tStatus("paid")}</option>
           </select>
         </div>
+        )}
         {(statusFilter || paymentFilter || searchQuery) && (
           <button
             type="button"
@@ -925,7 +1137,7 @@ export function AccountingModule() {
             type="button"
             onClick={() => {
               const headers = [
-                t("number"),
+                listNumberLabel,
                 ...(isDocuments ? [t("type")] : []),
                 isPurchaseList ? t("supplier") : t("customer"),
                 t("date"),
@@ -961,7 +1173,7 @@ export function AccountingModule() {
             <p className="text-white font-medium">{t("noInvoices")}</p>
             <p className="text-slate-400 text-sm mt-1">{t("createFirst")}</p>
             <button onClick={openCreate} className="mt-4 text-emerald-400 hover:underline text-sm">
-              {invoiceType === "SALES" ? t("newRevenue") : t("newExpense")}
+              {listNewLabel}
             </button>
           </div>
         ) : (
@@ -975,7 +1187,14 @@ export function AccountingModule() {
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <p className="text-white font-semibold">{inv.number}</p>
-                    <p className="text-sm text-slate-400 mt-0.5">{inv.contact?.name}</p>
+                    <div className="mt-0.5">
+                      <p className="text-sm text-slate-300">{inv.contact?.name}</p>
+                      {(inv.contact?.address || inv.contact?.city) && (
+                        <p className="text-xs text-slate-500 mt-0.5 leading-snug">
+                          {[inv.contact?.address, inv.contact?.city].filter(Boolean).join(" — ")}
+                        </p>
+                      )}
+                    </div>
                   </div>
                   <span className={cn("px-2 py-1 rounded-full text-xs font-medium shrink-0", statusColor(inv.status))}>
                     {statusLabel(inv.status)}
@@ -994,9 +1213,10 @@ export function AccountingModule() {
                   invoiceType={inv.type}
                   disabled={actionsBusy}
                   onView={() => openDocument(inv, "invoice")}
+                  onDownload={() => downloadInvoice(inv, "invoice")}
+                  onShare={() => openShareModal(inv, "invoice")}
                   onReceipt={() => openDocument(inv, "receipt")}
                   onEdit={() => openEdit(inv)}
-                  onSend={() => sendMutation.mutate(inv.id)}
                   onMarkSent={() => handleMarkSent(inv.id)}
                   onMarkPaid={() => handleMarkPaid(inv.id)}
                   onUnsend={() => handleUnsend(inv.id)}
@@ -1012,7 +1232,7 @@ export function AccountingModule() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-800 text-slate-400">
-                  <th className="text-right p-4 font-medium">{t("number")}</th>
+                  <th className="text-right p-4 font-medium">{listNumberLabel}</th>
                   {isDocuments && (
                     <th className="text-right p-4 font-medium">{t("type")}</th>
                   )}
@@ -1043,7 +1263,19 @@ export function AccountingModule() {
                         </span>
                       </td>
                     )}
-                    <td className="p-4 text-slate-300">{inv.contact?.name}</td>
+                    <td className="p-4 text-slate-300">
+                      <div>
+                        <p className="font-medium text-slate-200">{inv.contact?.name}</p>
+                        {(inv.contact?.address || inv.contact?.city) && (
+                          <p className="text-xs text-slate-500 mt-1 leading-snug max-w-[220px]">
+                            {[inv.contact?.address, inv.contact?.city].filter(Boolean).join(" — ")}
+                          </p>
+                        )}
+                        {inv.contact?.phone && (
+                          <p className="text-xs text-slate-500 mt-0.5">{inv.contact.phone}</p>
+                        )}
+                      </div>
+                    </td>
                     <td className="p-4 text-slate-400">{formatDate(inv.date)}</td>
                     <td className="p-4 text-white font-semibold">
                       {formatMoney(Number(inv.total), company?.currency || "OMR")}
@@ -1061,9 +1293,10 @@ export function AccountingModule() {
                         invoiceType={inv.type}
                         disabled={actionsBusy}
                         onView={() => openDocument(inv, "invoice")}
+                        onDownload={() => downloadInvoice(inv, "invoice")}
+                        onShare={() => openShareModal(inv, "invoice")}
                         onReceipt={() => openDocument(inv, "receipt")}
                         onEdit={() => openEdit(inv)}
-                        onSend={() => sendMutation.mutate(inv.id)}
                         onMarkSent={() => handleMarkSent(inv.id)}
                         onMarkPaid={() => handleMarkPaid(inv.id)}
                         onUnsend={() => handleUnsend(inv.id)}
@@ -1103,7 +1336,6 @@ export function AccountingModule() {
             setPrintInvoice(null);
             setDocumentVariant("invoice");
           }}
-          onSendEmail={() => sendMutation.mutate(activeDocumentInvoice.id)}
           onMarkPaid={() => handleMarkPaid(activeDocumentInvoice.id)}
           onCancel={() => handleCancel(activeDocumentInvoice.id)}
           onMarkSent={() => handleMarkSent(activeDocumentInvoice.id)}
@@ -1115,6 +1347,20 @@ export function AccountingModule() {
           }}
           onViewReceipt={() => setDocumentVariant("receipt")}
           onViewInvoice={() => setDocumentVariant("invoice")}
+          onConvertToInvoice={
+            activeDocumentInvoice.type === "QUOTATION"
+              ? () => convertQuotationMutation.mutate(activeDocumentInvoice.id)
+              : undefined
+          }
+        />
+      )}
+
+      {shareDocument && (
+        <SendDocumentModal
+          invoice={shareDocument.invoice}
+          companyName={company?.name}
+          variant={shareDocument.variant}
+          onClose={() => setShareDocument(null)}
         />
       )}
 
@@ -1177,10 +1423,18 @@ export function AccountingModule() {
             <div className="flex items-center justify-between p-5 border-b border-slate-800">
               <h2 className="text-lg font-semibold text-white">
                 {editingId
-                  ? t("editInvoice")
-                  : invoiceType === "SALES"
-                    ? t("newRevenue")
-                    : t("newExpense")}
+                  ? documentType === "QUOTATION"
+                    ? t("editQuotation")
+                    : documentType === "CREDIT_NOTE"
+                      ? t("editCreditNote")
+                      : t("editInvoice")
+                  : documentType === "QUOTATION"
+                    ? t("newQuotation")
+                    : documentType === "CREDIT_NOTE"
+                      ? t("newCreditNote")
+                      : invoiceType === "SALES"
+                        ? t("newRevenue")
+                        : t("newExpense")}
               </h2>
               <button onClick={() => setModalOpen(false)} className="text-slate-400 hover:text-white">
                 <X className="w-5 h-5" />
@@ -1222,11 +1476,12 @@ export function AccountingModule() {
                     </p>
                   )}
                   {quickCustomerOpen && (
-                    <div className="flex gap-2 mt-2">
+                    <div className="mt-2 space-y-1">
+                      <FormLabel>{invoiceType === "SALES" ? t("customer") : t("supplier")}</FormLabel>
+                      <div className="flex gap-2">
                       <input
                         value={quickCustomerName}
                         onChange={(e) => setQuickCustomerName(e.target.value)}
-                        placeholder={invoiceType === "SALES" ? t("customer") : t("supplier")}
                         className="flex-1 h-9 px-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
                       />
                       <button
@@ -1237,6 +1492,7 @@ export function AccountingModule() {
                       >
                         {tCommon("save")}
                       </button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1332,19 +1588,34 @@ export function AccountingModule() {
                   </button>
                 </div>
                 <div className="space-y-2">
+                  <LineItemsGrid
+                    headerColumns={[
+                      { key: "desc", label: t("description"), className: "col-span-5" },
+                      { key: "qty", label: t("quantity"), className: "col-span-2" },
+                      { key: "price", label: t("unitPrice"), className: "col-span-2" },
+                      { key: "disc", label: t("discount"), className: "col-span-2" },
+                      { key: "act", label: "", className: "col-span-1" },
+                    ]}
+                  >
                   {lines.map((line, idx) => (
-                    <div key={idx} className="grid grid-cols-12 gap-2 items-center">
+                    <div key={idx} className="grid grid-cols-12 gap-2 items-end sm:items-center">
+                      <div className="col-span-12 sm:col-span-5">
+                        <LineFieldLabel>{t("description")}</LineFieldLabel>
                       <input
-                        placeholder={t("description")}
+                        aria-label={t("description")}
                         value={line.description}
                         onChange={(e) => {
                           const n = [...lines];
                           n[idx].description = e.target.value;
                           setLines(n);
                         }}
-                        className="col-span-5 h-9 px-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:border-emerald-500"
+                        className="w-full h-9 px-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:border-emerald-500"
                       />
+                      </div>
+                      <div className="col-span-4 sm:col-span-2">
+                        <LineFieldLabel>{t("quantity")}</LineFieldLabel>
                       <DecimalInput
+                        aria-label={t("quantity")}
                         value={line.quantity}
                         min={0}
                         decimals={3}
@@ -1353,9 +1624,13 @@ export function AccountingModule() {
                           n[idx].quantity = v;
                           setLines(n);
                         }}
-                        className="col-span-2 h-9 px-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:border-emerald-500"
+                        className="w-full h-9 px-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:border-emerald-500"
                       />
+                      </div>
+                      <div className="col-span-4 sm:col-span-2">
+                        <LineFieldLabel>{t("unitPrice")}</LineFieldLabel>
                       <DecimalInput
+                        aria-label={t("unitPrice")}
                         value={line.unitPrice}
                         min={0}
                         decimals={3}
@@ -1364,9 +1639,13 @@ export function AccountingModule() {
                           n[idx].unitPrice = v;
                           setLines(n);
                         }}
-                        className="col-span-2 h-9 px-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:border-emerald-500"
+                        className="w-full h-9 px-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:border-emerald-500"
                       />
+                      </div>
+                      <div className="col-span-4 sm:col-span-2">
+                        <LineFieldLabel>{t("discount")}</LineFieldLabel>
                       <DecimalInput
+                        aria-label={t("discount")}
                         value={line.discount}
                         min={0}
                         decimals={3}
@@ -1375,19 +1654,22 @@ export function AccountingModule() {
                           n[idx].discount = v;
                           setLines(n);
                         }}
-                        className="col-span-2 h-9 px-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:border-emerald-500"
+                        className="w-full h-9 px-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:border-emerald-500"
                       />
+                      </div>
                       {lines.length > 1 && (
                         <button
                           type="button"
                           onClick={() => setLines(lines.filter((_, i) => i !== idx))}
-                          className="col-span-1 text-rose-400 hover:text-rose-300"
+                          className="col-span-12 sm:col-span-1 text-rose-400 hover:text-rose-300 flex justify-end sm:justify-center"
+                          title={tCommon("delete")}
                         >
                           <X className="w-4 h-4" />
                         </button>
                       )}
                     </div>
                   ))}
+                  </LineItemsGrid>
                 </div>
               </div>
 
@@ -1407,29 +1689,65 @@ export function AccountingModule() {
                 onChange={setCustomFields}
               />
 
+              <div className="rounded-lg border border-slate-700 bg-slate-800/40 p-4 space-y-3">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={docApplyVat}
+                    onChange={(e) => {
+                      const on = e.target.checked;
+                      setDocApplyVat(on);
+                      if (on && docTaxRate <= 0) setDocTaxRate(companyVatRate);
+                    }}
+                    className="mt-1 w-4 h-4 rounded border-slate-600 text-emerald-600 focus:ring-emerald-500"
+                  />
+                  <div>
+                    <p className="text-white text-sm font-medium">{t("docApplyVat")}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      {t("docApplyVatHint", { rate: companyVatRate })}
+                    </p>
+                  </div>
+                </label>
+                {docApplyVat ? (
+                  <div className="max-w-xs">
+                    <FormLabel>{t("docTaxRate")}</FormLabel>
+                    <div className="flex items-center gap-2">
+                      <DecimalInput
+                        value={docTaxRate}
+                        min={0}
+                        decimals={2}
+                        onChange={setDocTaxRate}
+                        className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white"
+                      />
+                      <span className="text-slate-400 text-sm">%</span>
+                    </div>
+                    {company?.pricesIncludeTax && (
+                      <p className="text-xs text-slate-500 mt-1">{t("taxIncluded")}</p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-sm text-amber-400/90">{t("taxExempt")}</p>
+                )}
+              </div>
+
               <div className="bg-slate-800/50 rounded-lg p-4 space-y-2 text-sm">
                 <div className="flex justify-between text-slate-400">
                   <span>{t("subtotal")}</span>
                   <span className="text-white">{formatMoney(subtotal, docCurrency)}</span>
                 </div>
-                {applyVat && (
-                  <div className="flex justify-between text-slate-400">
-                    <span>
-                      {t("tax")}
-                      {pricesIncludeTax ? ` — ${t("taxIncluded")}` : ""}
-                      {` (${vatRate}%)`}
-                    </span>
-                    <span className="text-white">{formatMoney(taxAmount, docCurrency)}</span>
-                  </div>
-                )}
-                {!applyVat && (
-                  <div className="flex justify-between text-slate-500 text-xs">
-                    <span>{t("vatDisabled")}</span>
-                  </div>
-                )}
                 <div className="flex justify-between text-slate-400">
-                  <span>{t("discount")}</span>
+                  <span>
+                    {docApplyVat && vatRate > 0
+                      ? t("taxAtRate", { rate: vatRate }) +
+                        (pricesIncludeTax ? ` — ${t("taxIncluded")}` : "")
+                      : t("taxExempt")}
+                  </span>
+                  <span className="text-white">{formatMoney(taxAmount, docCurrency)}</span>
+                </div>
+                <div className="flex justify-between text-slate-400 items-center gap-2">
+                  <FormLabel className="mb-0">{t("discount")}</FormLabel>
                   <DecimalInput
+                    aria-label={t("discount")}
                     value={discount}
                     min={0}
                     decimals={3}

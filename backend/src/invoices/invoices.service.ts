@@ -90,7 +90,22 @@ export class InvoicesService {
           : {}),
       },
       include: {
-        contact: { select: { id: true, name: true, nameEn: true, email: true } },
+        contact: {
+          select: {
+            id: true,
+            name: true,
+            nameEn: true,
+            email: true,
+            phone: true,
+            phone2: true,
+            address: true,
+            city: true,
+            country: true,
+            zipCode: true,
+            taxId: true,
+            crNumber: true,
+          },
+        },
         items: true,
         payments: true,
         createdBy: { select: { id: true, name: true } },
@@ -158,7 +173,7 @@ export class InvoicesService {
 
     await this.validateAnalytics(companyId, dto.costCenterId, dto.projectId);
 
-    const taxRate = dto.taxRate ?? OMAN_VAT_RATE;
+    const taxRate = dto.taxRate != null ? Number(dto.taxRate) : OMAN_VAT_RATE;
     let subtotal = 0;
     let taxAmount = 0;
 
@@ -271,7 +286,7 @@ export class InvoicesService {
     if (dto.items) {
       await this.prisma.invoiceItem.deleteMany({ where: { invoiceId: id } });
 
-      const taxRate = dto.taxRate ?? Number(existing.taxRate);
+      const taxRate = dto.taxRate != null ? Number(dto.taxRate) : Number(existing.taxRate);
       let subtotal = 0;
       let taxAmount = 0;
 
@@ -762,11 +777,42 @@ export class InvoicesService {
   async getStats(companyId: string, type?: InvoiceType) {
     await this.syncPaymentStatus(companyId);
 
+    const typeFilter = type
+      ? { type }
+      : { type: { not: InvoiceType.QUOTATION as InvoiceType } };
+
     const baseWhere = {
       companyId,
       status: { not: InvoiceStatus.CANCELLED },
-      ...(type ? { type } : {}),
+      ...typeFilter,
     };
+
+    if (type === InvoiceType.QUOTATION) {
+      const [total, draft, sent] = await Promise.all([
+        this.prisma.invoice.count({ where: baseWhere }),
+        this.prisma.invoice.count({ where: { ...baseWhere, status: InvoiceStatus.DRAFT } }),
+        this.prisma.invoice.count({
+          where: {
+            ...baseWhere,
+            status: { in: [InvoiceStatus.SENT, InvoiceStatus.VIEWED, InvoiceStatus.OVERDUE] },
+          },
+        }),
+      ]);
+      const quoted = await this.prisma.invoice.aggregate({
+        where: baseWhere,
+        _sum: { total: true },
+      });
+      return {
+        total,
+        draftCount: draft,
+        sentCount: sent,
+        quotedAmount: quoted._sum.total || 0,
+        paidAmount: 0,
+        pendingAmount: 0,
+        overdueCount: 0,
+        pendingCollectionCount: 0,
+      };
+    }
 
     const [total, paid, pending, overdue, pendingCollection] = await Promise.all([
       this.prisma.invoice.count({ where: baseWhere }),
@@ -846,7 +892,7 @@ export class InvoicesService {
       throw new BadRequestException('Cannot convert cancelled quotation');
     }
 
-    return this.create(companyId, userId, {
+    const invoice = await this.create(companyId, userId, {
       type: InvoiceType.SALES,
       contactId: quote.contactId,
       date: new Date().toISOString().split('T')[0],
@@ -863,5 +909,15 @@ export class InvoicesService {
         taxRate: Number(item.taxRate),
       })),
     });
+
+    const convertedNote = `تم التحويل إلى فاتورة ${invoice.number}`;
+    await this.prisma.invoice.update({
+      where: { id: quote.id },
+      data: {
+        notes: quote.notes ? `${quote.notes}\n${convertedNote}` : convertedNote,
+      },
+    });
+
+    return { quotationId: quote.id, quotationNumber: quote.number, invoice };
   }
 }

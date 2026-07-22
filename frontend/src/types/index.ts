@@ -29,6 +29,10 @@ export interface Company {
   pricesIncludeTax?: boolean;
   /** VAT rate percent, default 5 for Oman */
   vatRate?: number;
+  /** ELECTRONIC shows e-sign note; MANUAL shows blank signature lines */
+  signatureMode?: "ELECTRONIC" | "MANUAL";
+  /** Primary accent color for invoices / receipts (#RRGGBB) */
+  documentColor?: string;
 }
 
 export interface Invoice {

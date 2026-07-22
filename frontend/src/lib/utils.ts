@@ -6,7 +6,7 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /** Explicit symbols — Intl can show ر.س for Arabic locales on some systems */
-const CURRENCY_SYMBOLS: Record<string, { ar: string; en: string; decimals: number }> = {
+export const CURRENCY_SYMBOLS: Record<string, { ar: string; en: string; decimals: number }> = {
   OMR: { ar: 'ر.ع', en: 'OMR', decimals: 3 },
   SAR: { ar: 'ر.س', en: 'SAR', decimals: 2 },
   AED: { ar: 'د.إ', en: 'AED', decimals: 2 },

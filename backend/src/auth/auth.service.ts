@@ -5,6 +5,7 @@ import * as bcrypt from 'bcrypt';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { AccountCategory, AccountType, Plan } from '@prisma/client';
+import { ensureDefaultCostCentersAndProjects } from '../erp/default-analytics.seed';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { TokenPayload } from './interfaces/token-payload.interface';
@@ -23,8 +24,9 @@ export class AuthService {
   ) {}
 
   async validateUser(email: string, password: string): Promise<any> {
+    const normalizedEmail = email.trim().toLowerCase();
     const user = await this.prisma.user.findUnique({
-      where: { email },
+      where: { email: normalizedEmail },
       include: { company: true },
     });
 
@@ -33,7 +35,7 @@ export class AuthService {
     }
 
     if (user.lockedUntil && user.lockedUntil > new Date()) {
-      throw new ForbiddenException(`Account locked until ${user.lockedUntil}`);
+      throw new ForbiddenException(`Account locked until ${user.lockedUntil.toISOString()}`);
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
@@ -207,7 +209,7 @@ export class AuthService {
         name: user.name,
         email: user.email,
         role: user.role,
-        company: user.company,
+        company: this.enrichCompany(user.company),
       },
       ...tokens,
     };
@@ -232,6 +234,7 @@ export class AuthService {
     });
 
     await this.createDefaultAccounts(company.id);
+    await ensureDefaultCostCentersAndProjects(this.prisma, company.id);
 
     const hashedPassword = await bcrypt.hash(dto.password, 12);
     const user = await this.prisma.user.create({
@@ -255,7 +258,13 @@ export class AuthService {
     });
 
     return {
-      user: { id: user.id, name: user.name, email: user.email, role: user.role, company },
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        company: this.enrichCompany(company),
+      },
       ...tokens,
     };
   }
@@ -333,8 +342,38 @@ export class AuthService {
       email: safe.email,
       role: safe.role,
       companyId: safe.companyId,
-      company: safe.company,
+      company: this.enrichCompany(safe.company),
       twoFactorEnabled: !!safe.twoFactorEnabled,
+    };
+  }
+
+  private enrichCompany<T extends { ftaConfig?: unknown } | null>(company: T) {
+    if (!company) return company;
+    const tax = (company.ftaConfig as {
+      applyVat?: boolean;
+      pricesIncludeTax?: boolean;
+      vatRate?: number;
+      signatureMode?: string;
+      documentColor?: string;
+    } | null) || {};
+
+    let documentColor = '#059669';
+    if (typeof tax.documentColor === 'string') {
+      let c = tax.documentColor.trim();
+      if (!c.startsWith('#')) c = `#${c}`;
+      if (/^#[0-9A-Fa-f]{3}$/.test(c)) {
+        c = `#${c[1]}${c[1]}${c[2]}${c[2]}${c[3]}${c[3]}`;
+      }
+      if (/^#[0-9A-Fa-f]{6}$/.test(c)) documentColor = c.toUpperCase();
+    }
+
+    return {
+      ...company,
+      applyVat: tax.applyVat !== false,
+      pricesIncludeTax: !!tax.pricesIncludeTax,
+      vatRate: typeof tax.vatRate === 'number' ? tax.vatRate : 5,
+      signatureMode: tax.signatureMode === 'ELECTRONIC' ? 'ELECTRONIC' : 'MANUAL',
+      documentColor,
     };
   }
 

@@ -16,6 +16,10 @@ export class CostCentersController {
   @Get() findAll(@CurrentUser() u: TokenPayload) {
     return this.erp.findCostCenters(u.companyId);
   }
+  @Post('seed-defaults')
+  seedDefaults(@CurrentUser() u: TokenPayload) {
+    return this.erp.seedDefaultAnalytics(u.companyId);
+  }
   @Post() create(@CurrentUser() u: TokenPayload, @Body() dto: CostCenterDto) {
     return this.erp.createCostCenter(u.companyId, dto);
   }

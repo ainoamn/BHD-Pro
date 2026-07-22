@@ -204,6 +204,9 @@ export class ScheduledInvoicesService {
       })),
     });
 
+    // Issue invoice and post to GL (Wafeq-style recurring billing)
+    await this.invoicesService.send(companyId, userId, invoice.id);
+
     await this.prisma.scheduledInvoice.update({
       where: { id },
       data: {
@@ -212,7 +215,7 @@ export class ScheduledInvoicesService {
       },
     });
 
-    return invoice;
+    return this.invoicesService.findOne(companyId, invoice.id);
   }
 
   /** Cron: all companies. Manual API: pass companyId to scope to one tenant. */

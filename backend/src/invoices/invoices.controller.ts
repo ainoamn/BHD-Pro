@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { InvoicesService } from './invoices.service';
+import { DocumentShareService, DocumentShareVariant } from './document-share.service';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
 import { UpdateInvoiceDto } from './dto/update-invoice.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -26,7 +27,10 @@ import { BatchRecordPaymentDto } from './dto/batch-record-payment.dto';
 @UseGuards(JwtAuthGuard)
 @Controller('invoices')
 export class InvoicesController {
-  constructor(private invoicesService: InvoicesService) {}
+  constructor(
+    private invoicesService: InvoicesService,
+    private documentShare: DocumentShareService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'List all invoices for company' })
@@ -73,6 +77,26 @@ export class InvoicesController {
     @Query('type') type?: 'SALES' | 'PURCHASE',
   ) {
     return this.invoicesService.listPayments(user.companyId, type);
+  }
+
+  @Post(':id/share-link')
+  @ApiOperation({ summary: 'Create public share link for document view/download' })
+  createShareLink(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+    @Body('variant') variant?: DocumentShareVariant,
+  ) {
+    return this.documentShare.createShareLink(user.companyId, id, variant || 'invoice');
+  }
+
+  @Post(':id/verify-link')
+  @ApiOperation({ summary: 'Create long-lived public verify URL for document QR authenticity' })
+  createVerifyLink(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+    @Body('variant') variant?: DocumentShareVariant,
+  ) {
+    return this.documentShare.createVerifyLink(user.companyId, id, variant || 'invoice');
   }
 
   @Get(':id')

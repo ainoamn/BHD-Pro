@@ -63,6 +63,20 @@ async function main() {
     });
 
     console.log('Created company and admin user');
+  } else if (process.env.NODE_ENV !== 'production') {
+    const hashedPassword = await bcrypt.hash('Admin123!', 12);
+    await prisma.user.updateMany({
+      where: { email: 'admin@bhd.om' },
+      data: {
+        password: hashedPassword,
+        loginAttempts: 0,
+        lockedUntil: null,
+        isActive: true,
+      },
+    });
+    console.log('Reset demo admin password: admin@bhd.om / Admin123!');
+  } else {
+    console.log('Skipped demo password reset (NODE_ENV=production)');
   }
 
   const demoCustomers = [

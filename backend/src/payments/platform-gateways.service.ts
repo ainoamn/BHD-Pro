@@ -59,13 +59,18 @@ export class PlatformGatewaysService implements OnModuleInit {
     };
 
     for (const [slug, config] of Object.entries(envMap)) {
-      const hasSecret = Object.values(config).some((v) => v && !v.includes('...'));
-      if (!hasSecret) continue;
+      // Only auto-enable when real secret credentials exist (ignore default baseUrl alone)
+      const secretKeys = secretKeysFor(slug);
+      const hasRealSecret = secretKeys.some((key) => {
+        const v = (config[key] || '').trim();
+        return v.length > 0 && !v.includes('...');
+      });
+      if (!hasRealSecret) continue;
       const existing = await this.prisma.platformPaymentGateway.findUnique({
         where: { slug: slug as never },
       });
       if (!existing) continue;
-      const encrypted = encryptConfigSecrets(config, secretKeysFor(slug));
+      const encrypted = encryptConfigSecrets(config, secretKeys);
       await this.prisma.platformPaymentGateway.update({
         where: { slug: slug as never },
         data: {
@@ -130,9 +135,10 @@ export class PlatformGatewaysService implements OnModuleInit {
     if (data.configJson) {
       const merged = { ...currentConfig, ...data.configJson };
       nextConfig = encryptConfigSecrets(merged, secretKeysFor(slug));
-      // restore unchanged secrets when UI sent mask
+      // restore unchanged secrets when UI sent mask or left blank
       for (const key of secretKeysFor(slug)) {
-        if (data.configJson[key] === '••••••••' || data.configJson[key] === undefined) {
+        const incoming = data.configJson[key];
+        if (incoming === '••••••••' || incoming === undefined || incoming === '') {
           nextConfig[key] = currentConfig[key] ?? '';
         }
       }

@@ -9,6 +9,7 @@ import api from "@/lib/api";
 import { formatMoney } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
 import { PageHeader, LoadingSpinner, GlassCard } from "@/components/ui/page-shell";
+import { FormLabel } from "@/components/ui/form-field";
 
 interface TreeNode {
   id: string;
@@ -261,19 +262,23 @@ export default function ChartOfAccountsPage() {
                 <X className="w-5 h-5 text-slate-400" />
               </button>
             </div>
+            <FormLabel required htmlFor="coa-code">{t("code")}</FormLabel>
             <input
-              placeholder={t("code")}
+              id="coa-code"
               value={form.code}
               onChange={(e) => setForm({ ...form, code: e.target.value })}
               className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white"
             />
+            <FormLabel required htmlFor="coa-name">{t("name")}</FormLabel>
             <input
-              placeholder={t("name")}
+              id="coa-name"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white"
             />
+            <FormLabel htmlFor="coa-parent">{t("parentAccount")}</FormLabel>
             <select
+              id="coa-parent"
               value={form.parentId}
               onChange={(e) => setForm({ ...form, parentId: e.target.value })}
               className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white"
@@ -285,10 +290,11 @@ export default function ChartOfAccountsPage() {
                 </option>
               ))}
             </select>
+            <FormLabel htmlFor="coa-opening">{t("openingBalance")}</FormLabel>
             <input
+              id="coa-opening"
               type="number"
               step="0.001"
-              placeholder={t("openingBalance")}
               value={form.openingBalance}
               onChange={(e) => setForm({ ...form, openingBalance: Number(e.target.value) })}
               className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white"
@@ -314,14 +320,16 @@ export default function ChartOfAccountsPage() {
                 <X className="w-5 h-5 text-slate-400" />
               </button>
             </div>
+            <FormLabel required htmlFor="coa-edit-code">{t("code")}</FormLabel>
             <input
-              placeholder={t("code")}
+              id="coa-edit-code"
               value={editForm.code}
               onChange={(e) => setEditForm({ ...editForm, code: e.target.value })}
               className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white"
             />
+            <FormLabel required htmlFor="coa-edit-name">{t("name")}</FormLabel>
             <input
-              placeholder={t("name")}
+              id="coa-edit-name"
               value={editForm.name}
               onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
               className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white"

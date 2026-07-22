@@ -50,7 +50,8 @@ export function PaymentGatewaysSettings() {
     const config: Record<string, string> = {};
     for (const k of gw.configKeys) {
       const val = gw.config[k.key];
-      config[k.key] = val === "••••••••" ? "" : String(val ?? "");
+      // Keep mask placeholder for secrets so empty save won't wipe keys (backend preserves blank/mask)
+      config[k.key] = val == null ? "" : String(val);
     }
     setDraft(config);
   };

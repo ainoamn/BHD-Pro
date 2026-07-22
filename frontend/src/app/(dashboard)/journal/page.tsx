@@ -9,6 +9,7 @@ import api from "@/lib/api";
 import { cn, formatMoney, formatDate } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
 import { PageHeader, EmptyState, LoadingSpinner, GlassCard } from "@/components/ui/page-shell";
+import { FormLabel, LineFieldLabel, LineItemsGrid } from "@/components/ui/form-field";
 
 interface Account {
   id: string;
@@ -349,16 +350,28 @@ export default function JournalPage() {
                   </button>
                 </div>
                 <div className="space-y-3">
+                  <LineItemsGrid
+                    headerColumns={[
+                      { key: "account", label: t("account"), className: "col-span-12 md:col-span-4" },
+                      { key: "desc", label: t("lineDescription"), className: "col-span-12 md:col-span-3" },
+                      { key: "debit", label: t("debit"), className: "col-span-5 md:col-span-2" },
+                      { key: "credit", label: t("credit"), className: "col-span-5 md:col-span-2" },
+                      { key: "act", label: "", className: "col-span-2 md:col-span-1" },
+                    ]}
+                  >
                   {lines.map((line, idx) => (
                     <div
                       key={idx}
                       className="rounded-xl border border-slate-800 bg-slate-900/40 p-3 space-y-2"
                     >
-                      <div className="grid grid-cols-12 gap-2 items-center">
+                      <div className="grid grid-cols-12 gap-2 items-end sm:items-center">
+                        <div className="col-span-12 md:col-span-4">
+                          <LineFieldLabel>{t("account")}</LineFieldLabel>
                         <select
+                          aria-label={t("account")}
                           value={line.accountId}
                           onChange={(e) => updateLine(idx, { accountId: e.target.value })}
-                          className="col-span-12 md:col-span-4 h-9 px-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
+                          className="w-full h-9 px-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
                         >
                           <option value="">{t("selectAccount")}</option>
                           {accounts.map((a) => (
@@ -367,15 +380,21 @@ export default function JournalPage() {
                             </option>
                           ))}
                         </select>
+                        </div>
+                        <div className="col-span-12 md:col-span-3">
+                          <LineFieldLabel>{t("lineDescription")}</LineFieldLabel>
                         <input
-                          placeholder={t("lineDescription")}
+                          aria-label={t("lineDescription")}
                           value={line.description}
                           onChange={(e) => updateLine(idx, { description: e.target.value })}
-                          className="col-span-12 md:col-span-3 h-9 px-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
+                          className="w-full h-9 px-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
                         />
+                        </div>
+                        <div className="col-span-5 md:col-span-2">
+                          <LineFieldLabel>{t("debit")}</LineFieldLabel>
                         <input
                           type="number"
-                          placeholder={t("debit")}
+                          aria-label={t("debit")}
                           value={line.debit || ""}
                           min={0}
                           step={0.001}
@@ -383,11 +402,14 @@ export default function JournalPage() {
                             const debit = parseFloat(e.target.value) || 0;
                             updateLine(idx, { debit, credit: debit > 0 ? 0 : line.credit });
                           }}
-                          className="col-span-5 md:col-span-2 h-9 px-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
+                          className="w-full h-9 px-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
                         />
+                        </div>
+                        <div className="col-span-5 md:col-span-2">
+                          <LineFieldLabel>{t("credit")}</LineFieldLabel>
                         <input
                           type="number"
-                          placeholder={t("credit")}
+                          aria-label={t("credit")}
                           value={line.credit || ""}
                           min={0}
                           step={0.001}
@@ -395,8 +417,9 @@ export default function JournalPage() {
                             const credit = parseFloat(e.target.value) || 0;
                             updateLine(idx, { credit, debit: credit > 0 ? 0 : line.debit });
                           }}
-                          className="col-span-5 md:col-span-2 h-9 px-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
+                          className="w-full h-9 px-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
                         />
+                        </div>
                         {lines.length > 2 && (
                           <button
                             type="button"
@@ -408,19 +431,26 @@ export default function JournalPage() {
                         )}
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        <div>
+                          <FormLabel className="text-xs">{tErp("costCenter")}</FormLabel>
                         <select
+                          aria-label={tErp("costCenter")}
                           value={line.costCenterId}
                           onChange={(e) => updateLine(idx, { costCenterId: e.target.value })}
-                          className="h-9 px-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
+                          className="w-full h-9 px-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
                         >
-                          <option value="">— {tErp("costCenter")}</option>
+                          <option value="">—</option>
                           {costCenters.map((c) => (
                             <option key={c.id} value={c.id}>
                               {c.code} — {c.name}
                             </option>
                           ))}
                         </select>
+                        </div>
+                        <div>
+                          <FormLabel className="text-xs">{tErp("projectsTitle")}</FormLabel>
                         <select
+                          aria-label={tErp("projectsTitle")}
                           value={line.projectId}
                           onChange={(e) => {
                             const projectId = e.target.value;
@@ -432,18 +462,20 @@ export default function JournalPage() {
                                 : {}),
                             });
                           }}
-                          className="h-9 px-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
+                          className="w-full h-9 px-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
                         >
-                          <option value="">— {t("project")}</option>
+                          <option value="">—</option>
                           {projects.map((p) => (
                             <option key={p.id} value={p.id}>
                               {p.code} — {p.name}
                             </option>
                           ))}
                         </select>
+                        </div>
                       </div>
                     </div>
                   ))}
+                  </LineItemsGrid>
                 </div>
               </div>
 

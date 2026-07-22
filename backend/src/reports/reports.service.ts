@@ -371,12 +371,19 @@ export class ReportsService {
     return 'over90';
   }
 
-  async aging(companyId: string, invoiceType: InvoiceType) {
+  async aging(companyId: string, invoiceType: InvoiceType | 'AR' | 'AP') {
     const base = this.notCancelled(companyId);
+    const typeFilter =
+      invoiceType === 'AR'
+        ? { in: ['SALES', 'CREDIT_NOTE'] as InvoiceType[] }
+        : invoiceType === 'AP'
+          ? { in: ['PURCHASE', 'DEBIT_NOTE'] as InvoiceType[] }
+          : invoiceType;
+
     const invoices = await this.prisma.invoice.findMany({
       where: {
         ...base,
-        type: invoiceType,
+        type: typeFilter,
         paymentStatus: { in: ['UNPAID', 'PARTIAL'] },
       },
       include: {
@@ -414,8 +421,11 @@ export class ReportsService {
     for (const inv of invoices) {
       const total = Number(inv.total);
       const paid = Number(inv.paidAmount || 0);
-      const balance = Math.max(0, total - paid);
-      if (balance <= 0) continue;
+      let balance = Math.max(0, total - paid);
+      if (inv.type === 'CREDIT_NOTE' || inv.type === 'DEBIT_NOTE') {
+        balance = -balance;
+      }
+      if (balance === 0) continue;
 
       const days = this.daysOverdue(inv.dueDate);
       const key = this.bucketKey(days);
@@ -455,11 +465,11 @@ export class ReportsService {
   }
 
   async arAging(companyId: string) {
-    return this.aging(companyId, 'SALES');
+    return this.aging(companyId, 'AR');
   }
 
   async apAging(companyId: string) {
-    return this.aging(companyId, 'PURCHASE');
+    return this.aging(companyId, 'AP');
   }
 
   async contactStatement(companyId: string, contactId: string) {

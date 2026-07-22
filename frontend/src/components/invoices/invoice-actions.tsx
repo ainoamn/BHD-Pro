@@ -2,13 +2,13 @@
 
 import { useTranslations } from "next-intl";
 import {
-  Printer,
-  Edit,
+  Eye,
+  Download,
   Send,
+  Edit,
   Ban,
   Trash2,
   Receipt,
-  Mail,
   Undo2,
   FileOutput,
 } from "lucide-react";
@@ -65,8 +65,9 @@ interface InvoiceActionsProps {
   paidAmount?: number;
   invoiceType?: string;
   onView?: () => void;
+  onDownload?: () => void;
+  onShare?: () => void;
   onEdit?: () => void;
-  onSend?: () => void;
   onMarkSent?: () => void;
   onMarkPaid?: () => void;
   onUnsend?: () => void;
@@ -99,7 +100,7 @@ function ActionBtn({
       disabled={disabled}
       title={label}
       className={cn(
-        "inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium whitespace-nowrap transition-colors disabled:opacity-40",
+        "inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap transition-colors disabled:opacity-40 shadow-sm",
         className
       )}
     >
@@ -109,14 +110,31 @@ function ActionBtn({
   );
 }
 
+/** Solid high-contrast styles — readable on dark dashboard backgrounds */
+const BTN = {
+  view: "bg-white text-slate-900 hover:bg-slate-100 border border-slate-200",
+  download: "bg-slate-100 text-slate-900 hover:bg-white border border-slate-300",
+  send: "bg-blue-600 text-white hover:bg-blue-500",
+  convert: "bg-emerald-600 text-white hover:bg-emerald-500",
+  receipt: "bg-teal-600 text-white hover:bg-teal-500",
+  edit: "bg-violet-600 text-white hover:bg-violet-500",
+  unsend: "bg-amber-500 text-white hover:bg-amber-400",
+  reverse: "bg-orange-600 text-white hover:bg-orange-500",
+  issue: "bg-indigo-600 text-white hover:bg-indigo-500",
+  paid: "bg-emerald-600 text-white hover:bg-emerald-500",
+  cancel: "bg-amber-700 text-white hover:bg-amber-600",
+  delete: "bg-rose-600 text-white hover:bg-rose-500",
+} as const;
+
 export function InvoiceActions({
   status,
   paymentStatus,
   paidAmount,
   invoiceType,
   onView,
+  onDownload,
+  onShare,
   onEdit,
-  onSend,
   onMarkSent,
   onMarkPaid,
   onUnsend,
@@ -129,22 +147,43 @@ export function InvoiceActions({
 }: InvoiceActionsProps) {
   const t = useTranslations("invoices");
   const tCommon = useTranslations("common");
+  const canShare = status !== "CANCELLED";
 
   return (
-    <div className="flex flex-wrap gap-1 justify-end max-w-md">
-      <ActionBtn
-        onClick={onView}
-        label={t("viewPrint")}
-        icon={Printer}
-        className="bg-slate-800 text-slate-200 hover:bg-slate-700"
-        disabled={disabled}
-      />
+    <div className="flex flex-wrap gap-1.5 justify-end max-w-xl">
+      {onView && (
+        <ActionBtn
+          onClick={onView}
+          label={t("view")}
+          icon={Eye}
+          className={BTN.view}
+          disabled={disabled}
+        />
+      )}
+      {onDownload && (
+        <ActionBtn
+          onClick={onDownload}
+          label={t("download")}
+          icon={Download}
+          className={BTN.download}
+          disabled={disabled}
+        />
+      )}
+      {onShare && canShare && (
+        <ActionBtn
+          onClick={onShare}
+          label={t("sendDocument")}
+          icon={Send}
+          className={BTN.send}
+          disabled={disabled}
+        />
+      )}
       {invoiceType === "QUOTATION" && status !== "CANCELLED" && onConvertToInvoice && (
         <ActionBtn
           onClick={onConvertToInvoice}
           label={t("convertQuotation")}
           icon={FileOutput}
-          className="bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30"
+          className={BTN.convert}
           disabled={disabled}
         />
       )}
@@ -153,7 +192,7 @@ export function InvoiceActions({
           onClick={onReceipt}
           label={t("receipt")}
           icon={Receipt}
-          className="bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30"
+          className={BTN.receipt}
           disabled={disabled}
         />
       )}
@@ -162,7 +201,7 @@ export function InvoiceActions({
           onClick={onEdit}
           label={tCommon("edit")}
           icon={Edit}
-          className="bg-slate-800 text-slate-200 hover:bg-slate-700"
+          className={BTN.edit}
           disabled={disabled}
         />
       )}
@@ -171,7 +210,7 @@ export function InvoiceActions({
           onClick={onUnsend}
           label={t("undoSend")}
           icon={Undo2}
-          className="bg-amber-600/20 text-amber-400 hover:bg-amber-600/30"
+          className={BTN.unsend}
           disabled={disabled}
         />
       )}
@@ -180,34 +219,25 @@ export function InvoiceActions({
           onClick={onReversePayment}
           label={t("reversePayment")}
           icon={Undo2}
-          className="bg-rose-600/20 text-rose-400 hover:bg-rose-600/30"
+          className={BTN.reverse}
           disabled={disabled}
         />
       )}
       {canSendInvoice(status) && onMarkSent && (
         <ActionBtn
           onClick={onMarkSent}
-          label={t("markSent")}
+          label={invoiceType === "QUOTATION" ? t("sendQuotation") : t("issueInvoice")}
           icon={Send}
-          className="bg-blue-600/20 text-blue-400 hover:bg-blue-600/30"
+          className={BTN.issue}
           disabled={disabled}
         />
       )}
-      {canSendInvoice(status) && onSend && (
-        <ActionBtn
-          onClick={onSend}
-          label={t("sendInvoice")}
-          icon={Mail}
-          className="bg-blue-600/20 text-blue-400 hover:bg-blue-600/30"
-          disabled={disabled}
-        />
-      )}
-      {canMarkPaid(status, paymentStatus) && (
+      {canMarkPaid(status, paymentStatus) && invoiceType !== "QUOTATION" && (
         <ActionBtn
           onClick={onMarkPaid}
           label={t("recordReceipt")}
           icon={Receipt}
-          className="bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30"
+          className={BTN.paid}
           disabled={disabled}
         />
       )}
@@ -216,7 +246,7 @@ export function InvoiceActions({
           onClick={onCancel}
           label={t("cancelInvoice")}
           icon={Ban}
-          className="bg-amber-600/20 text-amber-400 hover:bg-amber-600/30"
+          className={BTN.cancel}
           disabled={disabled}
         />
       )}
@@ -225,7 +255,7 @@ export function InvoiceActions({
           onClick={onDelete}
           label={tCommon("delete")}
           icon={Trash2}
-          className="bg-rose-600/20 text-rose-400 hover:bg-rose-600/30"
+          className={BTN.delete}
           disabled={disabled}
         />
       )}

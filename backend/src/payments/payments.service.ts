@@ -129,10 +129,8 @@ export class PaymentsService {
     const frontendOrigin = this.getOrigin();
     const gwKey = opts.gatewaySlug.toLowerCase();
     let successUrl = `${apiOrigin}/api/payments/checkout/complete?invoice=${encodeURIComponent(number)}&gateway=${gwKey}`;
+    // Stripe substitutes this placeholder on redirect; Thawani does not — we resolve session from stored externalPaymentId
     if (opts.gatewaySlug === PaymentGatewaySlug.STRIPE) {
-      successUrl += '&session_id={CHECKOUT_SESSION_ID}';
-    }
-    if (opts.gatewaySlug === PaymentGatewaySlug.THAWANI) {
       successUrl += '&session_id={CHECKOUT_SESSION_ID}';
     }
 
@@ -287,9 +285,20 @@ export class PaymentsService {
       throw new BadRequestException('Gateway does not support return verification');
     }
 
+    // Thawani (and similar) may return without session_id — use the session stored at checkout
+    const returnParams: Record<string, string> = {
+      ...query,
+      session_id:
+        query.session_id ||
+        query.sessionId ||
+        billingInvoice.externalPaymentId ||
+        '',
+      token: query.token || '',
+    };
+
     const verified = await adapter.verifyReturn(
       this.configOf(gateway),
-      query,
+      returnParams,
       gateway.isTestMode,
     );
 
@@ -303,7 +312,11 @@ export class PaymentsService {
 
     // Bind return session to the billing invoice created at checkout — prevent session swap
     const returnedSession =
-      verified.externalId || query.session_id || query.token || undefined;
+      verified.externalId ||
+      returnParams.session_id ||
+      query.token ||
+      billingInvoice.externalPaymentId ||
+      undefined;
     if (ONLINE_GATEWAYS.includes(gatewaySlug)) {
       if (!billingInvoice.externalPaymentId) {
         throw new BadRequestException('Checkout session missing — recreate payment');
