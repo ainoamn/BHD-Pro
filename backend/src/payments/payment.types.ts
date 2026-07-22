@@ -34,7 +34,7 @@ export type PaymentAdapter = {
     config: GatewayConfig,
     params: Record<string, string>,
     isTestMode: boolean,
-  ): Promise<{ paid: boolean; externalId?: string }>;
+  ): Promise<{ paid: boolean; externalId?: string; invoiceNumber?: string }>;
   handleWebhook?(
     config: GatewayConfig,
     rawBody: string,

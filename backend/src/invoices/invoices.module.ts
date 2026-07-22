@@ -7,9 +7,11 @@ import { ScheduledInvoicesService } from './scheduled-invoices.service';
 import { ScheduledInvoicesController } from './scheduled-invoices.controller';
 import { InvoicesSchedulerService } from './invoices-scheduler.service';
 import { JournalModule } from '../journal/journal.module';
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
+import { PeriodsModule } from '../periods/periods.module';
 
 @Module({
-  imports: [JournalModule],
+  imports: [JournalModule, SubscriptionsModule, PeriodsModule],
   controllers: [
     InvoicesController,
     PurchaseOrdersController,

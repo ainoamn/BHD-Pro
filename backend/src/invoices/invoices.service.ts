@@ -11,6 +11,8 @@ import { InvoiceStatus, PaymentStatus, InvoiceType, PaymentMethod } from '@prism
 import { RecordPaymentDto } from './dto/record-payment.dto';
 import { BatchRecordPaymentDto } from './dto/batch-record-payment.dto';
 import { GlPostingService } from '../journal/gl-posting.service';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
+import { PeriodsService } from '../periods/periods.service';
 
 const OMAN_VAT_RATE = 5;
 
@@ -19,6 +21,8 @@ export class InvoicesService {
   constructor(
     private prisma: PrismaService,
     private glPosting: GlPostingService,
+    private subscriptions: SubscriptionsService,
+    private periods: PeriodsService,
   ) {}
 
   private calcLine(item: { quantity: number; unitPrice: number; discount?: number; taxRate?: number }) {
@@ -118,6 +122,9 @@ export class InvoicesService {
   }
 
   async create(companyId: string, userId: string, dto: CreateInvoiceDto) {
+    await this.subscriptions.assertCanCreateInvoice(companyId);
+    await this.periods.assertOpen(companyId, dto.date || new Date());
+
     const contact = await this.prisma.contact.findFirst({
       where: { id: dto.contactId, companyId },
     });
@@ -240,6 +247,7 @@ export class InvoicesService {
       );
     }
 
+    await this.periods.assertOpen(companyId, dto.date || existing.date);
     await this.validateAnalytics(companyId, dto.costCenterId, dto.projectId);
 
     if (dto.items) {
@@ -429,6 +437,8 @@ export class InvoicesService {
       notes?: string;
     },
   ) {
+    await this.periods.assertOpen(companyId, meta.date || new Date());
+
     if (invoice.status === InvoiceStatus.CANCELLED) {
       throw new BadRequestException(`Cannot record payment on cancelled invoice ${invoice.number}`);
     }

@@ -1,11 +1,15 @@
 import { Injectable, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto, UpdateUserDto } from './dto/user.dto';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private subscriptions: SubscriptionsService,
+  ) {}
 
   async findAll(companyId: string) {
     return this.prisma.user.findMany({
@@ -24,6 +28,7 @@ export class UsersService {
   }
 
   async create(companyId: string, dto: CreateUserDto) {
+    await this.subscriptions.assertCanCreateUser(companyId);
     const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (existing) throw new ConflictException('Email already exists');
 

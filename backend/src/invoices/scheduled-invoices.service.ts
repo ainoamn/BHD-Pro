@@ -215,12 +215,17 @@ export class ScheduledInvoicesService {
     return invoice;
   }
 
-  async processDueSchedules() {
+  /** Cron: all companies. Manual API: pass companyId to scope to one tenant. */
+  async processDueSchedules(companyId?: string) {
     const endOfToday = new Date();
     endOfToday.setHours(23, 59, 59, 999);
 
     const due = await this.prisma.scheduledInvoice.findMany({
-      where: { isActive: true, nextDate: { lte: endOfToday } },
+      where: {
+        isActive: true,
+        nextDate: { lte: endOfToday },
+        ...(companyId ? { companyId } : {}),
+      },
       select: { id: true, companyId: true, createdById: true, name: true },
     });
 

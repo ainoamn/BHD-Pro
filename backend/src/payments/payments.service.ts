@@ -293,12 +293,33 @@ export class PaymentsService {
       gateway.isTestMode,
     );
 
-    if (verified.paid) {
-      await this.fulfillBillingInvoice(billingInvoice.id, verified.externalId);
+    if (!verified.paid) {
+      return {
+        paid: false,
+        invoiceNumber,
+        purpose: billingInvoice.purpose,
+      };
     }
 
+    // Bind return session to the billing invoice created at checkout — prevent session swap
+    const returnedSession =
+      verified.externalId || query.session_id || query.token || undefined;
+    if (ONLINE_GATEWAYS.includes(gatewaySlug)) {
+      if (!billingInvoice.externalPaymentId) {
+        throw new BadRequestException('Checkout session missing — recreate payment');
+      }
+      if (!returnedSession || returnedSession !== billingInvoice.externalPaymentId) {
+        throw new BadRequestException('Payment session does not match this invoice');
+      }
+    }
+    if (verified.invoiceNumber && verified.invoiceNumber !== billingInvoice.number) {
+      throw new BadRequestException('Payment metadata does not match this invoice');
+    }
+
+    await this.fulfillBillingInvoice(billingInvoice.id, returnedSession);
+
     return {
-      paid: verified.paid,
+      paid: true,
       invoiceNumber,
       purpose: billingInvoice.purpose,
     };
@@ -350,56 +371,73 @@ export class PaymentsService {
     if (!billingInvoice) return;
     if (billingInvoice.status === BillingInvoiceStatus.PAID) return;
 
-    await this.prisma.billingInvoice.update({
-      where: { id: billingInvoiceId },
-      data: {
-        status: BillingInvoiceStatus.PAID,
-        paidAt: new Date(),
-        ...(externalId && { externalPaymentId: externalId }),
-      },
-    });
-
     const metadata = (billingInvoice.metadataJson as Record<string, string>) || {};
 
-    if (billingInvoice.purpose === BillingPurpose.SUBSCRIPTION) {
-      const plan = metadata.plan as Plan;
-      const billing = metadata.billing as 'monthly' | 'yearly';
-      const expiry = new Date();
-      if (billing === 'yearly') expiry.setFullYear(expiry.getFullYear() + 1);
-      else expiry.setMonth(expiry.getMonth() + 1);
-
-      await this.prisma.company.update({
-        where: { id: billingInvoice.companyId },
-        data: { plan, planExpiry: expiry },
+    await this.prisma.$transaction(async (tx) => {
+      const locked = await tx.billingInvoice.findUnique({
+        where: { id: billingInvoiceId },
       });
-    }
+      if (!locked || locked.status === BillingInvoiceStatus.PAID) return;
 
-    if (billingInvoice.purpose === BillingPurpose.INVOICE_COLLECTION && metadata.invoiceId) {
-      const salesInvoice = await this.prisma.invoice.findUnique({
-        where: { id: metadata.invoiceId },
+      await tx.billingInvoice.update({
+        where: { id: billingInvoiceId },
+        data: {
+          status: BillingInvoiceStatus.PAID,
+          paidAt: new Date(),
+          ...(externalId && { externalPaymentId: externalId }),
+        },
       });
-      if (salesInvoice) {
+
+      if (locked.purpose === BillingPurpose.SUBSCRIPTION) {
+        const plan = metadata.plan as Plan;
+        const billing = metadata.billing as 'monthly' | 'yearly';
+        const expiry = new Date();
+        if (billing === 'yearly') expiry.setFullYear(expiry.getFullYear() + 1);
+        else expiry.setMonth(expiry.getMonth() + 1);
+
+        await tx.company.update({
+          where: { id: locked.companyId },
+          data: { plan, planExpiry: expiry },
+        });
+      }
+
+      if (locked.purpose === BillingPurpose.INVOICE_COLLECTION && metadata.invoiceId) {
+        const salesInvoice = await tx.invoice.findUnique({
+          where: { id: metadata.invoiceId },
+        });
+        if (!salesInvoice) return;
+
         const total = Number(salesInvoice.total);
-        await this.prisma.payment.create({
+        const alreadyPaid = Number(salesInvoice.paidAmount || 0);
+        const remaining = Number((total - alreadyPaid).toFixed(3));
+        if (remaining <= 0) return;
+
+        const payAmount = Math.min(Number(locked.amount), remaining);
+        const newPaid = Number((alreadyPaid + payAmount).toFixed(3));
+        const paymentStatus =
+          newPaid >= total - 0.001 ? PaymentStatus.PAID : PaymentStatus.PARTIAL;
+
+        await tx.payment.create({
           data: {
             invoiceId: salesInvoice.id,
-            amount: billingInvoice.amount,
+            amount: payAmount,
             method: PaymentMethod.ONLINE,
             date: new Date(),
-            reference: billingInvoice.number,
-            notes: `Online payment via ${billingInvoice.gatewaySlug}`,
+            reference: locked.number,
+            notes: `Online payment via ${locked.gatewaySlug}`,
           },
         });
-        await this.prisma.invoice.update({
+
+        await tx.invoice.update({
           where: { id: salesInvoice.id },
           data: {
-            paidAmount: total,
-            paymentStatus: PaymentStatus.PAID,
-            status: InvoiceStatus.PAID,
+            paidAmount: newPaid,
+            paymentStatus,
+            status: paymentStatus === PaymentStatus.PAID ? InvoiceStatus.PAID : salesInvoice.status,
           },
         });
       }
-    }
+    });
   }
 
   async getBillingInvoice(companyId: string | null, number: string) {

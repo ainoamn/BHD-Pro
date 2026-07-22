@@ -2,7 +2,6 @@
 
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
-import { AIChatWidget } from "@/components/dashboard/ai-chat";
 import { CommandPalette } from "@/components/dashboard/command-palette";
 import { useUIStore } from "@/store/ui";
 import { useAuthStore } from "@/store/auth";
@@ -26,16 +25,12 @@ export default function DashboardLayout({
     setHydrated(true);
   }, []);
 
-  // Restore session from httpOnly cookies when local user cache is missing/stale
+  // Always validate session against cookies (even if local cache says authenticated)
   useEffect(() => {
     if (!hydrated) return;
     let cancelled = false;
     (async () => {
-      const { isAuthenticated, setLoading } = useAuthStore.getState();
-      if (isAuthenticated) {
-        setLoading(false);
-        return;
-      }
+      const { setLoading } = useAuthStore.getState();
       setLoading(true);
       await api.restoreSession();
       if (!cancelled) setLoading(false);
@@ -109,7 +104,6 @@ export default function DashboardLayout({
         <Topbar />
         <main className="p-4 sm:p-6">{children}</main>
       </div>
-      <AIChatWidget />
       <CommandPalette />
     </div>
   );

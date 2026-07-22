@@ -347,7 +347,22 @@
     "saved": "Saved successfully",
     "deleted": "Deleted",
     "error": "An error occurred",
-    "confirmDelete": "Are you sure you want to delete?"
+    "confirmDelete": "Are you sure you want to delete?",
+    "darkMode": "Dark mode",
+    "lightMode": "Light mode"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "empty": "No notifications right now",
+    "markAllRead": "Mark all as read",
+    "lowStockTitle": "Low stock",
+    "lowStockMsg": "{count} products below minimum",
+    "overdueSalesTitle": "Overdue sales invoices",
+    "overdueSalesMsg": "{count} invoices past due date",
+    "pendingCollectionTitle": "Pending collection",
+    "pendingCollectionMsg": "{count} invoices awaiting collection",
+    "overduePurchasesTitle": "Overdue purchase invoices",
+    "overduePurchasesMsg": "{count} purchase invoices overdue"
   },
   "status": {
     "paid": "Paid",

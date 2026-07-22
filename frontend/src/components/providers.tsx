@@ -57,10 +57,19 @@ export function Providers({ children }: { children: React.ReactNode }) {
       messages={messagesMap[safeLocale]}
       timeZone="Asia/Muscat"
     >
-      <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+      <ThemeProvider
+        attribute="class"
+        defaultTheme="dark"
+        enableSystem={false}
+        storageKey="bhd-theme"
+        disableTransitionOnChange
+        themes={["dark", "light"]}
+      >
         <QueryClientProvider client={queryClient}>
           {children}
-          <ReactQueryDevtools initialIsOpen={false} />
+          {process.env.NODE_ENV === "development" ? (
+            <ReactQueryDevtools initialIsOpen={false} buttonPosition="bottom-left" />
+          ) : null}
         </QueryClientProvider>
       </ThemeProvider>
     </NextIntlClientProvider>

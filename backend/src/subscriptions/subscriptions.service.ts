@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Plan } from '@prisma/client';
 
@@ -86,6 +86,51 @@ export class SubscriptionsService {
         usersLimit: planDetails.usersLimit,
       },
     };
+  }
+
+  async assertSubscriptionActive(companyId: string) {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { plan: true, planExpiry: true },
+    });
+    if (!company) throw new NotFoundException('Company not found');
+    if (company.planExpiry && company.planExpiry.getTime() < Date.now()) {
+      throw new ForbiddenException(
+        'Subscription expired. Renew from the Subscription page to continue.',
+      );
+    }
+    return company;
+  }
+
+  async assertCanCreateInvoice(companyId: string) {
+    const company = await this.assertSubscriptionActive(companyId);
+    const limit = PLAN_DETAILS[company.plan].invoicesLimit;
+    if (limit < 0) return;
+
+    const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const count = await this.prisma.invoice.count({
+      where: { companyId, createdAt: { gte: startOfMonth } },
+    });
+    if (count >= limit) {
+      throw new ForbiddenException(
+        `Monthly invoice limit reached (${limit}). Upgrade your plan to continue.`,
+      );
+    }
+  }
+
+  async assertCanCreateUser(companyId: string) {
+    const company = await this.assertSubscriptionActive(companyId);
+    const limit = PLAN_DETAILS[company.plan].usersLimit;
+    if (limit < 0) return;
+
+    const count = await this.prisma.user.count({
+      where: { companyId, isActive: true },
+    });
+    if (count >= limit) {
+      throw new ForbiddenException(
+        `User limit reached (${limit}). Upgrade your plan to add more users.`,
+      );
+    }
   }
 
   /**

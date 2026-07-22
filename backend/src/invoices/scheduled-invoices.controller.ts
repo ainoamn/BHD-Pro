@@ -41,9 +41,11 @@ export class ScheduledInvoicesController {
   }
 
   @Post('process-due')
-  @ApiOperation({ summary: 'Generate all due scheduled invoices (manual / cron)' })
-  processDue() {
-    return this.service.processDueSchedules();
+  @ApiOperation({
+    summary: 'Generate due scheduled invoices for the current company only',
+  })
+  processDue(@CurrentUser() user: TokenPayload) {
+    return this.service.processDueSchedules(user.companyId);
   }
 
   @Put(':id')

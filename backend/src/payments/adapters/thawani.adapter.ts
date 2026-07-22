@@ -108,11 +108,20 @@ export const thawaniAdapter: PaymentAdapter = {
     if (!resp.ok) return { paid: false };
 
     const body = (await resp.json()) as {
-      data?: { payment_status?: string };
+      data?: {
+        payment_status?: string;
+        client_reference_id?: string;
+        metadata?: Record<string, string>;
+      };
       payment_status?: string;
     };
-    const status = body.data?.payment_status ?? body.payment_status;
-    return { paid: status === 'paid', externalId: sessionId };
+    const data = body.data;
+    const status = data?.payment_status ?? body.payment_status;
+    return {
+      paid: status === 'paid',
+      externalId: sessionId,
+      invoiceNumber: data?.client_reference_id || data?.metadata?.invoice_number,
+    };
   },
 
   async handleWebhook(config, rawBody, headers) {

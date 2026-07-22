@@ -9,10 +9,14 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { AdjustStockDto, StockAdjustMode } from './dto/adjust-stock.dto';
 import { MovementType } from '@prisma/client';
+import { PeriodsService } from '../periods/periods.service';
 
 @Injectable()
 export class ProductsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private periods: PeriodsService,
+  ) {}
 
   async findAll(companyId: string) {
     return this.prisma.product.findMany({
@@ -25,6 +29,16 @@ export class ProductsService {
   async getStats(companyId: string) {
     const products = await this.prisma.product.findMany({
       where: { companyId, isActive: true },
+      select: {
+        id: true,
+        name: true,
+        sku: true,
+        quantity: true,
+        minQuantity: true,
+        costPrice: true,
+        isTracked: true,
+        unit: true,
+      },
     });
 
     const lowStockItems = products.filter(
@@ -112,6 +126,8 @@ export class ProductsService {
   }
 
   async adjustStock(companyId: string, id: string, dto: AdjustStockDto) {
+    await this.periods.assertOpen(companyId, new Date());
+
     const product = await this.findOne(companyId, id);
     if (!product.isTracked) {
       throw new BadRequestException('Product is not stock-tracked');

@@ -32,6 +32,7 @@ import { CustomFieldsModule } from './custom-fields/custom-fields.module';
 import { ExchangeRatesModule } from './exchange-rates/exchange-rates.module';
 import { FxRevaluationModule } from './fx-revaluation/fx-revaluation.module';
 import { HealthController } from './health.controller';
+import { DenyViewerMutationsGuard } from './common/guards/deny-viewer-mutations.guard';
 
 @Module({
   imports: [
@@ -77,6 +78,10 @@ import { HealthController } from './health.controller';
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: DenyViewerMutationsGuard,
     },
   ],
 })

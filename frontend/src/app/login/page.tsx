@@ -12,8 +12,8 @@ export default function LoginPage() {
   const t = useTranslations("auth");
   const tApp = useTranslations("app");
   const router = useRouter();
-  const [email, setEmail] = useState("admin@bhd.om");
-  const [password, setPassword] = useState("Admin123!");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [totpCode, setTotpCode] = useState("");
   const [tempToken, setTempToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -139,7 +139,9 @@ export default function LoginPage() {
               {t("register")}
             </Link>
           </p>
-          <p className="text-center text-xs text-slate-500">{t("demoHint")}</p>
+          {process.env.NODE_ENV === "development" && (
+            <p className="text-center text-xs text-slate-500">{t("demoHint")}</p>
+          )}
         </form>
       </div>
     </div>

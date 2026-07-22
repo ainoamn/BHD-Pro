@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { Search, Bell, Moon, Sun, Building2, ChevronDown, Globe, LogOut, Menu } from "lucide-react";
+import { Search, Moon, Sun, Building2, Globe, LogOut, Menu } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -10,17 +10,20 @@ import { useUIStore } from "@/store/ui";
 import { useAuthStore } from "@/store/auth";
 import { useLocaleStore } from "@/store/locale";
 import api from "@/lib/api";
+import { NotificationsButton } from "@/components/layout/notifications-button";
 
 export function Topbar() {
   const t = useTranslations("common");
   const tAuth = useTranslations("auth");
-  const { theme, setTheme } = useTheme();
+  const { resolvedTheme, setTheme } = useTheme();
   const { setCommandPaletteOpen, toggleSidebar } = useUIStore();
   const { company, logout } = useAuthStore();
   const { locale, setLocale } = useLocaleStore();
   const router = useRouter();
   const [searchFocused, setSearchFocused] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
+
+  const isDark = resolvedTheme !== "light";
 
   const handleLogout = async () => {
     try {
@@ -65,9 +68,9 @@ export function Topbar() {
       </div>
 
       <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-        {/* Language Switcher */}
         <div className="relative">
           <button
+            type="button"
             onClick={() => setLangOpen(!langOpen)}
             className="flex items-center gap-1.5 h-9 px-3 rounded-lg bg-slate-800/50 border border-slate-700/50 text-slate-400 hover:text-white hover:bg-slate-700/50 transition-all"
           >
@@ -77,14 +80,28 @@ export function Topbar() {
           {langOpen && (
             <div className="absolute top-full mt-1 left-0 bg-slate-900 border border-slate-700 rounded-lg shadow-xl overflow-hidden min-w-[140px] z-50">
               <button
-                onClick={() => { setLocale("ar"); setLangOpen(false); }}
-                className={cn("w-full px-4 py-2 text-sm text-right hover:bg-slate-800", locale === "ar" && "text-emerald-400 bg-emerald-500/10")}
+                type="button"
+                onClick={() => {
+                  setLocale("ar");
+                  setLangOpen(false);
+                }}
+                className={cn(
+                  "w-full px-4 py-2 text-sm text-right hover:bg-slate-800",
+                  locale === "ar" && "text-emerald-400 bg-emerald-500/10"
+                )}
               >
                 {t("arabic")}
               </button>
               <button
-                onClick={() => { setLocale("en"); setLangOpen(false); }}
-                className={cn("w-full px-4 py-2 text-sm text-left hover:bg-slate-800", locale === "en" && "text-emerald-400 bg-emerald-500/10")}
+                type="button"
+                onClick={() => {
+                  setLocale("en");
+                  setLangOpen(false);
+                }}
+                className={cn(
+                  "w-full px-4 py-2 text-sm text-left hover:bg-slate-800",
+                  locale === "en" && "text-emerald-400 bg-emerald-500/10"
+                )}
               >
                 {t("english")}
               </button>
@@ -93,24 +110,24 @@ export function Topbar() {
         </div>
 
         <button
-          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+          type="button"
+          onClick={() => setTheme(isDark ? "light" : "dark")}
+          aria-label={isDark ? t("lightMode") : t("darkMode")}
+          title={isDark ? t("lightMode") : t("darkMode")}
           className="w-9 h-9 flex items-center justify-center rounded-lg bg-slate-800/50 border border-slate-700/50 text-slate-400 hover:text-white hover:bg-slate-700/50 transition-all"
         >
-          {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
         </button>
 
-        <button className="relative w-9 h-9 flex items-center justify-center rounded-lg bg-slate-800/50 border border-slate-700/50 text-slate-400 hover:text-white hover:bg-slate-700/50 transition-all">
-          <Bell className="w-4 h-4" />
-          <span className="absolute top-1.5 left-1.5 w-2 h-2 bg-rose-500 rounded-full animate-pulse" />
-        </button>
+        <NotificationsButton />
 
-        <button className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-slate-800/50 border border-slate-700/50 rounded-lg hover:bg-slate-700/50 transition-all max-w-[140px] lg:max-w-none">
+        <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-slate-800/50 border border-slate-700/50 rounded-lg max-w-[140px] lg:max-w-none">
           <Building2 className="w-4 h-4 text-emerald-400 shrink-0" />
           <span className="text-sm text-white font-medium truncate">{company?.name || "—"}</span>
-          <ChevronDown className="w-3 h-3 text-slate-500 shrink-0" />
-        </button>
+        </div>
 
         <button
+          type="button"
           onClick={handleLogout}
           title={tAuth("logout")}
           className="w-9 h-9 flex items-center justify-center rounded-lg bg-slate-800/50 border border-slate-700/50 text-slate-400 hover:text-rose-400 hover:bg-slate-700/50 transition-all"

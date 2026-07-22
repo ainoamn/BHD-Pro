@@ -347,7 +347,22 @@
     "saved": "تم الحفظ بنجاح",
     "deleted": "تم الحذف",
     "error": "حدث خطأ",
-    "confirmDelete": "هل أنت متأكد من الحذف؟"
+    "confirmDelete": "هل أنت متأكد من الحذف؟",
+    "darkMode": "الوضع الداكن",
+    "lightMode": "الوضع الفاتح"
+  },
+  "notifications": {
+    "title": "التنبيهات",
+    "empty": "لا توجد تنبيهات حالياً",
+    "markAllRead": "تعليم الكل كمقروء",
+    "lowStockTitle": "مخزون منخفض",
+    "lowStockMsg": "{count} منتج تحت الحد الأدنى",
+    "overdueSalesTitle": "فواتير مبيعات متأخرة",
+    "overdueSalesMsg": "{count} فاتورة تجاوزت تاريخ الاستحقاق",
+    "pendingCollectionTitle": "تحصيل معلّق",
+    "pendingCollectionMsg": "{count} فاتورة بانتظار التحصيل",
+    "overduePurchasesTitle": "فواتير مشتريات متأخرة",
+    "overduePurchasesMsg": "{count} فاتورة مشتريات متأخرة"
   },
   "status": {
     "paid": "مدفوع",

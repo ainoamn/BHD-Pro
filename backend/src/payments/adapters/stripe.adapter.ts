@@ -58,8 +58,16 @@ export const stripeAdapter: PaymentAdapter = {
     });
     if (!resp.ok) return { paid: false };
 
-    const body = (await resp.json()) as { payment_status?: string; id?: string };
-    return { paid: body.payment_status === 'paid', externalId: body.id };
+    const body = (await resp.json()) as {
+      payment_status?: string;
+      id?: string;
+      metadata?: Record<string, string>;
+    };
+    return {
+      paid: body.payment_status === 'paid',
+      externalId: body.id,
+      invoiceNumber: body.metadata?.invoice_number,
+    };
   },
 
   async handleWebhook(config, rawBody, headers) {

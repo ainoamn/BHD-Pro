@@ -7,6 +7,11 @@
   --foreground: #f8fafc;
 }
 
+.light {
+  --background: #f1f5f9;
+  --foreground: #0f172a;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -30,9 +35,17 @@ body {
   background: #0f172a;
 }
 
+.light ::-webkit-scrollbar-track {
+  background: #e2e8f0;
+}
+
 ::-webkit-scrollbar-thumb {
   background: #334155;
   border-radius: 4px;
+}
+
+.light ::-webkit-scrollbar-thumb {
+  background: #94a3b8;
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -42,6 +55,10 @@ body {
 @layer utilities {
   .glass {
     @apply bg-slate-900/60 backdrop-blur-xl border border-slate-800/50;
+  }
+
+  .light .glass {
+    @apply bg-white/90 border-slate-200;
   }
 }
 
