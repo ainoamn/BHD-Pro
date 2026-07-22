@@ -17,7 +17,7 @@ import { UpdateInvoiceDto } from './dto/update-invoice.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
-import { InvoiceStatus, InvoiceType } from '@prisma/client';
+import { InvoiceStatus, InvoiceType, PaymentStatus } from '@prisma/client';
 import { RecordPaymentDto } from './dto/record-payment.dto';
 import { BatchRecordPaymentDto } from './dto/batch-record-payment.dto';
 
@@ -32,10 +32,16 @@ export class InvoicesController {
   @ApiOperation({ summary: 'List all invoices for company' })
   @ApiQuery({ name: 'isCash', required: false, type: Boolean })
   @ApiQuery({ name: 'type', required: false, enum: InvoiceType })
+  @ApiQuery({ name: 'status', required: false, enum: InvoiceStatus })
+  @ApiQuery({ name: 'paymentStatus', required: false, enum: PaymentStatus })
+  @ApiQuery({ name: 'q', required: false, description: 'Search number or contact name' })
   findAll(
     @CurrentUser() user: TokenPayload,
     @Query('isCash') isCash?: string,
     @Query('type') type?: InvoiceType,
+    @Query('status') status?: InvoiceStatus,
+    @Query('paymentStatus') paymentStatus?: PaymentStatus,
+    @Query('q') q?: string,
   ) {
     const cashFilter =
       isCash === 'true' || isCash === '1'
@@ -46,6 +52,9 @@ export class InvoicesController {
     return this.invoicesService.findAll(user.companyId, {
       isCash: cashFilter,
       type,
+      status,
+      paymentStatus,
+      q,
     });
   }
 

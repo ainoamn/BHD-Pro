@@ -234,11 +234,20 @@ class ApiClient {
   }
 
   // Invoices
-  getInvoices(params?: { isCash?: boolean; type?: string }) {
+  getInvoices(params?: {
+    isCash?: boolean;
+    type?: string;
+    status?: string;
+    paymentStatus?: string;
+    q?: string;
+  }) {
     return this.get('/invoices', {
       params: {
         ...(params?.isCash != null ? { isCash: String(params.isCash) } : {}),
         ...(params?.type ? { type: params.type } : {}),
+        ...(params?.status ? { status: params.status } : {}),
+        ...(params?.paymentStatus ? { paymentStatus: params.paymentStatus } : {}),
+        ...(params?.q ? { q: params.q } : {}),
       },
     });
   }

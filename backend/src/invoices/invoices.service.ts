@@ -63,13 +63,31 @@ export class InvoicesService {
 
   async findAll(
     companyId: string,
-    filters?: { isCash?: boolean; type?: InvoiceType },
+    filters?: {
+      isCash?: boolean;
+      type?: InvoiceType;
+      status?: InvoiceStatus;
+      paymentStatus?: PaymentStatus;
+      q?: string;
+    },
   ) {
+    const q = filters?.q?.trim();
     return this.prisma.invoice.findMany({
       where: {
         companyId,
         ...(filters?.isCash != null ? { isCash: filters.isCash } : {}),
         ...(filters?.type ? { type: filters.type } : {}),
+        ...(filters?.status ? { status: filters.status } : {}),
+        ...(filters?.paymentStatus ? { paymentStatus: filters.paymentStatus } : {}),
+        ...(q
+          ? {
+              OR: [
+                { number: { contains: q, mode: 'insensitive' as const } },
+                { contact: { name: { contains: q, mode: 'insensitive' as const } } },
+                { contact: { nameEn: { contains: q, mode: 'insensitive' as const } } },
+              ],
+            }
+          : {}),
       },
       include: {
         contact: { select: { id: true, name: true, nameEn: true, email: true } },

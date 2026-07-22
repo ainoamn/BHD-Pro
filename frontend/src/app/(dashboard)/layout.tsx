@@ -70,7 +70,7 @@ export default function DashboardLayout({
 
   if (!hydrated || isLoading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+      <div className="min-h-screen bg-app flex items-center justify-center">
         <div className="animate-spin w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full" />
       </div>
     );
@@ -78,14 +78,14 @@ export default function DashboardLayout({
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+      <div className="min-h-screen bg-app flex items-center justify-center">
         <div className="animate-spin w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-950">
+    <div className="min-h-screen bg-app">
       {sidebarOpen && (
         <button
           type="button"

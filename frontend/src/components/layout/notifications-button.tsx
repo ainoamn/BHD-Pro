@@ -112,16 +112,16 @@ export function NotificationsButton() {
         onClick={() => setOpen((v) => !v)}
         aria-label={t("title")}
         aria-expanded={open}
-        className="relative w-9 h-9 flex items-center justify-center rounded-lg bg-slate-800/50 border border-slate-700/50 text-slate-400 hover:text-white hover:bg-slate-700/50 transition-colors"
+        className="relative w-9 h-9 flex items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700/50 transition-colors"
       >
         <Bell className="w-4 h-4" />
         {showDot && <span className="absolute top-1.5 left-1.5 w-2 h-2 bg-rose-500 rounded-full" />}
       </button>
 
       {open && (
-        <div className="absolute top-full mt-2 end-0 w-[min(100vw-2rem,22rem)] bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
-            <h3 className="text-sm font-semibold text-white">{t("title")}</h3>
+        <div className="absolute top-full mt-2 end-0 w-[min(100vw-2rem,22rem)] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-800">
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">{t("title")}</h3>
             {visible.length > 0 && (
               <button
                 type="button"
@@ -148,7 +148,7 @@ export function NotificationsButton() {
                 <p className="text-sm text-slate-400">{t("empty")}</p>
               </div>
             ) : (
-              <ul className="divide-y divide-slate-800">
+              <ul className="divide-y divide-slate-200 dark:divide-slate-800">
                 {visible.map((alert) => {
                   const Icon = iconFor(alert.type);
                   return (
@@ -159,7 +159,7 @@ export function NotificationsButton() {
                           setDismissed((prev) => [...prev, alert.id]);
                           setOpen(false);
                         }}
-                        className="flex gap-3 px-4 py-3 hover:bg-slate-800/60 transition-colors"
+                        className="flex gap-3 px-4 py-3 hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-colors"
                       >
                         <div
                           className={cn(
@@ -172,8 +172,8 @@ export function NotificationsButton() {
                           <Icon className="w-4 h-4" />
                         </div>
                         <div className="min-w-0">
-                          <p className="text-sm font-medium text-white truncate">{alert.title}</p>
-                          <p className="text-xs text-slate-400 mt-0.5">{alert.message}</p>
+                          <p className="text-sm font-medium text-slate-900 dark:text-white truncate">{alert.title}</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{alert.message}</p>
                         </div>
                       </Link>
                     </li>

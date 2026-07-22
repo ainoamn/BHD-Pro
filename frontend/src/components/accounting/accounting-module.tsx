@@ -262,14 +262,6 @@ export function AccountingModule() {
     [company?.currency]
   );
 
-  const { data: invoices = [], isLoading } = useQuery({
-    queryKey: ["invoices"],
-    queryFn: async () => {
-      const res = await api.getInvoices();
-      return res.data as Invoice[];
-    },
-  });
-
   const listTypeFilter =
     hubTab === "sales"
       ? documentType === "QUOTATION" || documentType === "CREDIT_NOTE"
@@ -281,18 +273,20 @@ export function AccountingModule() {
           : "PURCHASE"
         : undefined;
 
-  const filteredInvoices = invoices
-    .filter((inv) => !listTypeFilter || inv.type === listTypeFilter)
-    .filter((inv) => !statusFilter || inv.status === statusFilter)
-    .filter((inv) => !paymentFilter || inv.paymentStatus === paymentFilter)
-    .filter((inv) => {
-      if (!searchQuery.trim()) return true;
-      const q = searchQuery.trim().toLowerCase();
-      return (
-        inv.number.toLowerCase().includes(q) ||
-        inv.contact?.name?.toLowerCase().includes(q)
-      );
-    });
+  const { data: invoices = [], isLoading } = useQuery({
+    queryKey: ["invoices", listTypeFilter, statusFilter, paymentFilter, searchQuery],
+    queryFn: async () => {
+      const res = await api.getInvoices({
+        type: listTypeFilter,
+        status: statusFilter || undefined,
+        paymentStatus: paymentFilter || undefined,
+        q: searchQuery.trim() || undefined,
+      });
+      return res.data as Invoice[];
+    },
+  });
+
+  const filteredInvoices = invoices;
 
   const { data: documentTemplates = [] } = useQuery({
     queryKey: ["document-templates"],

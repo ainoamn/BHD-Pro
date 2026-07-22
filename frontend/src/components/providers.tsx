@@ -8,6 +8,7 @@ import { NextIntlClientProvider } from "next-intl";
 import arMessages from "@/i18n/messages/ar.json";
 import enMessages from "@/i18n/messages/en.json";
 import { useLocaleStore, type Locale } from "@/store/locale";
+import { ThemeAwareToaster } from "@/components/theme-aware-toaster";
 
 const messagesMap: Record<Locale, typeof arMessages> = {
   ar: arMessages,
@@ -45,7 +46,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   if (!mounted) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+      <div className="min-h-screen bg-app flex items-center justify-center">
         <div className="animate-spin w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full" />
       </div>
     );
@@ -67,6 +68,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       >
         <QueryClientProvider client={queryClient}>
           {children}
+          <ThemeAwareToaster />
           {process.env.NODE_ENV === "development" ? (
             <ReactQueryDevtools initialIsOpen={false} buttonPosition="bottom-left" />
           ) : null}

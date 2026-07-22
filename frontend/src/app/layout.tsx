@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { Cairo, Space_Grotesk } from "next/font/google";
 import "./globals.css";
+import "./light-theme.css";
 import { Providers } from "@/components/providers";
-import { Toaster } from "react-hot-toast";
 
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
@@ -34,24 +34,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ar" dir="rtl" className="dark" suppressHydrationWarning>
+    <html lang="ar" dir="rtl" suppressHydrationWarning>
       <body className={`${cairo.variable} ${spaceGrotesk.variable} font-sans antialiased`}>
-        <Providers>
-          {children}
-          <Toaster
-            position="top-left"
-            toastOptions={{
-              duration: 4000,
-              style: {
-                background: "#1e293b",
-                color: "#f8fafc",
-                border: "1px solid rgba(148,163,184,0.1)",
-                borderRadius: "12px",
-                fontFamily: "var(--font-cairo)",
-              },
-            }}
-          />
-        </Providers>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
