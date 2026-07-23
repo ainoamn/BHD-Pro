@@ -50,6 +50,7 @@ class ApiClient {
         const skipRefresh =
           url.includes('/auth/login') ||
           url.includes('/auth/register') ||
+          url.includes('/auth/google') ||
           url.includes('/auth/refresh') ||
           url.includes('/auth/logout');
 

@@ -33,11 +33,17 @@ async function bootstrap() {
     origin: (origin, callback) => {
       const raw = process.env.CORS_ORIGIN || 'http://localhost:3000';
       const allowed = raw.split(',').map((s) => s.trim()).filter(Boolean);
-      if (!origin || allowed.includes(origin) || allowed.includes('*')) {
+      if (
+        !origin ||
+        allowed.includes('*') ||
+        allowed.includes(origin) ||
+        /\.vercel\.app$/i.test(origin)
+      ) {
         callback(null, true);
         return;
       }
-      callback(new Error(`CORS blocked for origin: ${origin}`), false);
+      // Do not pass Error — that becomes HTTP 500; just deny the origin
+      callback(null, false);
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
