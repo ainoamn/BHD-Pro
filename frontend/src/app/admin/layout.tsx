@@ -50,16 +50,26 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         if (!res.data.isPlatformAdmin) {
           setAllowed(false);
           setError(
-            "حسابك ليس ضمن PLATFORM_ADMIN_EMAILS. أضف بريدك في Render ثم أعد نشر الـ API."
+            "حسابك ليس ضمن مشرفي المنصة. أضف بريدك في PLATFORM_ADMIN_EMAILS على Render."
           );
           return;
         }
         setAllowed(true);
-      } catch {
-        if (!cancelled) {
-          setAllowed(false);
-          setError("تعذر التحقق من صلاحية مشرف المنصة.");
+      } catch (err: unknown) {
+        if (cancelled) return;
+        const status = (err as { response?: { status?: number } })?.response?.status;
+        if (status === 404) {
+          setError(
+            "واجهة الإدارة غير منشورة بعد على الخادم (404). انتظر اكتمال Deploy على Render ثم حدّث الصفحة."
+          );
+        } else if (status === 401) {
+          setError("انتهت الجلسة. سجّل الدخول مرة أخرى ثم افتح /admin.");
+        } else {
+          setError(
+            `تعذر التحقق من صلاحية مشرف المنصة${status ? ` (رمز ${status})` : ""}. تأكد أن API يعمل ثم أعد المحاولة.`
+          );
         }
+        setAllowed(false);
       }
     })();
     return () => {
