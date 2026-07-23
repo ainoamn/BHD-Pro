@@ -32,6 +32,7 @@ import { CustomFieldsModule } from './custom-fields/custom-fields.module';
 import { ExchangeRatesModule } from './exchange-rates/exchange-rates.module';
 import { FxRevaluationModule } from './fx-revaluation/fx-revaluation.module';
 import { AdminModule } from './admin/admin.module';
+import { PosModule } from './pos/pos.module';
 import { HealthController } from './health.controller';
 import { DenyViewerMutationsGuard } from './common/guards/deny-viewer-mutations.guard';
 
@@ -74,6 +75,7 @@ import { DenyViewerMutationsGuard } from './common/guards/deny-viewer-mutations.
     ExchangeRatesModule,
     FxRevaluationModule,
     AdminModule,
+    PosModule,
   ],
   controllers: [HealthController],
   providers: [

@@ -17,6 +17,10 @@ export class CreateProductDto {
   @IsNotEmpty()
   category: string;
 
+  @IsOptional()
+  @IsString()
+  barcode?: string;
+
   @IsNumber()
   @Min(0)
   costPrice: number;

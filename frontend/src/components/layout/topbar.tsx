@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { Search, Moon, Sun, Building2, Globe, LogOut, Menu } from "lucide-react";
+import { Search, Moon, Sun, Building2, Globe, LogOut, Menu, Store } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -120,6 +121,15 @@ export function Topbar() {
         </button>
 
         <NotificationsButton />
+
+        <Link
+          href="/pos"
+          title="Hisaby POS"
+          className="hidden sm:inline-flex items-center gap-1.5 h-9 px-3 rounded-lg bg-sky-500/10 border border-sky-500/20 text-sky-700 dark:text-sky-300 hover:bg-sky-500/20 text-xs font-bold transition-all"
+        >
+          <Store className="w-4 h-4" />
+          POS
+        </Link>
 
         <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 rounded-lg max-w-[140px] lg:max-w-none">
           <Building2 className="w-4 h-4 text-emerald-500 dark:text-emerald-400 shrink-0" />

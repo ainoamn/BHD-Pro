@@ -497,6 +497,22 @@ class ApiClient {
     return this.client.post('/public/visits', data);
   }
 
+  getPublicPlatformStats() {
+    return this.client.get<{
+      companies: number;
+      users: number;
+      visits: { total: number; last30Days: number };
+      finance: {
+        sales: number;
+        purchases: number;
+        collected: number;
+        receivables: number;
+        volumeManaged: number;
+      };
+      updatedAt: string;
+    }>('/public/stats');
+  }
+
   getCompanyGateways() {
     return this.get('/payments/company-gateways');
   }
@@ -1096,6 +1112,49 @@ class ApiClient {
   // AI
   getAiAnalytics() {
     return this.get('/ai/analytics');
+  }
+
+  // Hisaby POS
+  getPosLinkStatus() {
+    return this.get<{
+      linked: boolean;
+      companyId: string;
+      companyName: string;
+      keyPrefix: string | null;
+      apps: { accounting: boolean; pos: boolean };
+    }>('/pos/link-status');
+  }
+
+  activatePosLink() {
+    return this.post('/pos/link/activate');
+  }
+
+  generatePosLinkKey() {
+    return this.post<{ key: string; prefix: string; linked: boolean; warning: string }>(
+      '/pos/link/generate',
+    );
+  }
+
+  confirmPosLinkKey(key: string) {
+    return this.post('/pos/link', { key });
+  }
+
+  lookupPosProduct(code: string) {
+    return this.get(`/pos/products/lookup`, { params: { code } });
+  }
+
+  searchPosProducts(q?: string) {
+    return this.get('/pos/products/search', { params: q ? { q } : {} });
+  }
+
+  createPosSale(data: {
+    items: { productId: string; quantity: number; unitPrice?: number; discount?: number }[];
+    paymentMethod?: string;
+    taxRate?: number;
+    notes?: string;
+    warehouseId?: string;
+  }) {
+    return this.post('/pos/sales', data);
   }
 }
 

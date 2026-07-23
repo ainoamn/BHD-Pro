@@ -7,5 +7,6 @@ import { PeriodsModule } from '../periods/periods.module';
   imports: [PeriodsModule],
   controllers: [ProductsController],
   providers: [ProductsService],
+  exports: [ProductsService],
 })
 export class ProductsModule {}

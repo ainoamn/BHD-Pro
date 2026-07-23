@@ -38,6 +38,11 @@ model Company {
   zatcaConfig Json?   @map("ota_config")
   ftaConfig   Json?   @map("tax_config")
 
+  /// Explicit bind between Hisaby Accounting and Hisaby POS
+  posLinkedAt DateTime? @map("pos_linked_at")
+  posIntegrationKeyHash String? @map("pos_integration_key_hash")
+  posIntegrationKeyPrefix String? @map("pos_integration_key_prefix")
+
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
   deletedAt   DateTime? @map("deleted_at")
@@ -860,12 +865,12 @@ model Product {
   companyId   String   @map("company_id")
   company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
-  sku         String   @unique
+  sku         String
   name        String
   nameEn      String?  @map("name_en")
   description String?
   category    String
-  barcode     String?  @unique
+  barcode     String?
 
   costPrice   Decimal  @map("cost_price")
   salePrice   Decimal  @map("sale_price")
@@ -896,8 +901,11 @@ model Product {
   deliveryNoteItems DeliveryNoteItem[]
   stockCountLines StockCountLine[]
 
+  @@unique([companyId, sku])
+  @@unique([companyId, barcode])
   @@index([companyId])
   @@index([sku])
+  @@index([barcode])
   @@index([category])
   @@map("products")
 }

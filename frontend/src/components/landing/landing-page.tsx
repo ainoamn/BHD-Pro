@@ -136,12 +136,20 @@ export function LandingPage() {
               )}
             >
               {isAuthenticated ? (
-                <Link
-                  href="/dashboard"
-                  className="rounded-2xl bg-emerald-900 px-7 py-3 text-[15px] font-bold text-white shadow-sm shadow-emerald-900/10 transition hover:bg-emerald-800"
-                >
-                  {t.dashboard}
-                </Link>
+                <>
+                  <Link
+                    href="/dashboard"
+                    className="rounded-2xl bg-emerald-900 px-7 py-3 text-[15px] font-bold text-white shadow-sm shadow-emerald-900/10 transition hover:bg-emerald-800"
+                  >
+                    {t.openAccounting}
+                  </Link>
+                  <Link
+                    href="/pos"
+                    className="rounded-2xl border border-emerald-950/10 bg-white/70 px-7 py-3 text-[15px] font-bold text-emerald-950 backdrop-blur transition hover:bg-white"
+                  >
+                    {t.openPos}
+                  </Link>
+                </>
               ) : (
                 <>
                   <Link
@@ -218,6 +226,37 @@ export function LandingPage() {
                 <p className="relative mt-10 text-center text-[11px] text-emerald-100/45">{t.trustLine}</p>
               </div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="products" className="border-y border-emerald-950/[0.04] bg-white py-16">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <h2 className="text-2xl font-extrabold tracking-tight text-emerald-950 sm:text-3xl">{t.chooseTitle}</h2>
+          <p className="mt-3 max-w-2xl text-[15px] text-slate-500">{t.chooseSub}</p>
+          <div className="mt-10 grid gap-5 md:grid-cols-2">
+            <Link
+              href={isAuthenticated ? "/dashboard" : "/login?next=/dashboard&app=accounting"}
+              className="group rounded-2xl border border-emerald-950/10 bg-emerald-50/50 p-6 transition hover:border-emerald-700/30 hover:shadow-md"
+            >
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-emerald-800/70">Accounting</p>
+              <h3 className="mt-2 text-xl font-extrabold text-emerald-950">{t.accountingCard}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-slate-500">{t.accountingDesc}</p>
+              <span className="mt-5 inline-block text-sm font-bold text-emerald-800 group-hover:underline">
+                {t.openAccounting} →
+              </span>
+            </Link>
+            <Link
+              href={isAuthenticated ? "/pos" : "/pos/login"}
+              className="group rounded-2xl border border-slate-800/20 bg-[#0b1220] p-6 text-white transition hover:border-sky-400/40 hover:shadow-md"
+            >
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-sky-300/80">POS</p>
+              <h3 className="mt-2 text-xl font-extrabold">{t.posCard}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-white/65">{t.posDesc}</p>
+              <span className="mt-5 inline-block text-sm font-bold text-sky-300 group-hover:underline">
+                {t.openPos} →
+              </span>
+            </Link>
           </div>
         </div>
       </section>

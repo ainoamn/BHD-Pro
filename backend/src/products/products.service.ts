@@ -81,6 +81,13 @@ export class ProductsService {
     });
     if (existing) throw new ConflictException('SKU already exists');
 
+    if (dto.barcode) {
+      const barcodeTaken = await this.prisma.product.findFirst({
+        where: { companyId, barcode: dto.barcode },
+      });
+      if (barcodeTaken) throw new ConflictException('Barcode already exists');
+    }
+
     const warehouse = await this.ensureDefaultWarehouse(companyId);
     const { customFieldsJson, ...rest } = dto;
 
