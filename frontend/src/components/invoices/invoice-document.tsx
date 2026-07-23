@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { X, Printer, Download, Send, CheckCircle, Ban, Edit, Receipt, Undo2, FileOutput } from "lucide-react";
 import { formatMoney, formatDate } from "@/lib/utils";
-import { openInvoicePrintDialog } from "@/lib/invoice-print";
+import { openInvoicePrintDialog, downloadInvoicePdf } from "@/lib/invoice-print";
 import { DocumentWorkflowSteps } from "@/components/invoices/document-workflow-steps";
 import { SendDocumentModal } from "@/components/invoices/send-document-modal";
 import { CompanyLogo } from "@/components/company/company-logo";
@@ -17,6 +17,7 @@ import {
   documentColorSoft,
   normalizeDocumentColor,
 } from "@/lib/document-theme";
+import toast from "react-hot-toast";
 
 export interface InvoiceDocumentData {
   id: string;
@@ -122,6 +123,7 @@ export function InvoiceDocument({
   const printRef = useRef<HTMLDivElement>(null);
   const [sendOpen, setSendOpen] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
   const signatureMode = company?.signatureMode === "ELECTRONIC" ? "ELECTRONIC" : "MANUAL";
   const docColor = normalizeDocumentColor(company?.documentColor);
   const docColorDark = documentColorDark(docColor);
@@ -255,8 +257,25 @@ export function InvoiceDocument({
     });
   };
 
-  const handleDownloadPdf = () => {
-    handlePrint();
+  const handleDownloadPdf = async () => {
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      await downloadInvoicePdf(invoice, company, {
+        variant,
+        baseCurrency,
+        headerNote,
+        footerNote,
+        signatureMode,
+        qrDataUrl,
+        documentColor: docColor,
+        labels: printLabels,
+      });
+    } catch {
+      toast.error(t("downloadError"));
+    } finally {
+      setDownloading(false);
+    }
   };
 
   const isSales = isCustomerDoc;
@@ -273,18 +292,18 @@ export function InvoiceDocument({
     (onMarkPaid || onCancel || onEdit || onMarkSent || onViewReceipt || onUnsend || onReversePayment);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-6 bg-black/70 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="w-full max-w-3xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl">
-        <div className="flex items-center justify-between p-4 border-b border-slate-800">
-          <h2 className="text-lg font-semibold text-white">
+    <div className="fixed inset-0 z-50 flex items-stretch sm:items-start justify-center sm:pt-4 bg-black/70 backdrop-blur-sm p-0 sm:p-4 overflow-y-auto">
+      <div className="w-full max-w-3xl bg-slate-900 border-0 sm:border border-slate-800 rounded-none sm:rounded-2xl shadow-2xl min-h-full sm:min-h-0 sm:my-2">
+        <div className="sticky top-0 z-10 flex items-center justify-between gap-2 p-3 sm:p-4 border-b border-slate-800 bg-slate-900/95 backdrop-blur">
+          <h2 className="text-sm sm:text-lg font-semibold text-white truncate min-w-0">
             {docTitle} — {invoice.number}
           </h2>
-          <div className="flex items-center gap-2 flex-wrap justify-end">
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap justify-end shrink-0">
             {isReceipt && onViewInvoice && (
               <button
                 onClick={onViewInvoice}
                 disabled={actionsDisabled}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold bg-white text-slate-900 rounded-lg hover:bg-slate-100 disabled:opacity-40"
+                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-semibold bg-white text-slate-900 rounded-lg hover:bg-slate-100 disabled:opacity-40"
               >
                 {t("invoiceDoc")}
               </button>
@@ -293,44 +312,45 @@ export function InvoiceDocument({
               <button
                 onClick={onReversePayment}
                 disabled={actionsDisabled}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold bg-orange-600 text-white rounded-lg hover:bg-orange-500 disabled:opacity-40"
+                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-semibold bg-orange-600 text-white rounded-lg hover:bg-orange-500 disabled:opacity-40"
               >
                 <Undo2 className="w-4 h-4" />
-                {t("reversePayment")}
+                <span className="hidden xs:inline sm:inline">{t("reversePayment")}</span>
               </button>
             )}
             {!isReceipt && invoice.status === "PAID" && onViewReceipt && (
               <button
                 onClick={onViewReceipt}
                 disabled={actionsDisabled}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 disabled:opacity-40"
+                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 disabled:opacity-40"
               >
                 <Receipt className="w-4 h-4" />
-                {t("receipt")}
+                <span className="hidden sm:inline">{t("receipt")}</span>
               </button>
             )}
             <button
               onClick={handlePrint}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold bg-white text-slate-900 rounded-lg hover:bg-slate-100"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-semibold bg-white text-slate-900 rounded-lg hover:bg-slate-100"
               title={tCommon("print")}
             >
               <Printer className="w-4 h-4" />
-              {tCommon("print")}
+              <span className="hidden sm:inline">{tCommon("print")}</span>
             </button>
             <button
               onClick={handleDownloadPdf}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold bg-slate-100 text-slate-900 rounded-lg hover:bg-white border border-slate-300"
+              disabled={downloading}
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-semibold bg-slate-100 text-slate-900 rounded-lg hover:bg-white border border-slate-300 disabled:opacity-50"
             >
               <Download className="w-4 h-4" />
-              {t("download")}
+              <span className="hidden sm:inline">{downloading ? "..." : t("download")}</span>
             </button>
             <button
               onClick={() => setSendOpen(true)}
               disabled={actionsDisabled}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-40"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-40"
             >
               <Send className="w-4 h-4" />
-              {t("sendDocument")}
+              <span className="hidden sm:inline">{t("sendDocument")}</span>
             </button>
             <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-white">
               <X className="w-5 h-5" />
@@ -432,10 +452,10 @@ export function InvoiceDocument({
           </div>
         )}
 
-        <div className="p-5 bg-white text-slate-900 rounded-b-2xl" ref={printRef}>
+        <div className="p-3 sm:p-5 bg-white text-slate-900 rounded-b-none sm:rounded-b-2xl overflow-x-auto" ref={printRef}>
           {isReceipt && (
             <div
-              className="mb-4 flex items-center justify-between rounded-md border px-3 py-2"
+              className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-md border px-3 py-2"
               style={{ borderColor: docColor, backgroundColor: docColorSoft }}
             >
               <div>
@@ -447,7 +467,7 @@ export function InvoiceDocument({
                 </p>
               </div>
               <span
-                className="rounded-full px-3 py-0.5 text-xs font-bold text-white"
+                className="self-start rounded-full px-3 py-0.5 text-xs font-bold text-white"
                 style={{ backgroundColor: docColor }}
               >
                 {tStatus("paid")}
@@ -455,11 +475,11 @@ export function InvoiceDocument({
             </div>
           )}
           <div
-            className="header flex justify-between items-start gap-4 mb-5 pb-3 border-b-2"
+            className="header flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 mb-5 pb-3 border-b-2"
             style={{ borderColor: docColor }}
           >
             <div className="flex items-start gap-3 min-w-0 flex-1">
-              <CompanyLogo src={company?.logo} name={company?.name} size="md" className="shrink-0 mt-0.5" />
+              <CompanyLogo src={company?.logo} name={company?.name} size="lg" className="shrink-0 mt-0.5 print:block" />
               <div className="min-w-0">
                 <div className="company text-base sm:text-lg font-bold leading-tight" style={{ color: docColorDark }}>
                   {company?.name || "BHD Pro"}
@@ -535,32 +555,34 @@ export function InvoiceDocument({
             </div>
           </div>
 
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-white" style={{ backgroundColor: docColor }}>
-                <th className="p-2 text-right">{t("description")}</th>
-                <th className="p-2 text-right">{t("quantity")}</th>
-                <th className="p-2 text-right">{t("unitPrice")}</th>
-                <th className="p-2 text-right">{t("discount")}</th>
-                <th className="p-2 text-right">{t("tax")}</th>
-                <th className="p-2 text-right">{t("lineTotal")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {invoice.items.map((item, i) => (
-                <tr key={i} className="border-b border-slate-200">
-                  <td className="p-2">{item.description}</td>
-                  <td className="p-2">{Number(item.quantity)}</td>
-                  <td className="p-2">{formatMoney(Number(item.unitPrice), displayCurrency)}</td>
-                  <td className="p-2">{formatMoney(Number(item.discount), displayCurrency)}</td>
-                  <td className="p-2">{formatMoney(Number(item.taxAmount), displayCurrency)}</td>
-                  <td className="p-2 font-medium">{formatMoney(Number(item.total), displayCurrency)}</td>
+          <div className="w-full overflow-x-auto -mx-1 px-1">
+            <table className="w-full text-xs sm:text-sm min-w-[520px]">
+              <thead>
+                <tr className="text-white" style={{ backgroundColor: docColor }}>
+                  <th className="p-1.5 sm:p-2 text-right">{t("description")}</th>
+                  <th className="p-1.5 sm:p-2 text-right">{t("quantity")}</th>
+                  <th className="p-1.5 sm:p-2 text-right">{t("unitPrice")}</th>
+                  <th className="p-1.5 sm:p-2 text-right">{t("discount")}</th>
+                  <th className="p-1.5 sm:p-2 text-right">{t("tax")}</th>
+                  <th className="p-1.5 sm:p-2 text-right">{t("lineTotal")}</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {invoice.items.map((item, i) => (
+                  <tr key={i} className="border-b border-slate-200">
+                    <td className="p-1.5 sm:p-2">{item.description}</td>
+                    <td className="p-1.5 sm:p-2">{Number(item.quantity)}</td>
+                    <td className="p-1.5 sm:p-2">{formatMoney(Number(item.unitPrice), displayCurrency)}</td>
+                    <td className="p-1.5 sm:p-2">{formatMoney(Number(item.discount), displayCurrency)}</td>
+                    <td className="p-1.5 sm:p-2">{formatMoney(Number(item.taxAmount), displayCurrency)}</td>
+                    <td className="p-1.5 sm:p-2 font-medium">{formatMoney(Number(item.total), displayCurrency)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
-          <div className="totals mr-auto w-72 text-sm space-y-1">
+          <div className="totals ms-auto w-full max-w-[18rem] text-xs sm:text-sm space-y-1 mt-4">
             <div className="flex justify-between">
               <span>{t("subtotal")}</span>
               <span>{formatMoney(displaySubtotal, displayCurrency)}</span>

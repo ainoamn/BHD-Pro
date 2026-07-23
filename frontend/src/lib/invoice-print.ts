@@ -104,18 +104,22 @@ function buildSignatureAndQrHtml(
 
   const qrHtml = options.qrDataUrl
     ? `<div style="text-align:center;">
-        <img src="${options.qrDataUrl}" alt="" style="width:200px;height:200px;border:1px solid #e2e8f0;border-radius:4px;padding:6px;background:#fff;" />
+        <img src="${options.qrDataUrl}" alt="" style="width:160px;height:160px;border:1px solid #e2e8f0;border-radius:4px;padding:6px;background:#fff;" />
         <p style="font-size:12px;font-weight:700;color:#1e293b;margin-top:6px;">${L.verifyQrTitle || ""}</p>
         <p style="font-size:10px;color:#475569;max-width:200px;margin:4px auto 0;line-height:1.35;">${L.verifyQrHint || ""}</p>
       </div>`
     : "";
 
   return `
-    <div style="margin-top:32px;display:grid;grid-template-columns:1fr auto;gap:24px;align-items:end;border-top:1px solid #e2e8f0;padding-top:24px;">
+    <div style="margin-top:28px;display:grid;grid-template-columns:1fr auto;gap:20px;align-items:end;border-top:1px solid #e2e8f0;padding-top:20px;">
       <div>${signatureHtml}</div>
       ${qrHtml}
     </div>
   `;
+}
+
+function escapeAttr(value: string): string {
+  return value.replace(/"/g, "&quot;");
 }
 
 function buildBodyHtml(
@@ -212,6 +216,11 @@ function buildBodyHtml(
             )
           : "";
 
+  const logoSrc = (company?.logo || "").trim();
+  const logoHtml = logoSrc
+    ? `<img class="company-logo" src="${escapeAttr(logoSrc)}" alt="" crossorigin="anonymous" style="max-height:64px;max-width:160px;object-fit:contain;display:block;" />`
+    : "";
+
   return `
     ${isReceipt ? `<div style="margin-bottom:12px;padding:8px 12px;border:1px solid ${docColor};background:${docSoft};border-radius:6px;">
       <p style="font-size:13px;font-weight:bold;color:${docDark};">${L.receiptDoc}</p>
@@ -219,7 +228,7 @@ function buildBodyHtml(
     </div>` : ""}
     <div class="header" style="border-bottom-color:${docColor};">
       <div style="display:flex;align-items:flex-start;gap:12px;min-width:0;flex:1;">
-        ${company?.logo ? `<img src="${company.logo}" alt="" style="max-height:52px;max-width:140px;object-fit:contain;" />` : ""}
+        ${logoHtml}
         <div style="min-width:0;">
           <div class="company" style="color:${docDark};font-size:16px;">${company?.name || "BHD Pro"}</div>
           ${workflowHtml}
@@ -246,19 +255,21 @@ function buildBodyHtml(
         ${contactParts.length ? `<p style="font-size:10px;color:#64748b;margin-top:4px;line-height:1.4;">${contactParts.join(" · ")}</p>` : ""}
       </div>
     </div>
-    <table>
-      <thead>
-        <tr>
-          <th style="background:${docColor};">${L.description}</th>
-          <th style="background:${docColor};">${L.quantity}</th>
-          <th style="background:${docColor};">${L.unitPrice}</th>
-          <th style="background:${docColor};">${L.discount}</th>
-          <th style="background:${docColor};">${L.tax}</th>
-          <th style="background:${docColor};">${L.lineTotal}</th>
-        </tr>
-      </thead>
-      <tbody>${itemsHtml}</tbody>
-    </table>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="background:${docColor};">${L.description}</th>
+            <th style="background:${docColor};">${L.quantity}</th>
+            <th style="background:${docColor};">${L.unitPrice}</th>
+            <th style="background:${docColor};">${L.discount}</th>
+            <th style="background:${docColor};">${L.tax}</th>
+            <th style="background:${docColor};">${L.lineTotal}</th>
+          </tr>
+        </thead>
+        <tbody>${itemsHtml}</tbody>
+      </table>
+    </div>
     <div class="totals">
       <div><span>${L.subtotal}</span><span>${formatMoney(displaySubtotal, displayCurrency)}</span></div>
       <div><span>${L.tax}</span><span>${formatMoney(displayTax, displayCurrency)}</span></div>
@@ -272,54 +283,97 @@ function buildBodyHtml(
   `;
 }
 
+const DOCUMENT_STYLES = `
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; padding: 20px; color: #111; direction: rtl; background: #fff; max-width: 800px; margin: 0 auto; }
+  .header { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 14px; border-bottom: 2px solid #059669; padding-bottom: 10px; flex-wrap: wrap; }
+  .company { font-size: 13px; font-weight: bold; }
+  .company-logo { flex-shrink: 0; }
+  .meta { text-align: left; font-size: 10px; color: #475569; line-height: 1.45; flex-shrink: 0; }
+  .parties { margin-bottom: 12px; }
+  .box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 10px; }
+  .table-wrap { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 11px; min-width: 520px; }
+  th { color: white; padding: 7px 6px; text-align: right; }
+  td { padding: 7px 6px; border-bottom: 1px solid #e2e8f0; }
+  .totals { margin-right: auto; width: min(240px, 100%); font-size: 12px; }
+  .totals div { display: flex; justify-content: space-between; padding: 4px 0; }
+  .grand { font-weight: bold; font-size: 14px; border-top: 2px solid #059669; padding-top: 6px !important; }
+  .footer { margin-top: 20px; text-align: center; font-size: 10px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 12px; white-space: pre-wrap; }
+  @media print {
+    body { padding: 8px; max-width: none; }
+    .table-wrap { overflow: visible; }
+    table { min-width: 0; font-size: 10px; }
+  }
+  @media screen and (max-width: 640px) {
+    body { padding: 12px; }
+    .header { flex-direction: column; }
+    .meta { text-align: right; }
+  }
+`;
+
+function buildFullHtml(title: string, bodyHtml: string): string {
+  return `<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${title}</title>
+  <style>${DOCUMENT_STYLES}</style>
+</head>
+<body>${bodyHtml}</body>
+</html>`;
+}
+
+function waitForImages(doc: Document): Promise<void> {
+  const images = Array.from(doc.images);
+  if (!images.length) return Promise.resolve();
+  return Promise.all(
+    images.map(
+      (img) =>
+        new Promise<void>((resolve) => {
+          if (img.complete && img.naturalWidth > 0) {
+            resolve();
+            return;
+          }
+          const done = () => resolve();
+          img.addEventListener("load", done, { once: true });
+          img.addEventListener("error", done, { once: true });
+          // data: URLs can already be complete without naturalWidth in some browsers
+          setTimeout(done, 2500);
+        })
+    )
+  ).then(() => undefined);
+}
+
+function resolvePrintTitle(
+  invoice: InvoiceDocumentData,
+  options: PrintOptions
+): string {
+  const { variant = "invoice", labels } = options;
+  const docTitle = labels?.docTitle || invoice.number;
+  return variant === "receipt"
+    ? `${labels?.receiptDoc || "Receipt"} ${invoice.number}`
+    : `${docTitle} ${invoice.number}`;
+}
+
 export function openInvoicePrintDialog(
   invoice: InvoiceDocumentData,
   company: CompanyInfo | null | undefined,
   options: PrintOptions
 ) {
-  const { variant = "invoice", labels } = options;
-  const docTitle = labels?.docTitle || invoice.number;
-  const printTitle =
-    variant === "receipt"
-      ? `${labels?.receiptDoc || "Receipt"} ${invoice.number}`
-      : `${docTitle} ${invoice.number}`;
+  const printTitle = resolvePrintTitle(invoice, options);
   const bodyHtml = buildBodyHtml(invoice, company, options);
-
   const win = window.open("", "_blank", "width=800,height=900");
   if (!win) return;
 
-  win.document.write(`
-    <!DOCTYPE html>
-    <html dir="rtl" lang="ar">
-    <head>
-      <meta charset="utf-8" />
-      <title>${printTitle}</title>
-      <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; padding: 24px; color: #111; direction: rtl; }
-        .header { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 14px; border-bottom: 1px solid #059669; padding-bottom: 10px; }
-        .company { font-size: 13px; font-weight: bold; }
-        .meta { text-align: left; font-size: 10px; color: #475569; line-height: 1.45; flex-shrink: 0; }
-        .parties { margin-bottom: 12px; }
-        .box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 10px; }
-        table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 12px; }
-        th { color: white; padding: 8px; text-align: right; }
-        td { padding: 8px; border-bottom: 1px solid #e2e8f0; }
-        .totals { margin-right: auto; width: 240px; font-size: 12px; }
-        .totals div { display: flex; justify-content: space-between; padding: 4px 0; }
-        .grand { font-weight: bold; font-size: 14px; border-top: 2px solid #059669; padding-top: 6px !important; }
-        .footer { margin-top: 20px; text-align: center; font-size: 10px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 12px; white-space: pre-wrap; }
-        @media print { body { padding: 12px; } }
-      </style>
-    </head>
-    <body>${bodyHtml}</body>
-    </html>
-  `);
+  win.document.write(buildFullHtml(printTitle, bodyHtml));
   win.document.close();
   win.focus();
 
-  const triggerPrint = () => {
+  const triggerPrint = async () => {
     try {
+      await waitForImages(win.document);
       win.focus();
       win.print();
     } catch {
@@ -327,7 +381,6 @@ export function openInvoicePrintDialog(
     }
   };
 
-  // Do not close immediately after print() — that aborts save/download on many browsers.
   const onAfterPrint = () => {
     try {
       win.removeEventListener("afterprint", onAfterPrint);
@@ -339,8 +392,80 @@ export function openInvoicePrintDialog(
   win.addEventListener("afterprint", onAfterPrint);
 
   if (win.document.readyState === "complete") {
-    setTimeout(triggerPrint, 350);
+    setTimeout(triggerPrint, 200);
   } else {
-    win.onload = () => setTimeout(triggerPrint, 350);
+    win.onload = () => setTimeout(triggerPrint, 200);
   }
+}
+
+/** Generate and download a real PDF file (does not open the print dialog). */
+export async function downloadInvoicePdf(
+  invoice: InvoiceDocumentData,
+  company: CompanyInfo | null | undefined,
+  options: PrintOptions
+): Promise<void> {
+  const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+    import("html2canvas"),
+    import("jspdf"),
+  ]);
+
+  const printTitle = resolvePrintTitle(invoice, options);
+  const bodyHtml = buildBodyHtml(invoice, company, options);
+  const fullHtml = buildFullHtml(printTitle, bodyHtml);
+
+  const iframe = document.createElement("iframe");
+  iframe.setAttribute("aria-hidden", "true");
+  iframe.style.cssText =
+    "position:fixed;left:-12000px;top:0;width:794px;height:1123px;border:0;opacity:0;pointer-events:none;";
+  document.body.appendChild(iframe);
+
+  const idoc = iframe.contentDocument || iframe.contentWindow?.document;
+  if (!idoc) {
+    document.body.removeChild(iframe);
+    throw new Error("Unable to create PDF document");
+  }
+
+  idoc.open();
+  idoc.write(fullHtml);
+  idoc.close();
+
+  await waitForImages(idoc);
+  // Allow layout to settle after images
+  await new Promise((r) => setTimeout(r, 120));
+
+  const target = idoc.body;
+  const canvas = await html2canvas(target, {
+    scale: 2,
+    useCORS: true,
+    allowTaint: true,
+    backgroundColor: "#ffffff",
+    logging: false,
+    windowWidth: 794,
+  });
+
+  const imgData = canvas.toDataURL("image/png");
+  const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const imgWidth = pageWidth;
+  const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+  let heightLeft = imgHeight;
+  let position = 0;
+
+  pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+  heightLeft -= pageHeight;
+
+  while (heightLeft > 2) {
+    position -= pageHeight;
+    pdf.addPage();
+    pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+    heightLeft -= pageHeight;
+  }
+
+  const safeName = invoice.number.replace(/[^\w\u0600-\u06FF.-]+/g, "_");
+  const prefix = options.variant === "receipt" ? "receipt" : "invoice";
+  pdf.save(`${prefix}-${safeName}.pdf`);
+
+  document.body.removeChild(iframe);
 }

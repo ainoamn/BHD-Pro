@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { Download, Loader2, Printer, ShieldCheck } from "lucide-react";
 import axios from "axios";
 import { InvoiceDocument, InvoiceDocumentData } from "@/components/invoices/invoice-document";
-import { openInvoicePrintDialog } from "@/lib/invoice-print";
+import { downloadInvoicePdf } from "@/lib/invoice-print";
 import { buildDocumentQrDataUrl } from "@/lib/document-qr";
 
 const API_URL =
@@ -168,17 +168,21 @@ export default function ShareDocumentPage({ params }: { params: { token: string 
       ? doc.company.documentColor
       : undefined;
 
-  const handleDownload = () => {
-    openInvoicePrintDialog(doc.invoice, doc.company, {
-      variant: doc.variant,
-      baseCurrency: (doc.company.currency as string) || "OMR",
-      headerNote: doc.headerNote,
-      footerNote: doc.footerNote,
-      signatureMode,
-      qrDataUrl,
-      documentColor,
-      labels: printLabels,
-    });
+  const handleDownload = async () => {
+    try {
+      await downloadInvoicePdf(doc.invoice, doc.company, {
+        variant: doc.variant,
+        baseCurrency: (doc.company.currency as string) || "OMR",
+        headerNote: doc.headerNote,
+        footerNote: doc.footerNote,
+        signatureMode,
+        qrDataUrl,
+        documentColor,
+        labels: printLabels,
+      });
+    } catch {
+      // ignore
+    }
   };
 
   return (

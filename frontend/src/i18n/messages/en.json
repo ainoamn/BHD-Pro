@@ -197,6 +197,7 @@
     "viewPrint": "View / Print",
     "view": "View",
     "download": "Download",
+    "downloadError": "Could not download the PDF file",
     "sendDocument": "Send",
     "sendDocumentTitle": "Send document",
     "sendDocumentHint": "Sending uses your device directly — WhatsApp or email app. The system does not send from its servers yet; this will be upgraded later.",

@@ -30,7 +30,7 @@ import {
   canEditInvoice,
 } from "@/components/invoices/invoice-actions";
 import { SendDocumentModal } from "@/components/invoices/send-document-modal";
-import { openInvoicePrintDialog } from "@/lib/invoice-print";
+import { openInvoicePrintDialog, downloadInvoicePdf } from "@/lib/invoice-print";
 import { RecordPaymentModal } from "@/components/invoices/record-payment-modal";
 import { ReversePaymentModal } from "@/components/invoices/reverse-payment-modal";
 import { downloadCsv } from "@/lib/export-csv";
@@ -926,15 +926,19 @@ export function AccountingModule() {
     }
     const data = toDocumentData(full);
     const template = resolveDocTemplate(full.type, variant);
-    openInvoicePrintDialog(data, company, {
-      variant,
-      baseCurrency,
-      headerNote: template?.headerText,
-      footerNote: template?.footerText,
-      signatureMode: company?.signatureMode === "ELECTRONIC" ? "ELECTRONIC" : "MANUAL",
-      documentColor: company?.documentColor,
-      labels: buildPrintLabels(full, variant),
-    });
+    try {
+      await downloadInvoicePdf(data, company, {
+        variant,
+        baseCurrency,
+        headerNote: template?.headerText,
+        footerNote: template?.footerText,
+        signatureMode: company?.signatureMode === "ELECTRONIC" ? "ELECTRONIC" : "MANUAL",
+        documentColor: company?.documentColor,
+        labels: buildPrintLabels(full, variant),
+      });
+    } catch {
+      toast.error(t("downloadError"));
+    }
   };
 
   const openShareModal = async (inv: Invoice, variant: "invoice" | "receipt" = "invoice") => {

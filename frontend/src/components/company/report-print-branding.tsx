@@ -1,7 +1,6 @@
 "use client";
 
 import { useAuthStore } from "@/store/auth";
-import { CompanyLogo } from "@/components/company/company-logo";
 
 /** Shown on printed reports / statements (hidden on screen). */
 export function ReportPrintBranding() {
@@ -21,7 +20,15 @@ export function ReportPrintBranding() {
           <p className="text-xs text-slate-600 mt-0.5">{company.address}</p>
         )}
       </div>
-      <CompanyLogo src={company?.logo} name={company?.name} size="lg" />
+      {company?.logo ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={company.logo}
+          alt={company.name || "logo"}
+          className="h-16 max-w-[220px] object-contain object-left"
+          style={{ WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" }}
+        />
+      ) : null}
     </div>
   );
 }

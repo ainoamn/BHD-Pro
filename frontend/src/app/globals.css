@@ -110,4 +110,23 @@ body {
     padding: 0 !important;
     margin: 0 !important;
   }
+
+  /* Ensure company logo prints clearly on reports/invoices */
+  img {
+    max-width: 100% !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
+/* Mobile: prevent wide dashboard tables from blowing out the layout */
+@media (max-width: 640px) {
+  main {
+    overflow-x: hidden;
+  }
+
+  .invoice-paper table,
+  .reports-table {
+    font-size: 0.75rem;
+  }
 }

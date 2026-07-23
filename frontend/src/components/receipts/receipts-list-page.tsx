@@ -10,7 +10,7 @@ import { useAuthStore } from "@/store/auth";
 import { PageHeader, LoadingSpinner, EmptyState, GlassCard } from "@/components/ui/page-shell";
 import { InvoiceDocument, InvoiceDocumentData } from "@/components/invoices/invoice-document";
 import { SendDocumentModal } from "@/components/invoices/send-document-modal";
-import { openInvoicePrintDialog } from "@/lib/invoice-print";
+import { downloadInvoicePdf } from "@/lib/invoice-print";
 
 interface ReceiptRow {
   id: string;
@@ -110,11 +110,13 @@ export function ReceiptsListPage({
     try {
       const res = await api.getInvoice(invoiceId);
       const data = toDocumentData(res.data as Record<string, unknown>);
-      openInvoicePrintDialog(data, company, {
+      await downloadInvoicePdf(data, company, {
         variant: "receipt",
         baseCurrency: currency,
         headerNote: receiptTemplate?.headerText,
         footerNote: receiptTemplate?.footerText,
+        signatureMode: company?.signatureMode === "ELECTRONIC" ? "ELECTRONIC" : "MANUAL",
+        documentColor: company?.documentColor,
         labels: {
           docTitle: tInvoices("receiptDoc"),
           number: tInvoices("number"),
@@ -144,6 +146,8 @@ export function ReceiptsListPage({
           receiptFooter: tInvoices("receiptFooter"),
         },
       });
+    } catch {
+      // keep silent — button already disabled while loading
     } finally {
       setLoadingDoc(null);
     }
