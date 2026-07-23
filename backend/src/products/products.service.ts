@@ -75,25 +75,46 @@ export class ProductsService {
     });
   }
 
+
+  private normalizeBarcode(barcode: string | null | undefined): string | null | undefined {
+    if (barcode === undefined) return undefined;
+    if (barcode === null) return null;
+    const trimmed = barcode.trim();
+    return trimmed.length ? trimmed : null;
+  }
+
+  private async assertBarcodeAvailable(
+    companyId: string,
+    barcode: string | null | undefined,
+    excludeProductId?: string,
+  ) {
+    if (!barcode) return;
+    const barcodeTaken = await this.prisma.product.findFirst({
+      where: {
+        companyId,
+        barcode,
+        ...(excludeProductId ? { id: { not: excludeProductId } } : {}),
+      },
+    });
+    if (barcodeTaken) throw new ConflictException('Barcode already exists');
+  }
+
   async create(companyId: string, dto: CreateProductDto) {
     const existing = await this.prisma.product.findFirst({
       where: { companyId, sku: dto.sku },
     });
     if (existing) throw new ConflictException('SKU already exists');
 
-    if (dto.barcode) {
-      const barcodeTaken = await this.prisma.product.findFirst({
-        where: { companyId, barcode: dto.barcode },
-      });
-      if (barcodeTaken) throw new ConflictException('Barcode already exists');
-    }
+    const barcode = this.normalizeBarcode(dto.barcode);
+    await this.assertBarcodeAvailable(companyId, barcode);
 
     const warehouse = await this.ensureDefaultWarehouse(companyId);
-    const { customFieldsJson, ...rest } = dto;
+    const { customFieldsJson, barcode: _barcode, ...rest } = dto;
 
     return this.prisma.product.create({
       data: {
         ...rest,
+        ...(barcode !== undefined ? { barcode } : {}),
         companyId,
         images: [],
         warehouseId: warehouse.id,
@@ -106,11 +127,15 @@ export class ProductsService {
 
   async update(companyId: string, id: string, dto: UpdateProductDto) {
     await this.findOne(companyId, id);
-    const { customFieldsJson, ...rest } = dto;
+    const { customFieldsJson, barcode: rawBarcode, ...rest } = dto;
+    const barcode = this.normalizeBarcode(rawBarcode);
+    await this.assertBarcodeAvailable(companyId, barcode, id);
+
     return this.prisma.product.update({
       where: { id },
       data: {
         ...rest,
+        ...(barcode !== undefined ? { barcode } : {}),
         ...(customFieldsJson !== undefined
           ? { customFieldsJson: customFieldsJson as object }
           : {}),

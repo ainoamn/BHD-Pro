@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsNumber, IsObject, Min } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsNumber, IsObject, Min, ValidateIf } from 'class-validator';
 
 export class CreateProductDto {
   @IsString()
@@ -17,9 +17,11 @@ export class CreateProductDto {
   @IsNotEmpty()
   category: string;
 
+  /** Optional; send null to clear on update */
   @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== undefined)
   @IsString()
-  barcode?: string;
+  barcode?: string | null;
 
   @IsNumber()
   @Min(0)
