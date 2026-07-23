@@ -44,11 +44,17 @@
 | `posIntegrationKeyPrefix` | `pos_integration_key_prefix` | بادئة المفتاح للعرض |
 
 ```bash
-# من مجلد backend (أو داخل حاوية الـ API)
-npx prisma db push
-# أو إن كنت تستخدم migrations:
-# npx prisma migrate deploy
+# من مجلد backend (أو داخل حاوية الـ API) — المفضّل على الإنتاج:
+npx prisma migrate deploy
+
+# بديل فقط للبيئات التجريبية بدون جدول _prisma_migrations:
+# npx prisma db push
 ```
+
+Migration ذات الصلة: `20260723183000_pos_link_and_product_uniques`  
+(تضيف أعمدة `pos_*` وتعيد فهارس SKU/barcode لتكون فريدة لكل شركة).
+
+**قبل النشر:** إن وُجدت صفوف مكررة لنفس `(company_id, sku)` أو `(company_id, barcode)` ستفشل الـ migration — أصلح التكرار أولاً.
 
 بدون هذه الأعمدة تفشل واجهات `/pos` وربط المفتاح في إعدادات الشركة.
 
@@ -65,6 +71,8 @@ npx prisma db push
 | بند | الحالة |
 |-----|--------|
 | المحاسبة / الفواتير / الإيصالات | جاهز للبيتا على الدومين |
+| Hisaby POS (كاشير منفصل + ربط) | جاهز للبيتا — طبّق `migrate deploy` لحقول `pos_*` |
+| مخزون لكل مستودع في الكاشير | غير مكتمل (الرصيد حالياً على مستوى الشركة) |
 | الفوترة الإلكترونية OTA | غير مكتملة |
 | الشات الذكي | ردود ثابتة |
 

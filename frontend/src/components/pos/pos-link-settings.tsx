@@ -5,11 +5,20 @@ import Link from "next/link";
 import toast from "react-hot-toast";
 import { Copy, KeyRound, Link2, ShoppingCart } from "lucide-react";
 import api from "@/lib/api";
+import { useAuthStore } from "@/store/auth";
 import { useLocaleStore } from "@/store/locale";
 import { posCopy } from "@/lib/pos-copy";
 import { cn } from "@/lib/utils";
 
 type Variant = "pos" | "accounting";
+
+function errMessage(err: unknown, fallback: string) {
+  const msg = (err as { response?: { data?: { message?: string | string[] } } })?.response?.data
+    ?.message;
+  if (typeof msg === "string") return msg;
+  if (Array.isArray(msg) && msg[0]) return String(msg[0]);
+  return fallback;
+}
 
 export function PosLinkSettings({
   variant = "pos",
@@ -20,6 +29,8 @@ export function PosLinkSettings({
 }) {
   const locale = useLocaleStore((s) => s.locale);
   const t = posCopy[locale === "en" ? "en" : "ar"];
+  const user = useAuthStore((s) => s.user);
+  const isAdmin = user?.role === "ADMIN";
   const [linked, setLinked] = useState(false);
   const [prefix, setPrefix] = useState<string | null>(null);
   const [companyName, setCompanyName] = useState("");
@@ -38,14 +49,23 @@ export function PosLinkSettings({
     refresh().catch(() => undefined);
   }, []);
 
+  const toastApiError = (err: unknown) => {
+    const status = (err as { response?: { status?: number } })?.response?.status;
+    if (status === 403) {
+      toast.error(t.forbidden);
+      return;
+    }
+    toast.error(errMessage(err, t.linkFail));
+  };
+
   const activate = async () => {
     setBusy(true);
     try {
       await api.activatePosLink();
       toast.success(t.linked);
       await refresh();
-    } catch {
-      toast.error(t.saleFail);
+    } catch (err) {
+      toastApiError(err);
     } finally {
       setBusy(false);
     }
@@ -58,8 +78,8 @@ export function PosLinkSettings({
       setGeneratedKey(res.data.key);
       toast.success(t.keyHint);
       await refresh();
-    } catch {
-      toast.error(t.saleFail);
+    } catch (err) {
+      toastApiError(err);
     } finally {
       setBusy(false);
     }
@@ -72,8 +92,8 @@ export function PosLinkSettings({
       toast.success(t.linked);
       setPasteKey("");
       await refresh();
-    } catch {
-      toast.error(t.saleFail);
+    } catch (err) {
+      toastApiError(err);
     } finally {
       setBusy(false);
     }
@@ -141,49 +161,56 @@ export function PosLinkSettings({
         <button type="button" disabled={busy} onClick={activate} className={btnPrimary}>
           {t.activateLink}
         </button>
-        <button type="button" disabled={busy} onClick={generate} className={btnSky}>
-          <KeyRound className="w-4 h-4" />
-          {t.generateKey}
-        </button>
-        {generatedKey && (
-          <div
-            className={cn(
-              "rounded-xl p-3 text-xs break-all space-y-2",
-              isAccounting ? "bg-slate-950/80" : "bg-black/40",
-            )}
-          >
-            <p className="text-amber-200">{t.keyHint}</p>
-            <p className="font-mono text-sky-200">{generatedKey}</p>
-            <button
-              type="button"
-              className="inline-flex items-center gap-1 text-slate-300"
-              onClick={() => {
-                navigator.clipboard.writeText(generatedKey);
-                toast.success("OK");
-              }}
-            >
-              <Copy className="w-3.5 h-3.5" />
-              Copy
+
+        {isAdmin ? (
+          <>
+            <button type="button" disabled={busy} onClick={generate} className={btnSky}>
+              <KeyRound className="w-4 h-4" />
+              {t.generateKey}
             </button>
-          </div>
+            {generatedKey && (
+              <div
+                className={cn(
+                  "rounded-xl p-3 text-xs break-all space-y-2",
+                  isAccounting ? "bg-slate-950/80" : "bg-black/40",
+                )}
+              >
+                <p className="text-amber-200">{t.keyHint}</p>
+                <p className="font-mono text-sky-200">{generatedKey}</p>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 text-slate-300"
+                  onClick={() => {
+                    navigator.clipboard.writeText(generatedKey);
+                    toast.success("OK");
+                  }}
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  Copy
+                </button>
+              </div>
+            )}
+            <div className="pt-1 space-y-2">
+              <label className="text-xs text-slate-400">{t.pasteKey}</label>
+              <input
+                value={pasteKey}
+                onChange={(e) => setPasteKey(e.target.value)}
+                className={inputCls}
+                placeholder="hpos_…"
+              />
+              <button
+                type="button"
+                disabled={busy || !pasteKey.trim()}
+                onClick={confirmKey}
+                className={secondaryBtn}
+              >
+                {t.saveKey}
+              </button>
+            </div>
+          </>
+        ) : (
+          <p className="text-xs text-slate-500">{t.adminOnlyKeys}</p>
         )}
-        <div className="pt-1 space-y-2">
-          <label className="text-xs text-slate-400">{t.pasteKey}</label>
-          <input
-            value={pasteKey}
-            onChange={(e) => setPasteKey(e.target.value)}
-            className={inputCls}
-            placeholder="hpos_…"
-          />
-          <button
-            type="button"
-            disabled={busy || !pasteKey.trim()}
-            onClick={confirmKey}
-            className={secondaryBtn}
-          >
-            {t.saveKey}
-          </button>
-        </div>
       </div>
     </div>
   );

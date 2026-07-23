@@ -45,6 +45,7 @@ export class CreatePosSaleDto {
   @IsEnum(PaymentMethod)
   paymentMethod?: PaymentMethod;
 
+  /** @deprecated Ignored — tax always comes from company ftaConfig */
   @IsOptional()
   @Type(() => Number)
   @IsNumber()

@@ -12,7 +12,7 @@ import { CreatePosSaleDto, LinkPosDto } from './dto/pos.dto';
 
 @ApiTags('POS')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('pos')
 export class PosController {
   constructor(private pos: PosService) {}
@@ -30,7 +30,6 @@ export class PosController {
   }
 
   @Post('link/generate')
-  @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Generate technical integration key (ADMIN, shown once)' })
   generate(@CurrentUser() user: TokenPayload) {
@@ -38,7 +37,6 @@ export class PosController {
   }
 
   @Post('link')
-  @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Confirm link with integration key (ADMIN, same company)' })
   linkWithKey(@CurrentUser() user: TokenPayload, @Body() dto: LinkPosDto) {
@@ -46,18 +44,21 @@ export class PosController {
   }
 
   @Get('products/lookup')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @ApiOperation({ summary: 'Lookup product by barcode or SKU' })
   lookup(@CurrentUser() user: TokenPayload, @Query('code') code: string) {
     return this.pos.lookupProduct(user.companyId, code || '');
   }
 
   @Get('products/search')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @ApiOperation({ summary: 'Search POS catalog' })
   search(@CurrentUser() user: TokenPayload, @Query('q') q?: string) {
     return this.pos.searchProducts(user.companyId, q || '');
   }
 
   @Post('sales')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 60, ttl: 60000 } })
   @ApiOperation({ summary: 'Complete POS cash sale (stock reserve then invoice)' })
   sale(@CurrentUser() user: TokenPayload, @Body() dto: CreatePosSaleDto) {

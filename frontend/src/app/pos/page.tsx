@@ -102,7 +102,9 @@ export default function PosCheckoutPage() {
   const loadRecentSales = useCallback(async () => {
     try {
       const res = await api.getInvoices({ isCash: true, type: "SALES" });
-      const rows = (res.data as RecentCashSale[]) || [];
+      const rows = ((res.data as RecentCashSale[]) || []).filter((inv) =>
+        String(inv.notes || "").includes("Hisaby POS"),
+      );
       setRecentSales(rows.slice(0, 5));
     } catch {
       /* ignore */
@@ -298,8 +300,6 @@ export default function PosCheckoutPage() {
     try {
       const res = await api.createPosSale({
         paymentMethod: method,
-        // Let backend apply company tax config; only send rate when VAT is on
-        ...(taxRate > 0 ? { taxRate } : { taxRate: 0 }),
         warehouseId: warehouseId || undefined,
         items: cart.map((l) => ({
           productId: l.productId,

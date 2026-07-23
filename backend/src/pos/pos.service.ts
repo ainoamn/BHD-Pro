@@ -287,18 +287,17 @@ export class PosService {
       select: { ftaConfig: true },
     });
     const taxCfg = (company?.ftaConfig as { vatRate?: number; applyVat?: boolean } | null) || {};
-    // Prefer company tax config; ignore client override when applyVat is false
+    // Server-authoritative tax — never trust client taxRate
     const taxRate =
       taxCfg.applyVat === false
         ? 0
-        : dto.taxRate != null
-          ? Number(dto.taxRate)
-          : typeof taxCfg.vatRate === 'number'
-            ? taxCfg.vatRate
-            : 5;
+        : typeof taxCfg.vatRate === 'number'
+          ? taxCfg.vatRate
+          : 5;
 
     // 1) Reserve stock first (atomic) so we never charge without inventory
     const reserved: { productId: string; qty: number; warehouseId: string }[] = [];
+    let invoiceCreated = false;
     try {
       for (const item of lineItems) {
         const result = await this.reserveStockOut(
@@ -329,22 +328,26 @@ export class PosService {
         paymentMethod: dto.paymentMethod ?? PaymentMethod.CASH,
         items: lineItems,
       });
+      invoiceCreated = true;
 
-      // Update movement references to final invoice number (best-effort)
-      if (reserved.length) {
-        await this.prisma.stockMovement.updateMany({
-          where: {
-            reference: reserveRef,
-            productId: { in: reserved.map((r) => r.productId) },
-          },
-          data: {
-            reference: invoice.number,
-            notes: 'POS sale',
-          },
-        });
+      // Post-invoice bookkeeping is best-effort — never roll back stock after a paid sale
+      try {
+        if (reserved.length) {
+          await this.prisma.stockMovement.updateMany({
+            where: {
+              reference: reserveRef,
+              productId: { in: reserved.map((r) => r.productId) },
+            },
+            data: {
+              reference: invoice.number,
+              notes: 'POS sale',
+            },
+          });
+        }
+      } catch {
+        /* keep TEMP reference if rename fails */
       }
 
-      // Best-effort link flag — never fail the sale for this
       try {
         await this.prisma.company.updateMany({
           where: { id: companyId, posLinkedAt: null },
@@ -356,18 +359,20 @@ export class PosService {
 
       return invoice;
     } catch (err) {
-      // Compensate reserved stock if invoice (or later step) failed
-      for (const row of reserved.reverse()) {
-        try {
-          await this.releaseStockIn(
-            companyId,
-            row.productId,
-            row.qty,
-            row.warehouseId,
-            `${reserveRef}-ROLLBACK`,
-          );
-        } catch {
-          /* log-less best effort */
+      // Only release stock if the paid invoice was never created
+      if (!invoiceCreated) {
+        for (const row of reserved.reverse()) {
+          try {
+            await this.releaseStockIn(
+              companyId,
+              row.productId,
+              row.qty,
+              row.warehouseId,
+              `${reserveRef}-ROLLBACK`,
+            );
+          } catch {
+            /* log-less best effort */
+          }
         }
       }
       throw err;
