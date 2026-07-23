@@ -2,13 +2,15 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Loader2, Minus, PackagePlus, Plus, ScanBarcode, ShoppingCart, Trash2 } from "lucide-react";
+import { Loader2, Minus, PackagePlus, Plus, Printer, ScanBarcode, ShoppingCart, Trash2, Warehouse } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
 import { useAuthStore } from "@/store/auth";
 import { posCopy } from "@/lib/pos-copy";
 import { formatMoney } from "@/lib/utils";
+
+const POS_WAREHOUSE_KEY = "hisaby-pos-warehouse-id";
 
 type PosProduct = {
   id: string;
@@ -30,6 +32,34 @@ type CartLine = {
   isTracked: boolean;
 };
 
+type PosWarehouse = {
+  id: string;
+  code: string;
+  name: string;
+  isActive?: boolean;
+};
+
+type ReceiptSnapshot = {
+  number?: string;
+  total?: number;
+  lines?: { name: string; qty: number; lineTotal: number }[];
+  paymentMethod?: string;
+};
+
+type RecentCashSale = {
+  id: string;
+  number: string;
+  total: number | string;
+  date?: string;
+  notes?: string | null;
+  items?: {
+    description: string;
+    quantity: number | string;
+    total: number | string;
+  }[];
+  payments?: { method?: string }[];
+};
+
 export default function PosCheckoutPage() {
   const locale = useLocaleStore((s) => s.locale);
   const company = useAuthStore((s) => s.company);
@@ -41,15 +71,17 @@ export default function PosCheckoutPage() {
   const [catalogLoaded, setCatalogLoaded] = useState(false);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [paying, setPaying] = useState(false);
-  const [lastInvoice, setLastInvoice] = useState<{
-    number?: string;
-    total?: number;
-    lines?: { name: string; qty: number; lineTotal: number }[];
-    paymentMethod?: string;
-  } | null>(null);
+  const [lastInvoice, setLastInvoice] = useState<ReceiptSnapshot | null>(null);
+  const [warehouses, setWarehouses] = useState<PosWarehouse[]>([]);
+  const [warehouseId, setWarehouseId] = useState("");
+  const [recentSales, setRecentSales] = useState<RecentCashSale[]>([]);
 
   const currency = company?.currency || "OMR";
   const taxRate = 5;
+
+  const focusScan = useCallback(() => {
+    window.requestAnimationFrame(() => scanRef.current?.focus());
+  }, []);
 
   const loadCatalog = useCallback(async (q?: string) => {
     try {
@@ -62,47 +94,107 @@ export default function PosCheckoutPage() {
     }
   }, []);
 
+  const loadRecentSales = useCallback(async () => {
+    try {
+      const res = await api.getInvoices({ isCash: true, type: "SALES" });
+      const rows = (res.data as RecentCashSale[]) || [];
+      setRecentSales(rows.slice(0, 5));
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
   useEffect(() => {
     loadCatalog();
-    scanRef.current?.focus();
-  }, [loadCatalog]);
+    loadRecentSales();
+    focusScan();
+    try {
+      const saved = localStorage.getItem(POS_WAREHOUSE_KEY);
+      if (saved) setWarehouseId(saved);
+    } catch {
+      /* ignore */
+    }
+    (async () => {
+      try {
+        const res = await api.getWarehouses();
+        const rows = ((res.data as PosWarehouse[]) || []).filter((w) => w.isActive !== false);
+        setWarehouses(rows);
+      } catch {
+        /* ignore */
+      }
+    })();
+  }, [loadCatalog, loadRecentSales, focusScan]);
 
   useEffect(() => {
     const id = window.setTimeout(() => loadCatalog(search), 220);
     return () => window.clearTimeout(id);
   }, [search, loadCatalog]);
 
-  const addProduct = useCallback((p: PosProduct, qty = 1) => {
-    const unitPrice = Number(p.salePrice);
-    const stock = Number(p.quantity);
-    setCart((prev) => {
-      const existing = prev.find((l) => l.productId === p.id);
-      if (existing) {
-        const nextQty = existing.quantity + qty;
-        if (p.isTracked && nextQty > stock) {
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === "SELECT" || tag === "TEXTAREA") return;
+      if (!cart.length) {
+        focusScan();
+        return;
+      }
+      e.preventDefault();
+      if (window.confirm(t.clearConfirm)) {
+        setCart([]);
+        focusScan();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [cart.length, t.clearConfirm, focusScan]);
+
+  const onWarehouseChange = (id: string) => {
+    setWarehouseId(id);
+    try {
+      if (id) localStorage.setItem(POS_WAREHOUSE_KEY, id);
+      else localStorage.removeItem(POS_WAREHOUSE_KEY);
+    } catch {
+      /* ignore */
+    }
+    focusScan();
+  };
+
+  const addProduct = useCallback(
+    (p: PosProduct, qty = 1) => {
+      const unitPrice = Number(p.salePrice);
+      const stock = Number(p.quantity);
+      setCart((prev) => {
+        const existing = prev.find((l) => l.productId === p.id);
+        if (existing) {
+          const nextQty = existing.quantity + qty;
+          if (p.isTracked && nextQty > stock) {
+            toast.error(`${t.stock}: ${stock}`);
+            return prev;
+          }
+          return prev.map((l) => (l.productId === p.id ? { ...l, quantity: nextQty } : l));
+        }
+        if (p.isTracked && qty > stock) {
           toast.error(`${t.stock}: ${stock}`);
           return prev;
         }
-        return prev.map((l) => (l.productId === p.id ? { ...l, quantity: nextQty } : l));
-      }
-      if (p.isTracked && qty > stock) {
-        toast.error(`${t.stock}: ${stock}`);
-        return prev;
-      }
-      return [
-        ...prev,
-        {
-          productId: p.id,
-          name: p.name,
-          sku: p.sku,
-          unitPrice,
-          quantity: qty,
-          stock,
-          isTracked: p.isTracked,
-        },
-      ];
-    });
-  }, [t.stock]);
+        return [
+          ...prev,
+          {
+            productId: p.id,
+            name: p.name,
+            sku: p.sku,
+            unitPrice,
+            quantity: qty,
+            stock,
+            isTracked: p.isTracked,
+          },
+        ];
+      });
+      focusScan();
+    },
+    [t.stock, focusScan],
+  );
 
   const handleScan = async (e: FormEvent) => {
     e.preventDefault();
@@ -112,11 +204,19 @@ export default function PosCheckoutPage() {
       const res = await api.lookupPosProduct(code);
       addProduct(res.data as PosProduct, 1);
       setScan("");
-      scanRef.current?.focus();
+      focusScan();
     } catch {
       toast.error(t.notFound);
       setScan("");
-      scanRef.current?.focus();
+      focusScan();
+    }
+  };
+
+  const clearCart = () => {
+    if (!cart.length) return;
+    if (window.confirm(t.clearConfirm)) {
+      setCart([]);
+      focusScan();
     }
   };
 
@@ -126,6 +226,61 @@ export default function PosCheckoutPage() {
   );
   const tax = useMemo(() => Number(((subtotal * taxRate) / 100).toFixed(3)), [subtotal]);
   const total = useMemo(() => Number((subtotal + tax).toFixed(3)), [subtotal, tax]);
+
+  const printReceiptSnapshot = useCallback(
+    (receipt: ReceiptSnapshot) => {
+      const w = window.open("", "_blank", "width=360,height=640");
+      if (!w) return;
+      const linesHtml = (receipt.lines || [])
+        .map(
+          (l) =>
+            `<tr><td>${l.name}</td><td style="text-align:center">${l.qty}</td><td style="text-align:end">${formatMoney(l.lineTotal, currency)}</td></tr>`,
+        )
+        .join("");
+      const dir = locale === "en" ? "ltr" : "rtl";
+      w.document.write(`<!doctype html><html dir="${dir}"><head><title>Receipt</title>
+      <style>
+        body{font-family:system-ui,sans-serif;padding:16px;width:280px;margin:0 auto;color:#111}
+        h1{font-size:16px;margin:0 0 4px} p{margin:4px 0;font-size:13px}
+        table{width:100%;border-collapse:collapse;font-size:12px;margin:8px 0}
+        td{padding:3px 0;vertical-align:top}
+        hr{border:none;border-top:1px dashed #999;margin:12px 0}
+      </style></head><body>
+      <h1>${t.brand}</h1>
+      <p>${company?.name || ""}</p>
+      <hr/>
+      <p>${receipt.number || ""}</p>
+      <p>${receipt.paymentMethod || ""}</p>
+      <table><tbody>${linesHtml}</tbody></table>
+      <hr/>
+      <p><strong>${t.total}: ${formatMoney(receipt.total || 0, currency)}</strong></p>
+      <hr/><p style="text-align:center">Hisaby POS</p>
+      <script>window.print()</script></body></html>`);
+      w.document.close();
+    },
+    [company?.name, currency, locale, t.brand, t.total],
+  );
+
+  const paymentLabel = (method?: string) => {
+    if (!method) return "";
+    const m = method.toUpperCase();
+    if (m === "CASH") return t.payCash;
+    if (m === "CREDIT_CARD" || m === "CARD") return t.payCard;
+    return method;
+  };
+
+  const reprintSale = (sale: RecentCashSale) => {
+    printReceiptSnapshot({
+      number: sale.number,
+      total: Number(sale.total),
+      paymentMethod: paymentLabel(sale.payments?.[0]?.method),
+      lines: (sale.items || []).map((item) => ({
+        name: item.description,
+        qty: Number(item.quantity),
+        lineTotal: Number(item.total),
+      })),
+    });
+  };
 
   const checkout = async (method: "CASH" | "CREDIT_CARD") => {
     if (!cart.length || paying) return;
@@ -139,6 +294,7 @@ export default function PosCheckoutPage() {
       const res = await api.createPosSale({
         paymentMethod: method,
         taxRate,
+        warehouseId: warehouseId || undefined,
         items: cart.map((l) => ({
           productId: l.productId,
           quantity: l.quantity,
@@ -155,7 +311,8 @@ export default function PosCheckoutPage() {
       setCart([]);
       toast.success(t.saleOk);
       loadCatalog(search);
-      scanRef.current?.focus();
+      loadRecentSales();
+      focusScan();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       toast.error(typeof msg === "string" ? msg : t.saleFail);
@@ -164,43 +321,33 @@ export default function PosCheckoutPage() {
     }
   };
 
-  const printReceipt = () => {
-    if (!lastInvoice) return;
-    const w = window.open("", "_blank", "width=360,height=640");
-    if (!w) return;
-    const linesHtml = (lastInvoice.lines || [])
-      .map(
-        (l) =>
-          `<tr><td>${l.name}</td><td style="text-align:center">${l.qty}</td><td style="text-align:end">${formatMoney(l.lineTotal, currency)}</td></tr>`,
-      )
-      .join("");
-    const dir = locale === "en" ? "ltr" : "rtl";
-    w.document.write(`<!doctype html><html dir="${dir}"><head><title>Receipt</title>
-      <style>
-        body{font-family:system-ui,sans-serif;padding:16px;width:280px;margin:0 auto;color:#111}
-        h1{font-size:16px;margin:0 0 4px} p{margin:4px 0;font-size:13px}
-        table{width:100%;border-collapse:collapse;font-size:12px;margin:8px 0}
-        td{padding:3px 0;vertical-align:top}
-        hr{border:none;border-top:1px dashed #999;margin:12px 0}
-      </style></head><body>
-      <h1>${t.brand}</h1>
-      <p>${company?.name || ""}</p>
-      <hr/>
-      <p>${lastInvoice.number || ""}</p>
-      <p>${lastInvoice.paymentMethod || ""}</p>
-      <table><tbody>${linesHtml}</tbody></table>
-      <hr/>
-      <p><strong>${t.total}: ${formatMoney(lastInvoice.total || 0, currency)}</strong></p>
-      <hr/><p style="text-align:center">Hisaby POS</p>
-      <script>window.print()</script></body></html>`);
-    w.document.close();
-  };
-
   const showEmptyCatalog = catalogLoaded && catalog.length === 0 && !search.trim();
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-0 lg:gap-4 p-3 sm:p-4 min-h-[calc(100vh-3.5rem)]">
       <section className="lg:col-span-7 xl:col-span-8 space-y-3">
+        {warehouses.length > 0 ? (
+          <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
+            <Warehouse className="w-4 h-4 text-sky-400/80 shrink-0" />
+            <span className="text-xs text-slate-400 shrink-0">{t.warehouseDefault}</span>
+            <select
+              value={warehouseId}
+              onChange={(e) => onWarehouseChange(e.target.value)}
+              className="flex-1 min-w-0 bg-transparent text-sm text-white focus:outline-none"
+              aria-label={t.warehouse}
+            >
+              <option value="" className="bg-[#111827] text-white">
+                {t.warehouseAll}
+              </option>
+              {warehouses.map((w) => (
+                <option key={w.id} value={w.id} className="bg-[#111827] text-white">
+                  {w.code} — {w.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+
         <form onSubmit={handleScan} className="space-y-1.5">
           <div className="flex gap-2">
             <div className="relative flex-1">
@@ -221,9 +368,12 @@ export default function PosCheckoutPage() {
               Enter
             </button>
           </div>
-          <p className="text-[11px] text-slate-500 px-1 flex items-center gap-1.5">
-            <ScanBarcode className="w-3.5 h-3.5 shrink-0 text-slate-400" />
-            {t.barcodeHint}
+          <p className="text-[11px] text-slate-500 px-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="inline-flex items-center gap-1.5">
+              <ScanBarcode className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+              {t.barcodeHint}
+            </span>
+            <span className="text-slate-600">{t.escHint}</span>
           </p>
         </form>
 
@@ -233,6 +383,37 @@ export default function PosCheckoutPage() {
           placeholder={t.searchPlaceholder}
           className="w-full h-11 rounded-xl bg-white/5 border border-white/10 px-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-white/20"
         />
+
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2.5 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-bold text-slate-300">{t.recentSales}</p>
+            {!recentSales.length ? (
+              <p className="text-[11px] text-slate-500">{t.noRecentSales}</p>
+            ) : null}
+          </div>
+          {recentSales.length > 0 ? (
+            <div className="flex gap-2 overflow-x-auto pb-0.5">
+              {recentSales.map((sale) => (
+                <button
+                  key={sale.id}
+                  type="button"
+                  onClick={() => reprintSale(sale)}
+                  className="shrink-0 rounded-xl border border-white/10 bg-black/20 hover:border-sky-400/40 hover:bg-sky-500/10 px-3 py-2 text-start transition min-w-[9.5rem]"
+                  title={t.reprint}
+                >
+                  <p className="text-xs font-bold text-white truncate">{sale.number}</p>
+                  <p className="text-[11px] text-sky-300 font-semibold mt-0.5">
+                    {formatMoney(Number(sale.total), currency)}
+                  </p>
+                  <p className="text-[10px] text-slate-500 mt-1 inline-flex items-center gap-1">
+                    <Printer className="w-3 h-3" />
+                    {t.reprint}
+                  </p>
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
 
         {showEmptyCatalog ? (
           <div className="rounded-3xl border border-dashed border-white/15 bg-white/[0.03] px-6 py-14 text-center space-y-3">
@@ -247,7 +428,7 @@ export default function PosCheckoutPage() {
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2 max-h-[62vh] overflow-y-auto pe-1">
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2 max-h-[52vh] overflow-y-auto pe-1">
             {catalog.map((p) => (
               <button
                 key={p.id}
@@ -285,7 +466,7 @@ export default function PosCheckoutPage() {
           </div>
           <button
             type="button"
-            onClick={() => setCart([])}
+            onClick={clearCart}
             className="text-xs text-slate-500 hover:text-rose-300 inline-flex items-center gap-1"
           >
             <Trash2 className="w-3.5 h-3.5" />
@@ -395,7 +576,7 @@ export default function PosCheckoutPage() {
           {lastInvoice && (
             <button
               type="button"
-              onClick={printReceipt}
+              onClick={() => printReceiptSnapshot(lastInvoice)}
               className="w-full h-10 rounded-xl border border-white/10 text-sm text-slate-300 hover:bg-white/5"
             >
               {t.printReceipt} · {lastInvoice.number}
