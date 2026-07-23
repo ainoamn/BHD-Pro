@@ -19,7 +19,6 @@ const messagesMap: Record<Locale, typeof arMessages> = {
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const locale = useLocaleStore((s) => s.locale);
-  const [mounted, setMounted] = useState(false);
   const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
   const [queryClient] = useState(
     () =>
@@ -35,26 +34,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
       })
   );
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (!mounted) return;
-    const safeLocale = locale === "en" ? "en" : "ar";
-    document.documentElement.lang = safeLocale;
-    document.documentElement.dir = safeLocale === "ar" ? "rtl" : "ltr";
-  }, [locale, mounted]);
-
   const safeLocale: Locale = locale === "en" ? "en" : "ar";
 
-  if (!mounted) {
-    return (
-      <div className="min-h-screen bg-app flex items-center justify-center">
-        <div className="animate-spin w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full" />
-      </div>
-    );
-  }
+  useEffect(() => {
+    document.documentElement.lang = safeLocale;
+    document.documentElement.dir = safeLocale === "ar" ? "rtl" : "ltr";
+  }, [safeLocale]);
 
   const tree = (
     <NextIntlClientProvider

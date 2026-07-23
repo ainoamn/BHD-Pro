@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, Suspense } from "react";
+import { useEffect, useMemo, useRef, useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -27,7 +27,6 @@ function LoginForm() {
   );
   const forceSwitch = searchParams.get("switch") === "1";
   const isAdminNext = nextPath.startsWith("/admin");
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const currentEmail = useAuthStore((s) => s.user?.email);
   const [ready, setReady] = useState(false);
   const [email, setEmail] = useState(
@@ -40,48 +39,66 @@ function LoginForm() {
   const [tempToken, setTempToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [switching, setSwitching] = useState(false);
+  const probeGen = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
+    const myProbe = ++probeGen.current;
+    // Safety net: never leave the page stuck on the spinner (cold API / hung refresh).
+    const safety = window.setTimeout(() => {
+      if (!cancelled && myProbe === probeGen.current) setReady(true);
+    }, 10000);
+
     (async () => {
-      if (forceSwitch && isAuthenticated) {
-        await api.logout();
-        if (!cancelled) setReady(true);
-        return;
-      }
-
-      if (!isAuthenticated) {
-        await api.restoreSession();
-      }
-
-      const auth = useAuthStore.getState();
-      if (!auth.isAuthenticated) {
-        if (!cancelled) setReady(true);
-        return;
-      }
-
-      if (isAdminNext) {
-        try {
-          const res = await api.getAdminMe();
-          if (res.data.isPlatformAdmin) {
-            router.replace(nextPath);
-            return;
+      try {
+        if (forceSwitch) {
+          if (useAuthStore.getState().isAuthenticated) {
+            await api.logout();
           }
-        } catch {
-          /* stay on login to switch account */
+          if (!cancelled && myProbe === probeGen.current) setReady(true);
+          return;
         }
-        if (!cancelled) setReady(true);
-        return;
-      }
 
-      router.replace(nextPath);
+        // Always verify cookies — persisted localStorage alone can be stale and
+        // caused dashboard↔login bounce / endless loading.
+        const ok = await api.restoreSession();
+        if (cancelled || myProbe !== probeGen.current) return;
+
+        if (!ok || !useAuthStore.getState().isAuthenticated) {
+          setReady(true);
+          return;
+        }
+
+        if (isAdminNext) {
+          try {
+            const res = await api.getAdminMe();
+            if (cancelled || myProbe !== probeGen.current) return;
+            if (res.data.isPlatformAdmin) {
+              router.replace(nextPath);
+              return;
+            }
+          } catch {
+            /* stay on login to switch account */
+          }
+          if (!cancelled && myProbe === probeGen.current) setReady(true);
+          return;
+        }
+
+        router.replace(nextPath);
+      } catch {
+        if (!cancelled && myProbe === probeGen.current) setReady(true);
+      }
     })();
+
     return () => {
       cancelled = true;
+      window.clearTimeout(safety);
     };
-  }, [forceSwitch, isAuthenticated, isAdminNext, nextPath, router]);
+  }, [forceSwitch, isAdminNext, nextPath, router]);
 
   const finishLogin = () => {
+    // Invalidate any in-flight session probe from this page.
+    probeGen.current += 1;
     toast.success(t("login"));
     router.replace(nextPath);
   };

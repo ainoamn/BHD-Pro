@@ -65,14 +65,30 @@ class ApiClient {
             }
             return this.client(originalRequest);
           } catch (refreshError) {
-            useAuthStore.getState().logout();
             if (typeof window !== 'undefined') {
-              const here = `${window.location.pathname}${window.location.search || ''}`;
-              if (here.startsWith('/login')) {
-                window.location.href = '/login';
-              } else {
+              const path = window.location.pathname || '';
+              const isAuthSurface =
+                path.startsWith('/login') ||
+                path.startsWith('/register') ||
+                path.startsWith('/pay') ||
+                path.startsWith('/share');
+              const memoryToken = useAuthStore.getState().accessToken;
+
+              // A login may have completed while this 401 probe was in flight.
+              // Prefer the fresh Bearer token over wiping the new session.
+              if (memoryToken) {
+                originalRequest.headers = originalRequest.headers || {};
+                originalRequest.headers.Authorization = `Bearer ${memoryToken}`;
+                return this.client(originalRequest);
+              }
+
+              useAuthStore.getState().logout();
+              if (!isAuthSurface) {
+                const here = `${path}${window.location.search || ''}`;
                 window.location.href = `/login?next=${encodeURIComponent(here)}`;
               }
+            } else {
+              useAuthStore.getState().logout();
             }
             return Promise.reject(refreshError);
           }
@@ -230,6 +246,8 @@ class ApiClient {
         companyId: string;
         company: import('@/types').Company;
       };
+      // Keep any in-memory accessToken from a just-completed login.
+      const existingToken = useAuthStore.getState().accessToken;
       useAuthStore.getState().login(
         {
           id: data.id,
@@ -239,11 +257,12 @@ class ApiClient {
           companyId: data.companyId,
         },
         data.company,
-        null
+        existingToken
       );
       return true;
     } catch {
-      useAuthStore.getState().logout();
+      // Do NOT logout here — a slow/failed probe on /login must not wipe a
+      // login that succeeded while this request was still in flight.
       return false;
     }
   }

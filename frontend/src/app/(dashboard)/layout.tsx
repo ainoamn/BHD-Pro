@@ -25,7 +25,7 @@ export default function DashboardLayout({
     setHydrated(true);
   }, []);
 
-  // Validate session in background; show cached auth immediately when available
+  // Validate session; keep UI if we already have auth from a fresh login.
   useEffect(() => {
     if (!hydrated) return;
     let cancelled = false;
@@ -36,13 +36,24 @@ export default function DashboardLayout({
       } else {
         store.setLoading(true);
       }
-      await api.restoreSession();
-      if (!cancelled) useAuthStore.getState().setLoading(false);
+
+      const ok = await api.restoreSession();
+      if (cancelled) return;
+
+      if (!ok) {
+        const still = useAuthStore.getState();
+        // Fresh login keeps accessToken in memory — trust it until /me works.
+        if (!still.accessToken) {
+          still.logout();
+          router.replace("/login");
+        }
+      }
+      useAuthStore.getState().setLoading(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [hydrated]);
+  }, [hydrated, router]);
 
   // Sync company once per session (background refresh)
   useEffect(() => {
