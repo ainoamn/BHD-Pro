@@ -26,4 +26,5 @@ COPY --from=build /app/dist ./dist
 COPY --from=build /app/src/prisma ./src/prisma
 COPY package.json ./
 EXPOSE 3001
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main"]
+# Migration history is incomplete vs schema; db push syncs the full schema on empty Neon.
+CMD ["sh", "-c", "npx prisma db push && node dist/main"]
