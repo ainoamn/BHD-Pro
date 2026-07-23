@@ -1,7 +1,10 @@
 import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
+import { UserRole } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
 import { PosService } from './pos.service';
@@ -27,13 +30,17 @@ export class PosController {
   }
 
   @Post('link/generate')
-  @ApiOperation({ summary: 'Generate technical integration key (shown once)' })
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Generate technical integration key (ADMIN, shown once)' })
   generate(@CurrentUser() user: TokenPayload) {
     return this.pos.generateIntegrationKey(user.companyId);
   }
 
   @Post('link')
-  @ApiOperation({ summary: 'Confirm link with integration key' })
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Confirm link with integration key (ADMIN, same company)' })
   linkWithKey(@CurrentUser() user: TokenPayload, @Body() dto: LinkPosDto) {
     return this.pos.linkWithKey(user.companyId, dto.key);
   }
@@ -52,7 +59,7 @@ export class PosController {
 
   @Post('sales')
   @Throttle({ default: { limit: 60, ttl: 60000 } })
-  @ApiOperation({ summary: 'Complete POS cash sale (invoice + stock OUT)' })
+  @ApiOperation({ summary: 'Complete POS cash sale (stock reserve then invoice)' })
   sale(@CurrentUser() user: TokenPayload, @Body() dto: CreatePosSaleDto) {
     return this.pos.createSale(user.companyId, user.sub, dto);
   }

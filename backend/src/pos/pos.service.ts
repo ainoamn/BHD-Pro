@@ -4,11 +4,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { createHash, randomBytes } from 'crypto';
-import { ContactType, InvoiceType, PaymentMethod } from '@prisma/client';
+import { ContactType, InvoiceType, MovementType, PaymentMethod } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { InvoicesService } from '../invoices/invoices.service';
 import { ProductsService } from '../products/products.service';
-import { StockAdjustMode } from '../products/dto/adjust-stock.dto';
+import { PeriodsService } from '../periods/periods.service';
 import { CreatePosSaleDto } from './dto/pos.dto';
 
 const WALK_IN_NAME = 'POS Walk-in / نقدي';
@@ -19,6 +19,7 @@ export class PosService {
     private prisma: PrismaService,
     private invoices: InvoicesService,
     private products: ProductsService,
+    private periods: PeriodsService,
   ) {}
 
   private hashKey(secret: string) {
@@ -90,7 +91,9 @@ export class PosService {
       select: { id: true },
     });
     if (!company) {
-      throw new BadRequestException('Integration key does not match this company');
+      throw new BadRequestException(
+        'Integration key does not match this company — generate a key while signed into the same company, or use shared login to link',
+      );
     }
     return this.activateLink(companyId);
   }
@@ -157,22 +160,119 @@ export class PosService {
     });
   }
 
+  /** Atomic stock OUT — safe under concurrent cashiers */
+  private async reserveStockOut(
+    companyId: string,
+    productId: string,
+    qty: number,
+    warehouseId: string | undefined,
+    reference: string,
+  ) {
+    await this.periods.assertOpen(companyId, new Date());
+
+    return this.prisma.$transaction(async (tx) => {
+      const product = await tx.product.findFirst({
+        where: { id: productId, companyId },
+      });
+      if (!product || !product.isActive) {
+        throw new BadRequestException('Product not found or inactive');
+      }
+      if (!product.isTracked) return { productId, reserved: false as const };
+
+      let whId = warehouseId || product.warehouseId;
+      if (whId) {
+        const wh = await tx.warehouse.findFirst({ where: { id: whId, companyId } });
+        if (!wh) throw new NotFoundException('Warehouse not found');
+      } else {
+        const wh =
+          (await tx.warehouse.findFirst({
+            where: { companyId, isActive: true },
+            orderBy: { createdAt: 'asc' },
+          })) ||
+          (await tx.warehouse.create({
+            data: { companyId, code: 'MAIN', name: 'المستودع الرئيسي', isActive: true },
+          }));
+        whId = wh.id;
+      }
+
+      const updated = await tx.product.updateMany({
+        where: {
+          id: productId,
+          companyId,
+          quantity: { gte: qty },
+        },
+        data: {
+          quantity: { decrement: qty },
+          warehouseId: whId!,
+        },
+      });
+      if (updated.count === 0) {
+        throw new BadRequestException(
+          `Insufficient stock for ${product.name} (requested ${qty})`,
+        );
+      }
+
+      await tx.stockMovement.create({
+        data: {
+          productId,
+          warehouseId: whId!,
+          type: MovementType.OUT,
+          quantity: qty,
+          unitCost: product.costPrice,
+          reference,
+          notes: 'POS sale (reserved)',
+        },
+      });
+
+      return { productId, reserved: true as const, qty, warehouseId: whId! };
+    });
+  }
+
+  private async releaseStockIn(
+    companyId: string,
+    productId: string,
+    qty: number,
+    warehouseId: string,
+    reference: string,
+  ) {
+    await this.prisma.$transaction(async (tx) => {
+      await tx.product.updateMany({
+        where: { id: productId, companyId },
+        data: { quantity: { increment: qty } },
+      });
+      await tx.stockMovement.create({
+        data: {
+          productId,
+          warehouseId,
+          type: MovementType.IN,
+          quantity: qty,
+          unitCost: 0,
+          reference,
+          notes: 'POS sale rollback',
+        },
+      });
+    });
+  }
+
   async createSale(companyId: string, userId: string, dto: CreatePosSaleDto) {
     const contact = await this.ensureWalkInContact(companyId);
     const today = new Date().toISOString().slice(0, 10);
+    const reserveRef = `POS-TEMP-${Date.now()}`;
 
-    const lineItems = [];
+    const lineItems: {
+      productId: string;
+      description: string;
+      quantity: number;
+      unitPrice: number;
+      discount: number;
+    }[] = [];
+
     for (const item of dto.items) {
       const product = await this.products.findOne(companyId, item.productId);
       if (!product.isActive) {
         throw new BadRequestException(`Product inactive: ${product.name}`);
       }
       const qty = Number(item.quantity);
-      if (product.isTracked && qty > Number(product.quantity)) {
-        throw new BadRequestException(
-          `Insufficient stock for ${product.name} (available ${product.quantity})`,
-        );
-      }
       lineItems.push({
         productId: product.id,
         description: product.name,
@@ -187,45 +287,90 @@ export class PosService {
       select: { ftaConfig: true },
     });
     const taxCfg = (company?.ftaConfig as { vatRate?: number; applyVat?: boolean } | null) || {};
+    // Prefer company tax config; ignore client override when applyVat is false
     const taxRate =
-      dto.taxRate != null
-        ? Number(dto.taxRate)
-        : taxCfg.applyVat === false
-          ? 0
+      taxCfg.applyVat === false
+        ? 0
+        : dto.taxRate != null
+          ? Number(dto.taxRate)
           : typeof taxCfg.vatRate === 'number'
             ? taxCfg.vatRate
             : 5;
 
-    const invoice = await this.invoices.create(companyId, userId, {
-      type: InvoiceType.SALES,
-      contactId: contact.id,
-      date: today,
-      dueDate: today,
-      taxRate,
-      notes: dto.notes || 'Hisaby POS sale',
-      payImmediately: true,
-      paymentMethod: dto.paymentMethod ?? PaymentMethod.CASH,
-      items: lineItems,
-    });
+    // 1) Reserve stock first (atomic) so we never charge without inventory
+    const reserved: { productId: string; qty: number; warehouseId: string }[] = [];
+    try {
+      for (const item of lineItems) {
+        const result = await this.reserveStockOut(
+          companyId,
+          item.productId,
+          item.quantity,
+          dto.warehouseId,
+          reserveRef,
+        );
+        if (result.reserved) {
+          reserved.push({
+            productId: result.productId,
+            qty: result.qty!,
+            warehouseId: result.warehouseId!,
+          });
+        }
+      }
 
-    for (const item of dto.items) {
-      const product = await this.products.findOne(companyId, item.productId);
-      if (!product.isTracked) continue;
-      await this.products.adjustStock(companyId, product.id, {
-        mode: StockAdjustMode.OUT,
-        quantity: Number(item.quantity),
-        warehouseId: dto.warehouseId || product.warehouseId || undefined,
-        reference: invoice.number,
-        notes: 'POS sale',
+      // 2) Create paid cash invoice
+      const invoice = await this.invoices.create(companyId, userId, {
+        type: InvoiceType.SALES,
+        contactId: contact.id,
+        date: today,
+        dueDate: today,
+        taxRate,
+        notes: dto.notes || 'Hisaby POS sale',
+        payImmediately: true,
+        paymentMethod: dto.paymentMethod ?? PaymentMethod.CASH,
+        items: lineItems,
       });
+
+      // Update movement references to final invoice number (best-effort)
+      if (reserved.length) {
+        await this.prisma.stockMovement.updateMany({
+          where: {
+            reference: reserveRef,
+            productId: { in: reserved.map((r) => r.productId) },
+          },
+          data: {
+            reference: invoice.number,
+            notes: 'POS sale',
+          },
+        });
+      }
+
+      // Best-effort link flag — never fail the sale for this
+      try {
+        await this.prisma.company.updateMany({
+          where: { id: companyId, posLinkedAt: null },
+          data: { posLinkedAt: new Date() },
+        });
+      } catch {
+        /* ignore */
+      }
+
+      return invoice;
+    } catch (err) {
+      // Compensate reserved stock if invoice (or later step) failed
+      for (const row of reserved.reverse()) {
+        try {
+          await this.releaseStockIn(
+            companyId,
+            row.productId,
+            row.qty,
+            row.warehouseId,
+            `${reserveRef}-ROLLBACK`,
+          );
+        } catch {
+          /* log-less best effort */
+        }
+      }
+      throw err;
     }
-
-    // Ensure apps marked linked after first successful POS sale with shared login
-    await this.prisma.company.updateMany({
-      where: { id: companyId, posLinkedAt: null },
-      data: { posLinkedAt: new Date() },
-    });
-
-    return invoice;
   }
 }

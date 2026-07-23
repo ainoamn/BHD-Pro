@@ -77,7 +77,12 @@ export default function PosCheckoutPage() {
   const [recentSales, setRecentSales] = useState<RecentCashSale[]>([]);
 
   const currency = company?.currency || "OMR";
-  const taxRate = 5;
+  const taxRate =
+    company?.applyVat === false
+      ? 0
+      : typeof company?.vatRate === "number"
+        ? company.vatRate
+        : 5;
 
   const focusScan = useCallback(() => {
     window.requestAnimationFrame(() => scanRef.current?.focus());
@@ -293,7 +298,8 @@ export default function PosCheckoutPage() {
     try {
       const res = await api.createPosSale({
         paymentMethod: method,
-        taxRate,
+        // Let backend apply company tax config; only send rate when VAT is on
+        ...(taxRate > 0 ? { taxRate } : { taxRate: 0 }),
         warehouseId: warehouseId || undefined,
         items: cart.map((l) => ({
           productId: l.productId,
@@ -327,25 +333,28 @@ export default function PosCheckoutPage() {
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-0 lg:gap-4 p-3 sm:p-4 min-h-[calc(100vh-3.5rem)]">
       <section className="lg:col-span-7 xl:col-span-8 space-y-3">
         {warehouses.length > 0 ? (
-          <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
-            <Warehouse className="w-4 h-4 text-sky-400/80 shrink-0" />
-            <span className="text-xs text-slate-400 shrink-0">{t.warehouseDefault}</span>
-            <select
-              value={warehouseId}
-              onChange={(e) => onWarehouseChange(e.target.value)}
-              className="flex-1 min-w-0 bg-transparent text-sm text-white focus:outline-none"
-              aria-label={t.warehouse}
-            >
-              <option value="" className="bg-[#111827] text-white">
-                {t.warehouseAll}
-              </option>
-              {warehouses.map((w) => (
-                <option key={w.id} value={w.id} className="bg-[#111827] text-white">
-                  {w.code} — {w.name}
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 space-y-1">
+            <label className="flex items-center gap-2">
+              <Warehouse className="w-4 h-4 text-sky-400/80 shrink-0" />
+              <span className="text-xs text-slate-400 shrink-0">{t.warehouseDefault}</span>
+              <select
+                value={warehouseId}
+                onChange={(e) => onWarehouseChange(e.target.value)}
+                className="flex-1 min-w-0 bg-transparent text-sm text-white focus:outline-none"
+                aria-label={t.warehouse}
+              >
+                <option value="" className="bg-[#111827] text-white">
+                  {t.warehouseAll}
                 </option>
-              ))}
-            </select>
-          </label>
+                {warehouses.map((w) => (
+                  <option key={w.id} value={w.id} className="bg-[#111827] text-white">
+                    {w.code} — {w.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p className="text-[10px] text-slate-500 ps-6">{t.warehouseHint}</p>
+          </div>
         ) : null}
 
         <form onSubmit={handleScan} className="space-y-1.5">
