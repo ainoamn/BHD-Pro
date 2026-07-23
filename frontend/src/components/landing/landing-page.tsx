@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useState } from "react";
 import { FileText, Package, PieChart, Shield, Users, Wallet } from "lucide-react";
 import { useLocaleStore } from "@/store/locale";
 import { useAuthStore } from "@/store/auth";
@@ -10,17 +10,6 @@ import { landingCopy } from "@/lib/landing-copy";
 import { cn } from "@/lib/utils";
 
 const featureIcons = [FileText, Package, PieChart, Users, Wallet, Shield];
-
-/** Omani-inspired palette: flag green, ribbon red, limestone & frankincense dusk */
-const oman = {
-  green: "#0B5E3B",
-  greenDeep: "#063D28",
-  red: "#B91C2C",
-  stone: "#C4B59A",
-  sand: "#E6DCC8",
-  dusk: "#1A2E24",
-  ink: "#0F1F18",
-} as const;
 
 export function LandingPage() {
   const locale = useLocaleStore((s) => s.locale);
@@ -36,62 +25,54 @@ export function LandingPage() {
   }, []);
 
   return (
-    <div
-      className="min-h-screen text-[var(--oman-ink)]"
-      dir={isAr ? "rtl" : "ltr"}
-      style={
-        {
-          "--oman-green": oman.green,
-          "--oman-green-deep": oman.greenDeep,
-          "--oman-red": oman.red,
-          "--oman-stone": oman.stone,
-          "--oman-sand": oman.sand,
-          "--oman-dusk": oman.dusk,
-          "--oman-ink": oman.ink,
-        } as CSSProperties
-      }
-    >
-      {/* Flag ribbon */}
+    <div className="min-h-screen bg-[#fafcfb] text-slate-900" dir={isAr ? "rtl" : "ltr"}>
+      {/* Soft atmosphere — light, quiet, Omani green undertone */}
       <div
         aria-hidden
-        className="pointer-events-none fixed inset-x-0 top-0 z-50 h-1.5"
+        className="pointer-events-none fixed inset-0 -z-10"
         style={{
-          background: `linear-gradient(90deg, ${oman.red} 0%, ${oman.red} 26%, #fff 26%, #fff 52%, ${oman.green} 52%)`,
+          background:
+            "radial-gradient(ellipse 90% 55% at 50% -10%, #dcefe4 0%, transparent 55%), linear-gradient(180deg, #fafcfb 0%, #f3f8f5 40%, #ffffff 100%)",
+        }}
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-x-0 top-0 z-50 h-px"
+        style={{
+          background: "linear-gradient(90deg, #C8102E 0%, #C8102E 22%, #ffffff 22%, #ffffff 48%, #0B6B45 48%)",
+          height: "2px",
         }}
       />
 
-      <header className="sticky top-0 z-40 border-b border-[var(--oman-ink)]/8 bg-[var(--oman-sand)]/85 backdrop-blur-md">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4">
+      <header className="sticky top-0 z-40 border-b border-emerald-950/5 bg-[#fafcfb]/80 backdrop-blur-xl">
+        <div className="mx-auto flex h-[4.25rem] max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
           <Link href="/" className="flex items-center gap-2.5">
-            <Image src="/brand/hisaby-mark.png" alt="Hisaby" width={34} height={34} className="rounded-md" priority />
-            <span className="font-display text-lg font-bold tracking-tight text-[var(--oman-ink)]">
-              {t.brand}
-            </span>
+            <Image src="/brand/hisaby-mark.png" alt="Hisaby" width={32} height={32} className="rounded-lg" priority />
+            <span className="text-lg font-extrabold tracking-tight text-emerald-950">{t.brand}</span>
           </Link>
-          <nav className="hidden items-center gap-6 text-sm font-medium text-[var(--oman-ink)]/65 md:flex">
-            <a href="#features" className="transition hover:text-[var(--oman-green)]">
+          <nav className="hidden items-center gap-8 text-[13px] font-medium text-slate-500 md:flex">
+            <a href="#features" className="transition-colors hover:text-emerald-900">
               {t.navFeatures}
             </a>
-            <a href="#pricing" className="transition hover:text-[var(--oman-green)]">
+            <a href="#pricing" className="transition-colors hover:text-emerald-900">
               {t.navPricing}
             </a>
-            <a href="#company" className="transition hover:text-[var(--oman-green)]">
+            <a href="#company" className="transition-colors hover:text-emerald-900">
               {t.navCompany}
             </a>
           </nav>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <button
               type="button"
               onClick={() => setLocale(isAr ? "en" : "ar")}
-              className="rounded-md px-2 py-1.5 text-xs font-bold text-[var(--oman-ink)]/70 hover:bg-white/60"
+              className="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-500 transition hover:bg-white hover:text-emerald-950"
             >
               {t.langSwitch}
             </button>
             {isAuthenticated ? (
               <Link
                 href="/dashboard"
-                className="rounded-lg px-3 py-2 text-sm font-bold text-white"
-                style={{ background: oman.green }}
+                className="rounded-xl bg-emerald-900 px-3.5 py-2 text-sm font-bold text-white transition hover:bg-emerald-800"
               >
                 {t.dashboard}
               </Link>
@@ -99,14 +80,13 @@ export function LandingPage() {
               <>
                 <Link
                   href="/login"
-                  className="hidden rounded-lg px-3 py-2 text-sm font-bold text-[var(--oman-ink)] sm:inline hover:bg-white/60"
+                  className="hidden rounded-xl px-3.5 py-2 text-sm font-semibold text-emerald-950 transition hover:bg-white sm:inline"
                 >
                   {t.login}
                 </Link>
                 <Link
                   href="/register"
-                  className="rounded-lg px-3 py-2 text-sm font-bold text-white"
-                  style={{ background: oman.green }}
+                  className="rounded-xl bg-emerald-900 px-3.5 py-2 text-sm font-bold text-white transition hover:bg-emerald-800"
                 >
                   {t.register}
                 </Link>
@@ -116,82 +96,49 @@ export function LandingPage() {
         </div>
       </header>
 
-      {/* Full-bleed hero — one composition */}
-      <section className="relative min-h-[calc(100vh-4rem)] overflow-hidden">
+      {/* Hero — one light composition */}
+      <section className="relative overflow-hidden">
         <div
           aria-hidden
-          className="absolute inset-0"
-          style={{
-            background: `
-              linear-gradient(135deg, ${oman.sand} 0%, #d9cbb3 28%, #a8c4b0 55%, ${oman.greenDeep} 100%)
-            `,
-          }}
+          className={cn(
+            "pointer-events-none absolute -top-24 h-[420px] w-[420px] rounded-full bg-emerald-400/10 blur-3xl transition-opacity duration-1000",
+            isAr ? "-left-20" : "-right-20",
+            visible ? "opacity-100" : "opacity-0"
+          )}
         />
         <div
           aria-hidden
           className={cn(
-            "absolute inset-0 opacity-[0.12] transition-opacity duration-[1.4s]",
-            visible ? "opacity-[0.14]" : "opacity-0"
+            "pointer-events-none absolute bottom-0 h-[280px] w-[280px] rounded-full bg-rose-400/5 blur-3xl transition-opacity delay-200 duration-1000",
+            isAr ? "right-10" : "left-10",
+            visible ? "opacity-100" : "opacity-0"
           )}
-          style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg width='72' height='72' viewBox='0 0 72 72' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' stroke='%23063D28' stroke-width='1.2'%3E%3Cpath d='M36 4 L68 36 L36 68 L4 36 Z'/%3E%3Cpath d='M36 16 L56 36 L36 56 L16 36 Z'/%3E%3C/g%3E%3C/svg%3E")`,
-            animation: visible ? "oman-drift 28s linear infinite" : undefined,
-          }}
-        />
-        <div
-          aria-hidden
-          className="absolute inset-0"
-          style={{
-            background: `radial-gradient(ellipse 80% 60% at ${isAr ? "15%" : "85%"} 40%, ${oman.red}22 0%, transparent 55%),
-              linear-gradient(to top, ${oman.ink}cc 0%, transparent 48%)`,
-          }}
         />
 
-        <div className="relative mx-auto flex min-h-[calc(100vh-4rem)] max-w-6xl flex-col justify-end px-4 pb-16 pt-20 md:justify-center md:pb-24 md:pt-12">
+        <div className="relative mx-auto grid max-w-6xl items-center gap-12 px-4 py-16 sm:px-6 md:grid-cols-2 md:gap-16 md:py-24 lg:py-28">
           <div
             className={cn(
-              "max-w-2xl transition-all duration-700 ease-out",
-              visible ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0"
+              "transition-all duration-700 ease-out",
+              visible ? "translate-y-0 opacity-100" : "translate-y-5 opacity-0"
             )}
           >
-            <p
-              className={cn(
-                "mb-4 font-display text-5xl font-bold tracking-tight text-white drop-shadow-sm sm:text-6xl md:text-7xl",
-                "transition-all delay-100 duration-700",
-                visible ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0"
-              )}
-            >
+            <p className="mb-5 text-5xl font-extrabold tracking-tight text-emerald-950 sm:text-6xl lg:text-[4rem] lg:leading-none">
               {t.brand}
             </p>
-            <h1
-              className={cn(
-                "max-w-xl text-xl font-bold leading-snug text-white/95 sm:text-2xl md:text-[1.65rem]",
-                "transition-all delay-200 duration-700",
-                visible ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0"
-              )}
-            >
+            <h1 className="max-w-xl text-[1.35rem] font-bold leading-snug text-slate-700 sm:text-2xl">
               {t.headline}
             </h1>
-            <p
-              className={cn(
-                "mt-4 max-w-lg text-base leading-relaxed text-white/80",
-                "transition-all delay-300 duration-700",
-                visible ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0"
-              )}
-            >
-              {t.subhead}
-            </p>
+            <p className="mt-5 max-w-md text-[15px] leading-relaxed text-slate-500">{t.subhead}</p>
             <div
               className={cn(
-                "mt-8 flex flex-wrap gap-3",
-                "transition-all delay-[400ms] duration-700",
-                visible ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0"
+                "mt-9 flex flex-wrap gap-3 transition-all delay-150 duration-700",
+                visible ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
               )}
             >
               {isAuthenticated ? (
                 <Link
                   href="/dashboard"
-                  className="rounded-xl bg-white px-6 py-3 text-base font-bold text-[var(--oman-ink)] shadow-sm transition hover:bg-[var(--oman-sand)]"
+                  className="rounded-2xl bg-emerald-900 px-7 py-3 text-[15px] font-bold text-white shadow-sm shadow-emerald-900/10 transition hover:bg-emerald-800"
                 >
                   {t.dashboard}
                 </Link>
@@ -199,73 +146,103 @@ export function LandingPage() {
                 <>
                   <Link
                     href="/register"
-                    className="rounded-xl bg-white px-6 py-3 text-base font-bold text-[var(--oman-ink)] shadow-sm transition hover:bg-[var(--oman-sand)]"
+                    className="rounded-2xl bg-emerald-900 px-7 py-3 text-[15px] font-bold text-white shadow-sm shadow-emerald-900/10 transition hover:bg-emerald-800"
                   >
                     {t.register}
                   </Link>
                   <Link
                     href="/login"
-                    className="rounded-xl border border-white/35 bg-white/10 px-6 py-3 text-base font-bold text-white backdrop-blur-sm transition hover:bg-white/20"
+                    className="rounded-2xl border border-emerald-950/10 bg-white/70 px-7 py-3 text-[15px] font-bold text-emerald-950 backdrop-blur transition hover:bg-white"
                   >
                     {t.login}
                   </Link>
                 </>
               )}
             </div>
+            <p
+              className={cn(
+                "mt-8 text-xs font-medium tracking-wide text-emerald-800/60 transition-all delay-300 duration-700",
+                visible ? "opacity-100" : "opacity-0"
+              )}
+            >
+              {t.regionLine}
+            </p>
           </div>
 
-          {/* Dominant brand mark as visual plane — edge-anchored, not a floating card */}
           <div
-            aria-hidden
             className={cn(
-              "pointer-events-none absolute bottom-0 opacity-[0.18] transition-all duration-[1.2s] ease-out md:opacity-[0.22]",
-              isAr ? "left-0 -translate-x-8" : "right-0 translate-x-8",
-              visible ? "translate-y-0 scale-100" : "translate-y-8 scale-95"
+              "relative flex justify-center transition-all duration-1000 ease-out md:justify-end",
+              visible ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0"
             )}
           >
-            <Image
-              src="/brand/hisaby-mark.png"
-              alt=""
-              width={420}
-              height={420}
-              className="h-auto w-[min(70vw,420px)] brightness-0 invert"
-              priority
-            />
+            {/* Full-bleed visual plane anchored to the edge feel */}
+            <div className="relative w-full max-w-[380px]">
+              <div
+                aria-hidden
+                className="absolute -inset-6 rounded-[2.5rem] bg-gradient-to-br from-emerald-100/40 via-transparent to-rose-50/30"
+              />
+              <div className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-emerald-950 via-emerald-900 to-[#0a3d2c] px-8 pb-8 pt-10 text-white">
+                <div
+                  aria-hidden
+                  className="absolute inset-0 opacity-[0.07]"
+                  style={{
+                    backgroundImage:
+                      "url(\"data:image/svg+xml,%3Csvg width='56' height='56' viewBox='0 0 56 56' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M28 2 L54 28 L28 54 L2 28 Z' fill='none' stroke='%23ffffff' stroke-width='1'/%3E%3C/svg%3E\")",
+                  }}
+                />
+                <div
+                  aria-hidden
+                  className="absolute -left-10 top-0 h-40 w-40 rounded-full bg-[#C8102E]/20 blur-2xl"
+                />
+                <div className="relative">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-100/50">
+                    {t.brandEn}
+                  </p>
+                  <p className="mt-6 text-3xl font-extrabold tracking-tight">{t.brand}</p>
+                  <p className="mt-2 max-w-[14rem] text-sm leading-relaxed text-emerald-100/65">
+                    {t.footerTag}
+                  </p>
+                </div>
+                <div className="relative mt-12 flex justify-center">
+                  <div className="rounded-2xl bg-white/95 p-4 shadow-lg shadow-black/10">
+                    <Image
+                      src="/brand/hisaby-mark.png"
+                      alt=""
+                      width={88}
+                      height={88}
+                      className="rounded-xl"
+                      priority
+                    />
+                  </div>
+                </div>
+                <p className="relative mt-10 text-center text-[11px] text-emerald-100/45">{t.trustLine}</p>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      <section
-        className="relative overflow-hidden border-y border-[var(--oman-ink)]/8 py-16"
-        style={{ background: `linear-gradient(90deg, ${oman.sand} 0%, #f3eee4 50%, ${oman.sand} 100%)` }}
-      >
-        <div className="mx-auto max-w-6xl px-4">
-          <p className="text-sm font-semibold tracking-wide text-[var(--oman-green)]">{t.craftTitle}</p>
-          <p className="mt-2 max-w-2xl text-lg leading-relaxed text-[var(--oman-ink)]/75">{t.craftBody}</p>
-          <p className="mt-4 text-sm font-medium text-[var(--oman-ink)]/55">{t.regionLine}</p>
+      <section className="border-y border-emerald-950/[0.04] bg-white/60 py-14">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <p className="text-xs font-semibold tracking-[0.14em] text-emerald-800/70">{t.craftTitle}</p>
+          <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-slate-500">{t.craftBody}</p>
         </div>
-        <div
-          aria-hidden
-          className="absolute inset-y-0 w-1"
-          style={{
-            [isAr ? "left" : "right"]: 0,
-            background: oman.red,
-          }}
-        />
       </section>
 
-      <section id="features" className="bg-white py-20">
-        <div className="mx-auto max-w-6xl px-4">
-          <h2 className="font-display text-3xl font-bold text-[var(--oman-ink)]">{t.featuresTitle}</h2>
-          <p className="mt-2 max-w-2xl text-[var(--oman-ink)]/65">{t.featuresSub}</p>
-          <div className="mt-12 grid gap-10 sm:grid-cols-2 lg:grid-cols-3">
+      <section id="features" className="py-20 md:py-24">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <h2 className="text-2xl font-extrabold tracking-tight text-emerald-950 sm:text-3xl">{t.featuresTitle}</h2>
+          <p className="mt-3 max-w-xl text-[15px] text-slate-500">{t.featuresSub}</p>
+          <div className="mt-14 grid gap-x-10 gap-y-12 sm:grid-cols-2 lg:grid-cols-3">
             {t.features.map((f, i) => {
               const Icon = featureIcons[i] || FileText;
               return (
-                <div key={f.title}>
-                  <Icon className="mb-3 h-6 w-6" style={{ color: oman.green }} />
-                  <h3 className="text-lg font-bold text-[var(--oman-ink)]">{f.title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-[var(--oman-ink)]/65">{f.body}</p>
+                <div key={f.title} className="group">
+                  <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-950/[0.04] transition group-hover:bg-emerald-950/[0.07]">
+                    <Icon className="h-5 w-5 text-emerald-800" strokeWidth={1.75} />
+                  </div>
+                  <h3 className="text-base font-bold text-emerald-950">{f.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-500">{f.body}</p>
                 </div>
               );
             })}
@@ -273,30 +250,43 @@ export function LandingPage() {
         </div>
       </section>
 
-      <section id="pricing" className="py-20 text-white" style={{ background: oman.dusk }}>
-        <div className="mx-auto max-w-6xl px-4">
-          <h2 className="font-display text-3xl font-bold">{t.pricingTitle}</h2>
-          <p className="mt-2 text-white/70">{t.pricingSub}</p>
-          <div className="mt-10 grid gap-5 md:grid-cols-3">
+      <section id="pricing" className="border-y border-emerald-950/[0.04] bg-white py-20 md:py-24">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <h2 className="text-2xl font-extrabold tracking-tight text-emerald-950 sm:text-3xl">{t.pricingTitle}</h2>
+          <p className="mt-3 text-[15px] text-slate-500">{t.pricingSub}</p>
+          <div className="mt-12 grid gap-4 md:grid-cols-3">
             {t.plans.map((p) => {
               const featured = Boolean((p as { featured?: boolean }).featured);
               return (
                 <div
                   key={p.name}
                   className={cn(
-                    "rounded-2xl border p-6",
-                    featured ? "border-[var(--oman-red)]/40 bg-white/10" : "border-white/10 bg-white/5"
+                    "rounded-2xl border p-7 transition",
+                    featured
+                      ? "border-emerald-900/20 bg-emerald-950 text-white shadow-lg shadow-emerald-950/10"
+                      : "border-emerald-950/8 bg-[#fafcfb] hover:border-emerald-900/15"
                   )}
                 >
-                  <p className="text-sm text-white/60">{p.note}</p>
-                  <h3 className="mt-1 text-xl font-bold">{p.name}</h3>
-                  <p className="mt-4 text-4xl font-extrabold">
+                  <p className={cn("text-xs font-medium", featured ? "text-emerald-200/70" : "text-slate-400")}>
+                    {p.note}
+                  </p>
+                  <h3 className={cn("mt-1.5 text-lg font-bold", featured ? "text-white" : "text-emerald-950")}>
+                    {p.name}
+                  </h3>
+                  <p className={cn("mt-6 text-4xl font-extrabold tracking-tight", featured ? "text-white" : "text-emerald-950")}>
                     {p.price}
-                    <span className="ms-2 text-base font-medium text-white/55">{p.unit}</span>
+                    <span className={cn("ms-2 text-sm font-medium", featured ? "text-emerald-200/60" : "text-slate-400")}>
+                      {p.unit}
+                    </span>
                   </p>
                   <Link
                     href="/register"
-                    className="mt-6 inline-flex w-full justify-center rounded-xl bg-white py-2.5 text-sm font-bold text-[var(--oman-ink)] transition hover:bg-[var(--oman-sand)]"
+                    className={cn(
+                      "mt-8 inline-flex w-full justify-center rounded-xl py-2.5 text-sm font-bold transition",
+                      featured
+                        ? "bg-white text-emerald-950 hover:bg-emerald-50"
+                        : "bg-emerald-900 text-white hover:bg-emerald-800"
+                    )}
                   >
                     {t.register}
                   </Link>
@@ -307,69 +297,58 @@ export function LandingPage() {
         </div>
       </section>
 
-      <section id="company" className="py-20" style={{ background: oman.sand }}>
-        <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 md:grid-cols-[auto_1fr]">
-          <div className="mx-auto w-fit rounded-2xl bg-[var(--oman-ink)] p-6 md:mx-0">
+      <section id="company" className="py-20 md:py-24">
+        <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 sm:px-6 md:grid-cols-[auto_1fr] md:gap-14">
+          <div className="mx-auto w-fit rounded-2xl bg-emerald-950 p-7 md:mx-0">
             <Image
               src="/brand/bin-hamoud.png"
               alt="Bin Hamood Development"
-              width={220}
-              height={100}
-              className="h-auto w-[200px]"
+              width={200}
+              height={90}
+              className="h-auto w-[180px]"
             />
           </div>
           <div>
-            <p className="text-sm font-semibold" style={{ color: oman.green }}>
-              {t.companyTitle}
-            </p>
-            <h2 className="mt-2 font-display text-3xl font-bold text-[var(--oman-ink)]">{t.companyName}</h2>
-            <p className="mt-1 font-medium text-[var(--oman-ink)]/50">{t.companyNameEn}</p>
-            <p className="mt-4 max-w-2xl leading-relaxed text-[var(--oman-ink)]/70">{t.companyBody}</p>
+            <p className="text-xs font-semibold tracking-[0.14em] text-emerald-800/70">{t.companyTitle}</p>
+            <h2 className="mt-3 text-2xl font-extrabold tracking-tight text-emerald-950 sm:text-3xl">
+              {t.companyName}
+            </h2>
+            <p className="mt-1 text-sm font-medium text-slate-400">{t.companyNameEn}</p>
+            <p className="mt-5 max-w-2xl text-[15px] leading-relaxed text-slate-500">{t.companyBody}</p>
           </div>
         </div>
       </section>
 
-      <footer className="border-t border-[var(--oman-ink)]/10 bg-white">
-        <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-10">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <footer className="border-t border-emerald-950/[0.06] bg-white">
+        <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-10 sm:px-6">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
-              <Image src="/brand/hisaby-mark.png" alt="" width={28} height={28} className="rounded" />
+              <Image src="/brand/hisaby-mark.png" alt="" width={26} height={26} className="rounded-md" />
               <div>
-                <p className="font-bold text-[var(--oman-ink)]">{t.brand}</p>
-                <p className="text-xs text-[var(--oman-ink)]/50">{t.footerTag}</p>
+                <p className="text-sm font-bold text-emerald-950">{t.brand}</p>
+                <p className="text-xs text-slate-400">{t.footerTag}</p>
               </div>
             </div>
-            <div className="flex flex-wrap gap-3 text-sm font-semibold">
-              <Link href="/login" className="text-[var(--oman-ink)]/60 hover:text-[var(--oman-green)]">
+            <div className="flex flex-wrap items-center gap-4 text-sm font-semibold">
+              <Link href="/login" className="text-slate-500 transition hover:text-emerald-900">
                 {t.login}
               </Link>
-              <Link href="/register" className="text-[var(--oman-ink)]/60 hover:text-[var(--oman-green)]">
+              <Link href="/register" className="text-slate-500 transition hover:text-emerald-900">
                 {t.register}
               </Link>
               <Link
                 href="/login?next=/admin&switch=1"
-                className="rounded-lg border border-[var(--oman-ink)]/12 bg-[var(--oman-sand)]/60 px-3 py-1.5 text-[var(--oman-ink)] hover:bg-[var(--oman-sand)]"
+                className="rounded-lg border border-emerald-950/10 bg-[#fafcfb] px-3 py-1.5 text-emerald-950 transition hover:bg-emerald-50"
               >
                 {t.adminLogin}
               </Link>
             </div>
           </div>
-          <p className="text-xs text-[var(--oman-ink)]/45">
+          <p className="text-xs text-slate-400">
             © {new Date().getFullYear()} {t.companyName}. {t.footerRights}.
           </p>
         </div>
       </footer>
-
-      <style jsx global>{`
-        @keyframes oman-drift {
-          from {
-            background-position: 0 0;
-          }
-          to {
-            background-position: 72px 72px;
-          }
-        }
-      `}</style>
     </div>
   );
 }
