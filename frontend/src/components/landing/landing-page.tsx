@@ -7,15 +7,43 @@ import { FileText, Package, PieChart, Shield, Users, Wallet } from "lucide-react
 import { useLocaleStore } from "@/store/locale";
 import { useAuthStore } from "@/store/auth";
 import { landingCopy } from "@/lib/landing-copy";
+import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 const featureIcons = [FileText, Package, PieChart, Users, Wallet, Shield];
+
+type PlatformStats = {
+  companies: number;
+  users: number;
+  visits: { total: number; last30Days: number };
+  finance: {
+    sales: number;
+    purchases: number;
+    collected: number;
+    receivables: number;
+    volumeManaged: number;
+  };
+};
+
+function formatCompact(n: number, locale: string) {
+  const abs = Math.abs(n);
+  const fmt = (value: number, digits: number) =>
+    new Intl.NumberFormat(locale === "en" ? "en" : "ar", {
+      maximumFractionDigits: digits,
+      minimumFractionDigits: 0,
+    }).format(value);
+
+  if (abs >= 1_000_000) return `${fmt(n / 1_000_000, 1)}M`;
+  if (abs >= 1_000) return `${fmt(n / 1_000, 1)}K`;
+  return fmt(n, 0);
+}
 
 export function LandingPage() {
   const locale = useLocaleStore((s) => s.locale);
   const setLocale = useLocaleStore((s) => s.setLocale);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [visible, setVisible] = useState(false);
+  const [stats, setStats] = useState<PlatformStats | null>(null);
   const t = landingCopy[locale === "en" ? "en" : "ar"];
   const isAr = locale !== "en";
 
@@ -24,9 +52,50 @@ export function LandingPage() {
     return () => cancelAnimationFrame(id);
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.getPublicPlatformStats();
+        if (!cancelled && res.data) setStats(res.data);
+      } catch {
+        // keep section hidden if API unavailable
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const metrics = stats
+    ? [
+        { label: t.statCompanies, value: formatCompact(stats.companies, locale), hint: null as string | null },
+        { label: t.statUsers, value: formatCompact(stats.users, locale), hint: null },
+        {
+          label: t.statVolume,
+          value: formatCompact(stats.finance.volumeManaged, locale),
+          hint: null,
+        },
+        {
+          label: t.statCollected,
+          value: formatCompact(stats.finance.collected, locale),
+          hint: null,
+        },
+        {
+          label: t.statReceivable,
+          value: formatCompact(stats.finance.receivables, locale),
+          hint: null,
+        },
+        {
+          label: t.statVisits,
+          value: formatCompact(stats.visits.total, locale),
+          hint: `${t.statVisits30}: ${formatCompact(stats.visits.last30Days, locale)}`,
+        },
+      ]
+    : null;
+
   return (
     <div className="min-h-screen bg-[#fafcfb] text-slate-900" dir={isAr ? "rtl" : "ltr"}>
-      {/* Soft atmosphere — light, quiet, Omani green undertone */}
       <div
         aria-hidden
         className="pointer-events-none fixed inset-0 -z-10"
@@ -37,7 +106,7 @@ export function LandingPage() {
       />
       <div
         aria-hidden
-        className="pointer-events-none fixed inset-x-0 top-0 z-50 h-px"
+        className="pointer-events-none fixed inset-x-0 top-0 z-50"
         style={{
           background: "linear-gradient(90deg, #C8102E 0%, #C8102E 22%, #ffffff 22%, #ffffff 48%, #0B6B45 48%)",
           height: "2px",
@@ -51,6 +120,9 @@ export function LandingPage() {
             <span className="text-lg font-extrabold tracking-tight text-emerald-950">{t.brand}</span>
           </Link>
           <nav className="hidden items-center gap-8 text-[13px] font-medium text-slate-500 md:flex">
+            <a href="#stats" className="transition-colors hover:text-emerald-900">
+              {t.statsTitle}
+            </a>
             <a href="#features" className="transition-colors hover:text-emerald-900">
               {t.navFeatures}
             </a>
@@ -96,7 +168,6 @@ export function LandingPage() {
         </div>
       </header>
 
-      {/* Hero — one light composition */}
       <section className="relative overflow-hidden">
         <div
           aria-hidden
@@ -183,7 +254,6 @@ export function LandingPage() {
               visible ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0"
             )}
           >
-            {/* Full-bleed visual plane anchored to the edge feel */}
             <div className="relative w-full max-w-[380px]">
               <div
                 aria-hidden
@@ -229,6 +299,26 @@ export function LandingPage() {
           </div>
         </div>
       </section>
+
+      {metrics && (
+        <section id="stats" className="border-y border-emerald-950/[0.04] bg-white py-16 md:py-20">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+            <p className="text-xs font-semibold tracking-[0.14em] text-emerald-800/70">{t.statsTitle}</p>
+            <p className="mt-3 max-w-2xl text-[15px] text-slate-500">{t.statsSub}</p>
+            <div className="mt-10 grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-3 lg:grid-cols-6">
+              {metrics.map((m) => (
+                <div key={m.label} className="min-w-0">
+                  <p className="text-2xl font-extrabold tracking-tight text-emerald-950 sm:text-3xl">
+                    {m.value}
+                  </p>
+                  <p className="mt-1.5 text-xs font-medium leading-snug text-slate-500">{m.label}</p>
+                  {m.hint && <p className="mt-1 text-[11px] text-slate-400">{m.hint}</p>}
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       <section id="products" className="border-y border-emerald-950/[0.04] bg-white py-16">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
