@@ -1,7 +1,8 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, Minus, Plus, ShoppingCart, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { Loader2, Minus, PackagePlus, Plus, ScanBarcode, ShoppingCart, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
@@ -37,9 +38,15 @@ export default function PosCheckoutPage() {
   const [scan, setScan] = useState("");
   const [search, setSearch] = useState("");
   const [catalog, setCatalog] = useState<PosProduct[]>([]);
+  const [catalogLoaded, setCatalogLoaded] = useState(false);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [paying, setPaying] = useState(false);
-  const [lastInvoice, setLastInvoice] = useState<{ number?: string; total?: number } | null>(null);
+  const [lastInvoice, setLastInvoice] = useState<{
+    number?: string;
+    total?: number;
+    lines?: { name: string; qty: number; lineTotal: number }[];
+    paymentMethod?: string;
+  } | null>(null);
 
   const currency = company?.currency || "OMR";
   const taxRate = 5;
@@ -50,6 +57,8 @@ export default function PosCheckoutPage() {
       setCatalog((res.data as PosProduct[]) || []);
     } catch {
       /* ignore */
+    } finally {
+      setCatalogLoaded(true);
     }
   }, []);
 
@@ -120,6 +129,11 @@ export default function PosCheckoutPage() {
 
   const checkout = async (method: "CASH" | "CREDIT_CARD") => {
     if (!cart.length || paying) return;
+    const snapshot = cart.map((l) => ({
+      name: l.name,
+      qty: l.quantity,
+      lineTotal: Number((l.unitPrice * l.quantity).toFixed(3)),
+    }));
     setPaying(true);
     try {
       const res = await api.createPosSale({
@@ -132,7 +146,12 @@ export default function PosCheckoutPage() {
         })),
       });
       const inv = res.data as { number?: string; total?: number | string };
-      setLastInvoice({ number: inv.number, total: Number(inv.total) });
+      setLastInvoice({
+        number: inv.number,
+        total: Number(inv.total),
+        lines: snapshot,
+        paymentMethod: method === "CASH" ? t.payCash : t.payCard,
+      });
       setCart([]);
       toast.success(t.saleOk);
       loadCatalog(search);
@@ -149,40 +168,63 @@ export default function PosCheckoutPage() {
     if (!lastInvoice) return;
     const w = window.open("", "_blank", "width=360,height=640");
     if (!w) return;
-    w.document.write(`<!doctype html><html dir="rtl"><head><title>Receipt</title>
+    const linesHtml = (lastInvoice.lines || [])
+      .map(
+        (l) =>
+          `<tr><td>${l.name}</td><td style="text-align:center">${l.qty}</td><td style="text-align:end">${formatMoney(l.lineTotal, currency)}</td></tr>`,
+      )
+      .join("");
+    const dir = locale === "en" ? "ltr" : "rtl";
+    w.document.write(`<!doctype html><html dir="${dir}"><head><title>Receipt</title>
       <style>
-        body{font-family:system-ui,sans-serif;padding:16px;width:280px;margin:0 auto}
-        h1{font-size:16px;margin:0 0 8px} p{margin:4px 0;font-size:13px}
+        body{font-family:system-ui,sans-serif;padding:16px;width:280px;margin:0 auto;color:#111}
+        h1{font-size:16px;margin:0 0 4px} p{margin:4px 0;font-size:13px}
+        table{width:100%;border-collapse:collapse;font-size:12px;margin:8px 0}
+        td{padding:3px 0;vertical-align:top}
         hr{border:none;border-top:1px dashed #999;margin:12px 0}
       </style></head><body>
       <h1>${t.brand}</h1>
       <p>${company?.name || ""}</p>
       <hr/>
       <p>${lastInvoice.number || ""}</p>
+      <p>${lastInvoice.paymentMethod || ""}</p>
+      <table><tbody>${linesHtml}</tbody></table>
+      <hr/>
       <p><strong>${t.total}: ${formatMoney(lastInvoice.total || 0, currency)}</strong></p>
       <hr/><p style="text-align:center">Hisaby POS</p>
       <script>window.print()</script></body></html>`);
     w.document.close();
   };
 
+  const showEmptyCatalog = catalogLoaded && catalog.length === 0 && !search.trim();
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-0 lg:gap-4 p-3 sm:p-4 min-h-[calc(100vh-3.5rem)]">
       <section className="lg:col-span-7 xl:col-span-8 space-y-3">
-        <form onSubmit={handleScan} className="flex gap-2">
-          <input
-            ref={scanRef}
-            value={scan}
-            onChange={(e) => setScan(e.target.value)}
-            placeholder={t.scanPlaceholder}
-            className="flex-1 h-14 rounded-2xl bg-white/5 border border-white/10 px-4 text-lg text-white placeholder:text-slate-500 focus:outline-none focus:border-sky-400/60 focus:ring-2 focus:ring-sky-500/20"
-            autoComplete="off"
-          />
-          <button
-            type="submit"
-            className="h-14 px-5 rounded-2xl bg-sky-500 text-white font-bold hover:bg-sky-400 transition"
-          >
-            Enter
-          </button>
+        <form onSubmit={handleScan} className="space-y-1.5">
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <ScanBarcode className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 w-5 h-5 text-sky-400/80" />
+              <input
+                ref={scanRef}
+                value={scan}
+                onChange={(e) => setScan(e.target.value)}
+                placeholder={t.scanPlaceholder}
+                className="w-full h-14 rounded-2xl bg-white/5 border border-white/10 ps-11 pe-4 text-lg text-white placeholder:text-slate-500 focus:outline-none focus:border-sky-400/60 focus:ring-2 focus:ring-sky-500/20"
+                autoComplete="off"
+              />
+            </div>
+            <button
+              type="submit"
+              className="h-14 px-5 rounded-2xl bg-sky-500 text-white font-bold hover:bg-sky-400 transition"
+            >
+              Enter
+            </button>
+          </div>
+          <p className="text-[11px] text-slate-500 px-1 flex items-center gap-1.5">
+            <ScanBarcode className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+            {t.barcodeHint}
+          </p>
         </form>
 
         <input
@@ -192,27 +234,47 @@ export default function PosCheckoutPage() {
           className="w-full h-11 rounded-xl bg-white/5 border border-white/10 px-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-white/20"
         />
 
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2 max-h-[62vh] overflow-y-auto pe-1">
-          {catalog.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => addProduct(p)}
-              className="text-start rounded-2xl border border-white/10 bg-white/[0.03] hover:bg-sky-500/10 hover:border-sky-400/40 p-3 transition"
+        {showEmptyCatalog ? (
+          <div className="rounded-3xl border border-dashed border-white/15 bg-white/[0.03] px-6 py-14 text-center space-y-3">
+            <PackagePlus className="w-10 h-10 text-sky-400/80 mx-auto" />
+            <p className="text-base font-bold text-white">{t.emptyCatalog}</p>
+            <p className="text-sm text-slate-400 max-w-md mx-auto">{t.emptyCatalogHint}</p>
+            <Link
+              href="/inventory"
+              className="inline-flex items-center justify-center h-11 px-5 rounded-xl bg-emerald-500 text-white font-bold hover:bg-emerald-400"
             >
-              <p className="font-semibold text-sm line-clamp-2">{p.name}</p>
-              <p className="text-[11px] text-slate-500 mt-1">{p.sku}</p>
-              <div className="mt-2 flex items-center justify-between gap-2">
-                <span className="text-sky-300 font-bold text-sm">
-                  {formatMoney(Number(p.salePrice), currency)}
-                </span>
-                <span className="text-[10px] text-slate-500">
-                  {t.stock} {Number(p.quantity)}
-                </span>
-              </div>
-            </button>
-          ))}
-        </div>
+              {t.goInventory}
+            </Link>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2 max-h-[62vh] overflow-y-auto pe-1">
+            {catalog.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => addProduct(p)}
+                className="text-start rounded-2xl border border-white/10 bg-white/[0.03] hover:bg-sky-500/10 hover:border-sky-400/40 p-3 transition"
+              >
+                <p className="font-semibold text-sm line-clamp-2">{p.name}</p>
+                <p className="text-[11px] text-slate-500 mt-1">{p.sku}</p>
+                {p.barcode ? (
+                  <p className="text-[10px] text-slate-600 font-mono mt-0.5 truncate">{p.barcode}</p>
+                ) : null}
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <span className="text-sky-300 font-bold text-sm">
+                    {formatMoney(Number(p.salePrice), currency)}
+                  </span>
+                  <span className="text-[10px] text-slate-500">
+                    {t.stock} {Number(p.quantity)}
+                  </span>
+                </div>
+              </button>
+            ))}
+            {catalogLoaded && catalog.length === 0 && search.trim() ? (
+              <p className="col-span-full text-center text-sm text-slate-500 py-8">{t.notFound}</p>
+            ) : null}
+          </div>
+        )}
       </section>
 
       <aside className="lg:col-span-5 xl:col-span-4 mt-4 lg:mt-0 rounded-3xl border border-white/10 bg-[#111827] flex flex-col min-h-[420px]">

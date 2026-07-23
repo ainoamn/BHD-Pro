@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { PaymentGatewaysSettings } from "@/components/payments/payment-gateways-settings";
 import { TwoFactorSettings } from "@/components/auth/two-factor-settings";
 import { CompanyLogoUpload } from "@/components/company/company-logo-upload";
+import { PosLinkSettings } from "@/components/pos/pos-link-settings";
 import {
   DOCUMENT_COLOR_PRESETS,
   normalizeDocumentColor,
@@ -423,6 +424,10 @@ export default function SettingsPage() {
             </div>
           </form>
         )}
+      </GlassCard>
+
+      <GlassCard className="p-6">
+        <PosLinkSettings variant="accounting" />
       </GlassCard>
 
       <GlassCard className="p-6">

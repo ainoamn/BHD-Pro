@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Calculator, Link2, Link2Off, LogOut, Settings2 } from "lucide-react";
+import { Calculator, Link2, Link2Off, LogOut, Package, Settings2 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
@@ -104,6 +104,14 @@ export function PosShell({ children }: { children: React.ReactNode }) {
             >
               {locale === "en" ? "ع" : "EN"}
             </button>
+            <Link
+              href="/inventory"
+              className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-300 hover:bg-white/5"
+              title={t.inventory}
+            >
+              <Package className="w-4 h-4" />
+              <span className="hidden sm:inline">{t.inventory}</span>
+            </Link>
             <Link
               href="/pos/settings"
               className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-300 hover:bg-white/5"

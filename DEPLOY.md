@@ -33,6 +33,25 @@
 
 لا تشغّل `prisma:seed` على الإنتاج بعد الإطلاق.
 
+## ترحيل Prisma — حقول POS
+
+بعد سحب كود Hisaby POS، طبّق مخطط قاعدة البيانات على الإنتاج حتى تظهر أعمدة الربط على `companies`:
+
+| عمود Prisma | عمود DB | الغرض |
+|-------------|---------|--------|
+| `posLinkedAt` | `pos_linked_at` | وقت ربط المحاسبة ↔ الكاشير |
+| `posIntegrationKeyHash` | `pos_integration_key_hash` | تجزئة مفتاح الربط التقني |
+| `posIntegrationKeyPrefix` | `pos_integration_key_prefix` | بادئة المفتاح للعرض |
+
+```bash
+# من مجلد backend (أو داخل حاوية الـ API)
+npx prisma db push
+# أو إن كنت تستخدم migrations:
+# npx prisma migrate deploy
+```
+
+بدون هذه الأعمدة تفشل واجهات `/pos` وربط المفتاح في إعدادات الشركة.
+
 ## بوابات الدفع
 
 - Webhooks:

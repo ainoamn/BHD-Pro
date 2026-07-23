@@ -107,6 +107,25 @@ NEXT_PUBLIC_API_URL=/backend-api
 
 ---
 
+## و) ترحيل حقول POS (مطلوب بعد تفعيل الكاشير)
+
+أعمدة على جدول `companies`:
+
+- `pos_linked_at`
+- `pos_integration_key_hash`
+- `pos_integration_key_prefix`
+
+بعد النشر / سحب الكود:
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.production exec backend npx prisma db push
+# أو: npx prisma migrate deploy
+```
+
+تحقق من `/pos` وتوليد مفتاح الربط من **إعدادات الشركة** أو `/pos/settings`.
+
+---
+
 ## ملاحظة
 
 ملفات جاهزة في المشروع:
