@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Calculator, Mail, Lock, User, Building2, Loader2 } from "lucide-react";
+import { Mail, Lock, User, Building2, Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
@@ -46,10 +46,15 @@ export default function RegisterPage() {
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
       <div className="w-full max-w-lg">
         <div className="text-center mb-8">
-          <div className="inline-flex w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 items-center justify-center mb-4">
-            <Calculator className="w-7 h-7 text-white" />
-          </div>
-          <h1 className="text-2xl font-bold text-white">{tApp("name")}</h1>
+          <Link href="/" className="inline-flex flex-col items-center gap-3 mb-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/brand/hisaby-mark.png"
+              alt="Hisaby"
+              className="w-14 h-14 rounded-2xl object-cover"
+            />
+            <h1 className="text-2xl font-bold text-white">{tApp("name")}</h1>
+          </Link>
           <p className="text-slate-400 mt-1">{tApp("tagline")}</p>
         </div>
 

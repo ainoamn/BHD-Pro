@@ -17,14 +17,28 @@ const spaceGrotesk = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: "BHD Pro - نظام المحاسبة الذكي العماني",
-  description: "نظام محاسبة سحابي عماني متكامل مع ذكاء اصطناعي، فوترة إلكترونية OTA، وتحليلات مالية متقدمة",
-  keywords: ["محاسبة", "فواتير", "عُمان", "OTA", "ضريبة القيمة المضافة", "ERP", "BHD Pro"],
-  authors: [{ name: "BHD Team" }],
+  title: "حسابي Hisaby — نظام المحاسبة السحابي العماني",
+  description:
+    "حسابي (Hisaby) منصة محاسبة سحابية للشركات في عُمان: فواتير، مخزون، ضريبة، وتقارير. مطوّر ومشغّل بواسطة شركة بن حمود للتطوير.",
+  keywords: [
+    "محاسبة",
+    "فواتير",
+    "عُمان",
+    "حسابي",
+    "Hisaby",
+    "ضريبة القيمة المضافة",
+    "بن حمود للتطوير",
+  ],
+  authors: [{ name: "Bin Hamood Development" }],
   openGraph: {
-    title: "BHD Pro",
-    description: "نظام المحاسبة الذكي العماني",
+    title: "حسابي Hisaby",
+    description: "نظام المحاسبة السحابي العماني — شركة بن حمود للتطوير",
     type: "website",
+    images: [{ url: "/brand/hisaby-mark.png" }],
+  },
+  icons: {
+    icon: "/brand/hisaby-mark.png",
+    apple: "/brand/hisaby-mark.png",
   },
 };
 
