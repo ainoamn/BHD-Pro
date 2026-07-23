@@ -98,14 +98,6 @@ export function LandingPage() {
     <div className="min-h-screen bg-[#fafcfb] text-slate-900" dir={isAr ? "rtl" : "ltr"}>
       <div
         aria-hidden
-        className="pointer-events-none fixed inset-0 -z-10"
-        style={{
-          background:
-            "radial-gradient(ellipse 90% 55% at 50% -10%, #dcefe4 0%, transparent 55%), linear-gradient(180deg, #fafcfb 0%, #f3f8f5 40%, #ffffff 100%)",
-        }}
-      />
-      <div
-        aria-hidden
         className="pointer-events-none fixed inset-x-0 top-0 z-50"
         style={{
           background: "linear-gradient(90deg, #C8102E 0%, #C8102E 22%, #ffffff 22%, #ffffff 48%, #0B6B45 48%)",
@@ -113,7 +105,7 @@ export function LandingPage() {
         }}
       />
 
-      <header className="sticky top-0 z-40 border-b border-emerald-950/5 bg-[#fafcfb]/80 backdrop-blur-xl">
+      <header className="sticky top-0 z-40 border-b border-emerald-950/5 bg-[#fafcfb]/75 backdrop-blur-xl">
         <div className="mx-auto flex h-[4.25rem] max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
           <Link href="/" className="flex items-center gap-2.5">
             <Image src="/brand/hisaby-mark.png" alt="Hisaby" width={32} height={32} className="rounded-lg" priority />
@@ -168,133 +160,87 @@ export function LandingPage() {
         </div>
       </header>
 
-      <section className="relative overflow-hidden">
-        <div
-          aria-hidden
+      {/* Hero — full-bleed Al Alam Palace with soft translucent wash */}
+      <section className="relative min-h-[min(92vh,820px)] overflow-hidden">
+        <Image
+          src="/landing/oman-alam-palace.webp"
+          alt=""
+          fill
+          priority
+          sizes="100vw"
           className={cn(
-            "pointer-events-none absolute -top-24 h-[420px] w-[420px] rounded-full bg-emerald-400/10 blur-3xl transition-opacity duration-1000",
-            isAr ? "-left-20" : "-right-20",
-            visible ? "opacity-100" : "opacity-0"
+            "object-cover transition-all duration-[1.6s] ease-out",
+            visible ? "scale-100 opacity-100" : "scale-105 opacity-0"
           )}
         />
         <div
           aria-hidden
-          className={cn(
-            "pointer-events-none absolute bottom-0 h-[280px] w-[280px] rounded-full bg-rose-400/5 blur-3xl transition-opacity delay-200 duration-1000",
-            isAr ? "right-10" : "left-10",
-            visible ? "opacity-100" : "opacity-0"
-          )}
+          className="absolute inset-0"
+          style={{
+            background: isAr
+              ? "linear-gradient(105deg, rgba(250,252,251,0.94) 0%, rgba(250,252,251,0.82) 38%, rgba(250,252,251,0.35) 62%, rgba(10,45,32,0.28) 100%)"
+              : "linear-gradient(255deg, rgba(250,252,251,0.94) 0%, rgba(250,252,251,0.82) 38%, rgba(250,252,251,0.35) 62%, rgba(10,45,32,0.28) 100%)",
+          }}
+        />
+        <div
+          aria-hidden
+          className="absolute inset-0 bg-gradient-to-t from-[#fafcfb] via-transparent to-[#fafcfb]/40"
         />
 
-        <div className="relative mx-auto grid max-w-6xl items-center gap-12 px-4 py-16 sm:px-6 md:grid-cols-2 md:gap-16 md:py-24 lg:py-28">
+        <div className="relative mx-auto flex min-h-[min(92vh,820px)] max-w-6xl items-center px-4 py-20 sm:px-6 md:py-24">
           <div
             className={cn(
-              "transition-all duration-700 ease-out",
+              "max-w-xl transition-all duration-700 ease-out",
               visible ? "translate-y-0 opacity-100" : "translate-y-5 opacity-0"
             )}
           >
-            <p className="mb-5 text-5xl font-extrabold tracking-tight text-emerald-950 sm:text-6xl lg:text-[4rem] lg:leading-none">
-              {t.brand}
-            </p>
-            <h1 className="max-w-xl text-[1.35rem] font-bold leading-snug text-slate-700 sm:text-2xl">
-              {t.headline}
-            </h1>
-            <p className="mt-5 max-w-md text-[15px] leading-relaxed text-slate-500">{t.subhead}</p>
-            <div
-              className={cn(
-                "mt-9 flex flex-wrap gap-3 transition-all delay-150 duration-700",
-                visible ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
-              )}
-            >
-              {isAuthenticated ? (
-                <>
-                  <Link
-                    href="/dashboard"
-                    className="rounded-2xl bg-emerald-900 px-7 py-3 text-[15px] font-bold text-white shadow-sm shadow-emerald-900/10 transition hover:bg-emerald-800"
-                  >
-                    {t.openAccounting}
-                  </Link>
-                  <Link
-                    href="/pos"
-                    className="rounded-2xl border border-emerald-950/10 bg-white/70 px-7 py-3 text-[15px] font-bold text-emerald-950 backdrop-blur transition hover:bg-white"
-                  >
-                    {t.openPos}
-                  </Link>
-                </>
-              ) : (
-                <>
-                  <Link
-                    href="/register"
-                    className="rounded-2xl bg-emerald-900 px-7 py-3 text-[15px] font-bold text-white shadow-sm shadow-emerald-900/10 transition hover:bg-emerald-800"
-                  >
-                    {t.register}
-                  </Link>
-                  <Link
-                    href="/login"
-                    className="rounded-2xl border border-emerald-950/10 bg-white/70 px-7 py-3 text-[15px] font-bold text-emerald-950 backdrop-blur transition hover:bg-white"
-                  >
-                    {t.login}
-                  </Link>
-                </>
-              )}
-            </div>
-            <p
-              className={cn(
-                "mt-8 text-xs font-medium tracking-wide text-emerald-800/60 transition-all delay-300 duration-700",
-                visible ? "opacity-100" : "opacity-0"
-              )}
-            >
-              {t.regionLine}
-            </p>
-          </div>
-
-          <div
-            className={cn(
-              "relative flex justify-center transition-all duration-1000 ease-out md:justify-end",
-              visible ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0"
-            )}
-          >
-            <div className="relative w-full max-w-[380px]">
+            <div className="rounded-3xl border border-white/50 bg-white/55 p-7 shadow-[0_20px_60px_-28px_rgba(6,61,40,0.25)] backdrop-blur-md sm:p-9">
+              <p className="mb-4 text-5xl font-extrabold tracking-tight text-emerald-950 sm:text-6xl lg:text-[3.75rem] lg:leading-none">
+                {t.brand}
+              </p>
+              <h1 className="text-[1.3rem] font-bold leading-snug text-slate-700 sm:text-2xl">
+                {t.headline}
+              </h1>
+              <p className="mt-4 text-[15px] leading-relaxed text-slate-500">{t.subhead}</p>
               <div
-                aria-hidden
-                className="absolute -inset-6 rounded-[2.5rem] bg-gradient-to-br from-emerald-100/40 via-transparent to-rose-50/30"
-              />
-              <div className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-emerald-950 via-emerald-900 to-[#0a3d2c] px-8 pb-8 pt-10 text-white">
-                <div
-                  aria-hidden
-                  className="absolute inset-0 opacity-[0.07]"
-                  style={{
-                    backgroundImage:
-                      "url(\"data:image/svg+xml,%3Csvg width='56' height='56' viewBox='0 0 56 56' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M28 2 L54 28 L28 54 L2 28 Z' fill='none' stroke='%23ffffff' stroke-width='1'/%3E%3C/svg%3E\")",
-                  }}
-                />
-                <div
-                  aria-hidden
-                  className="absolute -left-10 top-0 h-40 w-40 rounded-full bg-[#C8102E]/20 blur-2xl"
-                />
-                <div className="relative">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-100/50">
-                    {t.brandEn}
-                  </p>
-                  <p className="mt-6 text-3xl font-extrabold tracking-tight">{t.brand}</p>
-                  <p className="mt-2 max-w-[14rem] text-sm leading-relaxed text-emerald-100/65">
-                    {t.footerTag}
-                  </p>
-                </div>
-                <div className="relative mt-12 flex justify-center">
-                  <div className="rounded-2xl bg-white/95 p-4 shadow-lg shadow-black/10">
-                    <Image
-                      src="/brand/hisaby-mark.png"
-                      alt=""
-                      width={88}
-                      height={88}
-                      className="rounded-xl"
-                      priority
-                    />
-                  </div>
-                </div>
-                <p className="relative mt-10 text-center text-[11px] text-emerald-100/45">{t.trustLine}</p>
+                className={cn(
+                  "mt-8 flex flex-wrap gap-3 transition-all delay-150 duration-700",
+                  visible ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
+                )}
+              >
+                {isAuthenticated ? (
+                  <>
+                    <Link
+                      href="/dashboard"
+                      className="rounded-2xl bg-emerald-900 px-7 py-3 text-[15px] font-bold text-white shadow-sm shadow-emerald-900/10 transition hover:bg-emerald-800"
+                    >
+                      {t.openAccounting}
+                    </Link>
+                    <Link
+                      href="/pos"
+                      className="rounded-2xl border border-emerald-950/10 bg-white/80 px-7 py-3 text-[15px] font-bold text-emerald-950 transition hover:bg-white"
+                    >
+                      {t.openPos}
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    <Link
+                      href="/register"
+                      className="rounded-2xl bg-emerald-900 px-7 py-3 text-[15px] font-bold text-white shadow-sm shadow-emerald-900/10 transition hover:bg-emerald-800"
+                    >
+                      {t.register}
+                    </Link>
+                    <Link
+                      href="/login"
+                      className="rounded-2xl border border-emerald-950/10 bg-white/80 px-7 py-3 text-[15px] font-bold text-emerald-950 transition hover:bg-white"
+                    >
+                      {t.login}
+                    </Link>
+                  </>
+                )}
               </div>
+              <p className="mt-6 text-xs font-medium tracking-wide text-emerald-800/65">{t.regionLine}</p>
             </div>
           </div>
         </div>
@@ -351,22 +297,43 @@ export function LandingPage() {
         </div>
       </section>
 
-      <section className="border-y border-emerald-950/[0.04] bg-white/60 py-14">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <p className="text-xs font-semibold tracking-[0.14em] text-emerald-800/70">{t.craftTitle}</p>
-          <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-slate-500">{t.craftBody}</p>
+      <section className="relative overflow-hidden border-y border-emerald-950/[0.04] py-16 md:py-20">
+        <Image
+          src="/landing/oman-fort.webp"
+          alt=""
+          fill
+          sizes="100vw"
+          className="object-cover object-center opacity-90"
+        />
+        <div aria-hidden className="absolute inset-0 bg-[#fafcfb]/82 backdrop-blur-[2px]" />
+        <div aria-hidden className="absolute inset-0 bg-gradient-to-l from-emerald-950/10 via-transparent to-transparent" />
+        <div className="relative mx-auto max-w-6xl px-4 sm:px-6">
+          <div className="max-w-2xl rounded-3xl border border-white/60 bg-white/55 p-7 shadow-sm backdrop-blur-md sm:p-8">
+            <p className="text-xs font-semibold tracking-[0.14em] text-emerald-800/70">{t.craftTitle}</p>
+            <p className="mt-3 text-[15px] leading-relaxed text-slate-600">{t.craftBody}</p>
+          </div>
         </div>
       </section>
 
-      <section id="features" className="py-20 md:py-24">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+      <section id="features" className="relative overflow-hidden py-20 md:py-24">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-[0.12]"
+          style={{
+            backgroundImage: "url(/landing/oman-coastal-fort.webp)",
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+          }}
+        />
+        <div aria-hidden className="absolute inset-0 bg-[#fafcfb]/92" />
+        <div className="relative mx-auto max-w-6xl px-4 sm:px-6">
           <h2 className="text-2xl font-extrabold tracking-tight text-emerald-950 sm:text-3xl">{t.featuresTitle}</h2>
           <p className="mt-3 max-w-xl text-[15px] text-slate-500">{t.featuresSub}</p>
           <div className="mt-14 grid gap-x-10 gap-y-12 sm:grid-cols-2 lg:grid-cols-3">
             {t.features.map((f, i) => {
               const Icon = featureIcons[i] || FileText;
               return (
-                <div key={f.title} className="group">
+                <div key={f.title} className="group rounded-2xl border border-white/70 bg-white/55 p-5 backdrop-blur-sm transition hover:bg-white/75">
                   <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-950/[0.04] transition group-hover:bg-emerald-950/[0.07]">
                     <Icon className="h-5 w-5 text-emerald-800" strokeWidth={1.75} />
                   </div>
@@ -426,9 +393,18 @@ export function LandingPage() {
         </div>
       </section>
 
-      <section id="company" className="py-20 md:py-24">
-        <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 sm:px-6 md:grid-cols-[auto_1fr] md:gap-14">
-          <div className="mx-auto w-fit rounded-2xl bg-emerald-950 p-7 md:mx-0">
+      <section id="company" className="relative overflow-hidden py-20 md:py-24">
+        <Image
+          src="/landing/oman-coastal-fort.webp"
+          alt=""
+          fill
+          sizes="100vw"
+          className="object-cover object-[center_35%]"
+        />
+        <div aria-hidden className="absolute inset-0 bg-[#fafcfb]/78" />
+        <div aria-hidden className="absolute inset-0 bg-gradient-to-r from-emerald-950/15 via-transparent to-transparent" />
+        <div className="relative mx-auto grid max-w-6xl items-center gap-10 px-4 sm:px-6 md:grid-cols-[auto_1fr] md:gap-14">
+          <div className="mx-auto w-fit rounded-2xl border border-white/40 bg-emerald-950/95 p-7 shadow-lg backdrop-blur-sm md:mx-0">
             <Image
               src="/brand/bin-hamoud.png"
               alt="Bin Hamood Development"
@@ -437,13 +413,13 @@ export function LandingPage() {
               className="h-auto w-[180px]"
             />
           </div>
-          <div>
+          <div className="rounded-3xl border border-white/60 bg-white/60 p-7 shadow-sm backdrop-blur-md sm:p-8">
             <p className="text-xs font-semibold tracking-[0.14em] text-emerald-800/70">{t.companyTitle}</p>
             <h2 className="mt-3 text-2xl font-extrabold tracking-tight text-emerald-950 sm:text-3xl">
               {t.companyName}
             </h2>
             <p className="mt-1 text-sm font-medium text-slate-400">{t.companyNameEn}</p>
-            <p className="mt-5 max-w-2xl text-[15px] leading-relaxed text-slate-500">{t.companyBody}</p>
+            <p className="mt-5 max-w-2xl text-[15px] leading-relaxed text-slate-600">{t.companyBody}</p>
           </div>
         </div>
       </section>
