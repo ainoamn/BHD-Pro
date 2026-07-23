@@ -39,6 +39,7 @@ type AdjustMode = "IN" | "OUT" | "SET";
 
 const emptyProduct = () => ({
   sku: "",
+  barcode: "",
   name: "",
   nameEn: "",
   category: "",
@@ -114,6 +115,7 @@ export default function InventoryPage() {
     setEditingId(product.id);
     setForm({
       sku: product.sku,
+      barcode: product.barcode || "",
       name: product.name,
       nameEn: product.nameEn || "",
       category: product.category,
@@ -141,9 +143,10 @@ export default function InventoryPage() {
 
   const saveMutation = useMutation({
     mutationFn: () => {
-      const { customFields, ...rest } = form;
+      const { customFields, barcode, ...rest } = form;
       const payload = {
         ...rest,
+        ...(barcode.trim() ? { barcode: barcode.trim() } : { barcode: null }),
         ...(Object.keys(customFields).length > 0
           ? { customFieldsJson: customFields }
           : { customFieldsJson: {} }),
@@ -291,7 +294,10 @@ export default function InventoryPage() {
                             <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
                           )}
                         </p>
-                        <p className="text-xs text-slate-500 font-mono mt-0.5">{product.sku}</p>
+                        <p className="text-xs text-slate-500 font-mono mt-0.5">
+                          {product.sku}
+                          {product.barcode ? ` · ${product.barcode}` : ""}
+                        </p>
                       </div>
                       <p
                         className={cn(
@@ -355,7 +361,12 @@ export default function InventoryPage() {
                         key={product.id}
                         className="border-b border-slate-800/50 hover:bg-slate-800/30"
                       >
-                        <td className="p-4 text-slate-400 font-mono text-xs">{product.sku}</td>
+                        <td className="p-4 text-slate-400 font-mono text-xs">
+                          <div>{product.sku}</div>
+                          {product.barcode ? (
+                            <div className="text-[10px] text-slate-500 mt-0.5">{product.barcode}</div>
+                          ) : null}
+                        </td>
                         <td className="p-4 text-white font-medium">
                           <span className="flex items-center gap-2">
                             {product.name}
@@ -436,10 +447,29 @@ export default function InventoryPage() {
                   />
                 </div>
                 <div>
+                  <label className="block text-sm text-slate-400 mb-1">{t("barcode")}</label>
+                  <input
+                    value={form.barcode}
+                    onChange={(e) => setForm({ ...form, barcode: e.target.value })}
+                    placeholder="EAN / UPC"
+                    className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500 font-mono text-sm"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
                   <label className="block text-sm text-slate-400 mb-1">{t("category")}</label>
                   <input
                     value={form.category}
                     onChange={(e) => setForm({ ...form, category: e.target.value })}
+                    className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-slate-400 mb-1">{t("unit")}</label>
+                  <input
+                    value={form.unit}
+                    onChange={(e) => setForm({ ...form, unit: e.target.value })}
                     className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500"
                   />
                 </div>
@@ -474,7 +504,7 @@ export default function InventoryPage() {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm text-slate-400 mb-1">{t("quantity")}</label>
                   <input
@@ -492,14 +522,6 @@ export default function InventoryPage() {
                     value={form.minQuantity}
                     min={0}
                     onChange={(e) => setForm({ ...form, minQuantity: parseFloat(e.target.value) || 0 })}
-                    className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-slate-400 mb-1">{t("unit")}</label>
-                  <input
-                    value={form.unit}
-                    onChange={(e) => setForm({ ...form, unit: e.target.value })}
                     className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500"
                   />
                 </div>

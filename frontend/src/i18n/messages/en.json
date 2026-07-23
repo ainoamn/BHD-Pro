@@ -490,6 +490,7 @@
     "noProducts": "No products yet",
     "createFirst": "Add your first product",
     "sku": "SKU",
+    "barcode": "Barcode",
     "name": "Product Name",
     "category": "Category",
     "quantity": "Quantity",

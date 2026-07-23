@@ -125,6 +125,16 @@ export function Topbar() {
         <Link
           href="/pos"
           title="Hisaby POS"
+          onClick={async (e) => {
+            try {
+              const res = await api.getPosLinkStatus();
+              if (!res.data.linked) {
+                await api.activatePosLink();
+              }
+            } catch {
+              /* POS shell will show link status */
+            }
+          }}
           className="hidden sm:inline-flex items-center gap-1.5 h-9 px-3 rounded-lg bg-sky-500/10 border border-sky-500/20 text-sky-700 dark:text-sky-300 hover:bg-sky-500/20 text-xs font-bold transition-all"
         >
           <Store className="w-4 h-4" />
