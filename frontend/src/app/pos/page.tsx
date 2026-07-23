@@ -88,16 +88,16 @@ export default function PosCheckoutPage() {
     window.requestAnimationFrame(() => scanRef.current?.focus());
   }, []);
 
-  const loadCatalog = useCallback(async (q?: string) => {
+  const loadCatalog = useCallback(async (q?: string, whId?: string) => {
     try {
-      const res = await api.searchPosProducts(q);
+      const res = await api.searchPosProducts(q, whId || warehouseId || undefined);
       setCatalog((res.data as PosProduct[]) || []);
     } catch {
       /* ignore */
     } finally {
       setCatalogLoaded(true);
     }
-  }, []);
+  }, [warehouseId]);
 
   const loadRecentSales = useCallback(async () => {
     try {
@@ -112,11 +112,11 @@ export default function PosCheckoutPage() {
   }, []);
 
   useEffect(() => {
-    loadCatalog();
     loadRecentSales();
     focusScan();
+    let saved = "";
     try {
-      const saved = localStorage.getItem(POS_WAREHOUSE_KEY);
+      saved = localStorage.getItem(POS_WAREHOUSE_KEY) || "";
       if (saved) setWarehouseId(saved);
     } catch {
       /* ignore */
@@ -126,16 +126,31 @@ export default function PosCheckoutPage() {
         const res = await api.getWarehouses();
         const rows = ((res.data as PosWarehouse[]) || []).filter((w) => w.isActive !== false);
         setWarehouses(rows);
+        if (!saved && rows.length > 0) {
+          setWarehouseId(rows[0].id);
+          try {
+            localStorage.setItem(POS_WAREHOUSE_KEY, rows[0].id);
+          } catch {
+            /* ignore */
+          }
+        } else if (saved && rows.length > 0 && !rows.some((w) => w.id === saved)) {
+          setWarehouseId(rows[0].id);
+          try {
+            localStorage.setItem(POS_WAREHOUSE_KEY, rows[0].id);
+          } catch {
+            /* ignore */
+          }
+        }
       } catch {
         /* ignore */
       }
     })();
-  }, [loadCatalog, loadRecentSales, focusScan]);
+  }, [loadRecentSales, focusScan]);
 
   useEffect(() => {
     const id = window.setTimeout(() => loadCatalog(search), 220);
     return () => window.clearTimeout(id);
-  }, [search, loadCatalog]);
+  }, [search, warehouseId, loadCatalog]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -208,7 +223,7 @@ export default function PosCheckoutPage() {
     const code = scan.trim();
     if (!code) return;
     try {
-      const res = await api.lookupPosProduct(code);
+      const res = await api.lookupPosProduct(code, warehouseId || undefined);
       addProduct(res.data as PosProduct, 1);
       setScan("");
       focusScan();
@@ -343,7 +358,7 @@ export default function PosCheckoutPage() {
                 className="flex-1 min-w-0 bg-transparent text-sm text-white focus:outline-none"
                 aria-label={t.warehouse}
               >
-                <option value="" className="bg-[#111827] text-white">
+                <option value="" className="bg-[#111827] text-white" disabled>
                   {t.warehouseAll}
                 </option>
                 {warehouses.map((w) => (

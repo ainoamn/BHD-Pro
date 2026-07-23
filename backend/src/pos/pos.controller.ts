@@ -46,15 +46,23 @@ export class PosController {
   @Get('products/lookup')
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @ApiOperation({ summary: 'Lookup product by barcode or SKU' })
-  lookup(@CurrentUser() user: TokenPayload, @Query('code') code: string) {
-    return this.pos.lookupProduct(user.companyId, code || '');
+  lookup(
+    @CurrentUser() user: TokenPayload,
+    @Query('code') code: string,
+    @Query('warehouseId') warehouseId?: string,
+  ) {
+    return this.pos.lookupProduct(user.companyId, code || '', warehouseId);
   }
 
   @Get('products/search')
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @ApiOperation({ summary: 'Search POS catalog' })
-  search(@CurrentUser() user: TokenPayload, @Query('q') q?: string) {
-    return this.pos.searchProducts(user.companyId, q || '');
+  search(
+    @CurrentUser() user: TokenPayload,
+    @Query('q') q?: string,
+    @Query('warehouseId') warehouseId?: string,
+  ) {
+    return this.pos.searchProducts(user.companyId, q || '', warehouseId);
   }
 
   @Post('sales')

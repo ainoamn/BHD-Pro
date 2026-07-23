@@ -1139,12 +1139,19 @@ class ApiClient {
     return this.post('/pos/link', { key });
   }
 
-  lookupPosProduct(code: string) {
-    return this.get(`/pos/products/lookup`, { params: { code } });
+  lookupPosProduct(code: string, warehouseId?: string) {
+    return this.get(`/pos/products/lookup`, {
+      params: { code, ...(warehouseId ? { warehouseId } : {}) },
+    });
   }
 
-  searchPosProducts(q?: string) {
-    return this.get('/pos/products/search', { params: q ? { q } : {} });
+  searchPosProducts(q?: string, warehouseId?: string) {
+    return this.get('/pos/products/search', {
+      params: {
+        ...(q ? { q } : {}),
+        ...(warehouseId ? { warehouseId } : {}),
+      },
+    });
   }
 
   createPosSale(data: {

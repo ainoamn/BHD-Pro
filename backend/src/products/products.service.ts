@@ -8,8 +8,15 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { AdjustStockDto, StockAdjustMode } from './dto/adjust-stock.dto';
-import { MovementType } from '@prisma/client';
+import { MovementType, Prisma } from '@prisma/client';
 import { PeriodsService } from '../periods/periods.service';
+
+const warehouseStockInclude = {
+  warehouseStocks: {
+    include: { warehouse: { select: { id: true, code: true, name: true } } },
+  },
+  warehouse: { select: { id: true, code: true, name: true } },
+} as const;
 
 @Injectable()
 export class ProductsService {
@@ -21,7 +28,7 @@ export class ProductsService {
   async findAll(companyId: string) {
     return this.prisma.product.findMany({
       where: { companyId },
-      include: { warehouse: { select: { id: true, code: true, name: true } } },
+      include: warehouseStockInclude,
       orderBy: { name: 'asc' },
     });
   }
@@ -75,7 +82,6 @@ export class ProductsService {
     });
   }
 
-
   private normalizeBarcode(barcode: string | null | undefined): string | null | undefined {
     if (barcode === undefined) return undefined;
     if (barcode === null) return null;
@@ -99,6 +105,25 @@ export class ProductsService {
     if (barcodeTaken) throw new ConflictException('Barcode already exists');
   }
 
+  private async syncProductQuantity(
+    tx: Prisma.TransactionClient,
+    productId: string,
+    warehouseId?: string,
+  ) {
+    const agg = await tx.warehouseStock.aggregate({
+      where: { productId },
+      _sum: { quantity: true },
+    });
+    return tx.product.update({
+      where: { id: productId },
+      data: {
+        quantity: agg._sum.quantity ?? 0,
+        ...(warehouseId ? { warehouseId } : {}),
+      },
+      include: warehouseStockInclude,
+    });
+  }
+
   async create(companyId: string, dto: CreateProductDto) {
     const existing = await this.prisma.product.findFirst({
       where: { companyId, sku: dto.sku },
@@ -110,18 +135,36 @@ export class ProductsService {
 
     const warehouse = await this.ensureDefaultWarehouse(companyId);
     const { customFieldsJson, barcode: _barcode, ...rest } = dto;
+    const qty = Number(dto.quantity ?? 0);
 
-    return this.prisma.product.create({
-      data: {
-        ...rest,
-        ...(barcode !== undefined ? { barcode } : {}),
-        companyId,
-        images: [],
-        warehouseId: warehouse.id,
-        ...(customFieldsJson !== undefined
-          ? { customFieldsJson: customFieldsJson as object }
-          : {}),
-      },
+    return this.prisma.$transaction(async (tx) => {
+      const product = await tx.product.create({
+        data: {
+          ...rest,
+          ...(barcode !== undefined ? { barcode } : {}),
+          companyId,
+          images: [],
+          warehouseId: warehouse.id,
+          ...(customFieldsJson !== undefined
+            ? { customFieldsJson: customFieldsJson as object }
+            : {}),
+        },
+      });
+
+      if (product.isTracked && qty > 0) {
+        await tx.warehouseStock.create({
+          data: {
+            productId: product.id,
+            warehouseId: warehouse.id,
+            quantity: qty,
+          },
+        });
+      }
+
+      return tx.product.findFirstOrThrow({
+        where: { id: product.id },
+        include: warehouseStockInclude,
+      });
     });
   }
 
@@ -140,13 +183,14 @@ export class ProductsService {
           ? { customFieldsJson: customFieldsJson as object }
           : {}),
       },
+      include: warehouseStockInclude,
     });
   }
 
   async findOne(companyId: string, id: string) {
     const product = await this.prisma.product.findFirst({
       where: { id, companyId },
-      include: { warehouse: { select: { id: true, code: true, name: true } } },
+      include: warehouseStockInclude,
     });
     if (!product) throw new NotFoundException('Product not found');
     return product;
@@ -165,30 +209,16 @@ export class ProductsService {
       throw new BadRequestException('Product is not stock-tracked');
     }
 
-    const current = Number(product.quantity);
     const qty = Number(dto.quantity);
-    let nextQty = current;
     let movementQty = qty;
     let movementType: MovementType = MovementType.ADJUSTMENT;
 
-    if (dto.mode === StockAdjustMode.IN) {
+    if (dto.mode === StockAdjustMode.IN || dto.mode === StockAdjustMode.OUT) {
       if (qty <= 0) throw new BadRequestException('Quantity must be positive');
-      nextQty = Number((current + qty).toFixed(3));
-      movementType = MovementType.IN;
-      movementQty = qty;
-    } else if (dto.mode === StockAdjustMode.OUT) {
-      if (qty <= 0) throw new BadRequestException('Quantity must be positive');
-      if (qty > current) throw new BadRequestException('Insufficient stock');
-      nextQty = Number((current - qty).toFixed(3));
-      movementType = MovementType.OUT;
+      movementType = dto.mode === StockAdjustMode.IN ? MovementType.IN : MovementType.OUT;
       movementQty = qty;
     } else {
-      nextQty = Number(qty.toFixed(3));
-      movementQty = Number(Math.abs(nextQty - current).toFixed(3));
       movementType = MovementType.ADJUSTMENT;
-      if (movementQty === 0) {
-        return product;
-      }
     }
 
     let warehouseId = dto.warehouseId || product.warehouseId;
@@ -203,6 +233,57 @@ export class ProductsService {
     }
 
     return this.prisma.$transaction(async (tx) => {
+      await tx.warehouseStock.upsert({
+        where: {
+          productId_warehouseId: { productId: id, warehouseId: warehouseId! },
+        },
+        create: { productId: id, warehouseId: warehouseId!, quantity: 0 },
+        update: {},
+      });
+
+      const currentRow = await tx.warehouseStock.findUnique({
+        where: {
+          productId_warehouseId: { productId: id, warehouseId: warehouseId! },
+        },
+      });
+      const currentWh = Number(currentRow?.quantity ?? 0);
+
+      if (dto.mode === StockAdjustMode.IN) {
+        await tx.warehouseStock.update({
+          where: {
+            productId_warehouseId: { productId: id, warehouseId: warehouseId! },
+          },
+          data: { quantity: { increment: qty } },
+        });
+      } else if (dto.mode === StockAdjustMode.OUT) {
+        const updated = await tx.warehouseStock.updateMany({
+          where: {
+            productId: id,
+            warehouseId: warehouseId!,
+            quantity: { gte: qty },
+          },
+          data: { quantity: { decrement: qty } },
+        });
+        if (updated.count === 0) {
+          throw new BadRequestException('Insufficient stock');
+        }
+      } else {
+        const nextWh = Number(qty.toFixed(3));
+        movementQty = Number(Math.abs(nextWh - currentWh).toFixed(3));
+        if (movementQty === 0) {
+          return tx.product.findFirstOrThrow({
+            where: { id },
+            include: warehouseStockInclude,
+          });
+        }
+        await tx.warehouseStock.update({
+          where: {
+            productId_warehouseId: { productId: id, warehouseId: warehouseId! },
+          },
+          data: { quantity: nextWh },
+        });
+      }
+
       await tx.stockMovement.create({
         data: {
           productId: id,
@@ -215,14 +296,7 @@ export class ProductsService {
         },
       });
 
-      return tx.product.update({
-        where: { id },
-        data: {
-          quantity: nextQty,
-          warehouseId: warehouseId!,
-        },
-        include: { warehouse: { select: { id: true, code: true, name: true } } },
-      });
+      return this.syncProductQuantity(tx, id, warehouseId!);
     });
   }
 

@@ -144,10 +144,41 @@ export class DeliveryNotesService {
         if (!product || !product.isTracked) continue;
 
         const qty = Number(item.quantity);
-        const current = Number(product.quantity);
-        if (qty > current) {
+
+        await tx.warehouseStock.upsert({
+          where: {
+            productId_warehouseId: {
+              productId: product.id,
+              warehouseId: warehouseId!,
+            },
+          },
+          create: {
+            productId: product.id,
+            warehouseId: warehouseId!,
+            quantity: 0,
+          },
+          update: {},
+        });
+
+        const whUpdated = await tx.warehouseStock.updateMany({
+          where: {
+            productId: product.id,
+            warehouseId: warehouseId!,
+            quantity: { gte: qty },
+          },
+          data: { quantity: { decrement: qty } },
+        });
+        if (whUpdated.count === 0) {
+          const row = await tx.warehouseStock.findUnique({
+            where: {
+              productId_warehouseId: {
+                productId: product.id,
+                warehouseId: warehouseId!,
+              },
+            },
+          });
           throw new BadRequestException(
-            `Insufficient stock for ${product.name} (have ${current}, need ${qty})`,
+            `Insufficient stock for ${product.name} at this warehouse (have ${Number(row?.quantity ?? 0)}, need ${qty})`,
           );
         }
 
@@ -163,10 +194,14 @@ export class DeliveryNotesService {
           },
         });
 
+        const agg = await tx.warehouseStock.aggregate({
+          where: { productId: product.id },
+          _sum: { quantity: true },
+        });
         await tx.product.update({
           where: { id: product.id },
           data: {
-            quantity: Number((current - qty).toFixed(3)),
+            quantity: agg._sum.quantity ?? 0,
             warehouseId: product.warehouseId || warehouseId,
           },
         });

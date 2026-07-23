@@ -98,7 +98,26 @@ export class PosService {
     return this.activateLink(companyId);
   }
 
-  async lookupProduct(companyId: string, code: string) {
+  private async applyWarehouseQuantity<
+    T extends { id: string; quantity: unknown },
+  >(products: T[], warehouseId?: string) {
+    if (!warehouseId) return products;
+    const stocks = await this.prisma.warehouseStock.findMany({
+      where: {
+        warehouseId,
+        productId: { in: products.map((p) => p.id) },
+      },
+      select: { productId: true, quantity: true },
+    });
+    const byProduct = new Map(stocks.map((s) => [s.productId, Number(s.quantity)]));
+    return products.map((p) => ({
+      ...p,
+      totalQuantity: Number(p.quantity),
+      quantity: byProduct.get(p.id) ?? 0,
+    }));
+  }
+
+  async lookupProduct(companyId: string, code: string, warehouseId?: string) {
     const q = code.trim();
     if (!q) throw new BadRequestException('Scan code is required');
 
@@ -114,33 +133,34 @@ export class PosService {
       include: { warehouse: { select: { id: true, code: true, name: true } } },
     });
     if (!product) throw new NotFoundException('Product not found for this barcode/SKU');
-    return product;
+    const [mapped] = await this.applyWarehouseQuantity([product], warehouseId);
+    return mapped;
   }
 
-  async searchProducts(companyId: string, q: string) {
+  async searchProducts(companyId: string, q: string, warehouseId?: string) {
     const term = q.trim();
-    if (!term) {
-      return this.prisma.product.findMany({
-        where: { companyId, isActive: true },
-        take: 40,
-        orderBy: { name: 'asc' },
-        include: { warehouse: { select: { id: true, code: true, name: true } } },
-      });
-    }
-    return this.prisma.product.findMany({
-      where: {
-        companyId,
-        isActive: true,
-        OR: [
-          { name: { contains: term, mode: 'insensitive' } },
-          { sku: { contains: term, mode: 'insensitive' } },
-          { barcode: { contains: term, mode: 'insensitive' } },
-        ],
-      },
-      take: 40,
-      orderBy: { name: 'asc' },
-      include: { warehouse: { select: { id: true, code: true, name: true } } },
-    });
+    const products = !term
+      ? await this.prisma.product.findMany({
+          where: { companyId, isActive: true },
+          take: 40,
+          orderBy: { name: 'asc' },
+          include: { warehouse: { select: { id: true, code: true, name: true } } },
+        })
+      : await this.prisma.product.findMany({
+          where: {
+            companyId,
+            isActive: true,
+            OR: [
+              { name: { contains: term, mode: 'insensitive' } },
+              { sku: { contains: term, mode: 'insensitive' } },
+              { barcode: { contains: term, mode: 'insensitive' } },
+            ],
+          },
+          take: 40,
+          orderBy: { name: 'asc' },
+          include: { warehouse: { select: { id: true, code: true, name: true } } },
+        });
+    return this.applyWarehouseQuantity(products, warehouseId);
   }
 
   async ensureWalkInContact(companyId: string) {
@@ -160,7 +180,7 @@ export class PosService {
     });
   }
 
-  /** Atomic stock OUT — safe under concurrent cashiers */
+  /** Atomic stock OUT — safe under concurrent cashiers (per-warehouse) */
   private async reserveStockOut(
     companyId: string,
     productId: string,
@@ -195,7 +215,29 @@ export class PosService {
         whId = wh.id;
       }
 
-      const updated = await tx.product.updateMany({
+      await tx.warehouseStock.upsert({
+        where: {
+          productId_warehouseId: { productId, warehouseId: whId! },
+        },
+        create: { productId, warehouseId: whId!, quantity: 0 },
+        update: {},
+      });
+
+      const whUpdated = await tx.warehouseStock.updateMany({
+        where: {
+          productId,
+          warehouseId: whId!,
+          quantity: { gte: qty },
+        },
+        data: { quantity: { decrement: qty } },
+      });
+      if (whUpdated.count === 0) {
+        throw new BadRequestException(
+          `Insufficient stock for ${product.name} at this warehouse (requested ${qty})`,
+        );
+      }
+
+      const productUpdated = await tx.product.updateMany({
         where: {
           id: productId,
           companyId,
@@ -206,7 +248,7 @@ export class PosService {
           warehouseId: whId!,
         },
       });
-      if (updated.count === 0) {
+      if (productUpdated.count === 0) {
         throw new BadRequestException(
           `Insufficient stock for ${product.name} (requested ${qty})`,
         );
@@ -236,6 +278,13 @@ export class PosService {
     reference: string,
   ) {
     await this.prisma.$transaction(async (tx) => {
+      await tx.warehouseStock.upsert({
+        where: {
+          productId_warehouseId: { productId, warehouseId },
+        },
+        create: { productId, warehouseId, quantity: qty },
+        update: { quantity: { increment: qty } },
+      });
       await tx.product.updateMany({
         where: { id: productId, companyId },
         data: { quantity: { increment: qty } },
