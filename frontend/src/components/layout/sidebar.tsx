@@ -130,75 +130,77 @@ export function Sidebar() {
         )}
       </div>
 
-      <nav className="px-3 py-4 space-y-1 flex-1 overflow-y-auto">
-        {navItems.map((item) => {
-          const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              prefetch
-              onClick={closeMobile}
-              className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group relative",
-                isActive
-                  ? "bg-emerald-500/10 text-emerald-400 border-r-2 border-emerald-500"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/50"
-              )}
-            >
-              <Icon className={cn("w-5 h-5 flex-shrink-0", isActive && "text-emerald-400")} />
-              {!sidebarCollapsed && (
-                <span className="text-sm font-medium">{t(item.label)}</span>
-              )}
-            </Link>
-          );
-        })}
-      </nav>
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
+        <nav className="px-3 py-4 space-y-1">
+          {navItems.map((item) => {
+            const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                prefetch
+                onClick={closeMobile}
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group relative",
+                  isActive
+                    ? "bg-emerald-500/10 text-emerald-400 border-r-2 border-emerald-500"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/50"
+                )}
+              >
+                <Icon className={cn("w-5 h-5 flex-shrink-0", isActive && "text-emerald-400")} />
+                {!sidebarCollapsed && (
+                  <span className="text-sm font-medium">{t(item.label)}</span>
+                )}
+              </Link>
+            );
+          })}
+        </nav>
 
-      <nav className="px-3 py-4 space-y-1 border-t border-slate-200 dark:border-slate-800/50 shrink-0">
-        {isPlatformAdmin && (
-          <Link
-            href="/admin"
-            prefetch
-            onClick={closeMobile}
-            className={cn(
-              "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200",
-              pathname.startsWith("/admin")
-                ? "bg-amber-500/10 text-amber-400"
-                : "text-amber-700 dark:text-amber-400/80 hover:bg-amber-500/10"
-            )}
-          >
-            <ShieldAlert className="w-5 h-5 flex-shrink-0" />
-            {!sidebarCollapsed && (
-              <span className="text-sm font-medium">إدارة المنصة</span>
-            )}
-          </Link>
-        )}
-        {settingsItems.map((item) => {
-          const isActive = pathname === item.href;
-          const Icon = item.icon;
-          return (
+        <nav className="px-3 py-4 space-y-1 border-t border-slate-200 dark:border-slate-800/50">
+          {isPlatformAdmin && (
             <Link
-              key={item.href}
-              href={item.href}
+              href="/admin"
               prefetch
               onClick={closeMobile}
               className={cn(
                 "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200",
-                isActive
-                  ? "bg-emerald-500/10 text-emerald-400"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/50"
+                pathname.startsWith("/admin")
+                  ? "bg-amber-500/10 text-amber-400"
+                  : "text-amber-700 dark:text-amber-400/80 hover:bg-amber-500/10"
               )}
             >
-              <Icon className="w-5 h-5 flex-shrink-0" />
+              <ShieldAlert className="w-5 h-5 flex-shrink-0" />
               {!sidebarCollapsed && (
-                <span className="text-sm font-medium">{t(item.label)}</span>
+                <span className="text-sm font-medium">إدارة المنصة</span>
               )}
             </Link>
-          );
-        })}
-      </nav>
+          )}
+          {settingsItems.map((item) => {
+            const isActive = pathname === item.href;
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                prefetch
+                onClick={closeMobile}
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200",
+                  isActive
+                    ? "bg-emerald-500/10 text-emerald-400"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/50"
+                )}
+              >
+                <Icon className="w-5 h-5 flex-shrink-0" />
+                {!sidebarCollapsed && (
+                  <span className="text-sm font-medium">{t(item.label)}</span>
+                )}
+              </Link>
+            );
+          })}
+        </nav>
+      </div>
 
       <div className="shrink-0 p-4 border-t border-slate-200 dark:border-slate-800/50">
         <div className="flex items-center gap-3">
