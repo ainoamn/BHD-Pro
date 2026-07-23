@@ -226,6 +226,13 @@ export function InvoiceDocument({
     signatureCustomer: t("signatureCustomer"),
     verifyQrTitle: t("verifyQrTitle"),
     verifyQrHint: t("verifyQrHint"),
+    workflowDraft: t("workflowDraft"),
+    workflowIssued: t("workflowIssued"),
+    workflowClaim: t("workflowClaim"),
+    workflowReceipt: t("workflowReceipt"),
+    workflowQuoteDraft: t("workflowQuoteDraft"),
+    workflowQuoteSent: t("workflowQuoteSent"),
+    workflowQuoteInvoice: t("workflowQuoteInvoice"),
   };
 
   const handlePrint = () => {
@@ -438,6 +445,16 @@ export function InvoiceDocument({
               >
                 {tStatus("paid")}
               </span>
+            </div>
+          )}
+          {!isReceipt && (invoice.type === "SALES" || invoice.type === "QUOTATION") && (
+            <div className="mb-4">
+              <DocumentWorkflowSteps
+                docType={invoice.type}
+                status={invoice.status}
+                paymentStatus={invoice.paymentStatus}
+                appearance="document"
+              />
             </div>
           )}
           <div

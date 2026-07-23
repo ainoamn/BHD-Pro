@@ -6,6 +6,7 @@ import {
   documentColorSoft,
   normalizeDocumentColor,
 } from "@/lib/document-theme";
+import { buildWorkflowStepsHtml } from "@/lib/document-workflow";
 
 interface CompanyInfo {
   name?: string;
@@ -61,6 +62,13 @@ interface PrintOptions {
     signatureCustomer?: string;
     verifyQrTitle?: string;
     verifyQrHint?: string;
+    workflowDraft?: string;
+    workflowIssued?: string;
+    workflowClaim?: string;
+    workflowReceipt?: string;
+    workflowQuoteDraft?: string;
+    workflowQuoteSent?: string;
+    workflowQuoteInvoice?: string;
   };
 }
 
@@ -174,11 +182,30 @@ function buildBodyHtml(
     invoice.contact.crNumber ? `${L.crNumber || "CR"}: ${invoice.contact.crNumber}` : null,
   ].filter(Boolean);
 
+  const workflowHtml =
+    isReceipt
+      ? ""
+      : invoice.type === "SALES"
+        ? buildWorkflowStepsHtml(invoice.type, invoice.status, invoice.paymentStatus, [
+            L.workflowDraft || "فاتورة مبدئية",
+            L.workflowIssued || "إصدار",
+            L.workflowClaim || "مطالبة",
+            L.workflowReceipt || "إيصال سداد",
+          ])
+        : invoice.type === "QUOTATION"
+          ? buildWorkflowStepsHtml(invoice.type, invoice.status, invoice.paymentStatus, [
+              L.workflowQuoteDraft || "مسودة",
+              L.workflowQuoteSent || "مرسل",
+              L.workflowQuoteInvoice || "فاتورة",
+            ])
+          : "";
+
   return `
     ${isReceipt ? `<div style="margin-bottom:12px;padding:8px 12px;border:1px solid ${docColor};background:${docSoft};border-radius:6px;">
       <p style="font-size:13px;font-weight:bold;color:${docDark};">${L.receiptDoc}</p>
       <p style="font-size:11px;color:${docColor};">${L.receiptPaidNote}</p>
     </div>` : ""}
+    ${workflowHtml}
     <div class="header" style="border-bottom-color:${docColor};">
       <div style="display:flex;align-items:flex-start;gap:12px;min-width:0;flex:1;">
         ${company?.logo ? `<img src="${company.logo}" alt="" style="max-height:52px;max-width:140px;object-fit:contain;" />` : ""}
