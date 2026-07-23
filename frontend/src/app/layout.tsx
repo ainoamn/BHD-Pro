@@ -17,13 +17,13 @@ const spaceGrotesk = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: "حسابي Hisaby — نظام المحاسبة السحابي العماني",
+  title: "حسابي Hisaby — محاسبة سحابية لأعمال الخليج والمنطقة",
   description:
-    "حسابي (Hisaby) منصة محاسبة سحابية للشركات في عُمان: فواتير، مخزون، ضريبة، وتقارير. مطوّر ومشغّل بواسطة شركة بن حمود للتطوير.",
+    "حسابي (Hisaby) منصة محاسبة سحابية للشركات في الخليج والمنطقة: فواتير، مخزون، ضريبة، وتقارير. مطوّر ومشغّل بواسطة شركة بن حمود للتطوير.",
   keywords: [
     "محاسبة",
     "فواتير",
-    "عُمان",
+    "الخليج",
     "حسابي",
     "Hisaby",
     "ضريبة القيمة المضافة",
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
   authors: [{ name: "Bin Hamood Development" }],
   openGraph: {
     title: "حسابي Hisaby",
-    description: "نظام المحاسبة السحابي العماني — شركة بن حمود للتطوير",
+    description: "محاسبة سحابية لأعمال الخليج والمنطقة — شركة بن حمود للتطوير",
     type: "website",
     images: [{ url: "/brand/hisaby-mark.png" }],
   },
