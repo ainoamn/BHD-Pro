@@ -303,8 +303,10 @@ class ApiClient {
   createDocumentVerifyLink(id: string, variant: "invoice" | "receipt" = "invoice") {
     return this.post<{
       token: string;
+      code?: string;
       verifyUrl: string;
       verifyPath?: string;
+      appVerifyPath?: string;
       documentNumber: string;
     }>(`/invoices/${id}/verify-link`, { variant });
   }

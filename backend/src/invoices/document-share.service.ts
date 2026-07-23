@@ -35,6 +35,15 @@ export class DocumentShareService {
     return raw.split(',')[0].trim().replace(/\/$/, '');
   }
 
+  /** Public API origin for QR / phone-scanned invoice pages (avoids flaky frontend domain). */
+  private apiPublicBaseUrl(): string {
+    const raw =
+      process.env.API_PUBLIC_URL ||
+      this.config.get<string>('api.publicUrl') ||
+      'https://hisaby-api.onrender.com';
+    return raw.replace(/\/$/, '');
+  }
+
   private generateShortCode(length = 10): string {
     const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
     const bytes = randomBytes(length);
@@ -124,7 +133,10 @@ export class DocumentShareService {
     if (!invoice) throw new NotFoundException('Invoice not found');
 
     const code = await this.ensurePublicVerifyCode(invoiceId);
-    const verifyPath = `/v/${code}`;
+    // Serve invoice HTML from the API host so phone QR scans work even when
+    // the custom frontend domain (www) is unreachable.
+    const verifyPath = `/api/public/documents/c/${code}/view`;
+    const verifyUrl = `${this.apiPublicBaseUrl()}${verifyPath}`;
 
     // Keep JWT link as fallback for older clients
     const token = await this.jwt.signAsync(
@@ -143,8 +155,9 @@ export class DocumentShareService {
     return {
       token,
       code,
-      verifyUrl: `${this.frontendBaseUrl()}${verifyPath}`,
+      verifyUrl,
       verifyPath,
+      appVerifyPath: `/v/${code}`,
       legacyVerifyUrl: `${this.frontendBaseUrl()}/share/${token}`,
       documentNumber: invoice.number,
       variant,

@@ -134,10 +134,17 @@ export function InvoiceDocument({
         let url = verifyUrlProp || null;
         if (!url && invoice.id) {
           const res = await api.createDocumentVerifyLink(invoice.id, variant);
-          url = res.data.verifyPath
-            ? toAppAbsoluteUrl(res.data.verifyPath)
-            : toAppAbsoluteUrl(res.data.verifyUrl);
-        } else if (url) {
+          // Prefer absolute API verifyUrl (Render HTML) so phone QR works
+          // even when www.hisaby.pro is unreachable.
+          const absolute = (res.data.verifyUrl || "").trim();
+          if (/^https?:\/\//i.test(absolute)) {
+            url = absolute;
+          } else if (res.data.verifyPath) {
+            url = toAppAbsoluteUrl(res.data.verifyPath);
+          } else if (absolute) {
+            url = toAppAbsoluteUrl(absolute);
+          }
+        } else if (url && !/^https?:\/\//i.test(url)) {
           url = toAppAbsoluteUrl(url);
         }
         if (!url || cancelled) return;
@@ -447,16 +454,6 @@ export function InvoiceDocument({
               </span>
             </div>
           )}
-          {!isReceipt && (invoice.type === "SALES" || invoice.type === "QUOTATION") && (
-            <div className="mb-4">
-              <DocumentWorkflowSteps
-                docType={invoice.type}
-                status={invoice.status}
-                paymentStatus={invoice.paymentStatus}
-                appearance="document"
-              />
-            </div>
-          )}
           <div
             className="header flex justify-between items-start gap-4 mb-5 pb-3 border-b-2"
             style={{ borderColor: docColor }}
@@ -467,8 +464,17 @@ export function InvoiceDocument({
                 <div className="company text-base sm:text-lg font-bold leading-tight" style={{ color: docColorDark }}>
                   {company?.name || "BHD Pro"}
                 </div>
+                {!isReceipt && (invoice.type === "SALES" || invoice.type === "QUOTATION") && (
+                  <DocumentWorkflowSteps
+                    docType={invoice.type}
+                    status={invoice.status}
+                    paymentStatus={invoice.paymentStatus}
+                    appearance="document"
+                    accentColor={docColor}
+                  />
+                )}
                 {formatCompanyAddressCompact(company) && (
-                  <p className="text-xs sm:text-sm text-slate-700 mt-1 leading-snug font-medium">
+                  <p className="text-xs sm:text-sm text-slate-700 mt-2 leading-snug font-medium">
                     {formatCompanyAddressCompact(company)}
                   </p>
                 )}

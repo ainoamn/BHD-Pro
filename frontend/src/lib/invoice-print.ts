@@ -186,18 +186,30 @@ function buildBodyHtml(
     isReceipt
       ? ""
       : invoice.type === "SALES"
-        ? buildWorkflowStepsHtml(invoice.type, invoice.status, invoice.paymentStatus, [
-            L.workflowDraft || "فاتورة مبدئية",
-            L.workflowIssued || "إصدار",
-            L.workflowClaim || "مطالبة",
-            L.workflowReceipt || "إيصال سداد",
-          ])
+        ? buildWorkflowStepsHtml(
+            invoice.type,
+            invoice.status,
+            invoice.paymentStatus,
+            [
+              L.workflowDraft || "فاتورة مبدئية",
+              L.workflowIssued || "إصدار",
+              L.workflowClaim || "مطالبة",
+              L.workflowReceipt || "إيصال سداد",
+            ],
+            docColor
+          )
         : invoice.type === "QUOTATION"
-          ? buildWorkflowStepsHtml(invoice.type, invoice.status, invoice.paymentStatus, [
-              L.workflowQuoteDraft || "مسودة",
-              L.workflowQuoteSent || "مرسل",
-              L.workflowQuoteInvoice || "فاتورة",
-            ])
+          ? buildWorkflowStepsHtml(
+              invoice.type,
+              invoice.status,
+              invoice.paymentStatus,
+              [
+                L.workflowQuoteDraft || "مسودة",
+                L.workflowQuoteSent || "مرسل",
+                L.workflowQuoteInvoice || "فاتورة",
+              ],
+              docColor
+            )
           : "";
 
   return `
@@ -205,13 +217,13 @@ function buildBodyHtml(
       <p style="font-size:13px;font-weight:bold;color:${docDark};">${L.receiptDoc}</p>
       <p style="font-size:11px;color:${docColor};">${L.receiptPaidNote}</p>
     </div>` : ""}
-    ${workflowHtml}
     <div class="header" style="border-bottom-color:${docColor};">
       <div style="display:flex;align-items:flex-start;gap:12px;min-width:0;flex:1;">
         ${company?.logo ? `<img src="${company.logo}" alt="" style="max-height:52px;max-width:140px;object-fit:contain;" />` : ""}
         <div style="min-width:0;">
           <div class="company" style="color:${docDark};font-size:16px;">${company?.name || "BHD Pro"}</div>
-          ${companyLine ? `<p style="font-size:12px;color:#334155;margin-top:4px;line-height:1.45;font-weight:500;">${companyLine}</p>` : ""}
+          ${workflowHtml}
+          ${companyLine ? `<p style="font-size:12px;color:#334155;margin-top:6px;line-height:1.45;font-weight:500;">${companyLine}</p>` : ""}
           ${company?.vatNumber ? `<p style="font-size:11px;color:#475569;margin-top:3px;font-weight:500;">${L.vatNumber}: ${company.vatNumber}</p>` : ""}
           ${company?.crNumber ? `<p style="font-size:11px;color:#475569;font-weight:500;">${L.crNumber || "CR"}: ${company.crNumber}</p>` : ""}
         </div>
@@ -305,8 +317,30 @@ export function openInvoicePrintDialog(
   `);
   win.document.close();
   win.focus();
-  setTimeout(() => {
-    win.print();
-    win.close();
-  }, 400);
+
+  const triggerPrint = () => {
+    try {
+      win.focus();
+      win.print();
+    } catch {
+      /* ignore */
+    }
+  };
+
+  // Do not close immediately after print() — that aborts save/download on many browsers.
+  const onAfterPrint = () => {
+    try {
+      win.removeEventListener("afterprint", onAfterPrint);
+      win.close();
+    } catch {
+      /* ignore */
+    }
+  };
+  win.addEventListener("afterprint", onAfterPrint);
+
+  if (win.document.readyState === "complete") {
+    setTimeout(triggerPrint, 350);
+  } else {
+    win.onload = () => setTimeout(triggerPrint, 350);
+  }
 }

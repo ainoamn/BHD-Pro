@@ -34,32 +34,41 @@ export function quotationWorkflowLabels(labels: {
   return [labels.draft, labels.sent, labels.invoice];
 }
 
-/** HTML strip for print/PDF invoice status trail */
+/** Compact progress-track HTML under company name for print/PDF */
 export function buildWorkflowStepsHtml(
   docType: string,
   status: string,
   paymentStatus: string | undefined,
-  stepLabels: string[]
+  stepLabels: string[],
+  accentColor = "#059669"
 ): string {
   const current = documentWorkflowActiveStep(docType, status, paymentStatus);
   if (current < 0 || stepLabels.length === 0) return "";
 
-  const parts = stepLabels
+  const nodes = stepLabels
     .map((label, idx) => {
       const done = idx < current;
       const active = idx === current;
-      const bg = done ? "#ecfdf5" : active ? "#eff6ff" : "#f8fafc";
-      const border = done ? "#34d399" : active ? "#60a5fa" : "#e2e8f0";
-      const color = done ? "#047857" : active ? "#1d4ed8" : "#94a3b8";
+      const circleBg = done || active ? accentColor : "#e2e8f0";
+      const circleFg = done || active ? "#fff" : "#94a3b8";
+      const textColor = active ? "#0f172a" : done ? "#047857" : "#94a3b8";
       const weight = active || done ? "700" : "500";
-      const mark = done ? "✓ " : "";
-      const arrow =
-        idx > 0
-          ? `<span style="color:#94a3b8;margin:0 6px;font-size:11px;">←</span>`
+      const mark = done ? "✓" : String(idx + 1);
+      const connector =
+        idx < stepLabels.length - 1
+          ? `<div style="flex:1;height:2px;margin:0 4px 18px;background:${
+              idx < current ? accentColor : "#e2e8f0"
+            };"></div>`
           : "";
-      return `${arrow}<span style="display:inline-block;padding:4px 10px;border-radius:999px;border:1px solid ${border};background:${bg};color:${color};font-size:11px;font-weight:${weight};">${mark}${label}</span>`;
+      return `<div style="display:flex;align-items:flex-start;flex:1;min-width:0;">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0;flex:1;">
+          <div style="width:22px;height:22px;border-radius:999px;background:${circleBg};color:${circleFg};font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;line-height:1;">${mark}</div>
+          <span style="font-size:10px;font-weight:${weight};color:${textColor};text-align:center;line-height:1.25;">${label}</span>
+        </div>
+        ${connector}
+      </div>`;
     })
     .join("");
 
-  return `<div style="margin:0 0 14px;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;display:flex;flex-wrap:wrap;align-items:center;gap:4px;">${parts}</div>`;
+  return `<div style="margin-top:10px;max-width:360px;"><div style="display:flex;align-items:flex-start;width:100%;">${nodes}</div></div>`;
 }
