@@ -3,8 +3,10 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // Neon: use pooled URL in DATABASE_URL, non-pooled in DIRECT_URL (migrations)
+  directUrl = env("DIRECT_URL")
 }
 
 // ==================== CORE TABLES ====================
