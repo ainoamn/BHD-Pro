@@ -1,7 +1,7 @@
 {
   "app": {
     "name": "Hisaby",
-    "tagline": "Omani cloud accounting",
+    "tagline": "Cloud accounting for Gulf & regional businesses",
     "country": "Sultanate of Oman"
   },
   "auth": {
@@ -340,7 +340,17 @@
     "todayReceived": "Received today",
     "todayExpenses": "Spent today",
     "pendingCollection": "Awaiting collection",
-    "outstanding": "Outstanding amount"
+    "outstanding": "Outstanding amount",
+    "reportsSection": "Financial reports",
+    "reportsSectionHint": "Profit & loss, balance sheet, ledger, and all accounting reports",
+    "reportProfitLoss": "Profit & Loss",
+    "reportProfitLossHint": "Revenue, expenses, and net profit for the period",
+    "reportBalanceSheet": "Balance Sheet",
+    "reportBalanceSheetHint": "Assets, liabilities, and equity",
+    "reportLedger": "General Ledger",
+    "reportLedgerHint": "Account movements and detailed journal entries",
+    "reportAll": "Reports hub",
+    "reportAllHint": "All financial, operational, and tax reports"
   },
   "payments": {
     "companyGatewaysTitle": "Payment gateways",

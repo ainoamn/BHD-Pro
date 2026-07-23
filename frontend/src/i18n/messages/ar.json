@@ -1,7 +1,7 @@
 {
   "app": {
     "name": "حسابي",
-    "tagline": "نظام المحاسبة السحابي العماني",
+    "tagline": "محاسبة سحابية لأعمال الخليج والمنطقة",
     "country": "سلطنة عُمان"
   },
   "auth": {
@@ -340,7 +340,17 @@
     "todayReceived": "استلمنا اليوم",
     "todayExpenses": "مصروف اليوم",
     "pendingCollection": "بانتظار التحصيل",
-    "outstanding": "المبلغ المستحق"
+    "outstanding": "المبلغ المستحق",
+    "reportsSection": "التقارير المالية",
+    "reportsSectionHint": "أرباح وخسائر، ميزانية عمومية، دفتر أستاذ، وكل التقارير المحاسبية",
+    "reportProfitLoss": "الأرباح والخسائر",
+    "reportProfitLossHint": "إيرادات ومصروفات وصافي الربح للفترة",
+    "reportBalanceSheet": "الميزانية العمومية",
+    "reportBalanceSheetHint": "الأصول والخصوم وحقوق الملكية",
+    "reportLedger": "دفتر الأستاذ",
+    "reportLedgerHint": "حركة الحسابات والقيود التفصيلية",
+    "reportAll": "مركز التقارير",
+    "reportAllHint": "كل التقارير المالية والتشغيلية والضريبية"
   },
   "payments": {
     "companyGatewaysTitle": "بوابات الدفع الإلكتروني",

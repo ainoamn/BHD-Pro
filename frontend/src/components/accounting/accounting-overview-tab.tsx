@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
   FileText,
@@ -8,6 +9,10 @@ import {
   TrendingDown,
   Files,
   Clock,
+  BarChart3,
+  BookOpen,
+  Scale,
+  PieChart,
 } from "lucide-react";
 import { formatMoney } from "@/lib/utils";
 
@@ -39,18 +44,20 @@ function ModuleCard({
   title: string;
   hint: string;
   onClick?: () => void;
-  variant?: "sales" | "purchase" | "default" | "muted";
+  variant?: "sales" | "purchase" | "default" | "muted" | "reports";
   badge?: string;
 }) {
   const styles = {
     sales: "border-emerald-800/50 hover:border-emerald-600 bg-emerald-950/20 hover:bg-emerald-950/40",
     purchase: "border-rose-800/50 hover:border-rose-600 bg-rose-950/20 hover:bg-rose-950/40",
+    reports: "border-sky-800/50 hover:border-sky-600 bg-sky-950/20 hover:bg-sky-950/40",
     default: "border-slate-700 hover:border-slate-500 bg-slate-800/30 hover:bg-slate-800/60",
     muted: "border-slate-800 bg-slate-900/40 opacity-60 cursor-not-allowed",
   };
   const iconStyles = {
     sales: "bg-emerald-500/10 text-emerald-400",
     purchase: "bg-rose-500/10 text-rose-400",
+    reports: "bg-sky-500/10 text-sky-400",
     default: "bg-slate-700/50 text-slate-300",
     muted: "bg-slate-800 text-slate-500",
   };
@@ -94,6 +101,7 @@ export function AccountingOverviewTab({
   onViewPurchases,
 }: AccountingOverviewTabProps) {
   const t = useTranslations("accounting");
+  const router = useRouter();
 
   return (
     <div className="space-y-6">
@@ -113,6 +121,46 @@ export function AccountingOverviewTab({
             <p className={`text-xl font-bold mt-1 ${s.color}`}>{s.value}</p>
           </div>
         ))}
+      </div>
+
+      <div className="glass rounded-xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-800 bg-sky-950/20">
+          <h3 className="font-semibold text-white flex items-center gap-2">
+            <BarChart3 className="w-5 h-5 text-sky-400" />
+            {t("reportsSection")}
+          </h3>
+          <p className="text-xs text-slate-500 mt-1">{t("reportsSectionHint")}</p>
+        </div>
+        <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <ModuleCard
+            icon={PieChart}
+            title={t("reportProfitLoss")}
+            hint={t("reportProfitLossHint")}
+            variant="reports"
+            onClick={() => router.push("/reports/financial?tab=profitLoss")}
+          />
+          <ModuleCard
+            icon={Scale}
+            title={t("reportBalanceSheet")}
+            hint={t("reportBalanceSheetHint")}
+            variant="reports"
+            onClick={() => router.push("/reports/financial?tab=balanceSheet")}
+          />
+          <ModuleCard
+            icon={BookOpen}
+            title={t("reportLedger")}
+            hint={t("reportLedgerHint")}
+            variant="reports"
+            onClick={() => router.push("/reports/ledger")}
+          />
+          <ModuleCard
+            icon={BarChart3}
+            title={t("reportAll")}
+            hint={t("reportAllHint")}
+            variant="reports"
+            onClick={() => router.push("/reports")}
+          />
+        </div>
       </div>
 
       <div className="glass rounded-xl overflow-hidden">

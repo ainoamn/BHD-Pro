@@ -49,6 +49,7 @@ const navItems = [
   { href: "/sales", icon: FileText, label: "sales" },
   { href: "/purchases", icon: Receipt, label: "purchases" },
   { href: "/accounting", icon: Calculator, label: "accounting" },
+  { href: "/reports", icon: BarChart3, label: "reports" },
   { href: "/chart-of-accounts", icon: Network, label: "chartOfAccounts" },
   { href: "/journal", icon: BookOpen, label: "journal" },
   { href: "/bank-accounts", icon: Landmark, label: "bankAccounts" },
@@ -63,7 +64,6 @@ const navItems = [
   { href: "/stock-counts", icon: ClipboardList, label: "stockCounts" },
   { href: "/warehouses", icon: Warehouse, label: "warehouses" },
   { href: "/contacts", icon: Users, label: "addressBook" },
-  { href: "/reports", icon: BarChart3, label: "reports" },
   { href: "/vat", icon: Receipt, label: "vat" },
   { href: "/ai-analytics", icon: Brain, label: "aiAnalytics" },
 ];
