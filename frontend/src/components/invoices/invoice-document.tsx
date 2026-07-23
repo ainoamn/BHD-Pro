@@ -141,7 +141,7 @@ export function InvoiceDocument({
           url = toAppAbsoluteUrl(url);
         }
         if (!url || cancelled) return;
-        const dataUrl = await buildDocumentQrDataUrl(url, 200);
+        const dataUrl = await buildDocumentQrDataUrl(url, 280);
         if (!cancelled) setQrDataUrl(dataUrl);
       } catch {
         if (!cancelled) setQrDataUrl(null);
@@ -601,7 +601,7 @@ export function InvoiceDocument({
                 <img
                   src={qrDataUrl}
                   alt={t("verifyQrTitle")}
-                  className="w-[160px] h-[160px] border border-slate-200 rounded bg-white p-1"
+                  className="w-[200px] h-[200px] border border-slate-200 rounded bg-white p-1.5"
                 />
                 <p className="text-sm font-bold text-slate-800">{t("verifyQrTitle")}</p>
                 <p className="text-xs text-slate-600 max-w-[220px] leading-snug">

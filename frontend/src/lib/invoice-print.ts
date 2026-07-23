@@ -96,9 +96,9 @@ function buildSignatureAndQrHtml(
 
   const qrHtml = options.qrDataUrl
     ? `<div style="text-align:center;">
-        <img src="${options.qrDataUrl}" alt="" style="width:160px;height:160px;border:1px solid #e2e8f0;border-radius:4px;padding:4px;background:#fff;" />
+        <img src="${options.qrDataUrl}" alt="" style="width:200px;height:200px;border:1px solid #e2e8f0;border-radius:4px;padding:6px;background:#fff;" />
         <p style="font-size:12px;font-weight:700;color:#1e293b;margin-top:6px;">${L.verifyQrTitle || ""}</p>
-        <p style="font-size:10px;color:#475569;max-width:180px;margin:4px auto 0;line-height:1.35;">${L.verifyQrHint || ""}</p>
+        <p style="font-size:10px;color:#475569;max-width:200px;margin:4px auto 0;line-height:1.35;">${L.verifyQrHint || ""}</p>
       </div>`
     : "";
 

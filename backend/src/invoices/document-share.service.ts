@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 
 export type DocumentShareVariant = 'invoice' | 'receipt';
@@ -25,12 +26,41 @@ export class DocumentShareService {
   ) {}
 
   private frontendBaseUrl(): string {
-    return (
+    const raw =
       process.env.FRONTEND_URL ||
       process.env.CORS_ORIGIN ||
       this.config.get<string>('cors.origin') ||
-      'http://localhost:3000'
-    );
+      'http://localhost:3000';
+    // CORS_ORIGIN may be comma-separated; use the first public site URL
+    return raw.split(',')[0].trim().replace(/\/$/, '');
+  }
+
+  private generateShortCode(length = 10): string {
+    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+    const bytes = randomBytes(length);
+    return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join('');
+  }
+
+  private async ensurePublicVerifyCode(invoiceId: string): Promise<string> {
+    const existing = await this.prisma.invoice.findUnique({
+      where: { id: invoiceId },
+      select: { publicVerifyCode: true },
+    });
+    if (existing?.publicVerifyCode) return existing.publicVerifyCode;
+
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const code = this.generateShortCode(10);
+      try {
+        await this.prisma.invoice.update({
+          where: { id: invoiceId },
+          data: { publicVerifyCode: code },
+        });
+        return code;
+      } catch {
+        // unique collision — retry
+      }
+    }
+    throw new Error('Could not allocate public verify code');
   }
 
   private signatureModeFromCompany(ftaConfig: unknown): 'ELECTRONIC' | 'MANUAL' {
@@ -93,6 +123,10 @@ export class DocumentShareService {
     });
     if (!invoice) throw new NotFoundException('Invoice not found');
 
+    const code = await this.ensurePublicVerifyCode(invoiceId);
+    const verifyPath = `/v/${code}`;
+
+    // Keep JWT link as fallback for older clients
     const token = await this.jwt.signAsync(
       {
         purpose: 'doc_verify',
@@ -108,13 +142,21 @@ export class DocumentShareService {
 
     return {
       token,
-      verifyUrl: `${this.frontendBaseUrl()}/share/${token}`,
-      verifyPath: `/share/${token}`,
+      code,
+      verifyUrl: `${this.frontendBaseUrl()}${verifyPath}`,
+      verifyPath,
+      legacyVerifyUrl: `${this.frontendBaseUrl()}/share/${token}`,
       documentNumber: invoice.number,
+      variant,
     };
   }
 
   async resolvePublicDocument(token: string) {
+    // Short code path: /public/documents/c/XXXX
+    if (token.length <= 16 && !token.includes('.')) {
+      return this.resolveByPublicCode(token, 'invoice');
+    }
+
     let payload: DocumentSharePayload;
     try {
       payload = await this.jwt.verifyAsync<DocumentSharePayload>(token, {
@@ -132,8 +174,37 @@ export class DocumentShareService {
       throw new UnauthorizedException('Invalid share link');
     }
 
+    return this.loadPublicDocument(
+      payload.invoiceId,
+      payload.companyId,
+      payload.variant || 'invoice',
+      payload.purpose,
+    );
+  }
+
+  async resolveByPublicCode(code: string, variantHint: DocumentShareVariant = 'invoice') {
+    const normalized = code.trim();
     const invoice = await this.prisma.invoice.findFirst({
-      where: { id: payload.invoiceId, companyId: payload.companyId },
+      where: { publicVerifyCode: normalized },
+      select: { id: true, companyId: true },
+    });
+    if (!invoice) throw new NotFoundException('Document not found');
+    return this.loadPublicDocument(
+      invoice.id,
+      invoice.companyId,
+      variantHint,
+      'doc_verify',
+    );
+  }
+
+  private async loadPublicDocument(
+    invoiceId: string,
+    companyId: string,
+    variant: DocumentShareVariant,
+    purpose: 'doc_share' | 'doc_verify',
+  ) {
+    const invoice = await this.prisma.invoice.findFirst({
+      where: { id: invoiceId, companyId },
       include: {
         contact: true,
         items: true,
@@ -157,7 +228,7 @@ export class DocumentShareService {
     if (!invoice) throw new NotFoundException('Document not found');
 
     const templateType =
-      payload.variant === 'receipt'
+      variant === 'receipt'
         ? 'RECEIPT'
         : invoice.type === 'QUOTATION'
           ? 'QUOTATION'
@@ -167,7 +238,7 @@ export class DocumentShareService {
 
     const template = await this.prisma.documentTemplate.findFirst({
       where: {
-        companyId: payload.companyId,
+        companyId,
         type: templateType,
         isActive: true,
         isDefault: true,
@@ -183,8 +254,8 @@ export class DocumentShareService {
     };
 
     return {
-      variant: payload.variant,
-      purpose: payload.purpose,
+      variant,
+      purpose,
       invoice,
       company,
       template,

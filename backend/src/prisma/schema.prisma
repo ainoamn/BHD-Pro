@@ -656,6 +656,8 @@ model Invoice {
   vatUuid     String?  @map("vat_uuid") @unique
   xmlContent  String?  @map("xml_content")
   qrCode      String?  @map("qr_code")
+  /// Short public code for phone-scannable authenticity QR (/v/CODE)
+  publicVerifyCode String? @unique @map("public_verify_code")
   hash        String?
   signedXml   String?  @map("signed_xml")
   clearedAt   DateTime? @map("cleared_at")
