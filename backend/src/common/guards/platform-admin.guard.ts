@@ -5,28 +5,27 @@ import {
   Injectable,
 } from '@nestjs/common';
 
+/** Bootstrap operators — always allowed, plus any emails in PLATFORM_ADMIN_EMAILS */
+const DEFAULT_PLATFORM_ADMINS = ['admin@bhd.om'];
+
 export function getPlatformAdminEmails(): string[] {
-  return (process.env.PLATFORM_ADMIN_EMAILS || '')
+  const fromEnv = (process.env.PLATFORM_ADMIN_EMAILS || '')
     .split(',')
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
+  return Array.from(new Set([...DEFAULT_PLATFORM_ADMINS, ...fromEnv]));
 }
 
 export function isPlatformAdminEmail(email?: string | null): boolean {
-  const allow = getPlatformAdminEmails();
-  if (!allow.length || !email) return false;
-  return allow.includes(email.toLowerCase());
+  if (!email) return false;
+  return getPlatformAdminEmails().includes(email.toLowerCase());
 }
 
 export function assertPlatformAdminEmail(email?: string | null): void {
-  const allow = getPlatformAdminEmails();
-  if (!allow.length) {
+  if (!isPlatformAdminEmail(email)) {
     throw new ForbiddenException(
-      'Platform admin is disabled. Set PLATFORM_ADMIN_EMAILS to enable.',
+      'Not a platform administrator. Add your email to PLATFORM_ADMIN_EMAILS on the API host.',
     );
-  }
-  if (!email || !allow.includes(email.toLowerCase())) {
-    throw new ForbiddenException('Not a platform administrator');
   }
 }
 
