@@ -6,12 +6,79 @@ import { isPlatformAdminEmail } from '../common/guards/platform-admin.guard';
 
 @Injectable()
 export class AdminService {
+  private publicStatsCache:
+    | { at: number; data: Awaited<ReturnType<AdminService['computePublicStats']>> }
+    | null = null;
+
   constructor(private prisma: PrismaService) {}
 
   me(email: string) {
     return {
       isPlatformAdmin: isPlatformAdminEmail(email),
       email,
+    };
+  }
+
+  /** Public marketing metrics for the landing page (cached ~60s). */
+  async publicStats() {
+    const now = Date.now();
+    if (this.publicStatsCache && now - this.publicStatsCache.at < 60_000) {
+      return this.publicStatsCache.data;
+    }
+    const data = await this.computePublicStats();
+    this.publicStatsCache = { at: now, data };
+    return data;
+  }
+
+  private async computePublicStats() {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const posted = {
+      status: { notIn: ['DRAFT', 'CANCELLED'] as const },
+    };
+
+    const [
+      companies,
+      users,
+      visitsTotal,
+      visits30d,
+      salesAgg,
+      purchaseAgg,
+    ] = await Promise.all([
+      this.prisma.company.count({ where: { deletedAt: null, isActive: true } }),
+      this.prisma.user.count({ where: { isActive: true } }),
+      this.prisma.siteVisit.count(),
+      this.prisma.siteVisit.count({ where: { createdAt: { gte: thirtyDaysAgo } } }),
+      this.prisma.invoice.aggregate({
+        where: { type: 'SALES', ...posted },
+        _sum: { total: true, paidAmount: true },
+      }),
+      this.prisma.invoice.aggregate({
+        where: { type: 'PURCHASE', ...posted },
+        _sum: { total: true, paidAmount: true },
+      }),
+    ]);
+
+    const sales = Number(salesAgg._sum.total || 0);
+    const collected = Number(salesAgg._sum.paidAmount || 0);
+    const purchases = Number(purchaseAgg._sum.total || 0);
+    const receivables = Math.max(0, sales - collected);
+    const volumeManaged = sales + purchases;
+
+    return {
+      companies,
+      users,
+      visits: {
+        total: visitsTotal,
+        last30Days: visits30d,
+      },
+      finance: {
+        sales,
+        purchases,
+        collected,
+        receivables,
+        volumeManaged,
+      },
+      updatedAt: new Date().toISOString(),
     };
   }
 

@@ -172,6 +172,13 @@ export class AdminController {
 export class PublicVisitsController {
   constructor(private admin: AdminService) {}
 
+  @Get('stats')
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Public platform metrics for the landing page' })
+  stats() {
+    return this.admin.publicStats();
+  }
+
   @Post('visits')
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
   @ApiOperation({ summary: 'Record anonymous site visit (analytics)' })
