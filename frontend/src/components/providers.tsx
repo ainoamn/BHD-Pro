@@ -9,6 +9,7 @@ import arMessages from "@/i18n/messages/ar.json";
 import enMessages from "@/i18n/messages/en.json";
 import { useLocaleStore, type Locale } from "@/store/locale";
 import { ThemeAwareToaster } from "@/components/theme-aware-toaster";
+import { GoogleOAuthProvider } from "@react-oauth/google";
 
 const messagesMap: Record<Locale, typeof arMessages> = {
   ar: arMessages,
@@ -18,6 +19,7 @@ const messagesMap: Record<Locale, typeof arMessages> = {
 export function Providers({ children }: { children: React.ReactNode }) {
   const locale = useLocaleStore((s) => s.locale);
   const [mounted, setMounted] = useState(false);
+  const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -53,7 +55,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     );
   }
 
-  return (
+  const tree = (
     <NextIntlClientProvider
       locale={safeLocale}
       messages={messagesMap[safeLocale]}
@@ -77,4 +79,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
       </ThemeProvider>
     </NextIntlClientProvider>
   );
+
+  if (!googleClientId) {
+    return tree;
+  }
+
+  return <GoogleOAuthProvider clientId={googleClientId}>{tree}</GoogleOAuthProvider>;
 }

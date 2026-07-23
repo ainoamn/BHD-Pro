@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException, ForbiddenException, Logger, BadReque
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
+import { OAuth2Client } from 'google-auth-library';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { AccountCategory, AccountType, Plan } from '@prisma/client';
@@ -16,12 +17,24 @@ import * as QRCode from 'qrcode';
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
+  private googleClient: OAuth2Client | null = null;
 
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
     private config: ConfigService,
   ) {}
+
+  private getGoogleClient() {
+    const clientId = this.config.get<string>('google.clientId') || process.env.GOOGLE_CLIENT_ID;
+    if (!clientId) {
+      throw new BadRequestException('Google sign-in is not configured');
+    }
+    if (!this.googleClient) {
+      this.googleClient = new OAuth2Client(clientId);
+    }
+    return { client: this.googleClient, clientId };
+  }
 
   async validateUser(email: string, password: string): Promise<any> {
     const normalizedEmail = email.trim().toLowerCase();
@@ -36,6 +49,10 @@ export class AuthService {
 
     if (user.lockedUntil && user.lockedUntil > new Date()) {
       throw new ForbiddenException(`Account locked until ${user.lockedUntil.toISOString()}`);
+    }
+
+    if (!user.password) {
+      throw new UnauthorizedException('This account uses Google sign-in');
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
@@ -162,6 +179,9 @@ export class AuthService {
   async disable2fa(userId: string, password: string, code: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new UnauthorizedException();
+    if (!user.password) {
+      throw new BadRequestException('Set a password before disabling 2FA on Google accounts');
+    }
     const ok = await bcrypt.compare(password, user.password);
     if (!ok) throw new UnauthorizedException('Invalid password');
     if (user.twoFactorEnabled && user.twoFactorSecret) {
@@ -267,6 +287,107 @@ export class AuthService {
       },
       ...tokens,
     };
+  }
+
+  async loginWithGoogle(idToken: string, companyName?: string) {
+    const { client, clientId } = this.getGoogleClient();
+    let payload;
+    try {
+      const ticket = await client.verifyIdToken({ idToken, audience: clientId });
+      payload = ticket.getPayload();
+    } catch (err) {
+      this.logger.warn(`Google token verification failed: ${err}`);
+      throw new UnauthorizedException('Invalid Google credential');
+    }
+
+    if (!payload?.email || !payload.sub || payload.email_verified === false) {
+      throw new UnauthorizedException('Google account email is not verified');
+    }
+
+    const email = payload.email.trim().toLowerCase();
+    const googleId = payload.sub;
+    const name = (payload.name || email.split('@')[0]).trim();
+    const avatar = payload.picture || null;
+
+    let user = await this.prisma.user.findFirst({
+      where: {
+        OR: [{ googleId }, { email }],
+      },
+      include: { company: true },
+    });
+
+    if (user) {
+      if (!user.isActive) {
+        throw new UnauthorizedException('Invalid credentials');
+      }
+      if (user.lockedUntil && user.lockedUntil > new Date()) {
+        throw new ForbiddenException(`Account locked until ${user.lockedUntil.toISOString()}`);
+      }
+
+      if (!user.googleId || user.avatar !== avatar) {
+        user = await this.prisma.user.update({
+          where: { id: user.id },
+          data: {
+            googleId,
+            avatar: avatar || user.avatar,
+            loginAttempts: 0,
+            lockedUntil: null,
+            lastLoginAt: new Date(),
+          },
+          include: { company: true },
+        });
+      } else {
+        await this.prisma.user.update({
+          where: { id: user.id },
+          data: { loginAttempts: 0, lockedUntil: null, lastLoginAt: new Date() },
+        });
+      }
+
+      if (user.twoFactorEnabled && user.twoFactorSecret) {
+        const tempToken = await this.jwtService.signAsync(
+          { sub: user.id, purpose: '2fa' },
+          {
+            secret: this.config.get<string>('jwt.secret'),
+            expiresIn: '5m',
+          },
+        );
+        return { requires2fa: true as const, tempToken };
+      }
+
+      const { password: _, twoFactorSecret: __, ...safe } = user;
+      return this.issueSession(safe, {});
+    }
+
+    const company = await this.prisma.company.create({
+      data: {
+        name: (companyName || `شركة ${name}`).trim(),
+        plan: Plan.STARTER,
+        currency: 'OMR',
+        language: 'ar',
+        country: 'OM',
+        timezone: 'Asia/Muscat',
+      },
+    });
+
+    await this.createDefaultAccounts(company.id);
+    await ensureDefaultCostCentersAndProjects(this.prisma, company.id);
+
+    user = await this.prisma.user.create({
+      data: {
+        name,
+        email,
+        password: null,
+        googleId,
+        avatar,
+        role: 'ADMIN',
+        companyId: company.id,
+        lastLoginAt: new Date(),
+      },
+      include: { company: true },
+    });
+
+    const { password: _, twoFactorSecret: __, ...safe } = user;
+    return this.issueSession(safe, {});
   }
 
   async refreshToken(refreshToken: string) {

@@ -170,6 +170,36 @@ class ApiClient {
     return response.data;
   }
 
+  async googleLogin(idToken: string, companyName?: string) {
+    const response = await this.client.post('/auth/google', {
+      idToken,
+      ...(companyName ? { companyName } : {}),
+    });
+    const data = response.data as {
+      requires2fa?: boolean;
+      tempToken?: string;
+      user?: { company?: unknown; companyId?: string; id: string; name: string; email: string; role: string };
+      accessToken?: string;
+    };
+    if (data.requires2fa) {
+      return data;
+    }
+    const user = data.user!;
+    const company = user.company as import('@/types').Company;
+    const { company: _c, ...userWithoutCompany } = user;
+    useAuthStore.getState().login(
+      {
+        ...userWithoutCompany,
+        companyId: company?.id || user.companyId || '',
+        role: user.role as import('@/types').User['role'],
+        company,
+      },
+      company,
+      data.accessToken || null
+    );
+    return data;
+  }
+
   async logout() {
     try {
       await this.client.post('/auth/logout', {});

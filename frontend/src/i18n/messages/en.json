@@ -26,7 +26,10 @@
     "backToLogin": "Back to login",
     "invalidCredentials": "Invalid email or password — check credentials and try again",
     "networkError": "Cannot reach the server — ensure the backend is running on port 3001",
-    "accountLocked": "Account temporarily locked — wait 30 minutes or run the database seed"
+    "accountLocked": "Account temporarily locked — wait 30 minutes or run the database seed",
+    "orContinueWith": "Or continue with",
+    "googleError": "Google sign-in failed — please try again",
+    "googleNeeds2fa": "This account has 2FA enabled — sign in with email first"
   },
   "twoFactor": {
     "title": "Two-factor authentication (2FA)",

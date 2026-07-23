@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { Calculator, Mail, Lock, User, Building2, Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
+import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 
 export default function RegisterPage() {
   const t = useTranslations("auth");
@@ -128,6 +129,14 @@ export default function RegisterPage() {
             {loading && <Loader2 className="w-4 h-4 animate-spin" />}
             {t("register")}
           </button>
+
+          <GoogleSignInButton
+            companyName={form.companyName.trim() || undefined}
+            onSuccess={() => {
+              toast.success(t("register"));
+              router.push("/dashboard");
+            }}
+          />
 
           <p className="text-center text-sm text-slate-400">
             {t("hasAccount")}{" "}

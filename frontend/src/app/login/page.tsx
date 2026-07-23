@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { Calculator, Mail, Lock, Loader2, Shield } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
+import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 
 export default function LoginPage() {
   const t = useTranslations("auth");
@@ -147,6 +148,13 @@ export default function LoginPage() {
             {loading && <Loader2 className="w-4 h-4 animate-spin" />}
             {tempToken ? t("verifyTotp") : t("login")}
           </button>
+
+          {!tempToken && (
+            <GoogleSignInButton
+              onSuccess={finishLogin}
+              onRequires2fa={(token) => setTempToken(token)}
+            />
+          )}
 
           <p className="text-center text-sm text-slate-400">
             {t("noAccount")}{" "}

@@ -30,7 +30,15 @@ async function bootstrap() {
   );
 
   app.enableCors({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+    origin: (origin, callback) => {
+      const raw = process.env.CORS_ORIGIN || 'http://localhost:3000';
+      const allowed = raw.split(',').map((s) => s.trim()).filter(Boolean);
+      if (!origin || allowed.includes(origin) || allowed.includes('*')) {
+        callback(null, true);
+        return;
+      }
+      callback(new Error(`CORS blocked for origin: ${origin}`), false);
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key'],
