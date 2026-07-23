@@ -34,6 +34,7 @@ export class AdminService {
       subPending,
       planGroups,
       countryGroups,
+      paidThisMonth,
     ] = await Promise.all([
       this.prisma.company.count({ where: { deletedAt: null } }),
       this.prisma.company.count({ where: { deletedAt: null, isActive: true } }),
@@ -42,10 +43,11 @@ export class AdminService {
       this.prisma.user.count({ where: { createdAt: { gte: startOfMonth } } }),
       this.prisma.siteVisit.count({ where: { createdAt: { gte: startOfDay } } }),
       this.prisma.siteVisit.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
-      this.prisma.siteVisit.groupBy({
-        by: ['ipAddress'],
-        where: { createdAt: { gte: sevenDaysAgo }, ipAddress: { not: null } },
-      }),
+      this.prisma.$queryRaw<Array<{ c: bigint }>>`
+        SELECT COUNT(DISTINCT ip_address)::bigint AS c
+        FROM site_visits
+        WHERE created_at >= ${sevenDaysAgo} AND ip_address IS NOT NULL
+      `,
       this.prisma.billingInvoice.aggregate({
         where: { purpose: 'SUBSCRIPTION', status: 'PAID' },
         _sum: { amount: true },
@@ -59,24 +61,24 @@ export class AdminService {
         where: { deletedAt: null },
         _count: true,
       }),
-      this.prisma.siteVisit.groupBy({
-        by: ['country'],
-        where: { createdAt: { gte: sevenDaysAgo }, country: { not: null } },
-        _count: { _all: true },
-        orderBy: { _count: { _all: 'desc' } },
-        take: 10,
+      this.prisma.$queryRaw<Array<{ country: string | null; count: bigint }>>`
+        SELECT country, COUNT(*)::bigint AS count
+        FROM site_visits
+        WHERE created_at >= ${sevenDaysAgo} AND country IS NOT NULL
+        GROUP BY country
+        ORDER BY count DESC
+        LIMIT 10
+      `,
+      this.prisma.billingInvoice.aggregate({
+        where: {
+          purpose: 'SUBSCRIPTION',
+          status: 'PAID',
+          paidAt: { gte: startOfMonth },
+        },
+        _sum: { amount: true },
+        _count: true,
       }),
     ]);
-
-    const paidThisMonth = await this.prisma.billingInvoice.aggregate({
-      where: {
-        purpose: 'SUBSCRIPTION',
-        status: 'PAID',
-        paidAt: { gte: startOfMonth },
-      },
-      _sum: { amount: true },
-      _count: true,
-    });
 
     const companiesWithUsers = await this.prisma.company.findMany({
       where: { deletedAt: null },
@@ -99,10 +101,10 @@ export class AdminService {
       visits: {
         today: visitsToday,
         last7Days: visits7d,
-        uniqueIps7d: uniqueIps7d.length,
+        uniqueIps7d: Number(uniqueIps7d[0]?.c || 0),
         byCountry: countryGroups.map((g) => ({
           country: g.country || 'unknown',
-          count: g._count._all,
+          count: Number(g.count),
         })),
       },
       subscriptions: {
@@ -378,19 +380,21 @@ export class AdminService {
         orderBy: { createdAt: 'desc' },
         take,
       }),
-      this.prisma.siteVisit.groupBy({
-        by: ['path'],
-        _count: { _all: true },
-        orderBy: { _count: { _all: 'desc' } },
-        take: 15,
-      }),
-      this.prisma.siteVisit.groupBy({
-        by: ['country'],
-        where: { country: { not: null } },
-        _count: { _all: true },
-        orderBy: { _count: { _all: 'desc' } },
-        take: 15,
-      }),
+      this.prisma.$queryRaw<Array<{ path: string; count: bigint }>>`
+        SELECT path, COUNT(*)::bigint AS count
+        FROM site_visits
+        GROUP BY path
+        ORDER BY count DESC
+        LIMIT 15
+      `,
+      this.prisma.$queryRaw<Array<{ country: string | null; count: bigint }>>`
+        SELECT country, COUNT(*)::bigint AS count
+        FROM site_visits
+        WHERE country IS NOT NULL
+        GROUP BY country
+        ORDER BY count DESC
+        LIMIT 15
+      `,
       this.prisma.$queryRaw<Array<{ day: Date; count: bigint }>>`
         SELECT date_trunc('day', created_at) AS day, COUNT(*)::bigint AS count
         FROM site_visits
@@ -402,10 +406,10 @@ export class AdminService {
 
     return {
       recent: rows,
-      byPath: byPath.map((p) => ({ path: p.path, count: p._count._all })),
+      byPath: byPath.map((p) => ({ path: p.path, count: Number(p.count) })),
       byCountry: byCountry.map((c) => ({
         country: c.country || 'unknown',
-        count: c._count._all,
+        count: Number(c.count),
       })),
       byDay: byDay.map((d) => ({
         day: d.day,
