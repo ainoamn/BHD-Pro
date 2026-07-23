@@ -27,4 +27,4 @@ COPY --from=build /app/src/prisma ./src/prisma
 COPY package.json ./
 EXPOSE 3001
 # Migration history is incomplete vs schema; db push syncs the full schema on empty Neon.
-CMD ["sh", "-c", "npx prisma db push && node dist/main"]
+CMD ["sh", "-c", "npx prisma db push --accept-data-loss && node dist/main"]
