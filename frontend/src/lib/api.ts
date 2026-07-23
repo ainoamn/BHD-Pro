@@ -67,7 +67,12 @@ class ApiClient {
           } catch (refreshError) {
             useAuthStore.getState().logout();
             if (typeof window !== 'undefined') {
-              window.location.href = '/login';
+              const here = `${window.location.pathname}${window.location.search || ''}`;
+              if (here.startsWith('/login')) {
+                window.location.href = '/login';
+              } else {
+                window.location.href = `/login?next=${encodeURIComponent(here)}`;
+              }
             }
             return Promise.reject(refreshError);
           }

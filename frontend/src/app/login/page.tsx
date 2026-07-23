@@ -1,31 +1,50 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Mail, Lock, Loader2, Shield } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
+import { useAuthStore } from "@/store/auth";
 
-export default function LoginPage() {
+function safeNextPath(raw: string | null): string {
+  if (!raw) return "/dashboard";
+  if (!raw.startsWith("/") || raw.startsWith("//")) return "/dashboard";
+  return raw;
+}
+
+function LoginForm() {
   const t = useTranslations("auth");
   const tApp = useTranslations("app");
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextPath = useMemo(
+    () => safeNextPath(searchParams.get("next")),
+    [searchParams]
+  );
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [email, setEmail] = useState(
     process.env.NODE_ENV === "development" ? "admin@bhd.om" : ""
   );
   const [password, setPassword] = useState(
-    process.env.NODE_ENV === "development" ? "Admin123!" : ""
+    process.env.NODE_ENV === "development" ? "Admin123!x" : ""
   );
   const [totpCode, setTotpCode] = useState("");
   const [tempToken, setTempToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    if (isAuthenticated) {
+      router.replace(nextPath);
+    }
+  }, [isAuthenticated, nextPath, router]);
+
   const finishLogin = () => {
     toast.success(t("login"));
-    router.push("/dashboard");
+    router.replace(nextPath);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -78,12 +97,18 @@ export default function LoginPage() {
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white">{tApp("name")}</h1>
           </Link>
           <p className="text-slate-500 dark:text-slate-400 mt-1">{tApp("tagline")}</p>
+          {nextPath.startsWith("/admin") && (
+            <p className="mt-3 text-sm text-amber-600 dark:text-amber-400 font-medium">
+              سجّل الدخول للوصول إلى لوحة إدارة المنصة
+            </p>
+          )}
         </div>
 
         <form onSubmit={handleSubmit} className="glass rounded-2xl p-6 space-y-4">
           <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
             {tempToken ? t("totpTitle") : t("login")}
           </h2>
+
 
           {!tempToken ? (
             <>
@@ -173,5 +198,19 @@ export default function LoginPage() {
         </form>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-app flex items-center justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
+        </div>
+      }
+    >
+      <LoginForm />
+    </Suspense>
   );
 }

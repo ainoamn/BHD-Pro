@@ -38,10 +38,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      await api.restoreSession();
+      const ok = await api.restoreSession();
+      if (cancelled) return;
       const auth = useAuthStore.getState();
-      if (!auth.isAuthenticated) {
-        router.replace("/login?next=/admin");
+      if (!ok || !auth.isAuthenticated) {
+        const next = pathname.startsWith("/admin") ? pathname : "/admin";
+        router.replace(`/login?next=${encodeURIComponent(next)}`);
         return;
       }
       try {
@@ -63,7 +65,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             "واجهة الإدارة غير منشورة بعد على الخادم (404). انتظر اكتمال Deploy على Render ثم حدّث الصفحة."
           );
         } else if (status === 401) {
-          setError("انتهت الجلسة. سجّل الدخول مرة أخرى ثم افتح /admin.");
+          router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+          return;
         } else {
           setError(
             `تعذر التحقق من صلاحية مشرف المنصة${status ? ` (رمز ${status})` : ""}. تأكد أن API يعمل ثم أعد المحاولة.`
@@ -75,7 +78,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return () => {
       cancelled = true;
     };
-  }, [router]);
+  }, [router, pathname]);
 
   if (allowed === null || isLoading) {
     return (
