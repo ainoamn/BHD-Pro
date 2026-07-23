@@ -5,7 +5,9 @@ const nextConfig = {
   transpilePackages: ['next-intl'],
   poweredByHeader: false,
   async rewrites() {
-    const backend = process.env.BACKEND_URL || 'http://localhost:3001';
+    const backend =
+      process.env.BACKEND_URL ||
+      (process.env.VERCEL ? 'https://hisaby-api.onrender.com' : 'http://localhost:3001');
     return [
       {
         source: '/backend-api/:path*',
