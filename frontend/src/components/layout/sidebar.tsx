@@ -165,14 +165,23 @@ export function Sidebar() {
 
       <div className="shrink-0 p-4 border-t border-slate-200 dark:border-slate-800/50">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center text-white font-bold text-sm">
-            {user?.name?.charAt(0) || "م"}
-          </div>
+          {user?.avatar ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={user.avatar}
+              alt=""
+              className="w-9 h-9 rounded-lg object-cover"
+            />
+          ) : (
+            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center text-white font-bold text-sm">
+              {user?.name?.charAt(0) || "م"}
+            </div>
+          )}
           {!sidebarCollapsed && (
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-slate-900 dark:text-white truncate">{user?.name || "—"}</p>
               <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                {user?.role === "ADMIN" ? "Admin" : "Accountant"}
+                {user?.email || (user?.role === "ADMIN" ? "Admin" : "Accountant")}
               </p>
             </div>
           )}

@@ -1,5 +1,8 @@
-import { IsString, IsOptional, IsEmail, IsIn, IsBoolean, IsNumber, Min, Max, MaxLength, Matches } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsString, IsOptional, IsEmail, IsIn, IsBoolean, IsNumber, Min, Max, MaxLength, Matches, ValidateIf } from 'class-validator';
+import { Type, Transform } from 'class-transformer';
+
+const emptyToUndefined = ({ value }: { value: unknown }) =>
+  value === '' || value === null ? undefined : value;
 
 export class UpdateCompanyDto {
   @IsOptional()
@@ -7,30 +10,38 @@ export class UpdateCompanyDto {
   name?: string;
 
   @IsOptional()
+  @Transform(emptyToUndefined)
   @IsString()
   crNumber?: string;
 
   @IsOptional()
+  @Transform(emptyToUndefined)
   @IsString()
   vatNumber?: string;
 
   @IsOptional()
+  @Transform(emptyToUndefined)
   @IsString()
   address?: string;
 
   @IsOptional()
+  @Transform(emptyToUndefined)
   @IsString()
   city?: string;
 
   @IsOptional()
+  @Transform(emptyToUndefined)
   @IsString()
   phone?: string;
 
   @IsOptional()
-  @IsEmail()
+  @Transform(emptyToUndefined)
+  @ValidateIf((_, v) => v !== undefined)
+  @IsEmail({}, { message: 'email must be an email' })
   email?: string;
 
   @IsOptional()
+  @Transform(emptyToUndefined)
   @IsString()
   website?: string;
 

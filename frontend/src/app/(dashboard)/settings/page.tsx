@@ -34,7 +34,7 @@ const CURRENCIES = [
 export default function SettingsPage() {
   const t = useTranslations("settings");
   const tCommon = useTranslations("common");
-  const { company: authCompany, setCompany } = useAuthStore();
+  const { company: authCompany, user: authUser, setCompany } = useAuthStore();
   const queryClient = useQueryClient();
 
   const [logo, setLogo] = useState<string | null>(null);
@@ -74,7 +74,7 @@ export default function SettingsPage() {
         address: company.address || "",
         city: company.city || "",
         phone: company.phone || "",
-        email: company.email || "",
+        email: company.email || authUser?.email || "",
         website: (company as Company & { website?: string }).website || "",
         language: company.language || "ar",
         currency: company.currency || "OMR",
@@ -90,10 +90,23 @@ export default function SettingsPage() {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [company]);
+  }, [company, authUser?.email]);
 
   const saveMutation = useMutation({
-    mutationFn: () => api.updateCompany({ ...form, logo }),
+    mutationFn: () => {
+      const payload = {
+        ...form,
+        logo,
+        email: form.email.trim() || undefined,
+        website: form.website.trim() || undefined,
+        crNumber: form.crNumber.trim() || undefined,
+        vatNumber: form.vatNumber.trim() || undefined,
+        address: form.address.trim() || undefined,
+        city: form.city.trim() || undefined,
+        phone: form.phone.trim() || undefined,
+      };
+      return api.updateCompany(payload);
+    },
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ["company"] });
       const updated = res.data as Company;
@@ -104,7 +117,13 @@ export default function SettingsPage() {
       }
       toast.success(t("saved"));
     },
-    onError: () => toast.error(t("saveError")),
+    onError: (err: unknown) => {
+      const axiosErr = err as { response?: { data?: { message?: string | string[] } } };
+      const msg = axiosErr?.response?.data?.message;
+      toast.error(
+        Array.isArray(msg) ? msg.join(" — ") : typeof msg === "string" ? msg : t("saveError"),
+      );
+    },
   });
 
   const fields: { key: keyof typeof form; label: string; type?: string; required?: boolean }[] = [
@@ -121,6 +140,30 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6">
       <PageHeader title={t("title")} subtitle={t("subtitle")} />
+
+      {authUser && (
+        <GlassCard className="p-6">
+          <div className="flex items-center gap-4">
+            {authUser.avatar ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={authUser.avatar}
+                alt=""
+                className="w-14 h-14 rounded-full object-cover border border-slate-700"
+              />
+            ) : (
+              <div className="w-14 h-14 rounded-full bg-emerald-600/20 text-emerald-400 flex items-center justify-center text-lg font-bold">
+                {authUser.name?.charAt(0)?.toUpperCase() || "U"}
+              </div>
+            )}
+            <div className="min-w-0">
+              <p className="text-white font-semibold truncate">{authUser.name}</p>
+              <p className="text-sm text-slate-400 truncate">{authUser.email}</p>
+              <p className="text-xs text-slate-500 mt-1">{authUser.role}</p>
+            </div>
+          </div>
+        </GlassCard>
+      )}
 
       <GlassCard className="p-6">
         {isLoading ? (

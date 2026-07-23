@@ -229,6 +229,7 @@ export class AuthService {
         name: user.name,
         email: user.email,
         role: user.role,
+        avatar: user.avatar || null,
         company: this.enrichCompany(user.company),
       },
       ...tokens,
@@ -324,11 +325,22 @@ export class AuthService {
         throw new ForbiddenException(`Account locked until ${user.lockedUntil.toISOString()}`);
       }
 
-      if (!user.googleId || user.avatar !== avatar) {
+      const companyPatch: { email?: string; logo?: string } = {};
+      if (!user.company?.email) companyPatch.email = email;
+      if (!user.company?.logo && avatar) companyPatch.logo = avatar;
+      if (Object.keys(companyPatch).length) {
+        await this.prisma.company.update({
+          where: { id: user.companyId },
+          data: companyPatch,
+        });
+      }
+
+      if (!user.googleId || user.avatar !== avatar || user.name !== name) {
         user = await this.prisma.user.update({
           where: { id: user.id },
           data: {
             googleId,
+            name: name || user.name,
             avatar: avatar || user.avatar,
             loginAttempts: 0,
             lockedUntil: null,
@@ -341,7 +353,13 @@ export class AuthService {
           where: { id: user.id },
           data: { loginAttempts: 0, lockedUntil: null, lastLoginAt: new Date() },
         });
+        user = await this.prisma.user.findUnique({
+          where: { id: user.id },
+          include: { company: true },
+        });
       }
+
+      if (!user) throw new UnauthorizedException('Invalid credentials');
 
       if (user.twoFactorEnabled && user.twoFactorSecret) {
         const tempToken = await this.jwtService.signAsync(
@@ -361,11 +379,13 @@ export class AuthService {
     const company = await this.prisma.company.create({
       data: {
         name: (companyName || `شركة ${name}`).trim(),
+        email,
         plan: Plan.STARTER,
         currency: 'OMR',
         language: 'ar',
         country: 'OM',
         timezone: 'Asia/Muscat',
+        logo: avatar,
       },
     });
 
@@ -462,6 +482,7 @@ export class AuthService {
       name: safe.name,
       email: safe.email,
       role: safe.role,
+      avatar: safe.avatar || null,
       companyId: safe.companyId,
       company: this.enrichCompany(safe.company),
       twoFactorEnabled: !!safe.twoFactorEnabled,
