@@ -166,30 +166,88 @@ export class AdminService {
       },
     });
 
-    return rows.map((c) => ({
-      id: c.id,
-      name: c.name,
-      email: c.email,
-      phone: c.phone,
-      city: c.city,
-      country: c.country,
-      plan: c.plan,
-      planExpiry: c.planExpiry,
-      isActive: c.isActive,
-      createdAt: c.createdAt,
-      usersCount: c._count.users,
-      invoicesCount: c._count.invoices,
-      sampleUsers: c.users.map((u) => ({
-        id: u.id,
-        name: u.name,
-        email: u.email,
-        role: u.role,
-        lastLoginAt: u.lastLoginAt,
-        lastIp: u.sessions[0]?.ipAddress || null,
-        lastUserAgent: u.sessions[0]?.userAgent || null,
-        lastSessionAt: u.sessions[0]?.createdAt || null,
-      })),
-    }));
+    return rows.map((c) => {
+      const planDetails = PLAN_DETAILS[c.plan];
+      const usersLimit =
+        c.usersLimitOverride != null ? c.usersLimitOverride : planDetails.usersLimit;
+      const invoicesLimit =
+        c.invoicesLimitOverride != null
+          ? c.invoicesLimitOverride
+          : planDetails.invoicesLimit;
+      return {
+        id: c.id,
+        name: c.name,
+        email: c.email,
+        phone: c.phone,
+        city: c.city,
+        country: c.country,
+        plan: c.plan,
+        planExpiry: c.planExpiry,
+        planStartedAt: c.planStartedAt,
+        usersLimitOverride: c.usersLimitOverride,
+        invoicesLimitOverride: c.invoicesLimitOverride,
+        usersLimit,
+        invoicesLimit,
+        isActive: c.isActive,
+        createdAt: c.createdAt,
+        usersCount: c._count.users,
+        invoicesCount: c._count.invoices,
+        sampleUsers: c.users.map((u) => ({
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          role: u.role,
+          lastLoginAt: u.lastLoginAt,
+          lastIp: u.sessions[0]?.ipAddress || null,
+          lastUserAgent: u.sessions[0]?.userAgent || null,
+          lastSessionAt: u.sessions[0]?.createdAt || null,
+        })),
+      };
+    });
+  }
+
+  async getTenant(id: string) {
+    const c = await this.prisma.company.findFirst({
+      where: { id, deletedAt: null },
+      include: {
+        _count: { select: { users: true, invoices: true } },
+        users: {
+          orderBy: { createdAt: 'asc' },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+            isActive: true,
+            lastLoginAt: true,
+            googleId: true,
+            createdAt: true,
+            sessions: {
+              orderBy: { createdAt: 'desc' },
+              take: 1,
+              select: { ipAddress: true, userAgent: true, createdAt: true },
+            },
+          },
+        },
+        billingInvoices: {
+          where: { purpose: 'SUBSCRIPTION' },
+          orderBy: { createdAt: 'desc' },
+          take: 50,
+        },
+      },
+    });
+    if (!c) throw new NotFoundException('Company not found');
+    const planDetails = PLAN_DETAILS[c.plan];
+    return {
+      ...c,
+      usersLimit:
+        c.usersLimitOverride != null ? c.usersLimitOverride : planDetails.usersLimit,
+      invoicesLimit:
+        c.invoicesLimitOverride != null
+          ? c.invoicesLimitOverride
+          : planDetails.invoicesLimit,
+      planDetails,
+    };
   }
 
   async updateTenant(
@@ -198,7 +256,10 @@ export class AdminService {
       isActive?: boolean;
       plan?: Plan;
       planExpiry?: string | null;
+      planStartedAt?: string | null;
       name?: string;
+      usersLimitOverride?: number | null;
+      invoicesLimitOverride?: number | null;
     },
   ) {
     const existing = await this.prisma.company.findFirst({
@@ -206,24 +267,115 @@ export class AdminService {
     });
     if (!existing) throw new NotFoundException('Company not found');
 
+    const planChanging = data.plan !== undefined && data.plan !== existing.plan;
+
     return this.prisma.company.update({
       where: { id },
       data: {
         ...(data.isActive !== undefined && { isActive: data.isActive }),
         ...(data.plan !== undefined && { plan: data.plan }),
+        ...(planChanging && { planStartedAt: new Date() }),
+        ...(data.planStartedAt !== undefined && {
+          planStartedAt: data.planStartedAt ? new Date(data.planStartedAt) : null,
+        }),
         ...(data.planExpiry !== undefined && {
           planExpiry: data.planExpiry ? new Date(data.planExpiry) : null,
         }),
         ...(data.name !== undefined && { name: data.name }),
+        ...(data.usersLimitOverride !== undefined && {
+          usersLimitOverride: data.usersLimitOverride,
+        }),
+        ...(data.invoicesLimitOverride !== undefined && {
+          invoicesLimitOverride: data.invoicesLimitOverride,
+        }),
       },
       select: {
         id: true,
         name: true,
         plan: true,
         planExpiry: true,
+        planStartedAt: true,
+        usersLimitOverride: true,
+        invoicesLimitOverride: true,
         isActive: true,
       },
     });
+  }
+
+  async getUserDetail(id: string) {
+    const u = await this.prisma.user.findUnique({
+      where: { id },
+      include: {
+        company: true,
+        sessions: {
+          orderBy: { createdAt: 'desc' },
+          take: 20,
+          select: {
+            id: true,
+            ipAddress: true,
+            userAgent: true,
+            createdAt: true,
+            expiresAt: true,
+          },
+        },
+        auditLogs: {
+          orderBy: { createdAt: 'desc' },
+          take: 30,
+          select: {
+            id: true,
+            action: true,
+            entity: true,
+            entityId: true,
+            ipAddress: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+    if (!u) throw new NotFoundException('User not found');
+    const billing = await this.prisma.billingInvoice.findMany({
+      where: { companyId: u.companyId, purpose: 'SUBSCRIPTION' },
+      orderBy: { createdAt: 'desc' },
+      take: 30,
+    });
+    const planDetails = PLAN_DETAILS[u.company.plan];
+    return {
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      role: u.role,
+      isActive: u.isActive,
+      googleLinked: !!u.googleId,
+      lastLoginAt: u.lastLoginAt,
+      createdAt: u.createdAt,
+      avatar: u.avatar,
+      company: {
+        id: u.company.id,
+        name: u.company.name,
+        email: u.company.email,
+        phone: u.company.phone,
+        city: u.company.city,
+        country: u.company.country,
+        plan: u.company.plan,
+        planExpiry: u.company.planExpiry,
+        planStartedAt: u.company.planStartedAt,
+        usersLimitOverride: u.company.usersLimitOverride,
+        invoicesLimitOverride: u.company.invoicesLimitOverride,
+        usersLimit:
+          u.company.usersLimitOverride != null
+            ? u.company.usersLimitOverride
+            : planDetails.usersLimit,
+        invoicesLimit:
+          u.company.invoicesLimitOverride != null
+            ? u.company.invoicesLimitOverride
+            : planDetails.invoicesLimit,
+        isActive: u.company.isActive,
+        createdAt: u.company.createdAt,
+      },
+      sessions: u.sessions,
+      auditLogs: u.auditLogs,
+      subscriptionPayments: billing,
+    };
   }
 
   async listUsers(q?: string) {

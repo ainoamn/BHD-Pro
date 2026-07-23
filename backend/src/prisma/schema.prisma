@@ -25,6 +25,10 @@ model Company {
   logo        String?
   plan        Plan     @default(STARTER)
   planExpiry  DateTime? @map("plan_expiry")
+  planStartedAt DateTime? @map("plan_started_at")
+  /// null = use plan default; -1 = unlimited
+  usersLimitOverride    Int? @map("users_limit_override")
+  invoicesLimitOverride Int? @map("invoices_limit_override")
   isActive    Boolean  @default(true) @map("is_active")
   timezone    String   @default("Asia/Muscat")
   currency    String   @default("OMR")

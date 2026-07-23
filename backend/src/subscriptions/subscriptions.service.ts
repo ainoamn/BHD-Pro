@@ -65,6 +65,15 @@ export class SubscriptionsService {
     if (!company) throw new NotFoundException('Company not found');
 
     const planDetails = PLAN_DETAILS[company.plan];
+    const usersLimit =
+      company.usersLimitOverride != null
+        ? company.usersLimitOverride
+        : planDetails.usersLimit;
+    const invoicesLimit =
+      company.invoicesLimitOverride != null
+        ? company.invoicesLimitOverride
+        : planDetails.invoicesLimit;
+
     const invoiceCount = await this.prisma.invoice.count({
       where: {
         companyId,
@@ -76,14 +85,19 @@ export class SubscriptionsService {
 
     return {
       plan: company.plan,
-      planDetails,
+      planDetails: {
+        ...planDetails,
+        usersLimit,
+        invoicesLimit,
+      },
       planExpiry: company.planExpiry,
+      planStartedAt: company.planStartedAt,
       currency: company.currency,
       usage: {
         invoicesThisMonth: invoiceCount,
-        invoicesLimit: planDetails.invoicesLimit,
+        invoicesLimit,
         users: company._count.users,
-        usersLimit: planDetails.usersLimit,
+        usersLimit,
       },
     };
   }
@@ -91,7 +105,12 @@ export class SubscriptionsService {
   async assertSubscriptionActive(companyId: string) {
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
-      select: { plan: true, planExpiry: true },
+      select: {
+        plan: true,
+        planExpiry: true,
+        usersLimitOverride: true,
+        invoicesLimitOverride: true,
+      },
     });
     if (!company) throw new NotFoundException('Company not found');
     if (company.planExpiry && company.planExpiry.getTime() < Date.now()) {
@@ -104,7 +123,10 @@ export class SubscriptionsService {
 
   async assertCanCreateInvoice(companyId: string) {
     const company = await this.assertSubscriptionActive(companyId);
-    const limit = PLAN_DETAILS[company.plan].invoicesLimit;
+    const limit =
+      company.invoicesLimitOverride != null
+        ? company.invoicesLimitOverride
+        : PLAN_DETAILS[company.plan].invoicesLimit;
     if (limit < 0) return;
 
     const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
@@ -120,7 +142,10 @@ export class SubscriptionsService {
 
   async assertCanCreateUser(companyId: string) {
     const company = await this.assertSubscriptionActive(companyId);
-    const limit = PLAN_DETAILS[company.plan].usersLimit;
+    const limit =
+      company.usersLimitOverride != null
+        ? company.usersLimitOverride
+        : PLAN_DETAILS[company.plan].usersLimit;
     if (limit < 0) return;
 
     const count = await this.prisma.user.count({

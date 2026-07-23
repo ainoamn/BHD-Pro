@@ -410,7 +410,7 @@ export class PaymentsService {
 
         await tx.company.update({
           where: { id: locked.companyId },
-          data: { plan, planExpiry: expiry },
+          data: { plan, planExpiry: expiry, planStartedAt: new Date() },
         });
       }
 

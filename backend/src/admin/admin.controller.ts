@@ -53,6 +53,13 @@ export class AdminController {
     return this.admin.listTenants(q, plan, activeBool);
   }
 
+  @Get('tenants/:id')
+  @UseGuards(JwtAuthGuard, PlatformAdminGuard)
+  @ApiBearerAuth()
+  tenant(@Param('id') id: string) {
+    return this.admin.getTenant(id);
+  }
+
   @Patch('tenants/:id')
   @UseGuards(JwtAuthGuard, PlatformAdminGuard)
   @ApiBearerAuth()
@@ -63,7 +70,10 @@ export class AdminController {
       isActive?: boolean;
       plan?: Plan;
       planExpiry?: string | null;
+      planStartedAt?: string | null;
       name?: string;
+      usersLimitOverride?: number | null;
+      invoicesLimitOverride?: number | null;
     },
   ) {
     return this.admin.updateTenant(id, body);
@@ -74,6 +84,13 @@ export class AdminController {
   @ApiBearerAuth()
   users(@Query('q') q?: string) {
     return this.admin.listUsers(q);
+  }
+
+  @Get('users/:id')
+  @UseGuards(JwtAuthGuard, PlatformAdminGuard)
+  @ApiBearerAuth()
+  userDetail(@Param('id') id: string) {
+    return this.admin.getUserDetail(id);
   }
 
   @Patch('users/:id')

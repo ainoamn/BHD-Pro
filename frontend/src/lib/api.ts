@@ -410,12 +410,20 @@ class ApiClient {
     return this.get(`/admin/tenants${q ? `?${q}` : ''}`);
   }
 
+  getAdminTenant(id: string) {
+    return this.get(`/admin/tenants/${id}`);
+  }
+
   updateAdminTenant(id: string, data: unknown) {
     return this.patch(`/admin/tenants/${id}`, data);
   }
 
   getAdminUsers(q?: string) {
     return this.get(`/admin/users${q ? `?q=${encodeURIComponent(q)}` : ''}`);
+  }
+
+  getAdminUser(id: string) {
+    return this.get(`/admin/users/${id}`);
   }
 
   updateAdminUser(id: string, data: { isActive: boolean }) {
