@@ -17,7 +17,7 @@ class ApiClient {
         'Content-Type': 'application/json',
         Accept: 'application/json',
       },
-      timeout: 30000,
+      timeout: 60000,
       withCredentials: true,
     });
 

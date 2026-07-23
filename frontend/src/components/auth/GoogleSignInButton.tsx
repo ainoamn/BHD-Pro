@@ -23,7 +23,9 @@ export function GoogleSignInButton({ onSuccess, onRequires2fa, companyName }: Pr
         return;
       }
       try {
+        toast.loading(t("googleLoading"), { id: "google-signin" });
         const data = await api.googleLogin(credentialResponse.credential, companyName);
+        toast.dismiss("google-signin");
         if (data?.requires2fa && data.tempToken) {
           if (onRequires2fa) {
             onRequires2fa(data.tempToken);
@@ -35,6 +37,7 @@ export function GoogleSignInButton({ onSuccess, onRequires2fa, companyName }: Pr
         }
         onSuccess();
       } catch (err: unknown) {
+        toast.dismiss("google-signin");
         const axiosErr = err as { response?: { data?: { message?: string | string[] } } };
         const msg = axiosErr?.response?.data?.message;
         toast.error(Array.isArray(msg) ? msg.join(" — ") : msg || t("googleError"));

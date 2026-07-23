@@ -29,7 +29,8 @@
     "accountLocked": "Account temporarily locked — wait 30 minutes or run the database seed",
     "orContinueWith": "Or continue with",
     "googleError": "Google sign-in failed — please try again",
-    "googleNeeds2fa": "This account has 2FA enabled — sign in with email first"
+    "googleNeeds2fa": "This account has 2FA enabled — sign in with email first",
+    "googleLoading": "Signing in with Google… may take up to 30s if the server was asleep"
   },
   "twoFactor": {
     "title": "Two-factor authentication (2FA)",
