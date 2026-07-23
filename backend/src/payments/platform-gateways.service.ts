@@ -1,10 +1,11 @@
-import { Injectable, OnModuleInit, ForbiddenException } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { GATEWAY_META } from './gateway.constants';
 import {
   decryptConfigSecrets,
   encryptConfigSecrets,
 } from '../common/crypto/secrets.crypto';
+import { assertPlatformAdminEmail } from '../common/guards/platform-admin.guard';
 
 function secretKeysFor(slug: string): string[] {
   return (GATEWAY_META[slug as keyof typeof GATEWAY_META]?.configKeys || [])
@@ -82,18 +83,7 @@ export class PlatformGatewaysService implements OnModuleInit {
   }
 
   assertPlatformAdmin(email?: string) {
-    const allow = (process.env.PLATFORM_ADMIN_EMAILS || '')
-      .split(',')
-      .map((e) => e.trim().toLowerCase())
-      .filter(Boolean);
-    if (!allow.length) {
-      throw new ForbiddenException(
-        'Platform gateway admin is disabled. Set PLATFORM_ADMIN_EMAILS to enable.',
-      );
-    }
-    if (!email || !allow.includes(email.toLowerCase())) {
-      throw new ForbiddenException('Not a platform administrator');
-    }
+    assertPlatformAdminEmail(email);
   }
 
   listAll() {

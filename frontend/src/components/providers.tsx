@@ -9,6 +9,7 @@ import arMessages from "@/i18n/messages/ar.json";
 import enMessages from "@/i18n/messages/en.json";
 import { useLocaleStore, type Locale } from "@/store/locale";
 import { ThemeAwareToaster } from "@/components/theme-aware-toaster";
+import { SiteVisitTracker } from "@/components/analytics/site-visit-tracker";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 
 const messagesMap: Record<Locale, typeof arMessages> = {
@@ -70,6 +71,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         themes={["dark", "light"]}
       >
         <QueryClientProvider client={queryClient}>
+          <SiteVisitTracker />
           {children}
           <ThemeAwareToaster />
           {process.env.NODE_ENV === "development" ? (

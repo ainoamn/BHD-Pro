@@ -2,9 +2,18 @@
 
 **الفترة:** 21–23 يوليو 2026  
 **المستودع:** https://github.com/ainoamn/BHD-Pro (`main`)  
-**آخر commit:** `2d2a695` — Serve QR invoice HTML from the API and fix receipt print hang.
+**آخر تحديث لوحة المنصة:** مسار `/admin` لإدارة الشركات والمستخدمين والاشتراكات والزيارات.
 
 > للعمل من أكثر من جهاز: `git pull origin main` ثم اقرأ هذا الملف.
+
+---
+
+## لوحة تحكم المنصة `/admin`
+
+- الرابط: `/admin` (مثل https://www.hisaby.pro/admin أو https://bhd-pro.vercel.app/admin)
+- الدخول: حساب مسجّل بريده موجود في متغير Render: `PLATFORM_ADMIN_EMAILS=you@email.com,admin@bhd.om`
+- الأقسام: مؤشرات · شركات · مستخدمون · مدفوعات اشتراك · باقات/عروض · زيارات/IP · بوابات دفع
+- تتبع الزيارات: `POST /api/public/visits` + جداول `site_visits` / `plan_offers` / `platform_settings`
 
 ---
 

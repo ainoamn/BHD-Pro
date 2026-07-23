@@ -387,6 +387,84 @@ class ApiClient {
     return this.get('/payments/platform-gateways');
   }
 
+  // Platform admin (requires PLATFORM_ADMIN_EMAILS)
+  getAdminMe() {
+    return this.get<{ isPlatformAdmin: boolean; email: string }>('/admin/me');
+  }
+
+  getAdminOverview() {
+    return this.get('/admin/overview');
+  }
+
+  getAdminTenants(params?: { q?: string; plan?: string; active?: string }) {
+    const qs = new URLSearchParams();
+    if (params?.q) qs.set('q', params.q);
+    if (params?.plan) qs.set('plan', params.plan);
+    if (params?.active) qs.set('active', params.active);
+    const q = qs.toString();
+    return this.get(`/admin/tenants${q ? `?${q}` : ''}`);
+  }
+
+  updateAdminTenant(id: string, data: unknown) {
+    return this.patch(`/admin/tenants/${id}`, data);
+  }
+
+  getAdminUsers(q?: string) {
+    return this.get(`/admin/users${q ? `?q=${encodeURIComponent(q)}` : ''}`);
+  }
+
+  updateAdminUser(id: string, data: { isActive: boolean }) {
+    return this.patch(`/admin/users/${id}`, data);
+  }
+
+  getAdminBilling(status?: string) {
+    return this.get(`/admin/billing${status ? `?status=${status}` : ''}`);
+  }
+
+  getAdminOffers() {
+    return this.get('/admin/offers');
+  }
+
+  createAdminOffer(data: unknown) {
+    return this.post('/admin/offers', data);
+  }
+
+  updateAdminOffer(id: string, data: unknown) {
+    return this.patch(`/admin/offers/${id}`, data);
+  }
+
+  deleteAdminOffer(id: string) {
+    return this.delete(`/admin/offers/${id}`);
+  }
+
+  getAdminVisits(limit?: number) {
+    return this.get(`/admin/visits${limit ? `?limit=${limit}` : ''}`);
+  }
+
+  getAdminSessions(limit?: number) {
+    return this.get(`/admin/sessions${limit ? `?limit=${limit}` : ''}`);
+  }
+
+  getAdminSettings() {
+    return this.get('/admin/settings');
+  }
+
+  updateAdminSetting(key: string, value: unknown) {
+    return this.patch(`/admin/settings/${encodeURIComponent(key)}`, { value });
+  }
+
+  getAdminPaymentGateways() {
+    return this.get('/admin/payment-gateways');
+  }
+
+  updateAdminPaymentGateway(slug: string, data: unknown) {
+    return this.patch(`/admin/payment-gateways/${slug}`, data);
+  }
+
+  trackSiteVisit(data: { path: string; referrer?: string; country?: string; city?: string }) {
+    return this.client.post('/public/visits', data);
+  }
+
   getCompanyGateways() {
     return this.get('/payments/company-gateways');
   }

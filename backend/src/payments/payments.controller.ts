@@ -18,6 +18,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { PlatformAdminGuard } from '../common/guards/platform-admin.guard';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
 import { PaymentsService } from './payments.service';
 import { CompanyGatewaysService } from './company-gateways.service';
@@ -171,25 +172,21 @@ export class PaymentsController {
 
 @ApiTags('Platform Gateways Admin')
 @Controller('admin/payment-gateways')
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('ADMIN')
+@UseGuards(JwtAuthGuard, PlatformAdminGuard)
 @ApiBearerAuth()
 export class PlatformGatewaysController {
   constructor(private platformGateways: PlatformGatewaysService) {}
 
   @Get()
-  listAll(@CurrentUser() user: TokenPayload) {
-    this.platformGateways.assertPlatformAdmin(user.email);
+  listAll() {
     return this.platformGateways.listAllSafe();
   }
 
   @Patch(':slug')
   update(
-    @CurrentUser() user: TokenPayload,
     @Param('slug') slug: PaymentGatewaySlug,
     @Body() dto: UpdatePlatformGatewayDto,
   ) {
-    this.platformGateways.assertPlatformAdmin(user.email);
     return this.platformGateways.update(slug, dto).then((g) => this.platformGateways.toSafeAdmin(g));
   }
 }

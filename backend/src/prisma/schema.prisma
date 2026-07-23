@@ -1337,3 +1337,54 @@ model BillingInvoice {
   @@index([status])
   @@map("billing_invoices")
 }
+
+// ==================== PLATFORM ADMIN ====================
+
+model SiteVisit {
+  id        String   @id @default(uuid())
+  path      String
+  referrer  String?
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  country   String?
+  city      String?
+  userId    String?  @map("user_id")
+  companyId String?  @map("company_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@index([path])
+  @@index([ipAddress])
+  @@index([country])
+  @@map("site_visits")
+}
+
+model PlanOffer {
+  id           String    @id @default(uuid())
+  plan         Plan
+  nameAr       String    @map("name_ar")
+  nameEn       String    @map("name_en")
+  discountPct  Decimal   @default(0) @map("discount_pct") @db.Decimal(5, 2)
+  promoCode    String?   @unique @map("promo_code")
+  isActive     Boolean   @default(true) @map("is_active")
+  startsAt     DateTime? @map("starts_at")
+  endsAt       DateTime? @map("ends_at")
+  monthlyPrice Decimal?  @map("monthly_price") @db.Decimal(12, 3)
+  yearlyPrice  Decimal?  @map("yearly_price") @db.Decimal(12, 3)
+  notes        String?
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@index([isActive])
+  @@index([plan])
+  @@map("plan_offers")
+}
+
+model PlatformSetting {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  valueJson Json     @map("value_json")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("platform_settings")
+}

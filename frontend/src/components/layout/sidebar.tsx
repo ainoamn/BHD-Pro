@@ -36,10 +36,13 @@ import {
   Warehouse,
   Truck,
   ClipboardList,
+  ShieldAlert,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUIStore } from "@/store/ui";
 import { useAuthStore } from "@/store/auth";
+import { useEffect, useState } from "react";
+import api from "@/lib/api";
 
 const navItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "dashboard" },
@@ -84,6 +87,22 @@ export function Sidebar() {
   const pathname = usePathname();
   const { sidebarCollapsed, sidebarOpen, toggleSidebarCollapse, setSidebarOpen } = useUIStore();
   const { user } = useAuthStore();
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.getAdminMe();
+        if (!cancelled) setIsPlatformAdmin(!!res.data.isPlatformAdmin);
+      } catch {
+        if (!cancelled) setIsPlatformAdmin(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.email]);
 
   const closeMobile = () => {
     if (typeof window !== "undefined" && window.innerWidth < 1024) {
@@ -138,6 +157,24 @@ export function Sidebar() {
       </nav>
 
       <nav className="px-3 py-4 space-y-1 border-t border-slate-200 dark:border-slate-800/50 shrink-0">
+        {isPlatformAdmin && (
+          <Link
+            href="/admin"
+            prefetch
+            onClick={closeMobile}
+            className={cn(
+              "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200",
+              pathname.startsWith("/admin")
+                ? "bg-amber-500/10 text-amber-400"
+                : "text-amber-700 dark:text-amber-400/80 hover:bg-amber-500/10"
+            )}
+          >
+            <ShieldAlert className="w-5 h-5 flex-shrink-0" />
+            {!sidebarCollapsed && (
+              <span className="text-sm font-medium">إدارة المنصة</span>
+            )}
+          </Link>
+        )}
         {settingsItems.map((item) => {
           const isActive = pathname === item.href;
           const Icon = item.icon;
