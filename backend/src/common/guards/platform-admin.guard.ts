@@ -6,7 +6,10 @@ import {
 } from '@nestjs/common';
 
 /** Bootstrap operators — always allowed, plus any emails in PLATFORM_ADMIN_EMAILS */
-const DEFAULT_PLATFORM_ADMINS = ['admin@bhd.om'];
+const DEFAULT_PLATFORM_ADMINS = [
+  'admin@bhd.om',
+  'ammar89555200@gmail.com',
+];
 
 export function getPlatformAdminEmails(): string[] {
   const fromEnv = (process.env.PLATFORM_ADMIN_EMAILS || '')

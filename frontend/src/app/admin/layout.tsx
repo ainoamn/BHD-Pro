@@ -107,6 +107,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <Link href="/dashboard" className="text-teal-700 text-sm font-semibold hover:underline">
             {t.backApp}
           </Link>
+          <Link
+            href="/login?next=/admin&switch=1"
+            className="block text-sm font-bold text-emerald-900 hover:underline"
+          >
+            {locale === "en" ? "Sign in with another account" : "الدخول بحساب مشرف آخر"}
+          </Link>
         </div>
       </div>
     );

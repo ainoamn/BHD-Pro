@@ -25,7 +25,11 @@ function LoginForm() {
     () => safeNextPath(searchParams.get("next")),
     [searchParams]
   );
+  const forceSwitch = searchParams.get("switch") === "1";
+  const isAdminNext = nextPath.startsWith("/admin");
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const currentEmail = useAuthStore((s) => s.user?.email);
+  const [ready, setReady] = useState(false);
   const [email, setEmail] = useState(
     process.env.NODE_ENV === "development" ? "admin@bhd.om" : ""
   );
@@ -35,22 +39,70 @@ function LoginForm() {
   const [totpCode, setTotpCode] = useState("");
   const [tempToken, setTempToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [switching, setSwitching] = useState(false);
 
   useEffect(() => {
-    if (isAuthenticated) {
+    let cancelled = false;
+    (async () => {
+      if (forceSwitch && isAuthenticated) {
+        await api.logout();
+        if (!cancelled) setReady(true);
+        return;
+      }
+
+      if (!isAuthenticated) {
+        await api.restoreSession();
+      }
+
+      const auth = useAuthStore.getState();
+      if (!auth.isAuthenticated) {
+        if (!cancelled) setReady(true);
+        return;
+      }
+
+      if (isAdminNext) {
+        try {
+          const res = await api.getAdminMe();
+          if (res.data.isPlatformAdmin) {
+            router.replace(nextPath);
+            return;
+          }
+        } catch {
+          /* stay on login to switch account */
+        }
+        if (!cancelled) setReady(true);
+        return;
+      }
+
       router.replace(nextPath);
-    }
-  }, [isAuthenticated, nextPath, router]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [forceSwitch, isAuthenticated, isAdminNext, nextPath, router]);
 
   const finishLogin = () => {
     toast.success(t("login"));
     router.replace(nextPath);
   };
 
+  const switchAccount = async () => {
+    setSwitching(true);
+    try {
+      await api.logout();
+      setReady(true);
+    } finally {
+      setSwitching(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
+      if (useAuthStore.getState().isAuthenticated) {
+        await api.logout();
+      }
       if (tempToken) {
         await api.verify2faLogin(tempToken, totpCode);
         finishLogin();
@@ -66,8 +118,6 @@ function LoginForm() {
     } catch (err: unknown) {
       const axiosErr = err as {
         response?: { data?: { message?: string | string[] }; status?: number };
-        code?: string;
-        message?: string;
       };
       const msg = axiosErr?.response?.data?.message;
       const status = axiosErr?.response?.status;
@@ -83,6 +133,16 @@ function LoginForm() {
     }
   };
 
+  if (!ready) {
+    return (
+      <div className="min-h-screen bg-app flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
+      </div>
+    );
+  }
+
+  const stillLoggedIn = useAuthStore.getState().isAuthenticated;
+
   return (
     <div className="min-h-screen bg-app flex items-center justify-center p-4">
       <div className="w-full max-w-md">
@@ -97,18 +157,33 @@ function LoginForm() {
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white">{tApp("name")}</h1>
           </Link>
           <p className="text-slate-500 dark:text-slate-400 mt-1">{tApp("tagline")}</p>
-          {nextPath.startsWith("/admin") && (
+          {isAdminNext && (
             <p className="mt-3 text-sm text-amber-600 dark:text-amber-400 font-medium">
-              سجّل الدخول للوصول إلى لوحة إدارة المنصة
+              تسجيل دخول مشرف المنصة
             </p>
           )}
         </div>
 
+        {stillLoggedIn && isAdminNext && (
+          <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-800 dark:text-amber-200 space-y-2">
+            <p>
+              أنت مسجّل حاليًا كـ <strong>{currentEmail}</strong> وليس لديه صلاحية إدارة المنصة.
+            </p>
+            <button
+              type="button"
+              onClick={switchAccount}
+              disabled={switching}
+              className="text-sm font-bold underline underline-offset-2"
+            >
+              {switching ? "…" : "تسجيل الخروج والدخول بحساب المشرف"}
+            </button>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="glass rounded-2xl p-6 space-y-4">
           <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
-            {tempToken ? t("totpTitle") : t("login")}
+            {tempToken ? t("totpTitle") : isAdminNext ? "دخول الإدارة" : t("login")}
           </h2>
-
 
           {!tempToken ? (
             <>
@@ -187,14 +262,10 @@ function LoginForm() {
           )}
 
           <p className="text-center text-sm text-slate-400">
-            {t("noAccount")}{" "}
-            <Link href="/register" className="text-emerald-400 hover:underline">
-              {t("register")}
+            <Link href="/" className="text-emerald-400 hover:underline">
+              العودة للرئيسية
             </Link>
           </p>
-          {process.env.NODE_ENV === "development" && (
-            <p className="text-center text-xs text-slate-500">{t("demoHint")}</p>
-          )}
         </form>
       </div>
     </div>

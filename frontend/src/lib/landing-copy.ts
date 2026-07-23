@@ -58,6 +58,9 @@ export const landingCopy = {
     footerTag: "محاسبة عُمانية بسيطة وموثوقة",
     footerRights: "جميع الحقوق محفوظة",
     langSwitch: "English",
+    adminLogin: "دخول الإدارة",
+    omanBadge: "صُمم لأعمال سلطنة عُمان",
+    omanLine: "بالريال العماني · ضريبة القيمة المضافة · واجهة عربية أولاً",
   },
   en: {
     brand: "Hisaby",
@@ -116,5 +119,8 @@ export const landingCopy = {
     footerTag: "Simple, reliable Omani accounting",
     footerRights: "All rights reserved",
     langSwitch: "العربية",
+    adminLogin: "Admin sign-in",
+    omanBadge: "Built for businesses in the Sultanate of Oman",
+    omanLine: "OMR · VAT-ready · Arabic-first interface",
   },
 } as const;

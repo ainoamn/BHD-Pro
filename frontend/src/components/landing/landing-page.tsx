@@ -25,29 +25,42 @@ export function LandingPage() {
   }, []);
 
   return (
-    <div
-      className="min-h-screen bg-[#f8faf9] text-slate-900"
-      dir={isAr ? "rtl" : "ltr"}
-    >
+    <div className="min-h-screen text-slate-900" dir={isAr ? "rtl" : "ltr"}>
+      {/* Omani palette: white, deep green, soft red ribbon — not purple/cream kitsch */}
       <div
         aria-hidden
         className="pointer-events-none fixed inset-0 -z-10"
         style={{
           background:
-            "radial-gradient(900px 420px at 100% 0%, rgba(13,148,136,0.12), transparent 60%), linear-gradient(180deg, #eef6f4 0%, #f8faf9 45%, #ffffff 100%)",
+            "linear-gradient(180deg, #f7fbf8 0%, #eef6f1 35%, #f8faf9 70%, #ffffff 100%)",
+        }}
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-x-0 top-0 h-1.5 z-50"
+        style={{
+          background: "linear-gradient(90deg, #C8102E 0%, #C8102E 28%, #ffffff 28%, #ffffff 55%, #00843D 55%)",
+        }}
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 -z-10 opacity-[0.035]"
+        style={{
+          backgroundImage:
+            "url(\"data:image/svg+xml,%3Csvg width='48' height='48' viewBox='0 0 48 48' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 24h48M24 0v48' stroke='%2300843D' stroke-width='1' fill='none'/%3E%3C/svg%3E\")",
         }}
       />
 
-      <header className="sticky top-0 z-40 border-b border-teal-900/5 bg-[#f8faf9]/90 backdrop-blur">
+      <header className="sticky top-0 z-40 border-b border-emerald-900/5 bg-[#f7fbf8]/92 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4">
           <Link href="/" className="flex items-center gap-2.5">
             <Image src="/brand/hisaby-mark.png" alt="Hisaby" width={34} height={34} className="rounded-md" priority />
-            <span className="text-lg font-extrabold tracking-tight text-teal-900">{t.brand}</span>
+            <span className="text-lg font-extrabold tracking-tight text-emerald-950">{t.brand}</span>
           </Link>
           <nav className="hidden items-center gap-6 text-sm font-medium text-slate-600 md:flex">
-            <a href="#features" className="hover:text-teal-800">{t.navFeatures}</a>
-            <a href="#pricing" className="hover:text-teal-800">{t.navPricing}</a>
-            <a href="#company" className="hover:text-teal-800">{t.navCompany}</a>
+            <a href="#features" className="hover:text-emerald-800">{t.navFeatures}</a>
+            <a href="#pricing" className="hover:text-emerald-800">{t.navPricing}</a>
+            <a href="#company" className="hover:text-emerald-800">{t.navCompany}</a>
           </nav>
           <div className="flex items-center gap-2">
             <button
@@ -58,15 +71,15 @@ export function LandingPage() {
               {t.langSwitch}
             </button>
             {isAuthenticated ? (
-              <Link href="/dashboard" className="rounded-lg bg-teal-700 px-3 py-2 text-sm font-bold text-white">
+              <Link href="/dashboard" className="rounded-lg bg-emerald-800 px-3 py-2 text-sm font-bold text-white">
                 {t.dashboard}
               </Link>
             ) : (
               <>
-                <Link href="/login" className="hidden rounded-lg px-3 py-2 text-sm font-bold text-teal-900 sm:inline hover:bg-white">
+                <Link href="/login" className="hidden rounded-lg px-3 py-2 text-sm font-bold text-emerald-950 sm:inline hover:bg-white">
                   {t.login}
                 </Link>
-                <Link href="/register" className="rounded-lg bg-teal-700 px-3 py-2 text-sm font-bold text-white">
+                <Link href="/register" className="rounded-lg bg-emerald-800 px-3 py-2 text-sm font-bold text-white">
                   {t.register}
                 </Link>
               </>
@@ -75,23 +88,26 @@ export function LandingPage() {
         </div>
       </header>
 
-      <section className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-16 md:grid-cols-2 md:py-24">
+      <section className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-14 md:grid-cols-2 md:py-22">
         <div className={cn("transition duration-700", visible ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0")}>
-          <p className="mb-3 text-sm font-semibold text-teal-800">{t.trustLine}</p>
-          <p className="mb-2 text-4xl font-extrabold tracking-tight text-teal-900 sm:text-5xl">{t.brand}</p>
+          <p className="mb-3 inline-flex rounded-full border border-emerald-800/15 bg-white/70 px-3 py-1 text-xs font-bold text-emerald-900">
+            {t.omanBadge}
+          </p>
+          <p className="mb-2 text-4xl font-extrabold tracking-tight text-emerald-950 sm:text-5xl">{t.brand}</p>
           <h1 className="max-w-xl text-2xl font-bold leading-snug text-slate-800 sm:text-3xl">{t.headline}</h1>
           <p className="mt-4 max-w-lg text-base leading-relaxed text-slate-600">{t.subhead}</p>
+          <p className="mt-3 text-sm font-medium text-emerald-900/80">{t.omanLine}</p>
           <div className="mt-8 flex flex-wrap gap-3">
             {isAuthenticated ? (
-              <Link href="/dashboard" className="rounded-xl bg-teal-700 px-6 py-3 text-base font-bold text-white">
+              <Link href="/dashboard" className="rounded-xl bg-emerald-800 px-6 py-3 text-base font-bold text-white">
                 {t.dashboard}
               </Link>
             ) : (
               <>
-                <Link href="/register" className="rounded-xl bg-teal-700 px-6 py-3 text-base font-bold text-white">
+                <Link href="/register" className="rounded-xl bg-emerald-800 px-6 py-3 text-base font-bold text-white">
                   {t.register}
                 </Link>
-                <Link href="/login" className="rounded-xl border border-teal-800/15 bg-white px-6 py-3 text-base font-bold text-teal-950">
+                <Link href="/login" className="rounded-xl border border-emerald-900/15 bg-white px-6 py-3 text-base font-bold text-emerald-950">
                   {t.login}
                 </Link>
               </>
@@ -99,24 +115,48 @@ export function LandingPage() {
           </div>
         </div>
         <div className={cn("flex justify-center transition duration-1000", visible ? "opacity-100" : "opacity-0")}>
-          <div className="flex aspect-square w-full max-w-sm flex-col items-center justify-center rounded-[2rem] bg-teal-800 p-10 text-center text-white">
-            <Image src="/brand/hisaby-mark.png" alt="" width={120} height={120} className="mb-5 rounded-2xl bg-white p-3" priority />
-            <p className="text-3xl font-extrabold">{t.brand}</p>
-            <p className="mt-2 text-sm text-teal-100">{t.footerTag}</p>
+          <div className="relative w-full max-w-sm">
+            <div className="absolute -inset-3 rounded-[2.2rem] bg-emerald-900/5" />
+            <div className="relative flex aspect-[4/5] flex-col justify-between overflow-hidden rounded-[2rem] bg-emerald-950 p-8 text-white">
+              <div
+                aria-hidden
+                className="absolute inset-0 opacity-20"
+                style={{
+                  backgroundImage:
+                    "radial-gradient(circle at 20% 20%, #C8102E55, transparent 40%), radial-gradient(circle at 80% 80%, #00843D88, transparent 45%)",
+                }}
+              />
+              <div className="relative">
+                <p className="text-xs font-semibold tracking-wide text-emerald-100/80">سلطنة عُمان · OMAN</p>
+                <p className="mt-4 text-3xl font-extrabold">{t.brand}</p>
+                <p className="mt-2 text-sm text-emerald-100/80">{t.footerTag}</p>
+              </div>
+              <div className="relative flex justify-center">
+                <Image
+                  src="/brand/hisaby-mark.png"
+                  alt=""
+                  width={110}
+                  height={110}
+                  className="rounded-2xl bg-white p-3"
+                  priority
+                />
+              </div>
+              <p className="relative text-center text-xs text-emerald-100/70">{t.trustLine}</p>
+            </div>
           </div>
         </div>
       </section>
 
-      <section id="features" className="border-t border-teal-900/5 py-20">
+      <section id="features" className="border-t border-emerald-900/5 py-20">
         <div className="mx-auto max-w-6xl px-4">
-          <h2 className="text-3xl font-extrabold">{t.featuresTitle}</h2>
+          <h2 className="text-3xl font-extrabold text-emerald-950">{t.featuresTitle}</h2>
           <p className="mt-2 max-w-2xl text-slate-600">{t.featuresSub}</p>
           <div className="mt-12 grid gap-10 sm:grid-cols-2 lg:grid-cols-3">
             {t.features.map((f, i) => {
               const Icon = featureIcons[i] || FileText;
               return (
                 <div key={f.title}>
-                  <Icon className="mb-3 h-6 w-6 text-teal-700" />
+                  <Icon className="mb-3 h-6 w-6 text-emerald-800" />
                   <h3 className="text-lg font-bold">{f.title}</h3>
                   <p className="mt-2 text-sm leading-relaxed text-slate-600">{f.body}</p>
                 </div>
@@ -126,10 +166,10 @@ export function LandingPage() {
         </div>
       </section>
 
-      <section id="pricing" className="bg-slate-900 py-20 text-white">
+      <section id="pricing" className="bg-emerald-950 py-20 text-white">
         <div className="mx-auto max-w-6xl px-4">
           <h2 className="text-3xl font-extrabold">{t.pricingTitle}</h2>
-          <p className="mt-2 text-slate-300">{t.pricingSub}</p>
+          <p className="mt-2 text-emerald-100/80">{t.pricingSub}</p>
           <div className="mt-10 grid gap-5 md:grid-cols-3">
             {t.plans.map((p) => (
               <div
@@ -137,17 +177,17 @@ export function LandingPage() {
                 className={cn(
                   "rounded-2xl border p-6",
                   Boolean((p as { featured?: boolean }).featured)
-                    ? "border-teal-400/40 bg-teal-500/10"
+                    ? "border-red-400/35 bg-white/10"
                     : "border-white/10 bg-white/5"
                 )}
               >
-                <p className="text-sm text-teal-200">{p.note}</p>
+                <p className="text-sm text-emerald-200">{p.note}</p>
                 <h3 className="mt-1 text-xl font-bold">{p.name}</h3>
                 <p className="mt-4 text-4xl font-extrabold">
                   {p.price}
-                  <span className="ms-2 text-base font-medium text-slate-300">{p.unit}</span>
+                  <span className="ms-2 text-base font-medium text-emerald-100/70">{p.unit}</span>
                 </p>
-                <Link href="/register" className="mt-6 inline-flex w-full justify-center rounded-xl bg-white py-2.5 text-sm font-bold text-slate-900">
+                <Link href="/register" className="mt-6 inline-flex w-full justify-center rounded-xl bg-white py-2.5 text-sm font-bold text-emerald-950">
                   {t.register}
                 </Link>
               </div>
@@ -162,8 +202,8 @@ export function LandingPage() {
             <Image src="/brand/bin-hamoud.png" alt="Bin Hamood Development" width={220} height={100} className="h-auto w-[200px]" />
           </div>
           <div>
-            <p className="text-sm font-semibold text-teal-800">{t.companyTitle}</p>
-            <h2 className="mt-2 text-3xl font-extrabold">{t.companyName}</h2>
+            <p className="text-sm font-semibold text-emerald-800">{t.companyTitle}</p>
+            <h2 className="mt-2 text-3xl font-extrabold text-emerald-950">{t.companyName}</h2>
             <p className="mt-1 font-medium text-slate-500">{t.companyNameEn}</p>
             <p className="mt-4 max-w-2xl leading-relaxed text-slate-600">{t.companyBody}</p>
           </div>
@@ -171,12 +211,28 @@ export function LandingPage() {
       </section>
 
       <footer className="border-t border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-8 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <Image src="/brand/hisaby-mark.png" alt="" width={28} height={28} className="rounded" />
-            <div>
-              <p className="font-bold">{t.brand}</p>
-              <p className="text-xs text-slate-500">{t.footerTag}</p>
+        <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-10">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <Image src="/brand/hisaby-mark.png" alt="" width={28} height={28} className="rounded" />
+              <div>
+                <p className="font-bold text-emerald-950">{t.brand}</p>
+                <p className="text-xs text-slate-500">{t.footerTag}</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-3 text-sm font-semibold">
+              <Link href="/login" className="text-slate-600 hover:text-emerald-800">
+                {t.login}
+              </Link>
+              <Link href="/register" className="text-slate-600 hover:text-emerald-800">
+                {t.register}
+              </Link>
+              <Link
+                href="/login?next=/admin&switch=1"
+                className="rounded-lg border border-emerald-900/15 bg-emerald-50 px-3 py-1.5 text-emerald-950 hover:bg-emerald-100"
+              >
+                {t.adminLogin}
+              </Link>
             </div>
           </div>
           <p className="text-xs text-slate-500">
