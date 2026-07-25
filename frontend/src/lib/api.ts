@@ -1266,17 +1266,20 @@ class ApiClient {
     return this.post(`/pos/sales/${id}/refund`, body);
   }
 
-  getCurrentPosShift() {
+  getCurrentPosShift(warehouseId?: string) {
+    const q = warehouseId ? `?warehouseId=${encodeURIComponent(warehouseId)}` : "";
     return this.get<{
       shift: {
         id: string;
         status: string;
         openingFloat: number;
         openedAt: string;
+        warehouseId?: string | null;
         openedBy?: { name: string };
+        warehouse?: { id: string; name: string; code: string } | null;
       } | null;
       live?: Record<string, number | string | null>;
-    }>('/pos/shifts/current');
+    }>(`/pos/shifts/current${q}`);
   }
 
   listPosShifts() {
@@ -1292,7 +1295,7 @@ class ApiClient {
     return this.post('/pos/shifts/open', data || {});
   }
 
-  closePosShift(data: { closingCash: number; notes?: string }) {
+  closePosShift(data: { closingCash: number; notes?: string; warehouseId?: string }) {
     return this.post<{
       shift: { id: string; closedAt?: string; closingCash?: number | string };
       zReport: Record<string, unknown>;
