@@ -27,6 +27,7 @@ import {
   AddRestoOrderItemDto,
   CloseRestoOrderDto,
   CreateRestoModifierDto,
+  CreateRestoPayLinkDto,
   CreateRestoReservationDto,
   CreateRestoStationDto,
   CreateRestoTableDto,
@@ -365,6 +366,19 @@ export class RestoController {
     @Body() dto: CloseRestoOrderDto,
   ) {
     return this.resto.closeOrder(user.companyId, user, id, dto || {});
+  }
+
+  @Post('orders/:id/pay-link')
+  @Roles(...RESTO_STAFF)
+  @ApiOperation({
+    summary: 'Create online pay link for table check (partner checkout)',
+  })
+  payLink(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+    @Body() dto: CreateRestoPayLinkDto,
+  ) {
+    return this.resto.createPayLink(user.companyId, user, id, dto || {});
   }
 
   @Patch('orders/:id/delivery')

@@ -298,7 +298,7 @@ export default function PosShiftsPage() {
       return res.data;
     },
     enabled: !!user,
-    refetchInterval: 30000,
+    refetchInterval: 15000,
   });
   const openMut = useMutation({
     mutationFn: () =>
@@ -921,12 +921,26 @@ export default function PosShiftsPage() {
 
       {isManagerView && shiftsToday ? (
         <div className="rounded-2xl border border-sky-500/20 bg-sky-500/5 p-5 space-y-3">
-          <div>
-            <h2 className="text-sm font-semibold text-sky-200">{t.shiftsTodayTitle}</h2>
-            <p className="text-xs text-slate-500">
-              {t.shiftsTodayHint}
-              {shiftsToday.date ? ` · ${shiftsToday.date}` : ""}
-            </p>
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <h2 className="text-sm font-semibold text-sky-200">{t.shiftsTodayTitle}</h2>
+              <p className="text-xs text-slate-500">
+                {t.shiftsTodayHint}
+                {shiftsToday.date ? ` · ${shiftsToday.date}` : ""}
+                {typeof shiftsToday.totals?.voidCount === "number"
+                  ? ` · ${t.zVoids}: ${shiftsToday.totals.voidCount}`
+                  : ""}
+              </p>
+            </div>
+            {(shiftsToday.totals?.openCount || 0) > 0 ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-200">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+                </span>
+                {shiftsToday.totals.openCount} {t.shiftStatusOpen}
+              </span>
+            ) : null}
           </div>
           {shiftsToday.warehouses?.length ? (
             <div className="overflow-x-auto">
@@ -936,6 +950,7 @@ export default function PosShiftsPage() {
                     <th className="py-2 text-start font-medium">{t.warehouse}</th>
                     <th className="py-2 text-start font-medium">{t.shiftOpen}</th>
                     <th className="py-2 text-end font-medium">{t.zSales}</th>
+                    <th className="py-2 text-end font-medium">{t.zVoids}</th>
                     <th className="py-2 text-end font-medium">{t.zCashIn}</th>
                     <th className="py-2 text-end font-medium">{t.zCashOut}</th>
                     <th className="py-2 text-end font-medium">{t.zExpected}</th>
@@ -946,7 +961,9 @@ export default function PosShiftsPage() {
                   {shiftsToday.warehouses.map((w) => (
                     <tr
                       key={w.warehouseId || "default"}
-                      className="border-b border-white/5"
+                      className={`border-b border-white/5 ${
+                        w.openShift ? "bg-emerald-500/5" : ""
+                      }`}
                     >
                       <td className="py-2.5 pe-2">
                         <span className="text-white font-medium">
@@ -965,6 +982,13 @@ export default function PosShiftsPage() {
                       </td>
                       <td className="py-2.5 text-end font-semibold text-white">
                         {w.salesTotal}
+                      </td>
+                      <td
+                        className={`py-2.5 text-end font-semibold ${
+                          (w.voidCount || 0) > 0 ? "text-amber-300" : "text-slate-500"
+                        }`}
+                      >
+                        {w.voidCount || 0}
                       </td>
                       <td className="py-2.5 text-end">{w.cashIn}</td>
                       <td className="py-2.5 text-end">{w.cashOut}</td>
@@ -997,6 +1021,9 @@ export default function PosShiftsPage() {
                     </td>
                     <td className="pt-3 text-end font-bold text-white">
                       {shiftsToday.totals.salesTotal}
+                    </td>
+                    <td className="pt-3 text-end font-semibold text-amber-300">
+                      {shiftsToday.totals.voidCount ?? 0}
                     </td>
                     <td className="pt-3 text-end">{shiftsToday.totals.cashIn}</td>
                     <td className="pt-3 text-end">{shiftsToday.totals.cashOut}</td>

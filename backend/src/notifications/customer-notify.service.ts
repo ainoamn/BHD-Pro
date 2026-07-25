@@ -88,20 +88,49 @@ export class CustomerNotifyService {
   }
 
   /**
-   * Best-effort POS receipt WhatsApp + Email after sale. Never throws to caller.
+   * Best-effort POS receipt WhatsApp + Email + SMS after sale. Never throws to caller.
    */
   async notifyPosSale(
     companyId: string,
     invoiceId: string,
     contactId: string,
-  ): Promise<void> {
+  ): Promise<{ whatsapp?: string; email?: string; sms?: string } | null> {
     try {
-      await this.sendCustomerPosMessage(companyId, invoiceId, contactId, 'sale');
+      return await this.sendCustomerPosMessage(
+        companyId,
+        invoiceId,
+        contactId,
+        'sale',
+      );
     } catch (err) {
       this.logger.warn(
         `notifyPosSale failed: ${err instanceof Error ? err.message : err}`,
       );
+      return null;
     }
+  }
+
+  /** Manual cashier resend — ignores auto-send kill switches when channel is configured. */
+  async resendPosSaleNotify(
+    companyId: string,
+    invoiceId: string,
+    contactId: string,
+  ): Promise<{ whatsapp: string; email: string; sms: string }> {
+    const delivery = await this.sendCustomerPosMessage(
+      companyId,
+      invoiceId,
+      contactId,
+      'sale',
+      undefined,
+      true,
+    );
+    return (
+      delivery || {
+        whatsapp: 'skipped',
+        email: 'skipped',
+        sms: 'skipped',
+      }
+    );
   }
 
   async notifyPosVoid(
@@ -145,7 +174,8 @@ export class CustomerNotifyService {
     contactId: string,
     kind: 'sale' | 'void' | 'refund',
     creditNoteId?: string,
-  ) {
+    force = false,
+  ): Promise<{ whatsapp: string; email: string; sms: string } | null> {
     const [invoice, contact, company] = await Promise.all([
       this.prisma.invoice.findFirst({
         where: { id: invoiceId, companyId },
@@ -179,14 +209,14 @@ export class CustomerNotifyService {
       }),
     ]);
 
-    if (!invoice || !contact || !company) return;
+    if (!invoice || !contact || !company) return null;
 
     // Skip walk-in / no contact channel
-    if (/walk-?in|نقدي/i.test(contact.name)) return;
-    if (!contact.phone?.trim() && !contact.email?.trim()) return;
+    if (/walk-?in|نقدي/i.test(contact.name)) return null;
+    if (!contact.phone?.trim() && !contact.email?.trim()) return null;
 
     const cfg = this.parseSecurity(company.securityConfig);
-    if (!this.shouldNotify(cfg)) return;
+    if (!force && !this.shouldNotify(cfg)) return null;
 
     const code = await this.ensurePublicVerifyCode(invoice.id);
     const viewUrl = `${this.apiPublicBaseUrl()}/api/public/documents/c/${code}/view`;
@@ -245,7 +275,7 @@ export class CustomerNotifyService {
 
     let emailStatus: 'ok' | 'fail' | 'skipped' = 'skipped';
     let emailError: string | undefined;
-    const emailAllowed = cfg.autoSendPosReceiptEmail !== false;
+    const emailAllowed = force || cfg.autoSendPosReceiptEmail !== false;
     if (emailAllowed && contact.email?.trim() && this.email.isConfigured()) {
       const subject =
         kind === 'sale'
@@ -265,13 +295,19 @@ export class CustomerNotifyService {
 
     let smsStatus: 'ok' | 'fail' | 'skipped' = 'skipped';
     let smsError: string | undefined;
-    const smsAllowed = cfg.autoSendPosReceiptSms !== false;
+    const smsAllowed = force || cfg.autoSendPosReceiptSms !== false;
     if (smsAllowed && isValidMobileE164(digits) && this.sms.isConfigured()) {
       const smsBody = body.slice(0, 600);
       const sms = await this.sms.sendText({ to: digits, body: smsBody });
       smsStatus = sms.ok ? 'ok' : 'fail';
       smsError = sms.error;
     }
+
+    const delivery = {
+      whatsapp: waOk ? 'ok' : 'fail',
+      email: emailStatus,
+      sms: smsStatus,
+    };
 
     try {
       const existing =
@@ -283,11 +319,9 @@ export class CustomerNotifyService {
             ...existing,
             delivery: {
               ...((existing.delivery as object) || {}),
-              whatsapp: waOk ? 'ok' : 'fail',
+              ...delivery,
               ...(waError ? { whatsappError: waError } : {}),
-              email: emailStatus,
               ...(emailError ? { emailError } : {}),
-              sms: smsStatus,
               ...(smsError ? { smsError } : {}),
               kind,
               at: new Date().toISOString(),
@@ -298,6 +332,8 @@ export class CustomerNotifyService {
     } catch {
       /* non-fatal */
     }
+
+    return delivery;
   }
 
   /** Public customer dispute from receipt link. */

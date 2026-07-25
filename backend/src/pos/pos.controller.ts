@@ -311,6 +311,17 @@ export class PosController {
     return this.pos.findSaleByNumber(user.companyId, number);
   }
 
+  @Post('sales/:id/notify')
+  @Roles(...POS_STAFF)
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @ApiOperation({ summary: 'Resend POS receipt notify (WhatsApp / email / SMS)' })
+  resendSaleNotify(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+  ) {
+    return this.pos.resendSaleNotify(user.companyId, id);
+  }
+
   @Post('sales/:id/void')
   @Roles(...POS_STAFF)
   @Throttle({ default: { limit: 30, ttl: 60000 } })

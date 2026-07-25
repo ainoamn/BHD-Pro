@@ -51,7 +51,7 @@ export function SmartKpis({ data, currency = "OMR" }: SmartKpisProps) {
     },
     {
       key: "todayPos",
-      href: "/pos",
+      href: "/pos/shifts",
       icon: ShoppingCart,
       value: formatMoney(data.todayPosSales || 0, currency),
       hint: t("todayPosHint", {

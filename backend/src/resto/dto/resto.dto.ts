@@ -436,6 +436,46 @@ export class CloseRestoOrderDto {
   serviceChargePct?: number;
 }
 
+/** Online pay link for table (partner checkout) — order stays open until paid */
+export class CreateRestoPayLinkDto {
+  @IsOptional()
+  @Type(() => Number)
+  @Min(0)
+  tipAmount?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @Min(0)
+  serviceChargeAmount?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @Min(0)
+  @Max(30)
+  serviceChargePct?: number;
+
+  @IsOptional()
+  @IsUUID()
+  warehouseId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  contactId?: string;
+}
+
+export class PublicGuestPayDto {
+  @IsOptional()
+  @Type(() => Number)
+  @Min(0)
+  tipAmount?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @Min(0)
+  @Max(30)
+  serviceChargePct?: number;
+}
+
 export class UpdateRestoDeliveryDto {
   @IsIn(['QUEUED', 'KITCHEN', 'READY', 'OUT', 'DELIVERED'])
   deliveryStatus: 'QUEUED' | 'KITCHEN' | 'READY' | 'OUT' | 'DELIVERED';

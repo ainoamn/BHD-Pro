@@ -31,6 +31,10 @@ export type CompanySecurityConfig = {
   requireOpenShift?: boolean;
   /** Auto WhatsApp POS receipts to customer (default true when WA configured) */
   autoSendPosReceipts?: boolean;
+  /** Auto email POS receipts (default true when email configured) */
+  autoSendPosReceiptEmail?: boolean;
+  /** Auto SMS POS receipts (default true when SMS configured) */
+  autoSendPosReceiptSms?: boolean;
   /** Auto-email Z-report when shift closes (default false) */
   autoEmailZReportOnClose?: boolean;
   /** Manager emails for Z-report on close */
@@ -141,6 +145,9 @@ export class DualControlService {
       requireOpenShift: config.requireOpenShift === true,
       /** Default on when WhatsApp is configured; false only when explicitly disabled */
       autoSendPosReceipts: config.autoSendPosReceipts === false ? false : true,
+      autoSendPosReceiptEmail:
+        config.autoSendPosReceiptEmail === false ? false : true,
+      autoSendPosReceiptSms: config.autoSendPosReceiptSms === false ? false : true,
       autoEmailZReportOnClose: config.autoEmailZReportOnClose === true,
       zReportNotifyEmails: (config.zReportNotifyEmails || [])
         .map((e) => String(e || '').trim().toLowerCase())
@@ -892,6 +899,12 @@ export class DualControlService {
     }
     if (dto.autoSendPosReceipts !== undefined) {
       next.autoSendPosReceipts = !!dto.autoSendPosReceipts;
+    }
+    if (dto.autoSendPosReceiptEmail !== undefined) {
+      next.autoSendPosReceiptEmail = !!dto.autoSendPosReceiptEmail;
+    }
+    if (dto.autoSendPosReceiptSms !== undefined) {
+      next.autoSendPosReceiptSms = !!dto.autoSendPosReceiptSms;
     }
     if (dto.autoEmailZReportOnClose !== undefined) {
       next.autoEmailZReportOnClose = !!dto.autoEmailZReportOnClose;

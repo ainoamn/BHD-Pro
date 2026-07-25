@@ -9,6 +9,7 @@ import { restoCopy } from "@/lib/resto-copy";
 type KitchenItem = {
   id: string;
   name: string;
+  nameEn?: string | null;
   qty: number;
   notes: string | null;
   course?: number;
@@ -347,8 +348,14 @@ export default function RestoKitchenPage() {
                       {it.source === "GUEST" ? ` · ${t.fromGuest}` : ""}
                     </p>
                     <p className="text-lg font-extrabold mt-0.5">
-                      {it.qty}× {it.name}
+                      {it.qty}×{" "}
+                      {locale === "en" && it.nameEn ? it.nameEn : it.name}
                     </p>
+                    {locale === "en" && it.nameEn && it.nameEn !== it.name ? (
+                      <p className="text-[11px] text-stone-500">{it.name}</p>
+                    ) : locale === "ar" && it.nameEn ? (
+                      <p className="text-[11px] text-stone-500">{it.nameEn}</p>
+                    ) : null}
                     {(it.allergens || []).length > 0 ? (
                       <p className="text-[11px] font-bold text-rose-200 mt-1">
                         {t.kdsAllergens}: {(it.allergens || []).join(", ")}
@@ -378,7 +385,8 @@ export default function RestoKitchenPage() {
 </head><body>
 <h1>${t.kitchenTicket}</h1>
 <p><b>${t.table}</b> ${it.table?.code || "—"} · ${it.orderNumber}</p>
-<p><b>${it.qty}× ${it.name}</b></p>
+<p><b>${it.qty}× ${locale === "en" && it.nameEn ? it.nameEn : it.name}</b></p>
+${it.nameEn && it.nameEn !== it.name ? `<p>${locale === "en" ? it.name : it.nameEn}</p>` : ""}
 ${(it.allergens || []).length ? `<p><b>${t.kdsAllergens}:</b> ${(it.allergens || []).join(", ")}</p>` : ""}
 ${it.notes ? `<p>${it.notes}</p>` : ""}
 ${it.orderNotes ? `<p>${it.orderNotes}</p>` : ""}

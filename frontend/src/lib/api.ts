@@ -1951,6 +1951,25 @@ class ApiClient {
     );
   }
 
+  createRestoPayLink(
+    orderId: string,
+    data?: {
+      tipAmount?: number;
+      serviceChargeAmount?: number;
+      serviceChargePct?: number;
+      warehouseId?: string;
+      contactId?: string;
+    },
+  ) {
+    return this.post<{
+      orderId: string;
+      invoiceId: string;
+      payUrl: string | null;
+      alreadyPaid: boolean;
+      total: number;
+    }>(`/resto/orders/${orderId}/pay-link`, data || {});
+  }
+
   closeRestoOrder(
     orderId: string,
     data?: {
@@ -2010,6 +2029,7 @@ class ApiClient {
       items: Array<{
         id: string;
         name: string;
+        nameEn?: string | null;
         qty: number;
         notes: string | null;
         course?: number;
@@ -2191,6 +2211,13 @@ class ApiClient {
     return this.post(`/pos/sales/${id}/void`, body || {});
   }
 
+  resendPosSaleNotify(id: string) {
+    return this.post<{
+      ok: boolean;
+      delivery?: { whatsapp?: string; email?: string; sms?: string };
+    }>(`/pos/sales/${id}/notify`);
+  }
+
   refundPosSale(
     id: string,
     body: {
@@ -2340,17 +2367,23 @@ class ApiClient {
           cashIn: number;
           cashOut: number;
           expectedCash: number;
+          voidCount?: number;
+          voidedTotal?: number;
         }[];
         salesTotal: number;
         cashIn: number;
         cashOut: number;
         expectedCash: number;
+        voidCount?: number;
+        voidedTotal?: number;
       }[];
       totals: {
         salesTotal: number;
         cashIn: number;
         cashOut: number;
         expectedCash: number;
+        voidCount?: number;
+        voidedTotal?: number;
         openCount: number;
         shiftCount: number;
       };

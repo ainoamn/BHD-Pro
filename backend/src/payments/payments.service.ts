@@ -11,6 +11,9 @@ import {
   PaymentMethod,
   PaymentStatus,
   Plan,
+  RestoOrderChannel,
+  RestoOrderStatus,
+  RestoTableStatus,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PLAN_DETAILS } from '../subscriptions/subscriptions.service';
@@ -577,6 +580,35 @@ export class PaymentsService {
                 },
               },
             });
+          }
+
+          // Close resto table check after online guest/staff pay-link settles
+          const restoOrder = await tx.restoOrder.findFirst({
+            where: {
+              invoiceId: salesInvoice.id,
+              status: { notIn: [RestoOrderStatus.CLOSED, RestoOrderStatus.CANCELLED] },
+            },
+          });
+          if (restoOrder) {
+            await tx.restoOrder.update({
+              where: { id: restoOrder.id },
+              data: {
+                status: RestoOrderStatus.CLOSED,
+                closedAt: new Date(),
+                ...(restoOrder.channel === RestoOrderChannel.DELIVERY
+                  ? {
+                      deliveryStatus: 'DELIVERED',
+                      deliveredAt: new Date(),
+                    }
+                  : {}),
+              },
+            });
+            if (restoOrder.tableId) {
+              await tx.restoTable.update({
+                where: { id: restoOrder.tableId },
+                data: { status: RestoTableStatus.FREE },
+              });
+            }
           }
         }
       }

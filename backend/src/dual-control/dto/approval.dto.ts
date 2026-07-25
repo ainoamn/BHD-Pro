@@ -210,6 +210,18 @@ export class UpdateSecurityConfigDto {
   @IsBoolean()
   autoSendPosReceipts?: boolean;
 
+  /** Auto-send POS receipt email when customer has email (default true when email configured) */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  autoSendPosReceiptEmail?: boolean;
+
+  /** Auto-send POS receipt SMS via Twilio (default true when SMS configured) */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  autoSendPosReceiptSms?: boolean;
+
   /** Auto-email Z-report to managers when a shift closes (default false) */
   @ApiPropertyOptional()
   @IsOptional()

@@ -2,7 +2,7 @@ import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { RestoService } from './resto.service';
-import { PublicGuestCallDto, PublicGuestOrderDto } from './dto/resto.dto';
+import { PublicGuestCallDto, PublicGuestOrderDto, PublicGuestPayDto } from './dto/resto.dto';
 
 @ApiTags('Public Resto')
 @Controller('public/resto')
@@ -28,5 +28,12 @@ export class PublicRestoController {
   @ApiOperation({ summary: 'Guest calls waiter / requests check / water' })
   call(@Param('token') token: string, @Body() dto: PublicGuestCallDto) {
     return this.resto.publicCallStaff(token, dto);
+  }
+
+  @Post('t/:token/pay')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Guest creates online pay link for the open check' })
+  pay(@Param('token') token: string, @Body() dto: PublicGuestPayDto) {
+    return this.resto.publicCreatePayLink(token, dto || {});
   }
 }

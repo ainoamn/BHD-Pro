@@ -11,6 +11,7 @@ import {
   RestoOrderItemStatus,
   RestoOrderStatus,
   RestoTableStatus,
+  UserRole,
 } from '@prisma/client';
 import { Observable, Subject, from, interval, merge, of } from 'rxjs';
 import { map, switchMap } from 'rxjs/operators';
@@ -28,8 +29,10 @@ import {
   CreateRestoTableDto,
   CreateRestoWaitlistDto,
   CreateRestoZoneDto,
+  CreateRestoPayLinkDto,
   MergeRestoOrderDto,
   OpenRestoOrderDto,
+  PublicGuestPayDto,
   SetRestoMenu86Dto,
   SetRestoProductAllergensDto,
   RESTO_ALLERGEN_CODES,
@@ -853,6 +856,11 @@ export class RestoService {
     ) {
       throw new BadRequestException('Order is closed');
     }
+    if (order.invoiceId) {
+      throw new BadRequestException(
+        'Check already billed for online pay — complete payment or ask staff to reopen',
+      );
+    }
 
     const product = await this.prisma.product.findFirst({
       where: { id: dto.productId, companyId, isActive: true },
@@ -1635,11 +1643,14 @@ export class RestoService {
       productIds.length > 0
         ? await this.prisma.product.findMany({
             where: { companyId, id: { in: productIds } },
-            select: { id: true, allergens: true },
+            select: { id: true, allergens: true, nameEn: true },
           })
         : [];
     const allergenByProduct = new Map(
       products.map((p) => [p.id, p.allergens || []]),
+    );
+    const nameEnByProduct = new Map(
+      products.map((p) => [p.id, p.nameEn || null]),
     );
 
     return {
@@ -1649,6 +1660,9 @@ export class RestoService {
       items: items.map((it) => ({
         id: it.id,
         name: it.name,
+        nameEn: it.productId
+          ? nameEnByProduct.get(it.productId) || null
+          : null,
         qty: Number(it.qty),
         notes: it.notes,
         course: it.course ?? 1,
@@ -1720,6 +1734,25 @@ export class RestoService {
     }
     if (order.status === RestoOrderStatus.CANCELLED) {
       throw new BadRequestException('Order is cancelled');
+    }
+
+    if (!dto.soft && order.invoiceId) {
+      const existing = await this.prisma.invoice.findFirst({
+        where: { id: order.invoiceId, companyId },
+        select: { id: true, paymentStatus: true, status: true },
+      });
+      if (
+        existing &&
+        existing.status !== 'CANCELLED' &&
+        existing.paymentStatus !== 'PAID'
+      ) {
+        throw new BadRequestException(
+          'Online pay link already issued — guest should pay online, or cancel that invoice first',
+        );
+      }
+      if (existing?.paymentStatus === 'PAID') {
+        return this.finalizeOrderAfterPayment(companyId, orderId);
+      }
     }
 
     const pendingKitchen = order.items.some(
@@ -1853,6 +1886,259 @@ export class RestoService {
       ...mapped,
       invoice: invoiceId ? { id: invoiceId } : null,
     };
+  }
+
+  private frontendOrigin() {
+    return (
+      process.env.FRONTEND_URL ||
+      process.env.CORS_ORIGIN ||
+      'http://localhost:3000'
+    );
+  }
+
+  private async resolveStaffActor(
+    companyId: string,
+    preferredUserId?: string | null,
+  ): Promise<TokenPayload> {
+    if (preferredUserId) {
+      const preferred = await this.prisma.user.findFirst({
+        where: { id: preferredUserId, companyId, isActive: true },
+        select: { id: true, email: true, role: true },
+      });
+      if (preferred) {
+        return {
+          sub: preferred.id,
+          email: preferred.email,
+          role: preferred.role,
+          companyId,
+        };
+      }
+    }
+    const fallback = await this.prisma.user.findFirst({
+      where: {
+        companyId,
+        isActive: true,
+        role: {
+          in: [
+            UserRole.ADMIN,
+            UserRole.MANAGER,
+            UserRole.RESTO_MANAGER,
+            UserRole.WAITER,
+            UserRole.CASHIER,
+          ],
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true, email: true, role: true },
+    });
+    if (!fallback) {
+      throw new BadRequestException('No staff user available to bill this order');
+    }
+    return {
+      sub: fallback.id,
+      email: fallback.email,
+      role: fallback.role,
+      companyId,
+    };
+  }
+
+  /**
+   * Bill the check via partner online pay — keep table occupied until webhook marks PAID.
+   */
+  async createPayLink(
+    companyId: string,
+    actor: TokenPayload,
+    orderId: string,
+    dto: CreateRestoPayLinkDto = {},
+  ) {
+    const order = await this.loadOrder(companyId, orderId);
+    if (
+      order.status === RestoOrderStatus.CLOSED ||
+      order.status === RestoOrderStatus.CANCELLED
+    ) {
+      throw new BadRequestException('Order is closed');
+    }
+
+    if (order.invoiceId) {
+      const existing = await this.prisma.invoice.findFirst({
+        where: { id: order.invoiceId, companyId },
+        select: { id: true, paymentStatus: true, status: true, total: true },
+      });
+      if (existing?.paymentStatus === 'PAID') {
+        await this.finalizeOrderAfterPayment(companyId, orderId);
+        return {
+          orderId,
+          invoiceId: existing.id,
+          payUrl: null as string | null,
+          alreadyPaid: true,
+          total: Number(existing.total),
+        };
+      }
+      if (existing && existing.status !== 'CANCELLED') {
+        return {
+          orderId,
+          invoiceId: existing.id,
+          payUrl: `${this.frontendOrigin()}/pay/${existing.id}`,
+          alreadyPaid: false,
+          total: Number(existing.total),
+        };
+      }
+    }
+
+    const pendingKitchen = order.items.some(
+      (i) =>
+        i.status === RestoOrderItemStatus.SENT ||
+        i.status === RestoOrderItemStatus.PREPARING,
+    );
+    if (pendingKitchen) {
+      throw new BadRequestException(
+        'Kitchen still has open items — mark ready/served or cancel first',
+      );
+    }
+
+    const billable = order.items.filter(
+      (i) =>
+        i.status !== RestoOrderItemStatus.CANCELLED &&
+        i.status !== RestoOrderItemStatus.PENDING &&
+        !i.isComp &&
+        !!i.productId &&
+        Number(i.unitPrice) > 0,
+    );
+    const fallback = order.items.filter(
+      (i) =>
+        i.status !== RestoOrderItemStatus.CANCELLED &&
+        !i.isComp &&
+        !!i.productId &&
+        Number(i.unitPrice) > 0,
+    );
+    const lines = billable.length > 0 ? billable : fallback;
+    if (lines.length === 0) {
+      throw new BadRequestException('No billable items for online pay');
+    }
+
+    await this.prisma.restoOrderItem.updateMany({
+      where: { orderId, status: RestoOrderItemStatus.PENDING },
+      data: {
+        status: RestoOrderItemStatus.SERVED,
+        readyAt: new Date(),
+      },
+    });
+
+    const warehouseId =
+      dto.warehouseId ||
+      (await this.resolveWarehouseId(companyId)) ||
+      undefined;
+
+    await this.deductRecipeComponents(
+      companyId,
+      order.number,
+      lines.map((i) => ({
+        productId: i.productId as string,
+        qty: Number(i.qty),
+      })),
+      warehouseId,
+    );
+
+    const subtotal = lines.reduce(
+      (s, i) => s + Number(i.qty) * Number(i.unitPrice),
+      0,
+    );
+    let serviceCharge = Number(dto.serviceChargeAmount) || 0;
+    if (dto.serviceChargePct != null && dto.serviceChargePct > 0) {
+      serviceCharge += (subtotal * Number(dto.serviceChargePct)) / 100;
+    }
+    const tip = (Number(dto.tipAmount) || 0) + serviceCharge;
+    const noteParts = [
+      `Hisaby Resto ${order.number} [${order.channel}]`,
+      'PARTNER_PAY table QR',
+      order.guestName ? `Guest: ${order.guestName}` : '',
+      order.guestPhone ? `Tel: ${order.guestPhone}` : '',
+      serviceCharge > 0.0005
+        ? `Service charge ${serviceCharge.toFixed(3)}`
+        : '',
+    ].filter(Boolean);
+
+    const invoice = await this.pos.createSale(companyId, actor, {
+      items: lines.map((i) => ({
+        productId: i.productId as string,
+        quantity: Number(i.qty),
+        unitPrice: Number(i.unitPrice),
+      })),
+      partnerCheckout: true,
+      warehouseId,
+      contactId: dto.contactId,
+      tipAmount: tip > 0.0005 ? tip : undefined,
+      notes: noteParts.join(' · '),
+      clientSaleId: `resto-${order.id}`,
+    });
+
+    await this.prisma.restoOrder.update({
+      where: { id: orderId },
+      data: { invoiceId: invoice.id },
+    });
+
+    return {
+      orderId,
+      invoiceId: invoice.id,
+      payUrl: `${this.frontendOrigin()}/pay/${invoice.id}`,
+      alreadyPaid: false,
+      total: Number(invoice.total),
+    };
+  }
+
+  async publicCreatePayLink(token: string, dto: PublicGuestPayDto = {}) {
+    const table = await this.loadTableByGuestToken(token);
+    const order = await this.prisma.restoOrder.findFirst({
+      where: {
+        companyId: table.companyId,
+        tableId: table.id,
+        status: { in: ACTIVE_ORDER },
+      },
+    });
+    if (!order) {
+      throw new BadRequestException('No open check on this table');
+    }
+    const actor = await this.resolveStaffActor(
+      table.companyId,
+      order.openedById,
+    );
+    return this.createPayLink(table.companyId, actor, order.id, {
+      tipAmount: dto.tipAmount,
+      serviceChargePct: dto.serviceChargePct,
+    });
+  }
+
+  /** Called after online invoice is PAID — free table without double-billing */
+  async finalizeOrderAfterPayment(companyId: string, orderId: string) {
+    const order = await this.prisma.restoOrder.findFirst({
+      where: { id: orderId, companyId },
+    });
+    if (!order) throw new NotFoundException('Order not found');
+    if (order.status === RestoOrderStatus.CLOSED) {
+      return this.getOrder(companyId, orderId);
+    }
+    await this.prisma.$transaction(async (tx) => {
+      await tx.restoOrder.update({
+        where: { id: orderId },
+        data: {
+          status: RestoOrderStatus.CLOSED,
+          closedAt: new Date(),
+          ...(order.channel === RestoOrderChannel.DELIVERY
+            ? {
+                deliveryStatus: 'DELIVERED',
+                deliveredAt: new Date(),
+              }
+            : {}),
+        },
+      });
+      if (order.tableId) {
+        await tx.restoTable.update({
+          where: { id: order.tableId },
+          data: { status: RestoTableStatus.FREE },
+        });
+      }
+    });
+    return this.getOrder(companyId, orderId);
   }
 
   async updateDeliveryStatus(
@@ -2893,6 +3179,21 @@ export class RestoService {
         },
       },
     });
+
+    let payUrl: string | null = null;
+    let paymentStatus: string | null = null;
+    let invoiceId: string | null = open?.invoiceId ?? null;
+    if (invoiceId) {
+      const inv = await this.prisma.invoice.findFirst({
+        where: { id: invoiceId, companyId: table.companyId },
+        select: { paymentStatus: true, status: true },
+      });
+      paymentStatus = inv?.paymentStatus ?? null;
+      if (inv && inv.status !== 'CANCELLED' && inv.paymentStatus !== 'PAID') {
+        payUrl = `${this.frontendOrigin()}/pay/${invoiceId}`;
+      }
+    }
+
     return {
       company: {
         id: table.company.id,
@@ -2923,6 +3224,9 @@ export class RestoService {
             id: open.id,
             number: open.number,
             status: open.status,
+            invoiceId,
+            paymentStatus,
+            payUrl,
             items: open.items.map((i) => ({
               id: i.id,
               name: i.name,
@@ -2969,6 +3273,11 @@ export class RestoService {
       });
     }
     if (!order) throw new BadRequestException('Could not open order');
+    if (order.invoiceId) {
+      throw new BadRequestException(
+        'Check already billed — pay online or ask staff',
+      );
+    }
 
     for (const line of dto.items) {
       await this.addItem(table.companyId, order.id, {

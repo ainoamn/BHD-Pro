@@ -633,6 +633,34 @@ export class PosService {
     return map;
   }
 
+  /** Manual resend of customer receipt notify (WA / email / SMS). */
+  async resendSaleNotify(companyId: string, invoiceId: string) {
+    const invoice = await this.prisma.invoice.findFirst({
+      where: { id: invoiceId, companyId },
+      select: {
+        id: true,
+        contactId: true,
+        isCash: true,
+        notes: true,
+        contact: { select: { id: true, phone: true, name: true } },
+      },
+    });
+    if (!invoice) throw new NotFoundException('Sale not found');
+    const notes = String(invoice.notes || '');
+    if (!invoice.isCash || !notes.includes('Hisaby POS')) {
+      throw new BadRequestException('Only Hisaby POS sales can resend notify');
+    }
+    if (!invoice.contactId) {
+      throw new BadRequestException('Sale has no customer contact');
+    }
+    const delivery = await this.customerNotify.resendPosSaleNotify(
+      companyId,
+      invoice.id,
+      invoice.contactId,
+    );
+    return { ok: true, delivery };
+  }
+
   /** Void a POS cash sale: reverse payments, restore warehouse stock, cancel invoice */
   async voidSale(
     companyId: string,
@@ -2291,11 +2319,15 @@ export class PosService {
         cashIn: number;
         cashOut: number;
         expectedCash: number;
+        voidCount: number;
+        voidedTotal: number;
       }>;
       salesTotal: number;
       cashIn: number;
       cashOut: number;
       expectedCash: number;
+      voidCount: number;
+      voidedTotal: number;
     };
 
     const byWh = new Map<string, WarehouseRow>();
@@ -2313,6 +2345,8 @@ export class PosService {
           cashIn: 0,
           cashOut: 0,
           expectedCash: 0,
+          voidCount: 0,
+          voidedTotal: 0,
         });
       }
       const row = byWh.get(key)!;
@@ -2321,6 +2355,8 @@ export class PosService {
       let cashIn = 0;
       let cashOut = 0;
       let expectedCash = 0;
+      let voidCount = 0;
+      let voidedTotal = 0;
 
       if (shift.status === 'CLOSED' && shift.zReportJson) {
         const z = shift.zReportJson as Record<string, unknown>;
@@ -2328,6 +2364,8 @@ export class PosService {
         cashIn = Number(z.cashIn ?? 0);
         cashOut = Number(z.cashOut ?? 0);
         expectedCash = Number(z.expectedCash ?? 0);
+        voidCount = Number(z.voidCount ?? z.voidsCount ?? 0);
+        voidedTotal = Number(z.voidedTotal ?? z.voidsTotal ?? 0);
       } else {
         const live = await this.buildZReport(
           companyId,
@@ -2341,6 +2379,8 @@ export class PosService {
         cashIn = live.cashIn;
         cashOut = live.cashOut;
         expectedCash = live.expectedCash;
+        voidCount = live.voidCount;
+        voidedTotal = live.voidedTotal;
       }
 
       row.shifts.push({
@@ -2353,10 +2393,14 @@ export class PosService {
         cashIn,
         cashOut,
         expectedCash,
+        voidCount,
+        voidedTotal,
       });
       row.salesTotal = Number((row.salesTotal + salesTotal).toFixed(3));
       row.cashIn = Number((row.cashIn + cashIn).toFixed(3));
       row.cashOut = Number((row.cashOut + cashOut).toFixed(3));
+      row.voidCount += voidCount;
+      row.voidedTotal = Number((row.voidedTotal + voidedTotal).toFixed(3));
       // Expected cash is per open drawer — use open shift's expected, else sum closed
       if (shift.status === 'OPEN') {
         row.openShift = {
@@ -2379,6 +2423,10 @@ export class PosService {
       cashOut: Number(warehouses.reduce((s, w) => s + w.cashOut, 0).toFixed(3)),
       expectedCash: Number(
         warehouses.reduce((s, w) => s + w.expectedCash, 0).toFixed(3),
+      ),
+      voidCount: warehouses.reduce((s, w) => s + w.voidCount, 0),
+      voidedTotal: Number(
+        warehouses.reduce((s, w) => s + w.voidedTotal, 0).toFixed(3),
       ),
       openCount: warehouses.filter((w) => w.openShift).length,
       shiftCount: shifts.length,

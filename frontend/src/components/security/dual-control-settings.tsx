@@ -21,6 +21,8 @@ type SecurityPublic = {
   cashOutApprovalLimit?: number;
   requireOpenShift?: boolean;
   autoSendPosReceipts?: boolean;
+  autoSendPosReceiptEmail?: boolean;
+  autoSendPosReceiptSms?: boolean;
   autoEmailZReportOnClose?: boolean;
   zReportNotifyEmails?: string[];
   actions: {
@@ -86,6 +88,8 @@ export function DualControlSettings() {
   const [cashOutLimit, setCashOutLimit] = useState("20");
   const [requireOpenShift, setRequireOpenShift] = useState(false);
   const [autoSendPosReceipts, setAutoSendPosReceipts] = useState(true);
+  const [autoSendPosReceiptEmail, setAutoSendPosReceiptEmail] = useState(true);
+  const [autoSendPosReceiptSms, setAutoSendPosReceiptSms] = useState(true);
   const [autoEmailZReportOnClose, setAutoEmailZReportOnClose] = useState(false);
   const [zReportEmails, setZReportEmails] = useState("");
 
@@ -120,6 +124,8 @@ export function DualControlSettings() {
     setCashOutLimit(String(data.cashOutApprovalLimit ?? 20));
     setRequireOpenShift(data.requireOpenShift === true);
     setAutoSendPosReceipts(data.autoSendPosReceipts !== false);
+    setAutoSendPosReceiptEmail(data.autoSendPosReceiptEmail !== false);
+    setAutoSendPosReceiptSms(data.autoSendPosReceiptSms !== false);
     setAutoEmailZReportOnClose(data.autoEmailZReportOnClose === true);
     setZReportEmails((data.zReportNotifyEmails || []).join(", "));
   }, [data]);
@@ -145,6 +151,8 @@ export function DualControlSettings() {
     cashOutApprovalLimit: Number(cashOutLimit) || 0,
     requireOpenShift,
     autoSendPosReceipts,
+    autoSendPosReceiptEmail,
+    autoSendPosReceiptSms,
     autoEmailZReportOnClose,
   });
 
@@ -255,6 +263,36 @@ export function DualControlSettings() {
               checked={autoSendPosReceipts}
               disabled={!isAdmin || saveMutation.isPending}
               onChange={(e) => setAutoSendPosReceipts(e.target.checked)}
+            />
+          </label>
+
+          <label className="flex items-center justify-between gap-4 text-sm text-slate-200">
+            <span>
+              <span className="block">{t("autoSendPosReceiptEmail")}</span>
+              <span className="block text-[11px] text-slate-500 mt-0.5 font-normal">
+                {t("autoSendPosReceiptEmailHint")}
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              checked={autoSendPosReceiptEmail}
+              disabled={!isAdmin || saveMutation.isPending}
+              onChange={(e) => setAutoSendPosReceiptEmail(e.target.checked)}
+            />
+          </label>
+
+          <label className="flex items-center justify-between gap-4 text-sm text-slate-200">
+            <span>
+              <span className="block">{t("autoSendPosReceiptSms")}</span>
+              <span className="block text-[11px] text-slate-500 mt-0.5 font-normal">
+                {t("autoSendPosReceiptSmsHint")}
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              checked={autoSendPosReceiptSms}
+              disabled={!isAdmin || saveMutation.isPending}
+              onChange={(e) => setAutoSendPosReceiptSms(e.target.checked)}
             />
           </label>
 

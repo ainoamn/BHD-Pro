@@ -513,6 +513,39 @@ export default function RestoFloorPage() {
     }
   };
 
+  const sendPayLink = async () => {
+    if (!order) return;
+    setBusy(true);
+    setError("");
+    try {
+      const res = await api.createRestoPayLink(order.id, {
+        tipAmount: Number(tipAmount) || undefined,
+        serviceChargePct: Number(serviceChargePct) || undefined,
+      });
+      if (res.data.alreadyPaid) {
+        setOrder(null);
+        await loadFloor();
+        return;
+      }
+      if (res.data.payUrl && typeof navigator !== "undefined" && navigator.clipboard) {
+        try {
+          await navigator.clipboard.writeText(res.data.payUrl);
+        } catch {
+          /* ignore */
+        }
+      }
+      if (res.data.payUrl) {
+        window.open(res.data.payUrl, "_blank", "noopener,noreferrer");
+      }
+      const refreshed = await api.getRestoOrder(order.id);
+      setOrder(refreshed.data);
+    } catch {
+      setError(t.actionFail);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const cancelOrder = async () => {
     if (!order) return;
     if (!window.confirm(t.cancelConfirm)) return;
@@ -1114,6 +1147,14 @@ export default function RestoFloorPage() {
                     {Number(cashPart) > 0 && order
                       ? ` · ${t.cashPart} ${Number(cashPart).toFixed(3)} + ${t.cardPart}`
                       : ""}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy || (order?.itemCount ?? 0) === 0}
+                    onClick={() => void sendPayLink()}
+                    className="w-full rounded-xl border border-emerald-400/35 bg-emerald-500/10 px-3 py-2 text-xs font-bold text-emerald-100 disabled:opacity-50"
+                  >
+                    {t.payLink}
                   </button>
                   <button
                     type="button"

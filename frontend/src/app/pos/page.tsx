@@ -31,7 +31,7 @@ import {
 } from "@/components/security/dual-approval-modal";
 import { BarcodeCameraScanner } from "@/components/pos/barcode-camera-scanner";
 import { QtyKeypadModal } from "@/components/pos/qty-keypad-modal";
-import { playPosScanBeep } from "@/lib/pos-beep";
+import { playPosScanBeep, playPosWarnBeep, playPosDenyBeep } from "@/lib/pos-beep";
 import { openPosReceiptEmail, sharePosReceiptWhatsAppWithPdf } from "@/lib/pos-receipt-share";
 import {
   printPosReceiptBrowser,
@@ -901,9 +901,15 @@ export default function PosCheckoutPage() {
   };
 
   const addProduct = useCallback(
-    (p: PosProduct, qty = 1) => {
+    (p: PosProduct, qty = 1): { added: boolean; lowStock: boolean } => {
       const unitPrice = Number(p.salePrice);
       const stock = Number(p.quantity);
+      const minQty =
+        p.minQuantity != null && p.minQuantity !== ""
+          ? Number(p.minQuantity)
+          : 0;
+      let added = false;
+      let lowStock = false;
       setCart((prev) => {
         const existing = prev.find((l) => l.productId === p.id);
         if (existing) {
@@ -912,11 +918,21 @@ export default function PosCheckoutPage() {
             toast.error(`${t.stock}: ${stock}`);
             return prev;
           }
-          return prev.map((l) => (l.productId === p.id ? { ...l, quantity: nextQty } : l));
+          added = true;
+          if (p.isTracked) {
+            lowStock = stock - nextQty <= minQty;
+          }
+          return prev.map((l) =>
+            l.productId === p.id ? { ...l, quantity: nextQty } : l,
+          );
         }
         if (p.isTracked && qty > stock) {
           toast.error(`${t.stock}: ${stock}`);
           return prev;
+        }
+        added = true;
+        if (p.isTracked) {
+          lowStock = stock - qty <= minQty;
         }
         return [
           ...prev,
@@ -934,10 +950,24 @@ export default function PosCheckoutPage() {
           },
         ];
       });
-      focusScan();
+      if (added) focusScan();
+      return { added, lowStock };
     },
     [t.stock, focusScan],
   );
+
+  const playAddFeedback = (result: { added: boolean; lowStock: boolean }) => {
+    if (!result.added) {
+      playPosDenyBeep();
+      return;
+    }
+    if (result.lowStock) {
+      playPosWarnBeep();
+      toast(t.lowStockWarn, { icon: "⚠" });
+      return;
+    }
+    playPosScanBeep();
+  };
 
   const handleScan = async (e: FormEvent) => {
     e.preventDefault();
@@ -956,9 +986,9 @@ export default function PosCheckoutPage() {
         typeof data.scanQty === "number" && data.scanQty > 0
           ? data.scanQty
           : 1;
-      addProduct(data, qty);
-      if (qty !== 1) toast.success(`${t.pluWeightAdded}: ${qty}`);
-      playPosScanBeep();
+      const result = addProduct(data, qty);
+      if (result.added && qty !== 1) toast.success(`${t.pluWeightAdded}: ${qty}`);
+      playAddFeedback(result);
       setScan("");
       setCameraOpen(false);
       focusScan();
@@ -974,9 +1004,11 @@ export default function PosCheckoutPage() {
             typeof cached.scanQty === "number" && cached.scanQty > 0
               ? cached.scanQty
               : 1;
-          addProduct(cached as PosProduct, qty);
-          if (qty !== 1) toast.success(`${t.pluWeightAdded}: ${qty}`);
-          playPosScanBeep();
+          const result = addProduct(cached as PosProduct, qty);
+          if (result.added && qty !== 1) {
+            toast.success(`${t.pluWeightAdded}: ${qty}`);
+          }
+          playAddFeedback(result);
           setScan("");
           setCameraOpen(false);
           focusScan();
@@ -985,6 +1017,7 @@ export default function PosCheckoutPage() {
       } catch {
         /* ignore */
       }
+      playPosDenyBeep();
       toast.error(t.notFound);
       setQuickBarcode(trimmed);
       setQuickName("");
@@ -1043,8 +1076,7 @@ export default function PosCheckoutPage() {
         /* ignore cache */
       }
       setCatalog((prev) => [asPos, ...prev.filter((p) => p.id !== asPos.id)]);
-      addProduct(asPos, 1);
-      playPosScanBeep();
+      playAddFeedback(addProduct(asPos, 1));
       setQuickProductOpen(false);
       toast.success(t.quickProductOk);
       focusScan();
@@ -2889,6 +2921,36 @@ export default function PosCheckoutPage() {
                   className="min-h-10 h-10 rounded-xl border border-sky-500/30 text-sm text-sky-200 hover:bg-sky-500/10"
                 >
                   {t.shareEmail}
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!lastInvoice.id) {
+                      toast.error(t.partnerPayOffline);
+                      return;
+                    }
+                    const cust = customers.find((c) => c.id === contactId);
+                    if (!cust?.phone) {
+                      toast.error(t.shareSmsNeedCustomer);
+                      return;
+                    }
+                    const toastId = toast.loading(t.shareSms);
+                    try {
+                      const res = await api.resendPosSaleNotify(lastInvoice.id);
+                      toast.dismiss(toastId);
+                      const sms = res.data?.delivery?.sms;
+                      if (sms === "ok") toast.success(t.shareSmsOk);
+                      else toast.error(t.shareSmsFail);
+                    } catch (err: unknown) {
+                      toast.dismiss(toastId);
+                      const msg = (err as { response?: { data?: { message?: string } } })
+                        ?.response?.data?.message;
+                      toast.error(typeof msg === "string" ? msg : t.shareSmsFail);
+                    }
+                  }}
+                  className="min-h-10 h-10 rounded-xl border border-violet-500/30 text-sm text-violet-200 hover:bg-violet-500/10"
+                >
+                  {t.shareSms}
                 </button>
               </div>
               <button

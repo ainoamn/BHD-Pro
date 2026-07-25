@@ -62,6 +62,9 @@ type Session = {
     id: string;
     number: string;
     status: string;
+    invoiceId?: string | null;
+    paymentStatus?: string | null;
+    payUrl?: string | null;
     items: Array<{
       id: string;
       name: string;
@@ -90,6 +93,8 @@ export default function GuestOrderPage() {
   const [pickedMods, setPickedMods] = useState<string[]>([]);
   const [lineNote, setLineNote] = useState("");
   const [composeFor, setComposeFor] = useState<MenuItem | null>(null);
+  const [payTip, setPayTip] = useState("");
+  const [paying, setPaying] = useState(false);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -273,6 +278,51 @@ export default function GuestOrderPage() {
     }
   };
 
+  const startPay = async () => {
+    if (!token) return;
+    setPaying(true);
+    setError("");
+    try {
+      const tip = Number(payTip) || 0;
+      const res = await fetch(
+        `${API}/public/resto/t/${encodeURIComponent(token)}/pay`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          credentials: "omit",
+          body: JSON.stringify({
+            tipAmount: tip > 0 ? tip : undefined,
+          }),
+        },
+      );
+      if (!res.ok) throw new Error("fail");
+      const data = (await res.json()) as {
+        payUrl?: string | null;
+        alreadyPaid?: boolean;
+      };
+      if (data.alreadyPaid) {
+        setOkMsg(
+          locale === "en" ? "Already paid — thank you." : "مدفوع مسبقاً — شكراً.",
+        );
+        await load();
+        return;
+      }
+      if (data.payUrl) {
+        window.location.href = data.payUrl;
+        return;
+      }
+      throw new Error("fail");
+    } catch {
+      setError(
+        locale === "en"
+          ? "Could not start payment."
+          : "تعذر بدء الدفع أونلاين.",
+      );
+    } finally {
+      setPaying(false);
+    }
+  };
+
   const toggleHide = (code: string) => {
     setHideAllergens((prev) =>
       prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code],
@@ -389,6 +439,49 @@ export default function GuestOrderPage() {
                 {fmt(session.openOrder.subtotal)} {currency}
               </span>
             </p>
+            {session.openOrder.payUrl ? (
+              <a
+                href={session.openOrder.payUrl}
+                className="block w-full text-center rounded-xl bg-emerald-600 py-2.5 text-sm font-extrabold text-white"
+              >
+                {locale === "en" ? "Continue payment" : "متابعة الدفع"}
+              </a>
+            ) : (
+              <div className="space-y-2 pt-1">
+                <div className="flex gap-1.5">
+                  {["0", "1", "2", "5"].map((v) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => setPayTip(v === "0" ? "" : v)}
+                      className={`flex-1 rounded-lg py-1.5 text-[11px] font-bold border ${
+                        (payTip || "0") === v
+                          ? "border-emerald-400/50 bg-emerald-500/20 text-emerald-100"
+                          : "border-white/10 text-stone-400"
+                      }`}
+                    >
+                      {v === "0"
+                        ? locale === "en"
+                          ? "No tip"
+                          : "بدون بقشيش"
+                        : `+${v}`}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  disabled={paying || session.openOrder.items.length === 0}
+                  onClick={() => void startPay()}
+                  className="w-full rounded-xl bg-emerald-600 py-2.5 text-sm font-extrabold text-white disabled:opacity-50"
+                >
+                  {paying
+                    ? "…"
+                    : locale === "en"
+                      ? "Pay online"
+                      : "ادفع أونلاين"}
+                </button>
+              </div>
+            )}
           </section>
         ) : null}
 
