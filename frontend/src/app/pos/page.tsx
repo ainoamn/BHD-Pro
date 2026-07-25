@@ -1468,7 +1468,7 @@ export default function PosCheckoutPage() {
               setAwaitingPayId(null);
               toast.success(t.terminalTapMockOk);
             } else {
-              toast.error(t.terminalTapFail);
+              toast.error(t.terminalTapNeedConfig || t.terminalTapFail);
             }
           } else {
             const payRes = await api.createPosPartnerCheckout(inv.id);

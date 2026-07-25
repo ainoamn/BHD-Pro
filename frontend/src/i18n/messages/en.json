@@ -1394,6 +1394,8 @@
   "reportsHub": {
     "title": "Reports Center",
     "subtitle": "Financial and operational reports — Wafaaq-style",
+    "restaurants": "Restaurant reports",
+    "restaurantsDesc": "Floor sales, prep times, and top-selling items",
     "financial": "Financial reports",
     "financialDesc": "P&L, balance sheet, cash flow",
     "cashForecast": "Cash flow forecast",

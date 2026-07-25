@@ -3,6 +3,7 @@
 import { useLocaleStore } from "@/store/locale";
 import { restoCopy } from "@/lib/resto-copy";
 import { RestoLinkSettings } from "@/components/resto/resto-link-settings";
+import { HisabyAppsLinkHub } from "@/components/shared/hisaby-apps-link-hub";
 
 export default function RestoSettingsPage() {
   const locale = useLocaleStore((s) => s.locale);
@@ -14,6 +15,7 @@ export default function RestoSettingsPage() {
         <h1 className="text-xl font-extrabold">{t.settings}</h1>
         <p className="text-sm text-stone-400 mt-1">{t.linkDesc}</p>
       </div>
+      <HisabyAppsLinkHub tone="resto" />
       <RestoLinkSettings variant="resto" />
     </div>
   );

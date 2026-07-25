@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useLocaleStore } from "@/store/locale";
 import { posCopy } from "@/lib/pos-copy";
 import { PosLinkSettings } from "@/components/pos/pos-link-settings";
+import { HisabyAppsLinkHub } from "@/components/shared/hisaby-apps-link-hub";
 import { DualControlSettings } from "@/components/security/dual-control-settings";
 import { IncentivesSettings } from "@/components/pos/incentives-settings";
 import {
@@ -34,6 +35,8 @@ export default function PosSettingsPage() {
         <h1 className="text-xl font-extrabold">{t.settings}</h1>
         <p className="text-sm text-slate-400 mt-1">{t.posLinkDesc}</p>
       </div>
+
+      <HisabyAppsLinkHub tone="pos" />
 
       <PosLinkSettings variant="pos" />
 

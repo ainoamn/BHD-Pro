@@ -308,6 +308,8 @@ export const posCopy = {
     terminalTapHint: "SoftPOS أو طرف شريك — دفع العميل باللمس (ليس شارة الموافقة)",
     terminalTapOpened: "تم فتح جلسة اللمس / Terminal",
     terminalTapFail: "تعذر بدء جلسة Terminal — راجع البوابة أو POS_TERMINAL_MODE",
+    terminalTapNeedConfig:
+      "Terminal غير جاهز: فعّل بوابة دفع أو عيّن POS_SOFTPOS_DEEP_LINK_TEMPLATE / وضع hosted",
     terminalTapOffline: "Terminal يتطلب اتصالاً بالخادم",
     terminalTapMockOk: "تم تأكيد اللمس التجريبي (mock)",
     terminalTapPaid: "تم استلام دفع Terminal / الشريك",
@@ -669,6 +671,8 @@ export const posCopy = {
     terminalTapHint: "SoftPOS or partner terminal — customer tap-to-pay (not approval badge)",
     terminalTapOpened: "Terminal tap session opened",
     terminalTapFail: "Could not start terminal session — check gateway / POS_TERMINAL_MODE",
+    terminalTapNeedConfig:
+      "Terminal not ready: enable a payment gateway or set POS_SOFTPOS_DEEP_LINK_TEMPLATE / hosted mode",
     terminalTapOffline: "Terminal tap needs an online invoice",
     terminalTapMockOk: "Mock terminal tap confirmed",
     terminalTapPaid: "Terminal / partner payment received",

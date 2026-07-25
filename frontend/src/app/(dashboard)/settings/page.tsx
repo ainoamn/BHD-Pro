@@ -18,6 +18,7 @@ import { DualControlSettings } from "@/components/security/dual-control-settings
 import { CompanyLogoUpload } from "@/components/company/company-logo-upload";
 import { PosLinkSettings } from "@/components/pos/pos-link-settings";
 import { RestoLinkSettings } from "@/components/resto/resto-link-settings";
+import { HisabyAppsLinkHub } from "@/components/shared/hisaby-apps-link-hub";
 import {
   DOCUMENT_COLOR_PRESETS,
   normalizeDocumentColor,
@@ -426,6 +427,10 @@ export default function SettingsPage() {
             </div>
           </form>
         )}
+      </GlassCard>
+
+      <GlassCard className="p-6">
+        <HisabyAppsLinkHub tone="accounting" />
       </GlassCard>
 
       <GlassCard className="p-6">

@@ -815,4 +815,118 @@ export class RestoService {
     });
     return this.getOrder(companyId, orderId);
   }
+
+  async getReportsSummary(companyId: string, days = 7) {
+    const safeDays = Math.min(Math.max(days || 7, 1), 90);
+    const from = new Date();
+    from.setHours(0, 0, 0, 0);
+    from.setDate(from.getDate() - (safeDays - 1));
+
+    const orders = await this.prisma.restoOrder.findMany({
+      where: {
+        companyId,
+        createdAt: { gte: from },
+      },
+      include: {
+        table: { select: { id: true, code: true, name: true } },
+        items: {
+          where: { status: { not: RestoOrderItemStatus.CANCELLED } },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+      take: 5000,
+    });
+
+    let revenue = 0;
+    let closed = 0;
+    let cancelled = 0;
+    let openNow = 0;
+    const prepSamples: number[] = [];
+    const byHour = new Map<number, number>();
+    const byTable = new Map<string, { label: string; orders: number; revenue: number }>();
+    const byItem = new Map<string, { name: string; qty: number; revenue: number }>();
+
+    for (const order of orders) {
+      if (order.status === RestoOrderStatus.CLOSED) closed += 1;
+      else if (order.status === RestoOrderStatus.CANCELLED) cancelled += 1;
+      else if (ACTIVE_ORDER.includes(order.status)) openNow += 1;
+
+      const hour = order.createdAt.getHours();
+      byHour.set(hour, (byHour.get(hour) || 0) + 1);
+
+      const orderRevenue = order.items.reduce(
+        (s, i) => s + Number(i.qty) * Number(i.unitPrice),
+        0,
+      );
+      if (order.status === RestoOrderStatus.CLOSED) {
+        revenue += orderRevenue;
+      }
+
+      const tableKey = order.table?.id || 'none';
+      const tableLabel = order.table
+        ? order.table.code
+        : order.channel === 'TAKEAWAY'
+          ? 'TAKEAWAY'
+          : '—';
+      const tableRow = byTable.get(tableKey) || {
+        label: tableLabel,
+        orders: 0,
+        revenue: 0,
+      };
+      tableRow.orders += 1;
+      if (order.status === RestoOrderStatus.CLOSED) {
+        tableRow.revenue += orderRevenue;
+      }
+      byTable.set(tableKey, tableRow);
+
+      for (const item of order.items) {
+        const key = item.productId || item.name;
+        const row = byItem.get(key) || {
+          name: item.name,
+          qty: 0,
+          revenue: 0,
+        };
+        row.qty += Number(item.qty);
+        row.revenue += Number(item.qty) * Number(item.unitPrice);
+        byItem.set(key, row);
+
+        if (item.sentAt && item.readyAt) {
+          const mins =
+            (item.readyAt.getTime() - item.sentAt.getTime()) / 60000;
+          if (mins >= 0 && mins < 240) prepSamples.push(mins);
+        }
+      }
+    }
+
+    const avgPrepMinutes =
+      prepSamples.length > 0
+        ? Number(
+            (
+              prepSamples.reduce((s, n) => s + n, 0) / prepSamples.length
+            ).toFixed(1),
+          )
+        : 0;
+
+    return {
+      from: from.toISOString(),
+      to: new Date().toISOString(),
+      days: safeDays,
+      orders: orders.length,
+      closed,
+      cancelled,
+      openNow,
+      revenue: Number(revenue.toFixed(3)),
+      avgPrepMinutes,
+      byHour: Array.from({ length: 24 }, (_, h) => ({
+        hour: h,
+        orders: byHour.get(h) || 0,
+      })),
+      byTable: Array.from(byTable.values())
+        .sort((a, b) => b.revenue - a.revenue || b.orders - a.orders)
+        .slice(0, 20),
+      topItems: Array.from(byItem.values())
+        .sort((a, b) => b.qty - a.qty)
+        .slice(0, 15),
+    };
+  }
 }

@@ -111,7 +111,7 @@ npx prisma migrate deploy
 | Capacitor/BLE | هيكل + stubs |
 | عمولة كاشير + ولاء | منجز |
 | شعارات عملاء مدفوعين في الرئيسية | منجز |
-| نظام مطاعم ومطبخ كامل مربوط بالمحاسبة/POS | **R1+R2 منجز** — طاولات وطلبات وإرسال مطبخ؛ R3–R5 حسب [`HISABY-RESTAURANT-KITCHEN-PLAN.md`](./HISABY-RESTAURANT-KITCHEN-PLAN.md) |
+| نظام مطاعم ومطبخ كامل مربوط بالمحاسبة/POS | **R1–R3 + تقارير** — صالة/طلبات/KDS/تقارير تشغيل؛ R4 إغلاق مالي حسب [`HISABY-RESTAURANT-KITCHEN-PLAN.md`](./HISABY-RESTAURANT-KITCHEN-PLAN.md) |
 | غير قابل للاختراق | طبقات قوية — **لا ضمان مطلق** |
 
 ---

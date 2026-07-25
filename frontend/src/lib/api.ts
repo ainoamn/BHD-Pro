@@ -1548,6 +1548,25 @@ class ApiClient {
     return this.post(`/resto/kitchen/items/${itemId}/status`, { status });
   }
 
+  getRestoReportsSummary(days?: number) {
+    return this.get<{
+      from: string;
+      to: string;
+      days: number;
+      orders: number;
+      closed: number;
+      cancelled: number;
+      openNow: number;
+      revenue: number;
+      avgPrepMinutes: number;
+      byHour: Array<{ hour: number; orders: number }>;
+      byTable: Array<{ label: string; orders: number; revenue: number }>;
+      topItems: Array<{ name: string; qty: number; revenue: number }>;
+    }>('/resto/reports/summary', {
+      params: days ? { days } : undefined,
+    });
+  }
+
   lookupPosProduct(code: string, warehouseId?: string) {
     return this.get(`/pos/products/lookup`, {
       params: { code, ...(warehouseId ? { warehouseId } : {}) },

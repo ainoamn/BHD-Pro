@@ -185,7 +185,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
               title={locale === "en" ? "Restaurants" : "المطاعم"}
             >
               <UtensilsCrossed className="w-4 h-4" />
-              <span className="hidden sm:inline">{locale === "en" ? "Resto" : "مطاعم"}</span>
+              <span className="hidden sm:inline">{locale === "en" ? "Restaurants" : "المطاعم"}</span>
             </Link>
             <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto max-w-[46vw] sm:max-w-none scrollbar-none">
               <PosCommissionChip />

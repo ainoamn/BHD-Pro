@@ -63,6 +63,7 @@ export class PosService {
         name: true,
         posLinkedAt: true,
         posIntegrationKeyPrefix: true,
+        restoLinkedAt: true,
       },
     });
     if (!company) throw new NotFoundException('Company not found');
@@ -71,7 +72,8 @@ export class PosService {
       companyId: company.id,
       companyName: company.name,
       keyPrefix: company.posIntegrationKeyPrefix,
-      apps: { accounting: true, pos: true },
+      restoLinked: !!company.restoLinkedAt,
+      apps: { accounting: true, pos: true, resto: true },
     };
   }
 

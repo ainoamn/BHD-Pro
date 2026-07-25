@@ -204,4 +204,18 @@ export class RestoController {
   ) {
     return this.resto.setKitchenItemStatus(user.companyId, itemId, dto.status);
   }
+
+  @Get('reports/summary')
+  @Roles(...RESTO_STAFF)
+  @ApiOperation({ summary: 'Restaurant operational reports summary' })
+  reportsSummary(
+    @CurrentUser() user: TokenPayload,
+    @Query('days') days?: string,
+  ) {
+    const n = days ? Number(days) : 7;
+    return this.resto.getReportsSummary(
+      user.companyId,
+      Number.isFinite(n) ? n : 7,
+    );
+  }
 }

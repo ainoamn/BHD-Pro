@@ -17,6 +17,7 @@ import {
   Landmark,
   Wallet,
   ScrollText,
+  UtensilsCrossed,
 } from "lucide-react";
 import { ModuleHub } from "@/components/hub/module-hub";
 
@@ -24,6 +25,12 @@ export default function ReportsHubPage() {
   const t = useTranslations("reportsHub");
 
   const items = [
+    {
+      href: "/resto/reports",
+      icon: UtensilsCrossed,
+      title: t("restaurants"),
+      description: t("restaurantsDesc"),
+    },
     {
       href: "/reports/financial",
       icon: BarChart3,
