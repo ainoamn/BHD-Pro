@@ -107,7 +107,7 @@ function BillingInner() {
 
 export default function AdminBillingPage() {
   return (
-    <Suspense fallback={<div className="text-sm text-slate-500">…</div>}>
+    <Suspense fallback={<div className="text-sm text-slate-500">â€¦</div>}>
       <BillingInner />
     </Suspense>
   );

@@ -101,11 +101,7 @@ export default function AdminPlansPage() {
     <div className="space-y-6 max-w-6xl">
       <div>
         <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">{t.plans}</h1>
-        <p className="text-sm text-slate-500 mt-1">
-          {en
-            ? "Base prices are fixed in code — manage promos, windows, and override prices here"
-            : "أسعار الأساس ثابتة في الكود — العروض والنوافذ والأسعار البديلة تُدار من هنا"}
-        </p>
+        <p className="text-sm text-slate-500 mt-1">{t.plansHint}</p>
       </div>
 
       <div className="grid md:grid-cols-3 gap-3">
