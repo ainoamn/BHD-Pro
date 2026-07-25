@@ -1,3 +1,5 @@
+import api from "@/lib/api";
+
 function storageKey(companyId: string): string {
   return `hisaby-pos-favorites:${companyId}`;
 }
@@ -24,11 +26,46 @@ export function savePosFavorites(companyId: string, ids: string[]): void {
   }
 }
 
+function mergeFavoriteIds(a: string[], b: string[]): string[] {
+  return [...new Set([...a, ...b].map(String).filter(Boolean))].slice(0, 200);
+}
+
+/** Pull cloud favorites, merge with local cache, push if local had extras. */
+export async function syncPosFavoritesFromCloud(
+  companyId: string | undefined | null,
+): Promise<string[]> {
+  if (!companyId) return [];
+  const local = loadPosFavorites(companyId);
+  try {
+    const res = await api.getPosFavorites();
+    const cloud = (res.data?.productIds || []).map(String).filter(Boolean);
+    const merged = mergeFavoriteIds(cloud, local);
+    savePosFavorites(companyId, merged);
+    const cloudKey = JSON.stringify([...cloud].sort());
+    const mergedKey = JSON.stringify([...merged].sort());
+    if (mergedKey !== cloudKey) {
+      await api.putPosFavorites(merged);
+    }
+    return merged;
+  } catch {
+    return local;
+  }
+}
+
+async function pushFavorites(companyId: string, ids: string[]): Promise<void> {
+  try {
+    await api.putPosFavorites(ids);
+  } catch {
+    /* offline / permission — local cache remains source until next sync */
+  }
+}
+
 export function togglePosFavorite(companyId: string, productId: string): string[] {
   const current = loadPosFavorites(companyId);
   const next = current.includes(productId)
     ? current.filter((id) => id !== productId)
-    : [...current, productId];
+    : [...current, productId].slice(0, 200);
   savePosFavorites(companyId, next);
+  void pushFavorites(companyId, next);
   return next;
 }

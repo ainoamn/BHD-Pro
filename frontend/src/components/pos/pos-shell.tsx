@@ -22,7 +22,7 @@ import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 import { useLocaleStore } from "@/store/locale";
 import { posCopy } from "@/lib/pos-copy";
-import { flushPendingPosSales, pendingAllCount } from "@/lib/pos-offline-sync";
+import { flushPendingPosSales, pendingAllCount, quarantinedAllCount, discardAllQuarantined } from "@/lib/pos-offline-sync";
 import { PosCommissionChip } from "@/components/pos/pos-commission-chip";
 
 export function PosShell({ children }: { children: React.ReactNode }) {
@@ -36,16 +36,19 @@ export function PosShell({ children }: { children: React.ReactNode }) {
   const [shiftOpen, setShiftOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
+  const [quarantineCount, setQuarantineCount] = useState(0);
   const [syncing, setSyncing] = useState(false);
   const isLogin = pathname?.startsWith("/pos/login");
   const canSeeApprovals = user?.role === "ADMIN" || user?.role === "MANAGER";
 
   const refreshPending = useCallback(async () => {
     try {
-      const n = await pendingAllCount();
+      const [n, q] = await Promise.all([pendingAllCount(), quarantinedAllCount()]);
       setPendingCount(n);
+      setQuarantineCount(q);
     } catch {
       setPendingCount(0);
+      setQuarantineCount(0);
     }
   }, []);
 
@@ -56,8 +59,10 @@ export function PosShell({ children }: { children: React.ReactNode }) {
       try {
         const result = await flushPendingPosSales();
         await refreshPending();
-        if (result.synced > 0) {
+        if (result.synced > 0 && result.remaining === 0 && result.quarantined === 0) {
           toast.success(t.syncOk);
+        } else if (result.synced > 0 && (result.remaining > 0 || result.quarantined > 0)) {
+          if (!silent) toast.error(t.syncPartial);
         } else if (result.failed && !silent) {
           toast.error(t.syncFail);
         }
@@ -67,8 +72,18 @@ export function PosShell({ children }: { children: React.ReactNode }) {
         setSyncing(false);
       }
     },
-    [refreshPending, syncing, t.syncFail, t.syncOk],
+    [refreshPending, syncing, t.syncFail, t.syncOk, t.syncPartial],
   );
+
+  const discardQuarantine = useCallback(async () => {
+    try {
+      const n = await discardAllQuarantined();
+      await refreshPending();
+      if (n > 0) toast.success(t.quarantineDiscardOk);
+    } catch {
+      toast.error(t.syncFail);
+    }
+  }, [refreshPending, t.quarantineDiscardOk, t.syncFail]);
 
   useEffect(() => {
     setHydrated(true);
@@ -200,6 +215,18 @@ export function PosShell({ children }: { children: React.ReactNode }) {
                   <CloudUpload className="w-4 h-4" />
                   <span className="tabular-nums">{pendingCount}</span>
                   <span className="hidden sm:inline">{t.syncNow}</span>
+                </button>
+              ) : null}
+              {quarantineCount > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => void discardQuarantine()}
+                  title={t.quarantineHint}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-rose-500/15 px-2.5 py-1.5 text-xs font-semibold text-rose-200 hover:bg-rose-500/25 shrink-0"
+                >
+                  <span className="tabular-nums">{quarantineCount}</span>
+                  <span className="hidden sm:inline">{t.quarantineDiscard}</span>
+                  <span className="sm:hidden">{t.quarantineBadge}</span>
                 </button>
               ) : null}
               <button

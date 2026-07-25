@@ -39,7 +39,7 @@ import {
 } from "@/lib/pos-receipt-print";
 import { formatCompanyAddressCompact } from "@/lib/contact-address";
 import { toAppAbsoluteUrl } from "@/lib/app-url";
-import { loadPosFavorites, togglePosFavorite } from "@/lib/pos-favorites";
+import { loadPosFavorites, syncPosFavoritesFromCloud, togglePosFavorite } from "@/lib/pos-favorites";
 import { useQuery } from "@tanstack/react-query";
 import {
   PHONE_DIAL_CODES,
@@ -228,6 +228,14 @@ export default function PosCheckoutPage() {
 
   useEffect(() => {
     setFavoriteIds(loadPosFavorites(companyId));
+    if (!companyId) return;
+    let cancelled = false;
+    void syncPosFavoritesFromCloud(companyId).then((ids) => {
+      if (!cancelled) setFavoriteIds(ids);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [companyId]);
 
   const selectedWarehouse = useMemo(
@@ -820,6 +828,37 @@ export default function PosCheckoutPage() {
         return;
       }
 
+      if (!typing && (e.key === "+" || e.key === "=") && cart.length) {
+        e.preventDefault();
+        setCart((prev) => {
+          if (!prev.length) return prev;
+          const last = prev[prev.length - 1];
+          const nextQty = last.quantity + 1;
+          if (last.isTracked && nextQty > last.stock) {
+            toast.error(`${t.stock}: ${last.stock}`);
+            return prev;
+          }
+          return prev.map((x, i) =>
+            i === prev.length - 1 ? { ...x, quantity: nextQty } : x,
+          );
+        });
+        return;
+      }
+      if (!typing && e.key === "-" && cart.length) {
+        e.preventDefault();
+        setCart((prev) => {
+          if (!prev.length) return prev;
+          return prev
+            .map((x, i) =>
+              i === prev.length - 1
+                ? { ...x, quantity: Math.max(0, x.quantity - 1) }
+                : x,
+            )
+            .filter((x) => x.quantity > 0);
+        });
+        return;
+      }
+
       if (e.key !== "Escape") return;
       if (shortcutsOpen) {
         setShortcutsOpen(false);
@@ -842,7 +881,7 @@ export default function PosCheckoutPage() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [cart.length, t.clearConfirm, focusScan, shortcutsOpen, parkEdit]);
+  }, [cart.length, t.clearConfirm, t.stock, focusScan, shortcutsOpen, parkEdit]);
 
   const onWarehouseChange = (id: string) => {
     setWarehouseId(id);
@@ -3233,6 +3272,8 @@ export default function PosCheckoutPage() {
               <li>{t.shortcutF8}</li>
               <li>{t.shortcutF9}</li>
               <li>{t.shortcutF10}</li>
+              <li>{t.shortcutQtyPlus}</li>
+              <li>{t.shortcutQtyMinus}</li>
               <li>{t.shortcutHelp}</li>
             </ul>
           </div>
