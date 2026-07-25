@@ -88,6 +88,7 @@ Public flags: `asyncApprovals: true`, `nfcBadgesConfigured`, `shiftVarianceLimit
 - [x] Split tender (multi-payment on one sale — `payments[]` sums to total; Cash+Card UI)
 - [x] Parked cart notes (`pos_drafts.notes`, park/edit/recall → sale notes prefix)
 - [x] Tip on sale (`tipAmount` → tax-free Tip / بقشيش line; presets 0 / 5% / 10% / custom)
+- [x] **Cashier commission + customer loyalty points** (`incentives_config`, ledgers, compact header chip, `/pos/settings` toggles; accrue on sale / reverse on void)
 
 ### Planned
 - [ ] Partner NFC tap-to-pay (gateway / wallet partners — not badge dual-control)
@@ -117,7 +118,7 @@ Public flags: `asyncApprovals: true`, `nfcBadgesConfigured`, `shiftVarianceLimit
 7. Offline sales queue in IndexedDB flushes when the browser goes online; header shows pending count + Sync.
 8. NFC badge registration is ADMIN-only in Security settings; hashes live in `security_config` JSON (no new migration). Web NFC = Android Chrome + HTTPS.
 9. Closing a shift with `|closingCash − expectedCash| > shiftVarianceLimit` requires dual-control (`SHIFT_CLOSE_VARIANCE`).
-10. Creating an `ApprovalRequest` best-effort WhatsApps configured manager phones (or company phone) with a short Arabic/English ping to `/pos/approvals`.
+10. Deploy migration `20260725240000_pos_incentives` for commission/loyalty (`incentives_config`, `cashier_commission_ledger`, `loyalty_points_ledger`, `contacts.loyalty_points`). Enable via **POS Settings → Commission & loyalty**.10. Creating an `ApprovalRequest` best-effort WhatsApps configured manager phones (or company phone) with a short Arabic/English ping to `/pos/approvals`.
 11. Checkout strip: open shift → `/pos/shifts`; today totals from `GET /pos/stats/today` (Asia/Muscat day boundary).
 12. Cash drawer: ESC `p 0 25 250` via Web Serial; auto-kick after cash when `preferCashDrawer` is on (defaults with prefer-thermal).
 13. `requireOpenShift` (default **false**) blocks `POST /pos/sales` and checkout UI when no open shift; enable in Dual Control / POS settings.

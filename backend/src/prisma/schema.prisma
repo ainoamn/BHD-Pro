@@ -39,6 +39,8 @@ model Company {
   ftaConfig   Json?   @map("tax_config")
   /// Dual-control / maker-checker settings (PIN hash, action toggles). Null = secure defaults.
   securityConfig Json? @map("security_config")
+  /// POS cashier commission + customer loyalty points (JSON).
+  incentivesConfig Json? @map("incentives_config")
 
   /// Explicit bind between Hisaby Accounting and Hisaby POS
   posLinkedAt DateTime? @map("pos_linked_at")
@@ -86,6 +88,8 @@ model Company {
   attachments Attachment[]
   managementAlerts ManagementAlert[]
   customerDisputes CustomerDispute[]
+  cashierCommissionLedger CashierCommissionLedger[]
+  loyaltyPointsLedger LoyaltyPointsLedger[]
 
   @@index([vatNumber])
   @@index([crNumber])
@@ -135,6 +139,8 @@ model User {
   posShiftsClosed PosShift[] @relation("PosShiftClosedBy")
   posCashMovementsCreated PosCashMovement[] @relation("PosCashMovementCreatedBy")
   dualControlOtpsRequested DualControlOtp[] @relation("DualControlOtpRequestedBy")
+  cashierCommissionLedger CashierCommissionLedger[] @relation("CashierCommissionUser")
+  cashierCommissionCreated CashierCommissionLedger[] @relation("CashierCommissionCreatedBy")
 
   @@index([companyId])
   @@index([email])
@@ -1097,6 +1103,7 @@ model Contact {
   currentBalance Decimal @default(0) @map("current_balance")
   creditLimit Decimal? @map("credit_limit")
   paymentTerms Int?     @map("payment_terms")
+  loyaltyPoints Decimal @default(0) @db.Decimal(14, 3) @map("loyalty_points")
 
   website     String?
   notes       String?
@@ -1110,6 +1117,7 @@ model Contact {
   purchaseOrders PurchaseOrder[]
   scheduledInvoices ScheduledInvoice[]
   deliveryNotes DeliveryNote[]
+  loyaltyPointsLedger LoyaltyPointsLedger[]
 
   @@index([companyId])
   @@index([type])
@@ -1684,4 +1692,42 @@ model CustomerDispute {
   @@index([invoiceId])
   @@index([publicCode])
   @@map("customer_disputes")
+}
+
+/// Cashier commission EARN / PAYOUT / ADJUST ledger
+model CashierCommissionLedger {
+  id          String   @id @default(uuid())
+  companyId   String   @map("company_id")
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  userId      String   @map("user_id")
+  user        User     @relation("CashierCommissionUser", fields: [userId], references: [id], onDelete: Cascade)
+  invoiceId   String?  @map("invoice_id")
+  /// EARN | PAYOUT | ADJUST
+  type        String
+  amount      Decimal  @db.Decimal(14, 3)
+  note        String?
+  createdById String?  @map("created_by_id")
+  createdBy   User?    @relation("CashierCommissionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([companyId, userId, createdAt])
+  @@map("cashier_commission_ledger")
+}
+
+/// Customer loyalty points EARN / REDEEM / ADJUST ledger
+model LoyaltyPointsLedger {
+  id         String   @id @default(uuid())
+  companyId  String   @map("company_id")
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  contactId  String   @map("contact_id")
+  contact    Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  invoiceId  String?  @map("invoice_id")
+  /// EARN | REDEEM | ADJUST
+  type       String
+  points     Decimal  @db.Decimal(14, 3)
+  note       String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([companyId, contactId, createdAt])
+  @@map("loyalty_points_ledger")
 }

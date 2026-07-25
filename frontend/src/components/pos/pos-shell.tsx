@@ -20,6 +20,7 @@ import { useAuthStore } from "@/store/auth";
 import { useLocaleStore } from "@/store/locale";
 import { posCopy } from "@/lib/pos-copy";
 import { flushPendingPosSales, pendingSalesCount } from "@/lib/pos-offline-sync";
+import { PosCommissionChip } from "@/components/pos/pos-commission-chip";
 
 export function PosShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -168,6 +169,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
           <div className="flex items-center gap-1.5 sm:gap-2">
+            <PosCommissionChip />
             {pendingCount > 0 ? (
               <button
                 type="button"

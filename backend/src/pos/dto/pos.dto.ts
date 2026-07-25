@@ -295,3 +295,58 @@ export class UpdatePosDraftDto {
   @MaxLength(500)
   notes?: string;
 }
+
+export class CashierBonusTierDto {
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  minSales: number;
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  bonusAmount: number;
+}
+
+export class UpdateIncentivesConfigDto {
+  @IsOptional()
+  @IsBoolean()
+  cashierEnabled?: boolean;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  cashierPercent?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  customerEnabled?: boolean;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  customerPointsPerUnit?: number;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CashierBonusTierDto)
+  cashierBonusTiers?: CashierBonusTierDto[];
+}
+
+export class PayoutCommissionDto {
+  @IsUUID()
+  userId: string;
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.001)
+  amount: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  note?: string;
+}

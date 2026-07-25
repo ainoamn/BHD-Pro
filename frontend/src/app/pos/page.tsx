@@ -134,6 +134,8 @@ export default function PosCheckoutPage() {
   const [contactId, setContactId] = useState("");
   const [customerRecentPurchases, setCustomerRecentPurchases] = useState<RecentCashSale[]>([]);
   const [customerPurchasesLoading, setCustomerPurchasesLoading] = useState(false);
+  const [customerLoyaltyPoints, setCustomerLoyaltyPoints] = useState<number | null>(null);
+  const [loyaltyEnabled, setLoyaltyEnabled] = useState(false);
   const [voidTarget, setVoidTarget] = useState<RecentCashSale | null>(null);
   const [voidBusy, setVoidBusy] = useState(false);
   const [refundTarget, setRefundTarget] = useState<RecentCashSale | null>(null);
@@ -344,6 +346,8 @@ export default function PosCheckoutPage() {
     if (!contactId) {
       setCustomerRecentPurchases([]);
       setCustomerPurchasesLoading(false);
+      setCustomerLoyaltyPoints(null);
+      setLoyaltyEnabled(false);
       return;
     }
     let cancelled = false;
@@ -358,6 +362,20 @@ export default function PosCheckoutPage() {
         if (!cancelled) setCustomerRecentPurchases([]);
       } finally {
         if (!cancelled) setCustomerPurchasesLoading(false);
+      }
+      try {
+        const pts = await api.getPosCustomerPoints(contactId);
+        if (!cancelled) {
+          setLoyaltyEnabled(!!pts.data.customerEnabled);
+          setCustomerLoyaltyPoints(
+            pts.data.customerEnabled ? Number(pts.data.points) : null,
+          );
+        }
+      } catch {
+        if (!cancelled) {
+          setCustomerLoyaltyPoints(null);
+          setLoyaltyEnabled(false);
+        }
       }
     })();
     return () => {
@@ -1558,6 +1576,11 @@ export default function PosCheckoutPage() {
               <span className="hidden sm:inline">{t.addCustomer}</span>
             </button>
           </label>
+          {contactId && loyaltyEnabled && customerLoyaltyPoints != null ? (
+            <p className="text-[11px] text-violet-300/90 ps-0.5 tabular-nums">
+              {t.points}: {Number(customerLoyaltyPoints).toFixed(0)}
+            </p>
+          ) : null}
           {contactId ? (
             <div className="pt-1.5 border-t border-white/5 space-y-1.5">
               <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">

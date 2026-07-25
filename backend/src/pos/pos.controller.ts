@@ -8,6 +8,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
 import { PosService } from './pos.service';
+import { PosIncentivesService } from './pos-incentives.service';
 import {
   ClosePosShiftDto,
   CreatePosCashMovementDto,
@@ -15,7 +16,9 @@ import {
   CreatePosSaleDto,
   LinkPosDto,
   OpenPosShiftDto,
+  PayoutCommissionDto,
   RefundPosSaleDto,
+  UpdateIncentivesConfigDto,
   UpdatePosDraftDto,
   VoidPosSaleDto,
 } from './dto/pos.dto';
@@ -49,9 +52,76 @@ const POS_STAFF = [
 export class PosController {
   constructor(
     private pos: PosService,
+    private incentives: PosIncentivesService,
     private payments: PaymentsService,
     private companyGateways: CompanyGatewaysService,
   ) {}
+
+  @Get('incentives/config')
+  @Roles(...POS_STAFF)
+  @ApiOperation({ summary: 'POS incentives config (commission + loyalty)' })
+  incentivesConfig(@CurrentUser() user: TokenPayload) {
+    return this.incentives.getConfig(user.companyId);
+  }
+
+  @Patch('incentives/config')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Update POS incentives config (ADMIN)' })
+  updateIncentivesConfig(
+    @CurrentUser() user: TokenPayload,
+    @Body() dto: UpdateIncentivesConfigDto,
+  ) {
+    return this.incentives.updateConfig(user.companyId, dto);
+  }
+
+  @Get('incentives/me')
+  @Roles(...POS_STAFF)
+  @ApiOperation({ summary: 'Current cashier commission summary' })
+  myIncentives(@CurrentUser() user: TokenPayload) {
+    return this.incentives.getCashierSummary(user.companyId, user.sub);
+  }
+
+  @Get('incentives/me/ledger')
+  @Roles(...POS_STAFF)
+  @ApiOperation({ summary: 'Current cashier commission ledger' })
+  myIncentivesLedger(
+    @CurrentUser() user: TokenPayload,
+    @Query('take') take?: string,
+  ) {
+    const n = take ? parseInt(take, 10) : 20;
+    return this.incentives.listCashierLedger(
+      user.companyId,
+      user.sub,
+      Number.isFinite(n) ? n : 20,
+    );
+  }
+
+  @Post('incentives/payout')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  @ApiOperation({ summary: 'Pay out cashier commission (ADMIN/MANAGER)' })
+  payoutCommission(
+    @CurrentUser() user: TokenPayload,
+    @Body() dto: PayoutCommissionDto,
+  ) {
+    return this.incentives.payout(
+      user.companyId,
+      user.sub,
+      dto.userId,
+      dto.amount,
+      dto.note,
+    );
+  }
+
+  @Get('incentives/customers/:contactId/points')
+  @Roles(...POS_STAFF)
+  @ApiOperation({ summary: 'Customer loyalty points for POS display' })
+  customerPoints(
+    @CurrentUser() user: TokenPayload,
+    @Param('contactId') contactId: string,
+  ) {
+    return this.incentives.getContactPoints(user.companyId, contactId);
+  }
 
   @Get('link-status')
   @ApiOperation({ summary: 'Accounting ↔ POS link status for company' })

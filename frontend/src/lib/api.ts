@@ -1646,6 +1646,75 @@ class ApiClient {
   updatePosDraft(id: string, data: { name?: string; notes?: string }) {
     return this.patch(`/pos/drafts/${id}`, data);
   }
+
+  getPosIncentivesConfig() {
+    return this.get<{
+      cashierEnabled?: boolean;
+      cashierPercent?: number;
+      cashierBonusTiers?: { minSales: number; bonusAmount: number }[];
+      customerEnabled?: boolean;
+      customerPointsPerUnit?: number;
+    }>("/pos/incentives/config");
+  }
+
+  updatePosIncentivesConfig(data: {
+    cashierEnabled?: boolean;
+    cashierPercent?: number;
+    cashierBonusTiers?: { minSales: number; bonusAmount: number }[];
+    customerEnabled?: boolean;
+    customerPointsPerUnit?: number;
+  }) {
+    return this.patch("/pos/incentives/config", data);
+  }
+
+  getMyPosIncentives() {
+    return this.get<{
+      earned: number;
+      paid: number;
+      remaining: number;
+      todaySales: number;
+      todayCommission: number;
+      nextTier?: {
+        minSales: number;
+        bonusAmount: number;
+        progress: number;
+      } | null;
+      config: {
+        cashierEnabled?: boolean;
+        cashierPercent?: number;
+        cashierBonusTiers?: { minSales: number; bonusAmount: number }[];
+        customerEnabled?: boolean;
+        customerPointsPerUnit?: number;
+      };
+    }>("/pos/incentives/me");
+  }
+
+  getMyPosIncentivesLedger(take = 5) {
+    return this.get<
+      {
+        id: string;
+        type: string;
+        amount: number | string;
+        note?: string | null;
+        invoiceId?: string | null;
+        createdAt: string;
+      }[]
+    >(`/pos/incentives/me/ledger?take=${take}`);
+  }
+
+  payoutPosCommission(data: { userId: string; amount: number; note?: string }) {
+    return this.post("/pos/incentives/payout", data);
+  }
+
+  getPosCustomerPoints(contactId: string) {
+    return this.get<{
+      contactId: string;
+      name: string;
+      points: number;
+      customerEnabled: boolean;
+      pointsPerUnit: number;
+    }>(`/pos/incentives/customers/${encodeURIComponent(contactId)}/points`);
+  }
 }
 
 export const api = new ApiClient();

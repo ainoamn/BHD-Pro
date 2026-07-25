@@ -33,6 +33,7 @@ import {
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { GlPostingService } from '../journal/gl-posting.service';
 import { CustomerNotifyService } from '../notifications/customer-notify.service';
+import { PosIncentivesService } from './pos-incentives.service';
 
 const WALK_IN_NAME = 'POS Walk-in / نقدي';
 
@@ -47,6 +48,7 @@ export class PosService {
     private subscriptions: SubscriptionsService,
     private glPosting: GlPostingService,
     private customerNotify: CustomerNotifyService,
+    private incentives: PosIncentivesService,
   ) {}
 
   private hashKey(secret: string) {
@@ -570,6 +572,16 @@ export class PosService {
 
     this.fireCustomerNotify('void', companyId, invoiceId, invoice.contactId);
 
+    try {
+      await this.incentives.reverseOnVoid(
+        companyId,
+        invoiceId,
+        invoice.createdById,
+      );
+    } catch {
+      /* never fail void */
+    }
+
     return {
       voided: true,
       invoice: cancelled,
@@ -1006,6 +1018,17 @@ export class PosService {
 
       if (contact.name !== WALK_IN_NAME && contact.phone) {
         this.fireCustomerNotify('sale', companyId, invoice.id, contact.id);
+      }
+
+      try {
+        await this.incentives.accrueOnSale(
+          companyId,
+          userId,
+          { id: invoice.id, total: invoice.total },
+          contact.name !== WALK_IN_NAME ? contact.id : null,
+        );
+      } catch {
+        /* never fail sale */
       }
 
       return invoice;
