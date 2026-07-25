@@ -43,6 +43,8 @@ type MenuItem = {
   nameEn: string | null;
   price: string | number;
   category: string;
+  image?: string | null;
+  images?: string[];
   defaultStationId?: string | null;
 };
 
@@ -558,6 +560,7 @@ export default function RestoFloorPage() {
                         typeof m.price === "number"
                           ? m.price
                           : Number(m.price);
+                      const img = m.image || m.images?.[0] || null;
                       return (
                         <li key={m.id}>
                           <button
@@ -568,7 +571,19 @@ export default function RestoFloorPage() {
                             }
                             className="w-full flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-start text-sm hover:bg-white/5 disabled:opacity-50"
                           >
-                            <span className="truncate">{label}</span>
+                            <span className="flex items-center gap-2 min-w-0">
+                              {img ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={img}
+                                  alt=""
+                                  className="w-9 h-9 rounded-lg object-cover shrink-0 border border-white/10"
+                                />
+                              ) : (
+                                <span className="w-9 h-9 rounded-lg bg-white/5 shrink-0" />
+                              )}
+                              <span className="truncate">{label}</span>
+                            </span>
                             <span className="text-xs text-stone-500 tabular-nums shrink-0">
                               {Number.isNaN(price) ? "—" : price.toFixed(3)}
                             </span>
