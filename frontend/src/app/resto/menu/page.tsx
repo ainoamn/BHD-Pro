@@ -43,6 +43,22 @@ export default function RestoMenuPage() {
   const [stations, setStations] = useState<Station[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [eightySix, setEightySix] = useState<
+    Array<{
+      productId: string;
+      note: string | null;
+      product: { name: string; nameEn: string | null } | null;
+    }>
+  >([]);
+
+  const load86 = async () => {
+    try {
+      const res = await api.getRestoMenu86();
+      setEightySix(res.data.items || []);
+    } catch {
+      /* ignore */
+    }
+  };
 
   useEffect(() => {
     void api
@@ -51,6 +67,7 @@ export default function RestoMenuPage() {
         setStations(res.data.stations || []);
       })
       .catch(() => undefined);
+    void load86();
   }, []);
 
   useEffect(() => {
@@ -97,6 +114,35 @@ export default function RestoMenuPage() {
         ),
       );
       toast.success(locale === "en" ? "Station saved" : "حُفظت المحطة");
+    } catch {
+      toast.error(t.actionFail);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const mark86 = async (productId: string) => {
+    setBusyId(productId);
+    try {
+      await api.setRestoMenu86({ productId });
+      setItems((prev) => prev.filter((it) => it.id !== productId));
+      await load86();
+      toast.success(t.menu86Mark);
+    } catch {
+      toast.error(t.actionFail);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const clear86 = async (productId: string) => {
+    setBusyId(productId);
+    try {
+      await api.clearRestoMenu86(productId);
+      await load86();
+      const res = await api.getRestoMenu(q.trim() || undefined);
+      setItems(res.data.items || []);
+      toast.success(t.menu86Clear);
     } catch {
       toast.error(t.actionFail);
     } finally {
@@ -194,13 +240,23 @@ export default function RestoMenuPage() {
                     </p>
                   ) : null}
                   {canManage ? (
-                    <Link
-                      href="/inventory"
-                      className="inline-flex items-center gap-1 text-[11px] text-amber-300/90 hover:text-amber-200 mt-auto"
-                    >
-                      <Pencil className="w-3 h-3" />
-                      {t.editInInventory}
-                    </Link>
+                    <div className="flex items-center justify-between gap-2 mt-auto">
+                      <Link
+                        href="/inventory"
+                        className="inline-flex items-center gap-1 text-[11px] text-amber-300/90 hover:text-amber-200"
+                      >
+                        <Pencil className="w-3 h-3" />
+                        {t.editInInventory}
+                      </Link>
+                      <button
+                        type="button"
+                        disabled={busyId === item.id}
+                        onClick={() => void mark86(item.id)}
+                        className="text-[11px] font-bold text-rose-300/90 hover:text-rose-200"
+                      >
+                        {t.menu86Mark}
+                      </button>
+                    </div>
                   ) : null}
                 </div>
               </li>
@@ -208,6 +264,41 @@ export default function RestoMenuPage() {
           })}
         </ul>
       )}
+
+      <div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-4 space-y-3">
+        <div>
+          <h2 className="font-bold text-rose-100">{t.menu86Title}</h2>
+          <p className="text-xs text-stone-400 mt-0.5">{t.menu86Sub}</p>
+        </div>
+        {eightySix.length === 0 ? (
+          <p className="text-sm text-stone-500">{t.menu86Empty}</p>
+        ) : (
+          <ul className="space-y-2">
+            {eightySix.map((row) => {
+              const label =
+                locale === "en" && row.product?.nameEn
+                  ? row.product.nameEn
+                  : row.product?.name || row.productId;
+              return (
+                <li
+                  key={row.productId}
+                  className="flex items-center justify-between gap-2 text-sm"
+                >
+                  <span className="font-semibold text-rose-100/90">{label}</span>
+                  <button
+                    type="button"
+                    disabled={busyId === row.productId}
+                    onClick={() => void clear86(row.productId)}
+                    className="text-[11px] font-bold text-emerald-300 hover:text-emerald-200"
+                  >
+                    {t.menu86Clear}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }

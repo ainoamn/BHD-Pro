@@ -30,17 +30,21 @@ import {
   CreateRestoReservationDto,
   CreateRestoStationDto,
   CreateRestoTableDto,
+  CreateRestoWaitlistDto,
   CreateRestoZoneDto,
+  FireRestoCourseDto,
   LinkRestoDto,
   MergeRestoOrderDto,
   OpenRestoOrderDto,
   SeedRestoFloorDto,
+  SetRestoMenu86Dto,
   SetRestoProductStationDto,
   SetRestoWarehouseDto,
   SplitRestoOrderDto,
   TransferRestoOrderDto,
   UpdateRestoOrderDto,
   UpdateRestoOrderItemDto,
+  UpdateRestoWaitlistStatusDto,
   UpsertRestoRecipeDto,
   UpdateRestoReservationStatusDto,
 } from './dto/resto.dto';
@@ -304,8 +308,13 @@ export class RestoController {
 
   @Post('orders/:id/send')
   @Roles(...RESTO_STAFF)
-  send(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
-    return this.resto.sendToKitchen(user.companyId, id);
+  @ApiOperation({ summary: 'Fire pending items to KDS (optional course filter)' })
+  send(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+    @Body() dto?: FireRestoCourseDto,
+  ) {
+    return this.resto.sendToKitchen(user.companyId, id, dto?.course);
   }
 
   @Post('orders/:id/close')
@@ -475,5 +484,66 @@ export class RestoController {
     @Param('productId') productId: string,
   ) {
     return this.resto.deleteRecipe(user.companyId, productId);
+  }
+
+  @Get('waitlist')
+  @Roles(...RESTO_STAFF)
+  @ApiOperation({ summary: 'Active walk-in waitlist' })
+  waitlist(@CurrentUser() user: TokenPayload) {
+    return this.resto.listWaitlist(user.companyId);
+  }
+
+  @Post('waitlist')
+  @Roles(...RESTO_STAFF)
+  @ApiOperation({ summary: 'Add guest to waitlist' })
+  createWaitlist(
+    @CurrentUser() user: TokenPayload,
+    @Body() dto: CreateRestoWaitlistDto,
+  ) {
+    return this.resto.createWaitlist(user.companyId, dto);
+  }
+
+  @Patch('waitlist/:id/status')
+  @Roles(...RESTO_STAFF)
+  @ApiOperation({ summary: 'Update waitlist status (seat opens dine-in order)' })
+  updateWaitlistStatus(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+    @Body() dto: UpdateRestoWaitlistStatusDto,
+  ) {
+    return this.resto.updateWaitlistStatus(
+      user.companyId,
+      id,
+      user.sub,
+      dto.status,
+      dto.tableId,
+    );
+  }
+
+  @Get('menu/86')
+  @Roles(...RESTO_STAFF)
+  @ApiOperation({ summary: 'List 86\'d (unavailable) menu items' })
+  list86(@CurrentUser() user: TokenPayload) {
+    return this.resto.listMenu86(user.companyId);
+  }
+
+  @Post('menu/86')
+  @Roles(...RESTO_FLOOR_MGR, UserRole.WAITER, UserRole.KITCHEN)
+  @ApiOperation({ summary: 'Mark menu item as 86 (unavailable)' })
+  set86(
+    @CurrentUser() user: TokenPayload,
+    @Body() dto: SetRestoMenu86Dto,
+  ) {
+    return this.resto.setMenu86(user.companyId, dto);
+  }
+
+  @Delete('menu/86/:productId')
+  @Roles(...RESTO_FLOOR_MGR, UserRole.WAITER, UserRole.KITCHEN)
+  @ApiOperation({ summary: 'Clear 86 — item available again' })
+  clear86(
+    @CurrentUser() user: TokenPayload,
+    @Param('productId') productId: string,
+  ) {
+    return this.resto.clearMenu86(user.companyId, productId);
   }
 }

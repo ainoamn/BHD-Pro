@@ -17,6 +17,7 @@ import {
   Soup,
   Store,
   Truck,
+  Users,
   UtensilsCrossed,
 } from "lucide-react";
 import api from "@/lib/api";
@@ -131,6 +132,12 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
       label: t.reservations,
       icon: CalendarDays,
       active: pathname?.startsWith("/resto/reservations"),
+    },
+    {
+      href: "/resto/waitlist",
+      label: t.waitlist,
+      icon: Users,
+      active: pathname?.startsWith("/resto/waitlist"),
     },
     {
       href: "/resto/reports",

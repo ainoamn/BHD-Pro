@@ -127,6 +127,74 @@ export class AddRestoOrderItemDto {
   @ValidateNested({ each: true })
   @Type(() => RestoModifierChoiceDto)
   modifiers?: RestoModifierChoiceDto[];
+
+  /** 0=drinks · 1=starter · 2=main · 3=dessert */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(3)
+  course?: number;
+}
+
+export class FireRestoCourseDto {
+  /** Fire only this course; omit = all pending */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(3)
+  course?: number;
+}
+
+export class CreateRestoWaitlistDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(120)
+  guestName: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  phone?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  guests?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(240)
+  quotedMinutes?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  notes?: string;
+}
+
+export class UpdateRestoWaitlistStatusDto {
+  @IsIn(['WAITING', 'NOTIFIED', 'SEATED', 'CANCELLED', 'NO_SHOW'])
+  status: 'WAITING' | 'NOTIFIED' | 'SEATED' | 'CANCELLED' | 'NO_SHOW';
+
+  @IsOptional()
+  @IsUUID()
+  tableId?: string;
+}
+
+export class SetRestoMenu86Dto {
+  @IsUUID()
+  productId: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  note?: string;
 }
 
 export class TransferRestoOrderDto {
@@ -211,6 +279,13 @@ export class UpdateRestoOrderItemDto {
   @IsString()
   @MaxLength(300)
   notes?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(3)
+  course?: number;
 }
 
 export class UpdateRestoOrderDto {

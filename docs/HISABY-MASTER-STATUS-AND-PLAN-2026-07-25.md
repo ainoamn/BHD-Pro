@@ -112,7 +112,7 @@ npx prisma migrate deploy
 - **J** جهاز tap-to-pay طرفي إن لزم
 - **K** Capacitor build إن فشلت PWA
 - **L** تحسينات UX onboarding وقوالب قطاعات
-- **Resto** courses/fire · waitlist · تكامل تطبيقات توصيل
+- **Resto** تكامل تطبيقات توصيل · guest app
 
 ---
 

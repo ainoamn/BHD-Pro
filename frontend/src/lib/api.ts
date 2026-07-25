@@ -31,6 +31,7 @@ export type RestoOrderPayload = {
     unitPrice: number;
     lineTotal: number;
     notes: string | null;
+    course?: number;
     status: string;
   }>;
   subtotal: number;
@@ -1269,6 +1270,25 @@ class ApiClient {
     >('/dual-control/requests/pending');
   }
 
+  listDualControlHistory(limit?: number) {
+    return this.get<
+      {
+        id: string;
+        action: string;
+        status: string;
+        summary?: string | null;
+        expiresAt: string;
+        createdAt: string;
+        updatedAt?: string;
+        decisionNote?: string | null;
+        requestedBy?: { id: string; name: string; email: string };
+        decidedBy?: { id: string; name: string; email: string } | null;
+      }[]
+    >('/dual-control/requests/history', {
+      params: limit ? { limit } : undefined,
+    });
+  }
+
   getDualControlRequest(id: string) {
     return this.get<{
       id: string;
@@ -1694,6 +1714,7 @@ class ApiClient {
       qty?: number;
       notes?: string;
       stationId?: string;
+      course?: number;
       modifiers?: Array<{ name: string; priceDelta?: number }>;
     },
   ) {
@@ -1703,7 +1724,7 @@ class ApiClient {
   updateRestoOrderItem(
     orderId: string,
     itemId: string,
-    data: { qty?: number; notes?: string },
+    data: { qty?: number; notes?: string; course?: number },
   ) {
     return this.patch<RestoOrderPayload>(
       `/resto/orders/${orderId}/items/${itemId}`,
@@ -1761,6 +1782,68 @@ class ApiClient {
     return this.post('/resto/modifiers', data);
   }
 
+  getRestoWaitlist() {
+    return this.get<{
+      count: number;
+      entries: Array<{
+        id: string;
+        guestName: string;
+        phone: string | null;
+        guests: number;
+        quotedMinutes: number | null;
+        status: string;
+        notes: string | null;
+        waitedMinutes: number;
+        createdAt: string;
+        seatedOrderId?: string | null;
+      }>;
+    }>('/resto/waitlist');
+  }
+
+  createRestoWaitlist(data: {
+    guestName: string;
+    phone?: string;
+    guests?: number;
+    quotedMinutes?: number;
+    notes?: string;
+  }) {
+    return this.post('/resto/waitlist', data);
+  }
+
+  updateRestoWaitlistStatus(
+    id: string,
+    data: {
+      status: 'WAITING' | 'NOTIFIED' | 'SEATED' | 'CANCELLED' | 'NO_SHOW';
+      tableId?: string;
+    },
+  ) {
+    return this.patch(`/resto/waitlist/${id}/status`, data);
+  }
+
+  getRestoMenu86() {
+    return this.get<{
+      items: Array<{
+        id: string;
+        productId: string;
+        note: string | null;
+        product: {
+          id: string;
+          name: string;
+          nameEn: string | null;
+          sku: string;
+        } | null;
+      }>;
+    }>('/resto/menu/86');
+  }
+
+  setRestoMenu86(data: { productId: string; note?: string }) {
+    return this.post('/resto/menu/86', data);
+  }
+
+  clearRestoMenu86(productId: string) {
+    return this.delete(`/resto/menu/86/${productId}`);
+  }
+
   /** Absolute URL for kitchen SSE (cookie auth, same-origin rewrite). */
   restoKitchenStreamUrl(stationId?: string) {
     const base =
@@ -1777,8 +1860,11 @@ class ApiClient {
     );
   }
 
-  sendRestoOrder(orderId: string) {
-    return this.post<RestoOrderPayload>(`/resto/orders/${orderId}/send`, {});
+  sendRestoOrder(orderId: string, course?: number) {
+    return this.post<RestoOrderPayload>(
+      `/resto/orders/${orderId}/send`,
+      course !== undefined ? { course } : {},
+    );
   }
 
   closeRestoOrder(

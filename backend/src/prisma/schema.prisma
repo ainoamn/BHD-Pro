@@ -109,6 +109,8 @@ model Company {
   restoReservations RestoReservation[]
   restoRecipes RestoRecipe[]
   restoModifiers RestoModifier[]
+  restoWaitlist RestoWaitlistEntry[]
+  restoMenu86 RestoMenu86[]
 
   @@index([vatNumber])
   @@index([crNumber])
@@ -1980,6 +1982,8 @@ model RestoOrderItem {
   qty        Decimal              @db.Decimal(14, 3)
   unitPrice  Decimal              @map("unit_price") @db.Decimal(14, 3)
   notes      String?
+  /// 0=drinks · 1=starter · 2=main · 3=dessert — fire by course to KDS
+  course     Int                  @default(1)
   status     RestoOrderItemStatus @default(PENDING)
   sentAt     DateTime?            @map("sent_at")
   readyAt    DateTime?            @map("ready_at")
@@ -1987,6 +1991,7 @@ model RestoOrderItem {
   updatedAt  DateTime             @updatedAt @map("updated_at")
 
   @@index([orderId, status])
+  @@index([orderId, course, status])
   @@index([stationId, status])
   @@map("resto_order_items")
 }
@@ -2006,4 +2011,48 @@ model RestoModifier {
 
   @@index([companyId, sortOrder])
   @@map("resto_modifiers")
+}
+
+enum RestoWaitlistStatus {
+  WAITING
+  NOTIFIED
+  SEATED
+  CANCELLED
+  NO_SHOW
+}
+
+/// Walk-in waitlist — seat opens a dine-in order on a free table
+model RestoWaitlistEntry {
+  id             String              @id @default(uuid())
+  companyId      String              @map("company_id")
+  company        Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  guestName      String              @map("guest_name")
+  phone          String?
+  guests         Int                 @default(2)
+  quotedMinutes  Int?                @map("quoted_minutes")
+  status         RestoWaitlistStatus @default(WAITING)
+  notes          String?
+  tableId        String?             @map("table_id")
+  seatedOrderId  String?             @map("seated_order_id")
+  notifiedAt     DateTime?           @map("notified_at")
+  seatedAt       DateTime?           @map("seated_at")
+  createdAt      DateTime            @default(now()) @map("created_at")
+  updatedAt      DateTime            @updatedAt @map("updated_at")
+
+  @@index([companyId, status, createdAt])
+  @@map("resto_waitlist")
+}
+
+/// 86'd menu items — hidden from floor/menu until cleared
+model RestoMenu86 {
+  id        String   @id @default(uuid())
+  companyId String   @map("company_id")
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  productId String   @map("product_id")
+  note      String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([companyId, productId])
+  @@index([companyId])
+  @@map("resto_menu_86")
 }

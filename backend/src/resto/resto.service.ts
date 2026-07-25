@@ -24,9 +24,11 @@ import {
   CreateRestoReservationDto,
   CreateRestoStationDto,
   CreateRestoTableDto,
+  CreateRestoWaitlistDto,
   CreateRestoZoneDto,
   MergeRestoOrderDto,
   OpenRestoOrderDto,
+  SetRestoMenu86Dto,
   SplitRestoOrderDto,
   TransferRestoOrderDto,
   UpdateRestoOrderDto,
@@ -47,6 +49,8 @@ const KITCHEN_ITEM: RestoOrderItemStatus[] = [
   RestoOrderItemStatus.PREPARING,
   RestoOrderItemStatus.READY,
 ];
+
+const ACTIVE_WAITLIST = ['WAITING', 'NOTIFIED'] as const;
 
 @Injectable()
 export class RestoService {
@@ -306,10 +310,18 @@ export class RestoService {
       orderBy: { name: 'asc' },
       take: 500,
     });
+    const eightySixed = await this.prisma.restoMenu86.findMany({
+      where: { companyId },
+      select: { productId: true, note: true },
+    });
+    const eightySixMap = new Map(
+      eightySixed.map((r) => [r.productId, r.note || true]),
+    );
+    const available = products.filter((p) => !eightySixMap.has(p.id));
     const routes = await this.prisma.restoProductStation.findMany({
       where: {
         companyId,
-        productId: { in: products.map((p) => p.id) },
+        productId: { in: available.map((p) => p.id) },
       },
       include: {
         station: { select: { id: true, name: true, nameEn: true } },
@@ -318,14 +330,14 @@ export class RestoService {
     const recipes = await this.prisma.restoRecipe.findMany({
       where: {
         companyId,
-        productId: { in: products.map((p) => p.id) },
+        productId: { in: available.map((p) => p.id) },
       },
       select: { productId: true },
     });
     const byProduct = new Map(routes.map((r) => [r.productId, r]));
     const withRecipe = new Set(recipes.map((r) => r.productId));
     return {
-      items: products.map((p) => {
+      items: available.map((p) => {
         const route = byProduct.get(p.id);
         return {
           id: p.id,
@@ -344,7 +356,8 @@ export class RestoService {
           defaultStationName: route?.station?.name ?? null,
         };
       }),
-      count: products.length,
+      count: available.length,
+      eightySixedCount: eightySixed.length,
       warehouseId,
       needsWarehouse: false,
     };
@@ -637,6 +650,7 @@ export class RestoService {
       qty: Prisma.Decimal;
       unitPrice: Prisma.Decimal;
       notes: string | null;
+      course?: number;
       status: RestoOrderItemStatus;
       sentAt: Date | null;
       readyAt: Date | null;
@@ -655,6 +669,7 @@ export class RestoService {
       unitPrice: Number(it.unitPrice),
       lineTotal: Number(it.qty) * Number(it.unitPrice),
       notes: it.notes,
+      course: it.course ?? 1,
       status: it.status,
       sentAt: it.sentAt,
       readyAt: it.readyAt,
@@ -829,6 +844,7 @@ export class RestoService {
         qty: this.decimal(qty),
         unitPrice: this.decimal(Number(product.salePrice) + priceDelta),
         notes: noteParts.join(' — ') || null,
+        course: dto.course ?? 1,
         status: RestoOrderItemStatus.PENDING,
       },
     });
@@ -1118,6 +1134,7 @@ export class RestoService {
         ...(dto.notes !== undefined
           ? { notes: dto.notes?.trim() || null }
           : {}),
+        ...(dto.course !== undefined ? { course: dto.course } : {}),
       },
     });
     return this.getOrder(companyId, orderId);
@@ -1164,8 +1181,12 @@ export class RestoService {
     return this.getOrder(companyId, orderId);
   }
 
-  /** Fire pending items to kitchen (KDS) */
-  async sendToKitchen(companyId: string, orderId: string) {
+  /** Fire pending items to kitchen (KDS), optionally by course */
+  async sendToKitchen(
+    companyId: string,
+    orderId: string,
+    course?: number,
+  ) {
     const order = await this.loadOrder(companyId, orderId);
     if (
       order.status === RestoOrderStatus.CLOSED ||
@@ -1174,16 +1195,23 @@ export class RestoService {
       throw new BadRequestException('Order is closed');
     }
     const pending = order.items.filter(
-      (i) => i.status === RestoOrderItemStatus.PENDING,
+      (i) =>
+        i.status === RestoOrderItemStatus.PENDING &&
+        (course === undefined || (i.course ?? 1) === course),
     );
     if (pending.length === 0) {
-      throw new BadRequestException('No pending items to send');
+      throw new BadRequestException(
+        course !== undefined
+          ? `No pending items for course ${course}`
+          : 'No pending items to send',
+      );
     }
     const now = new Date();
     await this.prisma.restoOrderItem.updateMany({
       where: {
         orderId,
         status: RestoOrderItemStatus.PENDING,
+        ...(course !== undefined ? { course } : {}),
       },
       data: {
         status: RestoOrderItemStatus.SENT,
@@ -1357,6 +1385,7 @@ export class RestoService {
         name: it.name,
         qty: Number(it.qty),
         notes: it.notes,
+        course: it.course ?? 1,
         status: it.status,
         sentAt: it.sentAt,
         stationId: it.stationId,
@@ -2083,6 +2112,168 @@ export class RestoService {
     });
     if (!row) throw new NotFoundException('Recipe not found');
     await this.prisma.restoRecipe.delete({ where: { id: row.id } });
+    return { ok: true, productId };
+  }
+
+  async listWaitlist(companyId: string) {
+    const rows = await this.prisma.restoWaitlistEntry.findMany({
+      where: {
+        companyId,
+        status: { in: [...ACTIVE_WAITLIST] },
+      },
+      orderBy: { createdAt: 'asc' },
+      take: 100,
+    });
+    return {
+      count: rows.length,
+      entries: rows.map((r) => this.mapWaitlist(r)),
+    };
+  }
+
+  async createWaitlist(companyId: string, dto: CreateRestoWaitlistDto) {
+    const row = await this.prisma.restoWaitlistEntry.create({
+      data: {
+        companyId,
+        guestName: dto.guestName.trim(),
+        phone: dto.phone?.trim() || null,
+        guests: dto.guests ?? 2,
+        quotedMinutes: dto.quotedMinutes ?? null,
+        notes: dto.notes?.trim() || null,
+        status: 'WAITING',
+      },
+    });
+    return this.mapWaitlist(row);
+  }
+
+  async updateWaitlistStatus(
+    companyId: string,
+    id: string,
+    userId: string,
+    status: 'WAITING' | 'NOTIFIED' | 'SEATED' | 'CANCELLED' | 'NO_SHOW',
+    tableId?: string,
+  ) {
+    const row = await this.prisma.restoWaitlistEntry.findFirst({
+      where: { id, companyId },
+    });
+    if (!row) throw new NotFoundException('Waitlist entry not found');
+
+    if (status === 'SEATED') {
+      if (!tableId) {
+        throw new BadRequestException('tableId required to seat waitlist guest');
+      }
+      const order = await this.openOrder(companyId, userId, {
+        tableId,
+        channel: RestoOrderChannel.DINE_IN,
+        guests: row.guests,
+        notes: [`Waitlist: ${row.guestName}`, row.notes]
+          .filter(Boolean)
+          .join(' — '),
+      });
+      const updated = await this.prisma.restoWaitlistEntry.update({
+        where: { id },
+        data: {
+          status: 'SEATED',
+          tableId,
+          seatedOrderId: order.id,
+          seatedAt: new Date(),
+        },
+      });
+      return { ...this.mapWaitlist(updated), order };
+    }
+
+    const updated = await this.prisma.restoWaitlistEntry.update({
+      where: { id },
+      data: {
+        status,
+        ...(status === 'NOTIFIED' ? { notifiedAt: new Date() } : {}),
+      },
+    });
+    return this.mapWaitlist(updated);
+  }
+
+  private mapWaitlist(r: {
+    id: string;
+    guestName: string;
+    phone: string | null;
+    guests: number;
+    quotedMinutes: number | null;
+    status: string;
+    notes: string | null;
+    tableId: string | null;
+    seatedOrderId: string | null;
+    notifiedAt: Date | null;
+    seatedAt: Date | null;
+    createdAt: Date;
+  }) {
+    const waitedMin = Math.max(
+      0,
+      Math.floor((Date.now() - r.createdAt.getTime()) / 60000),
+    );
+    return {
+      id: r.id,
+      guestName: r.guestName,
+      phone: r.phone,
+      guests: r.guests,
+      quotedMinutes: r.quotedMinutes,
+      status: r.status,
+      notes: r.notes,
+      tableId: r.tableId,
+      seatedOrderId: r.seatedOrderId,
+      notifiedAt: r.notifiedAt,
+      seatedAt: r.seatedAt,
+      createdAt: r.createdAt,
+      waitedMinutes: waitedMin,
+    };
+  }
+
+  async listMenu86(companyId: string) {
+    const rows = await this.prisma.restoMenu86.findMany({
+      where: { companyId },
+      orderBy: { createdAt: 'desc' },
+    });
+    const products = await this.prisma.product.findMany({
+      where: {
+        companyId,
+        id: { in: rows.map((r) => r.productId) },
+      },
+      select: { id: true, name: true, nameEn: true, sku: true },
+    });
+    const byId = new Map(products.map((p) => [p.id, p]));
+    return {
+      items: rows.map((r) => ({
+        id: r.id,
+        productId: r.productId,
+        note: r.note,
+        createdAt: r.createdAt,
+        product: byId.get(r.productId) || null,
+      })),
+    };
+  }
+
+  async setMenu86(companyId: string, dto: SetRestoMenu86Dto) {
+    const product = await this.prisma.product.findFirst({
+      where: { id: dto.productId, companyId },
+      select: { id: true },
+    });
+    if (!product) throw new NotFoundException('Product not found');
+    const row = await this.prisma.restoMenu86.upsert({
+      where: {
+        companyId_productId: { companyId, productId: dto.productId },
+      },
+      create: {
+        companyId,
+        productId: dto.productId,
+        note: dto.note?.trim() || null,
+      },
+      update: { note: dto.note?.trim() || null },
+    });
+    return { id: row.id, productId: row.productId, note: row.note };
+  }
+
+  async clearMenu86(companyId: string, productId: string) {
+    await this.prisma.restoMenu86.deleteMany({
+      where: { companyId, productId },
+    });
     return { ok: true, productId };
   }
 

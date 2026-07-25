@@ -11,6 +11,7 @@ type KitchenItem = {
   name: string;
   qty: number;
   notes: string | null;
+  course?: number;
   status: string;
   sentAt: string | null;
   stationId?: string | null;
@@ -330,6 +331,14 @@ export default function RestoKitchenPage() {
                     <p className="text-xs text-stone-400">
                       {t.table} {it.table?.code || "—"} · {it.orderNumber}
                       {it.stationName ? ` · ${it.stationName}` : ""}
+                      {" · "}
+                      {it.course === 0
+                        ? t.courseDrinks
+                        : it.course === 2
+                          ? t.courseMain
+                          : it.course === 3
+                            ? t.courseDessert
+                            : t.courseStarter}
                     </p>
                     <p className="text-lg font-extrabold mt-0.5">
                       {it.qty}× {it.name}

@@ -99,6 +99,7 @@ export default function RestoFloorPage() {
   const [opsTableId, setOpsTableId] = useState("");
   const [opsTargetOrderId, setOpsTargetOrderId] = useState("");
   const [splitItemIds, setSplitItemIds] = useState<string[]>([]);
+  const [course, setCourse] = useState(1);
 
   const loadFloor = useCallback(async () => {
     setLoading(true);
@@ -224,6 +225,7 @@ export default function RestoFloorPage() {
         qty: 1,
         notes: itemNote.trim() || undefined,
         stationId: stationId || defaultStationId || undefined,
+        course,
         modifiers: mods.length ? mods : undefined,
       });
       setOrder(res.data);
@@ -369,11 +371,11 @@ export default function RestoFloorPage() {
     }
   };
 
-  const sendKitchen = async () => {
+  const sendKitchen = async (fireCourse?: number) => {
     if (!order) return;
     setBusy(true);
     try {
-      const res = await api.sendRestoOrder(order.id);
+      const res = await api.sendRestoOrder(order.id, fireCourse);
       setOrder(res.data);
       await loadFloor();
     } catch {
@@ -381,6 +383,14 @@ export default function RestoFloorPage() {
     } finally {
       setBusy(false);
     }
+  };
+
+  const courseLabel = (c: number) => {
+    if (c === 0) return t.courseDrinks;
+    if (c === 1) return t.courseStarter;
+    if (c === 2) return t.courseMain;
+    if (c === 3) return t.courseDessert;
+    return `${t.course} ${c}`;
   };
 
   const printCheck = () => {
@@ -652,6 +662,7 @@ export default function RestoFloorPage() {
                             <div className="min-w-0">
                               <p className="text-sm font-semibold truncate">{it.name}</p>
                               <p className="text-[11px] text-stone-500">
+                                {courseLabel(it.course ?? 1)} ·{" "}
                                 {itemStatusLabel(it.status)} · {fmt(it.lineTotal)}
                               </p>
                             </div>
@@ -861,6 +872,25 @@ export default function RestoFloorPage() {
                 </div>
 
                 <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {([0, 1, 2, 3] as const).map((c) => {
+                      const n = order.items.filter(
+                        (i) => i.status === "PENDING" && (i.course ?? 1) === c,
+                      ).length;
+                      return (
+                        <button
+                          key={c}
+                          type="button"
+                          disabled={busy || n === 0}
+                          onClick={() => void sendKitchen(c)}
+                          className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 py-1.5 text-[10px] font-bold text-amber-100 disabled:opacity-40"
+                        >
+                          {t.fireCourse}: {courseLabel(c)}
+                          {n > 0 ? ` (${n})` : ""}
+                        </button>
+                      );
+                    })}
+                  </div>
                   <button
                     type="button"
                     disabled={busy || pendingCount === 0}
@@ -868,7 +898,8 @@ export default function RestoFloorPage() {
                     className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-amber-500 px-3 py-2.5 text-xs font-bold text-[#14110f] disabled:opacity-50"
                   >
                     <Send className="w-3.5 h-3.5" />
-                    {t.sendKitchen}
+                    {t.fireAll}
+                    {pendingCount > 0 ? ` (${pendingCount})` : ""}
                   </button>
                   <div className="grid grid-cols-2 gap-2">
                     <button
@@ -911,6 +942,22 @@ export default function RestoFloorPage() {
 
                 <div className="border-t border-white/10 pt-3 space-y-2">
                   <p className="text-xs font-bold text-stone-300">{t.addItems}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {([0, 1, 2, 3] as const).map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => setCourse(c)}
+                        className={`rounded-lg px-2 py-1 text-[10px] font-bold border ${
+                          course === c
+                            ? "border-amber-400/50 bg-amber-500/20 text-amber-100"
+                            : "border-white/10 text-stone-400 hover:bg-white/5"
+                        }`}
+                      >
+                        {courseLabel(c)}
+                      </button>
+                    ))}
+                  </div>
                   <input
                     value={itemNote}
                     onChange={(e) => setItemNote(e.target.value)}
