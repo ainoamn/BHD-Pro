@@ -799,6 +799,7 @@ export class PosService {
       include: {
         openedBy: { select: { id: true, name: true } },
         closedBy: { select: { id: true, name: true } },
+        warehouse: { select: { id: true, name: true, code: true } },
       },
     });
   }

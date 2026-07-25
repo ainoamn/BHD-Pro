@@ -51,11 +51,13 @@ Public flag: `asyncApprovals: true`.
 - [x] Dedicated `CASHIER` role (enum + POS ops + users UI; not an approver)
 - [x] Partial POS refund (`POST /pos/sales/:id/refund` + credit note + stock IN + line-qty UI)
 - [x] Shifts / cash drawer / Z-report (`pos_shifts`, `/pos/shifts`, printable Z on close)
+- [x] Per-warehouse open shifts
+- [x] ESC/POS Web Serial (+ browser thermal fallback)
+- [x] Offline sale queue (IndexedDB) + sync on `online`
 
 ### Planned
 - [ ] NFC badge method
-- [ ] Full offline queue + sync
-- [ ] Real ESC/POS / raw printer bridge
+- [ ] Full offline catalog/stock cache
 - [ ] Partner NFC tap-to-pay
 - [ ] Native wrapper (Capacitor) if PWA limits hit
 - [ ] Dual-control on shift close variance
@@ -68,6 +70,7 @@ Public flag: `asyncApprovals: true`.
 1. Deploy migration `20260725170000_cashier_shifts_otp` (adds `CASHIER`, `pos_shifts`, `invoice.pos_shift_id`, dual-control OTP table).
 2. Also ensure prior migrations including `20260725160000_approval_requests` are applied.
 3. Managers open **Approvals** from POS header (`/pos/approvals`).
-4. Staff open **Shift** from POS header (`/pos/shifts`) for open/close + Z-report print.
+4. Staff open **Shift** from POS header (`/pos/shifts`) — one open shift per warehouse.
 5. Camera needs HTTPS (or localhost) + user permission.
-6. Receipt print remains browser print — ESC/POS is a later bridge.
+6. Receipt print tries Web Serial ESC/POS then falls back to browser 80mm print.
+7. Offline sales queue in IndexedDB flushes when the browser goes online.
