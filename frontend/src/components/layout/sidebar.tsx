@@ -38,6 +38,7 @@ import {
   ShieldAlert,
   MessageCircle,
   Brain,
+  Store,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUIStore } from "@/store/ui";
@@ -153,6 +154,30 @@ export function Sidebar() {
             <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{tApp("tagline")}</p>
           </div>
         )}
+      </div>
+
+      <div className="px-3 pt-3 shrink-0">
+        <Link
+          href="/pos"
+          onClick={async () => {
+            closeMobile();
+            try {
+              const res = await api.getPosLinkStatus();
+              if (!res.data.linked) await api.activatePosLink();
+            } catch {
+              /* POS shell handles link status */
+            }
+          }}
+          className={cn(
+            "flex items-center gap-3 px-3 py-2.5 rounded-lg bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/20 hover:bg-sky-500/20 transition-all",
+            sidebarCollapsed && "justify-center px-2"
+          )}
+        >
+          <Store className="w-5 h-5 flex-shrink-0" />
+          {!sidebarCollapsed && (
+            <span className="text-sm font-bold">الكاشير / POS</span>
+          )}
+        </Link>
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">

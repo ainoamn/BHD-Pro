@@ -159,89 +159,92 @@ export function PosShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-[#0b1220] text-slate-100" dir={locale === "en" ? "ltr" : "rtl"}>
       <header className="sticky top-0 z-40 border-b border-white/10 bg-[#0b1220]/90 backdrop-blur-xl">
-        <div className="mx-auto flex h-14 max-w-[1600px] items-center justify-between gap-3 px-4">
-          <div className="flex items-center gap-3 min-w-0">
+        <div className="mx-auto flex h-14 max-w-[1600px] items-center justify-between gap-2 px-3 sm:px-4">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/brand/hisaby-mark.png" alt="" className="h-9 w-9 rounded-lg object-cover" />
-            <div className="min-w-0">
-              <p className="font-bold leading-tight truncate">{t.brand}</p>
+            <img src="/brand/hisaby-mark.png" alt="" className="h-8 w-8 sm:h-9 sm:w-9 rounded-lg object-cover shrink-0" />
+            <div className="min-w-0 hidden sm:block">
+              <p className="font-bold leading-tight truncate text-sm sm:text-base">{t.brand}</p>
               <p className="text-[11px] text-slate-500 truncate">{company?.name || t.tagline}</p>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <PosCommissionChip />
-            {pendingCount > 0 ? (
-              <button
-                type="button"
-                onClick={() => void runFlush(false)}
-                disabled={syncing}
-                title={t.pendingOffline}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500/15 px-2.5 py-1.5 text-xs font-semibold text-amber-200 hover:bg-amber-500/25 disabled:opacity-50"
-              >
-                <CloudUpload className="w-4 h-4" />
-                <span className="tabular-nums">{pendingCount}</span>
-                <span className="hidden sm:inline">{t.syncNow}</span>
-              </button>
-            ) : null}
-            <button
-              type="button"
-              onClick={() => setLocale(locale === "en" ? "ar" : "en")}
-              className="rounded-lg px-2 py-1.5 text-xs font-bold text-slate-400 hover:bg-white/5"
-            >
-              {locale === "en" ? "ع" : "EN"}
-            </button>
-            <Link
-              href="/inventory"
-              className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-300 hover:bg-white/5"
-              title={t.inventory}
-            >
-              <Package className="w-4 h-4" />
-              <span className="hidden sm:inline">{t.inventory}</span>
-            </Link>
-            <Link
-              href="/pos/shifts"
-              className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold hover:bg-sky-500/10 ${
-                shiftOpen ? "text-emerald-300" : "text-sky-200/90"
-              }`}
-              title={t.shifts}
-            >
-              <Clock3 className="w-4 h-4" />
-              <span className="hidden sm:inline">
-                {shiftOpen ? t.shiftOpen : t.shifts}
-              </span>
-            </Link>
-            {canSeeApprovals ? (
-              <Link
-                href="/pos/approvals"
-                className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-amber-200/90 hover:bg-amber-500/10"
-                title={t.approvals}
-              >
-                <ShieldCheck className="w-4 h-4" />
-                <span className="hidden sm:inline">{t.approvals}</span>
-              </Link>
-            ) : null}
-            <Link
-              href="/pos/settings"
-              className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-300 hover:bg-white/5"
-            >
-              <Settings2 className="w-4 h-4" />
-              <span className="hidden sm:inline">{t.settings}</span>
-            </Link>
+          <div className="flex items-center gap-1 sm:gap-2 min-w-0">
             <button
               type="button"
               onClick={goAccounting}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/15 px-2.5 py-1.5 text-xs font-bold text-emerald-300 hover:bg-emerald-500/25"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/15 px-2.5 py-1.5 text-xs font-bold text-emerald-300 hover:bg-emerald-500/25 shrink-0"
+              title={t.toAccounting}
             >
               <Calculator className="w-4 h-4" />
-              <span className="hidden sm:inline">{t.toAccounting}</span>
+              <span>{t.toAccounting}</span>
             </button>
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs text-slate-400 hover:bg-white/5"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto max-w-[46vw] sm:max-w-none scrollbar-none">
+              <PosCommissionChip />
+              {pendingCount > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => void runFlush(false)}
+                  disabled={syncing}
+                  title={t.pendingOffline}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500/15 px-2.5 py-1.5 text-xs font-semibold text-amber-200 hover:bg-amber-500/25 disabled:opacity-50 shrink-0"
+                >
+                  <CloudUpload className="w-4 h-4" />
+                  <span className="tabular-nums">{pendingCount}</span>
+                  <span className="hidden sm:inline">{t.syncNow}</span>
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => setLocale(locale === "en" ? "ar" : "en")}
+                className="rounded-lg px-2 py-1.5 text-xs font-bold text-slate-400 hover:bg-white/5 shrink-0"
+              >
+                {locale === "en" ? "ع" : "EN"}
+              </button>
+              <Link
+                href="/inventory"
+                className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-300 hover:bg-white/5 shrink-0"
+                title={t.inventory}
+              >
+                <Package className="w-4 h-4" />
+                <span className="hidden sm:inline">{t.inventory}</span>
+              </Link>
+              <Link
+                href="/pos/shifts"
+                className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold hover:bg-sky-500/10 shrink-0 ${
+                  shiftOpen ? "text-emerald-300" : "text-sky-200/90"
+                }`}
+                title={t.shifts}
+              >
+                <Clock3 className="w-4 h-4" />
+                <span className="hidden sm:inline">
+                  {shiftOpen ? t.shiftOpen : t.shifts}
+                </span>
+              </Link>
+              {canSeeApprovals ? (
+                <Link
+                  href="/pos/approvals"
+                  className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-amber-200/90 hover:bg-amber-500/10 shrink-0"
+                  title={t.approvals}
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  <span className="hidden sm:inline">{t.approvals}</span>
+                </Link>
+              ) : null}
+              <Link
+                href="/pos/settings"
+                className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-300 hover:bg-white/5 shrink-0"
+              >
+                <Settings2 className="w-4 h-4" />
+                <span className="hidden sm:inline">{t.settings}</span>
+              </Link>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs text-slate-400 hover:bg-white/5 shrink-0"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
         {linked === false && (

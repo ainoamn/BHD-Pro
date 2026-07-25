@@ -124,8 +124,8 @@ export function Topbar() {
 
         <Link
           href="/pos"
-          title="Hisaby POS"
-          onClick={async (e) => {
+          title={locale === "en" ? "Switch to POS" : "التبديل إلى الكاشير"}
+          onClick={async () => {
             try {
               const res = await api.getPosLinkStatus();
               if (!res.data.linked) {
@@ -135,10 +135,10 @@ export function Topbar() {
               /* POS shell will show link status */
             }
           }}
-          className="hidden sm:inline-flex items-center gap-1.5 h-9 px-3 rounded-lg bg-sky-500/10 border border-sky-500/20 text-sky-700 dark:text-sky-300 hover:bg-sky-500/20 text-xs font-bold transition-all"
+          className="inline-flex items-center gap-1.5 h-9 px-2.5 sm:px-3 rounded-lg bg-sky-500/10 border border-sky-500/20 text-sky-700 dark:text-sky-300 hover:bg-sky-500/20 text-xs font-bold transition-all shrink-0"
         >
           <Store className="w-4 h-4" />
-          POS
+          <span>{locale === "en" ? "POS" : "الكاشير"}</span>
         </Link>
 
         <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 rounded-lg max-w-[140px] lg:max-w-none">
