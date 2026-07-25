@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -27,6 +27,7 @@ import { DecimalInput } from "@/components/ui/decimal-input";
 import { Product } from "@/types";
 import { printProductLabel } from "@/lib/product-label";
 import { FieldHelp } from "@/components/ui/field-help";
+import { CreatableSelect } from "@/components/ui/creatable-select";
 import {
   CustomFieldsInputs,
   type CustomFieldDef,
@@ -44,6 +45,20 @@ interface ProductStats {
 }
 
 type AdjustMode = "IN" | "OUT" | "SET" | "TRANSFER";
+
+const DEFAULT_CATEGORIES = [
+  "ملابس",
+  "أحذية",
+  "إلكترونيات",
+  "مشروبات",
+  "أغذية",
+  "منظفات",
+  "أدوات منزلية",
+  "قرطاسية",
+  "أخرى",
+];
+
+const DEFAULT_UNITS = ["pcs", "kg", "g", "L", "ml", "m", "m²", "box", "pack", "set", "dozen"];
 
 const emptyProduct = () => ({
   sku: "",
@@ -112,6 +127,16 @@ export default function InventoryPage() {
       return res.data as { id: string; code: string; name: string }[];
     },
   });
+
+  const categoryOptions = useMemo(() => {
+    const fromProducts = products.map((p) => p.category).filter(Boolean);
+    return [...DEFAULT_CATEGORIES, ...fromProducts];
+  }, [products]);
+
+  const unitOptions = useMemo(() => {
+    const fromProducts = products.map((p) => p.unit).filter(Boolean);
+    return [...DEFAULT_UNITS, ...fromProducts];
+  }, [products]);
 
   const resetForm = () => {
     setEditingId(null);
@@ -613,11 +638,13 @@ export default function InventoryPage() {
                     <span>{t("category")}</span>
                     <FieldHelp text={t("helpCategory")} />
                   </label>
-                  <input
+                  <CreatableSelect
                     value={form.category}
-                    onChange={(e) => setForm({ ...form, category: e.target.value })}
+                    onChange={(category) => setForm({ ...form, category })}
+                    options={categoryOptions}
                     placeholder={t("categoryPlaceholder")}
-                    className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500"
+                    addLabel={(q) => t("addCategory", { name: q })}
+                    emptyHint={t("selectOrAdd")}
                   />
                 </div>
                 <div>
@@ -625,11 +652,13 @@ export default function InventoryPage() {
                     <span>{t("unit")}</span>
                     <FieldHelp text={t("helpUnit")} />
                   </label>
-                  <input
+                  <CreatableSelect
                     value={form.unit}
-                    onChange={(e) => setForm({ ...form, unit: e.target.value })}
-                    placeholder="pcs / kg / m"
-                    className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500"
+                    onChange={(unit) => setForm({ ...form, unit })}
+                    options={unitOptions}
+                    placeholder={t("unitPlaceholder")}
+                    addLabel={(q) => t("addUnit", { name: q })}
+                    emptyHint={t("selectOrAdd")}
                   />
                 </div>
               </div>
