@@ -3,15 +3,18 @@ import {
   Controller,
   Delete,
   Get,
+  MessageEvent,
   Param,
   Patch,
   Post,
   Put,
   Query,
+  Sse,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
+import { Observable } from 'rxjs';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -23,15 +26,19 @@ import {
   ActivateRestoLinkDto,
   AddRestoOrderItemDto,
   CloseRestoOrderDto,
+  CreateRestoModifierDto,
   CreateRestoReservationDto,
   CreateRestoStationDto,
   CreateRestoTableDto,
   CreateRestoZoneDto,
   LinkRestoDto,
+  MergeRestoOrderDto,
   OpenRestoOrderDto,
   SeedRestoFloorDto,
   SetRestoProductStationDto,
   SetRestoWarehouseDto,
+  SplitRestoOrderDto,
+  TransferRestoOrderDto,
   UpdateRestoOrderDto,
   UpdateRestoOrderItemDto,
   UpsertRestoRecipeDto,
@@ -214,6 +221,56 @@ export class RestoController {
     return this.resto.updateOrder(user.companyId, id, dto);
   }
 
+  @Post('orders/:id/transfer')
+  @Roles(...RESTO_STAFF)
+  @ApiOperation({ summary: 'Transfer open order to another free table' })
+  transferOrder(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+    @Body() dto: TransferRestoOrderDto,
+  ) {
+    return this.resto.transferOrder(user.companyId, id, dto);
+  }
+
+  @Post('orders/:id/merge')
+  @Roles(...RESTO_STAFF)
+  @ApiOperation({ summary: 'Merge this order into a target open order' })
+  mergeOrder(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+    @Body() dto: MergeRestoOrderDto,
+  ) {
+    return this.resto.mergeOrders(user.companyId, id, dto);
+  }
+
+  @Post('orders/:id/split')
+  @Roles(...RESTO_STAFF)
+  @ApiOperation({ summary: 'Split selected items onto a new check' })
+  splitOrder(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+    @Body() dto: SplitRestoOrderDto,
+  ) {
+    return this.resto.splitOrder(user.companyId, id, user.sub, dto);
+  }
+
+  @Get('modifiers')
+  @Roles(...RESTO_STAFF)
+  @ApiOperation({ summary: 'List menu modifiers (seeds defaults if empty)' })
+  listModifiers(@CurrentUser() user: TokenPayload) {
+    return this.resto.listModifiers(user.companyId);
+  }
+
+  @Post('modifiers')
+  @Roles(...RESTO_FLOOR_MGR)
+  @ApiOperation({ summary: 'Create a menu modifier' })
+  createModifier(
+    @CurrentUser() user: TokenPayload,
+    @Body() dto: CreateRestoModifierDto,
+  ) {
+    return this.resto.createModifier(user.companyId, dto);
+  }
+
   @Post('orders/:id/items')
   @Roles(...RESTO_STAFF)
   addItem(
@@ -291,6 +348,16 @@ export class RestoController {
     @Query('stationId') stationId?: string,
   ) {
     return this.resto.getKitchenQueue(user.companyId, stationId);
+  }
+
+  @Sse('kitchen/stream')
+  @Roles(...RESTO_STAFF)
+  @ApiOperation({ summary: 'SSE live kitchen queue (cookie auth)' })
+  kitchenStream(
+    @CurrentUser() user: TokenPayload,
+    @Query('stationId') stationId?: string,
+  ): Observable<MessageEvent> {
+    return this.resto.kitchenStream(user.companyId, stationId) as Observable<MessageEvent>;
   }
 
   @Post('kitchen/items/:itemId/status')

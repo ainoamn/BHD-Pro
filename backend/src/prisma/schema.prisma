@@ -108,6 +108,7 @@ model Company {
   restoProductStations RestoProductStation[]
   restoReservations RestoReservation[]
   restoRecipes RestoRecipe[]
+  restoModifiers RestoModifier[]
 
   @@index([vatNumber])
   @@index([crNumber])
@@ -1988,4 +1989,21 @@ model RestoOrderItem {
   @@index([orderId, status])
   @@index([stationId, status])
   @@map("resto_order_items")
+}
+
+/// Menu add-ons / modifiers (extra cheese, spicy, size…) — applied at add-to-order
+model RestoModifier {
+  id         String   @id @default(uuid())
+  companyId  String   @map("company_id")
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name       String
+  nameEn     String?  @map("name_en")
+  priceDelta Decimal  @default(0) @map("price_delta") @db.Decimal(14, 3)
+  sortOrder  Int      @default(0) @map("sort_order")
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([companyId, sortOrder])
+  @@map("resto_modifiers")
 }

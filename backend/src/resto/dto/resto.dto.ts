@@ -88,6 +88,20 @@ export class OpenRestoOrderDto {
   notes?: string;
 }
 
+export class RestoModifierChoiceDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(80)
+  name: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(-999)
+  @Max(999)
+  priceDelta?: number;
+}
+
 export class AddRestoOrderItemDto {
   @IsUUID()
   productId: string;
@@ -106,6 +120,66 @@ export class AddRestoOrderItemDto {
   @IsOptional()
   @IsUUID()
   stationId?: string;
+
+  /** Selected modifiers — bump unit price and append to line name/notes */
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => RestoModifierChoiceDto)
+  modifiers?: RestoModifierChoiceDto[];
+}
+
+export class TransferRestoOrderDto {
+  @IsUUID()
+  tableId: string;
+}
+
+export class MergeRestoOrderDto {
+  @IsUUID()
+  targetOrderId: string;
+}
+
+export class SplitRestoOrderDto {
+  @IsArray()
+  @IsUUID('4', { each: true })
+  itemIds: string[];
+
+  /** Optional target table (must be free). Omit → new TAKEAWAY check. */
+  @IsOptional()
+  @IsUUID()
+  tableId?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  guests?: number;
+}
+
+export class CreateRestoModifierDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(80)
+  name: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  nameEn?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(-999)
+  @Max(999)
+  priceDelta?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  sortOrder?: number;
 }
 
 export class CreateRestoStationDto {

@@ -12,17 +12,23 @@ import {
   RestoOrderStatus,
   RestoTableStatus,
 } from '@prisma/client';
+import { Observable, Subject, from, interval, merge, of } from 'rxjs';
+import { map, switchMap } from 'rxjs/operators';
 import { PrismaService } from '../prisma/prisma.service';
 import { PosService } from '../pos/pos.service';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
 import {
   AddRestoOrderItemDto,
   CloseRestoOrderDto,
+  CreateRestoModifierDto,
   CreateRestoReservationDto,
   CreateRestoStationDto,
   CreateRestoTableDto,
   CreateRestoZoneDto,
+  MergeRestoOrderDto,
   OpenRestoOrderDto,
+  SplitRestoOrderDto,
+  TransferRestoOrderDto,
   UpdateRestoOrderDto,
   UpdateRestoOrderItemDto,
   UpsertRestoRecipeDto,
@@ -44,10 +50,43 @@ const KITCHEN_ITEM: RestoOrderItemStatus[] = [
 
 @Injectable()
 export class RestoService {
+  private readonly kitchenBuses = new Map<string, Subject<void>>();
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly pos: PosService,
   ) {}
+
+  private kitchenBus(companyId: string) {
+    let bus = this.kitchenBuses.get(companyId);
+    if (!bus) {
+      bus = new Subject<void>();
+      this.kitchenBuses.set(companyId, bus);
+    }
+    return bus;
+  }
+
+  /** Push KDS clients (SSE) after ticket changes */
+  notifyKitchen(companyId: string) {
+    this.kitchenBus(companyId).next();
+  }
+
+  kitchenStream(
+    companyId: string,
+    stationId?: string,
+  ): Observable<{ data: unknown }> {
+    return merge(
+      of(null),
+      this.kitchenBus(companyId),
+      interval(25000),
+    ).pipe(
+      switchMap(() =>
+        from(this.getKitchenQueue(companyId, stationId)).pipe(
+          map((data) => ({ data })),
+        ),
+      ),
+    );
+  }
 
   private hashKey(secret: string) {
     return createHash('sha256').update(secret).digest('hex');
@@ -766,20 +805,297 @@ export class RestoService {
     if (!station) throw new NotFoundException('Station not found');
     const qty = dto.qty ?? 1;
 
+    const mods = dto.modifiers || [];
+    const priceDelta = mods.reduce(
+      (s, m) => s + (Number(m.priceDelta) || 0),
+      0,
+    );
+    const modLabels = mods.map((m) => m.name.trim()).filter(Boolean);
+    const displayName =
+      modLabels.length > 0
+        ? `${product.name} (${modLabels.join(' · ')})`
+        : product.name;
+    const noteParts = [
+      dto.notes?.trim() || '',
+      modLabels.length ? `+ ${modLabels.join(', ')}` : '',
+    ].filter(Boolean);
+
     await this.prisma.restoOrderItem.create({
       data: {
         orderId: order.id,
         productId: product.id,
         stationId: station.id,
-        name: product.name,
+        name: displayName,
         qty: this.decimal(qty),
-        unitPrice: this.decimal(product.salePrice),
-        notes: dto.notes?.trim() || null,
+        unitPrice: this.decimal(Number(product.salePrice) + priceDelta),
+        notes: noteParts.join(' — ') || null,
         status: RestoOrderItemStatus.PENDING,
       },
     });
 
     return this.getOrder(companyId, order.id);
+  }
+
+  private async assertActiveOrder(companyId: string, orderId: string) {
+    const order = await this.prisma.restoOrder.findFirst({
+      where: { id: orderId, companyId },
+    });
+    if (!order) throw new NotFoundException('Order not found');
+    if (!ACTIVE_ORDER.includes(order.status)) {
+      throw new BadRequestException('Order is not active');
+    }
+    return order;
+  }
+
+  private async freeTableIfIdle(companyId: string, tableId: string | null) {
+    if (!tableId) return;
+    const active = await this.prisma.restoOrder.findFirst({
+      where: {
+        companyId,
+        tableId,
+        status: { in: ACTIVE_ORDER },
+      },
+      select: { id: true },
+    });
+    if (!active) {
+      await this.prisma.restoTable.update({
+        where: { id: tableId },
+        data: { status: RestoTableStatus.FREE },
+      });
+    }
+  }
+
+  /** Move an open check to another free table */
+  async transferOrder(
+    companyId: string,
+    orderId: string,
+    dto: TransferRestoOrderDto,
+  ) {
+    const order = await this.assertActiveOrder(companyId, orderId);
+    const table = await this.prisma.restoTable.findFirst({
+      where: { id: dto.tableId, companyId },
+    });
+    if (!table) throw new NotFoundException('Table not found');
+    if (order.tableId === table.id) {
+      return this.getOrder(companyId, orderId);
+    }
+    const occupied = await this.prisma.restoOrder.findFirst({
+      where: {
+        companyId,
+        tableId: table.id,
+        status: { in: ACTIVE_ORDER },
+        id: { not: orderId },
+      },
+    });
+    if (occupied) {
+      throw new BadRequestException('Target table already has an open order');
+    }
+    const fromTableId = order.tableId;
+    await this.prisma.$transaction(async (tx) => {
+      await tx.restoOrder.update({
+        where: { id: orderId },
+        data: {
+          tableId: table.id,
+          channel: RestoOrderChannel.DINE_IN,
+        },
+      });
+      await tx.restoTable.update({
+        where: { id: table.id },
+        data: { status: RestoTableStatus.OCCUPIED },
+      });
+    });
+    await this.freeTableIfIdle(companyId, fromTableId);
+    this.notifyKitchen(companyId);
+    return this.getOrder(companyId, orderId);
+  }
+
+  /** Merge source check into target — frees source table */
+  async mergeOrders(
+    companyId: string,
+    sourceOrderId: string,
+    dto: MergeRestoOrderDto,
+  ) {
+    if (sourceOrderId === dto.targetOrderId) {
+      throw new BadRequestException('Cannot merge an order into itself');
+    }
+    const source = await this.assertActiveOrder(companyId, sourceOrderId);
+    const target = await this.assertActiveOrder(companyId, dto.targetOrderId);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.restoOrderItem.updateMany({
+        where: { orderId: source.id },
+        data: { orderId: target.id },
+      });
+      await tx.restoOrder.update({
+        where: { id: source.id },
+        data: {
+          status: RestoOrderStatus.CANCELLED,
+          closedAt: new Date(),
+          notes: [source.notes, `Merged → ${target.number}`]
+            .filter(Boolean)
+            .join(' | '),
+        },
+      });
+    });
+    await this.freeTableIfIdle(companyId, source.tableId);
+    await this.refreshOrderStatus(companyId, target.id);
+    this.notifyKitchen(companyId);
+    return this.getOrder(companyId, target.id);
+  }
+
+  /** Split selected lines onto a new check (free table or takeaway) */
+  async splitOrder(
+    companyId: string,
+    orderId: string,
+    userId: string,
+    dto: SplitRestoOrderDto,
+  ) {
+    const source = await this.assertActiveOrder(companyId, orderId);
+    const itemIds = [...new Set(dto.itemIds || [])];
+    if (itemIds.length === 0) {
+      throw new BadRequestException('Select at least one item to split');
+    }
+    const items = await this.prisma.restoOrderItem.findMany({
+      where: {
+        id: { in: itemIds },
+        orderId: source.id,
+        status: { not: RestoOrderItemStatus.CANCELLED },
+      },
+    });
+    if (items.length !== itemIds.length) {
+      throw new BadRequestException('Some items do not belong to this order');
+    }
+    const remaining = await this.prisma.restoOrderItem.count({
+      where: {
+        orderId: source.id,
+        status: { not: RestoOrderItemStatus.CANCELLED },
+        id: { notIn: itemIds },
+      },
+    });
+    if (remaining === 0) {
+      throw new BadRequestException(
+        'Cannot split all items — transfer the whole order instead',
+      );
+    }
+
+    let tableId: string | null = null;
+    let channel: RestoOrderChannel = RestoOrderChannel.TAKEAWAY;
+    if (dto.tableId) {
+      const table = await this.prisma.restoTable.findFirst({
+        where: { id: dto.tableId, companyId },
+      });
+      if (!table) throw new NotFoundException('Table not found');
+      const occupied = await this.prisma.restoOrder.findFirst({
+        where: {
+          companyId,
+          tableId: table.id,
+          status: { in: ACTIVE_ORDER },
+        },
+      });
+      if (occupied) {
+        throw new BadRequestException('Target table already has an open order');
+      }
+      tableId = table.id;
+      channel = RestoOrderChannel.DINE_IN;
+    }
+
+    const number = await this.nextOrderNumber(companyId);
+    const created = await this.prisma.$transaction(async (tx) => {
+      const order = await tx.restoOrder.create({
+        data: {
+          companyId,
+          tableId,
+          number,
+          guests: dto.guests ?? Math.max(1, Math.floor(source.guests / 2)),
+          notes: `Split from ${source.number}`,
+          openedById: userId || null,
+          status: RestoOrderStatus.OPEN,
+          channel,
+        },
+      });
+      await tx.restoOrderItem.updateMany({
+        where: { id: { in: itemIds } },
+        data: { orderId: order.id },
+      });
+      if (tableId) {
+        await tx.restoTable.update({
+          where: { id: tableId },
+          data: { status: RestoTableStatus.OCCUPIED },
+        });
+      }
+      return order;
+    });
+
+    await this.refreshOrderStatus(companyId, source.id);
+    await this.refreshOrderStatus(companyId, created.id);
+    this.notifyKitchen(companyId);
+    return {
+      source: await this.getOrder(companyId, source.id),
+      split: await this.getOrder(companyId, created.id),
+    };
+  }
+
+  async listModifiers(companyId: string) {
+    let rows = await this.prisma.restoModifier.findMany({
+      where: { companyId, isActive: true },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+    });
+    if (rows.length === 0) {
+      await this.seedDefaultModifiers(companyId);
+      rows = await this.prisma.restoModifier.findMany({
+        where: { companyId, isActive: true },
+        orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+      });
+    }
+    return {
+      modifiers: rows.map((m) => ({
+        id: m.id,
+        name: m.name,
+        nameEn: m.nameEn,
+        priceDelta: Number(m.priceDelta),
+        sortOrder: m.sortOrder,
+      })),
+    };
+  }
+
+  private async seedDefaultModifiers(companyId: string) {
+    const defaults = [
+      { name: 'جبن إضافي', nameEn: 'Extra cheese', priceDelta: 0.5, sortOrder: 1 },
+      { name: 'حار', nameEn: 'Spicy', priceDelta: 0, sortOrder: 2 },
+      { name: 'بدون بصل', nameEn: 'No onion', priceDelta: 0, sortOrder: 3 },
+      { name: 'كبير', nameEn: 'Large', priceDelta: 1, sortOrder: 4 },
+      { name: 'صلصة إضافية', nameEn: 'Extra sauce', priceDelta: 0.25, sortOrder: 5 },
+    ];
+    for (const d of defaults) {
+      await this.prisma.restoModifier.create({
+        data: {
+          companyId,
+          name: d.name,
+          nameEn: d.nameEn,
+          priceDelta: this.decimal(d.priceDelta),
+          sortOrder: d.sortOrder,
+        },
+      });
+    }
+  }
+
+  async createModifier(companyId: string, dto: CreateRestoModifierDto) {
+    const row = await this.prisma.restoModifier.create({
+      data: {
+        companyId,
+        name: dto.name.trim(),
+        nameEn: dto.nameEn?.trim() || null,
+        priceDelta: this.decimal(dto.priceDelta ?? 0),
+        sortOrder: dto.sortOrder ?? 0,
+      },
+    });
+    return {
+      id: row.id,
+      name: row.name,
+      nameEn: row.nameEn,
+      priceDelta: Number(row.priceDelta),
+      sortOrder: row.sortOrder,
+    };
   }
 
   async updateItem(
@@ -882,6 +1198,7 @@ export class RestoService {
       },
     });
     await this.refreshOrderStatus(companyId, orderId);
+    this.notifyKitchen(companyId);
     return this.getOrder(companyId, orderId);
   }
 
@@ -1078,6 +1395,7 @@ export class RestoService {
       data,
     });
     await this.refreshOrderStatus(companyId, item.orderId);
+    this.notifyKitchen(companyId);
     return this.getOrder(companyId, item.orderId);
   }
 

@@ -12,16 +12,20 @@
 ## التدفق اليومي
 
 1. تفعيل الربط + اختيار المخزن
-2. تهيئة صالة أو سفري
-3. أضف أصنافاً من قائمة المخزن المربوط → إرسال مطبخ
-4. إغلاق ودفع → فاتورة عبر POS من مخزن المطاعم
-5. تقارير `/resto/reports`
+2. تهيئة صالة أو سفري (`/resto/takeaway`)
+3. أضف أصنافاً من قائمة المخزن المربوط → إرسال مطبخ (KDS مع تنبيه صوتي)
+4. وصفات `/resto/recipes` للطبق غير المتتبَّع → خصم مكونات عند الإغلاق المدفوع
+5. إغلاق ودفع → فاتورة عبر POS من مخزن المطاعم
+6. حجوزات `/resto/reservations` — إجلاس يفتح طلباً على الطاولة
+7. تقارير `/resto/reports`
 
 ## Migrations
 
 - `resto_floor_orders_kds`
 - `resto_order_invoice`
+- `resto_product_station_reservations`
 - `app_warehouse_sector_bind`
+- `resto_recipes_bom`
 
 بعد النشر: `npx prisma migrate deploy`
 

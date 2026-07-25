@@ -1,10 +1,19 @@
 # تقرير جلسة Hisaby / BHD Pro
 
-**الفترة:** 21–23 يوليو 2026  
+**الفترة:** 21–26 يوليو 2026  
 **المستودع:** https://github.com/ainoamn/BHD-Pro (`main`)  
 **آخر تحديث لوحة المنصة:** مسار `/admin` لإدارة الشركات والمستخدمين والاشتراكات والزيارات.
 
 > للعمل من أكثر من جهاز: `git pull origin main` ثم اقرأ هذا الملف.
+
+---
+
+## تحديث 26 يوليو 2026
+
+- إصلاح بناء Vercel: تكرار `warehouseHint` → `warehouseBindHint` (موجود منذ `6a2f24d`)
+- مطاعم: وصفات BOM، سفري `/resto/takeaway`، تنبيه KDS، فاتورة ضيف، فصل مخازن القطاعات
+- وثائق محدَّثة: Master Status · Status & Gaps · Restaurant Plan · Resto Quickstart
+- على الإنتاج بعد السحب: `npx prisma migrate deploy`
 
 ---
 

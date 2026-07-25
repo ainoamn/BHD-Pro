@@ -1,5 +1,5 @@
 # Hisaby — الحالة الكاملة وخطة التطوير
-**آخر تحديث:** 25 يوليو 2026 · ~16:35 Asia/Muscat  
+**آخر تحديث:** 26 يوليو 2026 · Asia/Muscat  
 **المصدر المعتمد:** فرع `main` على GitHub (`ainoamn/BHD-Pro`) — متزامن مع `origin/main`.
 
 ---
@@ -8,9 +8,9 @@
 
 | السؤال | الجواب |
 |--------|--------|
-| هل كل ما بُرمج مرفوع؟ | **نعم** على `main` بعد موجات يوليو 2026 (محاسبة A–G، POS، أمن، ربط واتساب/إيميل، OTA config-ready، S3، AI HITL، دفع شريك بوابة، عمولة/ولاء). أي WIP محلي غير مكتمل يُرفض ولا يُعتبر منجزاً. |
+| هل كل ما بُرمج مرفوع؟ | **نعم** على `main` بعد موجات يوليو 2026 (محاسبة، POS، مطاعم R1–R5 جزئي، أمن، واتساب/إيميل، OTA config-ready). أي WIP محلي غير مكتمل يُرفض ولا يُعتبر منجزاً. |
 | هل الموقع «غير قابل للاختراق»؟ | **لا يوجد نظام غير قابل للاختراق.** Hisaby في مستوى **صلب لبيتا SaaS** مع طبقات حماية حقيقية؛ يحتاج استكمال hardening إنتاجي (WAF، 2FA إلزامي للإدارة، مراقبة). |
-| أين يذهب المنتج؟ | منصة محاسبة + كاشير خليجية (عُمان أولاً): امتثال ضريبي، مدفوعات محلية، أوفلاين قوي، ومساعد ذكي بشري-في-الحلقة. |
+| أين يذهب المنتج؟ | منصة محاسبة + كاشير + مطاعم خليجية (عُمان أولاً): امتثال ضريبي، مدفوعات محلية، أوفلاين قوي، وتشغيل صالة/مطبخ. |
 
 ---
 
@@ -35,8 +35,17 @@
 - ورديات، X/Z، حركات نقد → GL، عمولة كاشير + نقاط ولاء
 - أوفلاين: طابور مبيعات + كتالوج + `GET /pos/stock/sync?since=`
 - طباعة Web Serial (+ BLE stubs)، درج نقد، مشاركة إيصال
+- **فصل مخزن الكاشير** (`posWarehouseId` + قطاع RETAIL/GENERAL) — الكتالوج لا يخلط أصناف المطاعم
 
-### 1.3 الربط والإشعارات والامتثال (موجة يوليو مساءً)
+### 1.3 حسابي للمطاعم (`/resto`) — R1–R5 جزئي على main
+- صالة وطاولات وطلبات + KDS بمحطات وتوجيه أصناف
+- إغلاق مدفوع عبر `PosService.createSale` + إغلاق تشغيلي soft
+- حجوزات + إجلاس يفتح طلباً · وصفات BOM (خصم مكونات للطبق غير المتتبَّع فقط)
+- قائمة سفري `/resto/takeaway` · تنبيه صوتي KDS · فاتورة ضيف
+- فصل مخزن المطاعم (`restoWarehouseId` + قطاع RESTAURANT)
+- مرجع: [`HISABY-RESTAURANT-KITCHEN-PLAN.md`](./HISABY-RESTAURANT-KITCHEN-PLAN.md)
+
+### 1.4 الربط والإشعارات والامتثال
 - واتساب Cloud API + mock؛ إيميل Resend/SMTP/mock؛ إيصالات تلقائية بعد البيع
 - `/integrations` + زر **اقرأني** (`GET /messaging/readme`)
 - OTA: أوضاع `mock|sandbox|live` في `/vat` (`zatcaConfig`) — live ينتظر اعتماد الجهة
@@ -45,11 +54,12 @@
 - هيكل Capacitor في `mobile/` + `capacitor-ble.ts`
 - دليل: [`INTEGRATIONS-MESSAGING-OTA.md`](./INTEGRATIONS-MESSAGING-OTA.md)
 
-### 1.4 الأمن والحماية
+### 1.5 الأمن والحماية
 - bcrypt(12)، JWT + refresh، 2FA اختياري، Helmet، throttling، dual-control
 - CORS مقيّد، منصّة إدارة من env، حد MIME/حجم للمرفقات
+- **إصلاح بناء Vercel (يوليو 26):** مفتاح `warehouseHint` المكرر في `pos-copy` أُصلح إلى `warehouseBindHint` (من commit `6a2f24d` فما بعد) — أعد النشر من أحدث `main`
 
-### 1.5 المنصة
+### 1.6 المنصة
 - اشتراكات، بوابات دفع، `/admin`، PWA، GeoIP، keep-warm
 
 ---
@@ -66,6 +76,7 @@
 | 2FA **إلزامي** لـ ADMIN/MANAGER | اختياري اليوم | عالية أمنياً |
 | WAF / حماية بوتات | غير موجود | عالية إنتاج |
 | واتساب/إيميل إنتاجي 100% | يحتاج أسرار env على Render | متوسطة |
+| مطاعم: معدّلات أصناف / توصيل / SSE | جزئي — سفري وKDS صوت منجزان | متوسطة |
 | استقرار DNS / cold start | تشغيلي | مستمرة |
 
 ---
@@ -83,11 +94,14 @@ PLATFORM_ADMIN_EMAILS = مشغّلون فقط
 npx prisma migrate deploy
 ```
 
+**Migrations مطاعم/مخازن مهمة:**  
+`resto_product_station_reservations` · `app_warehouse_sector_bind` · `resto_recipes_bom`
+
 ---
 
 ## 4) أين يذهب Hisaby؟
 
-محاسبة سحابية عربية + كاشير حقيقي للخليج، بهوية عُمانية. التميّز: امتثال OTA، كاشير↔GL واحد، dual-control عملي، أوفلاين متجر، مدفوعات خليجية، مساعد بإشراف بشري.
+محاسبة سحابية عربية + كاشير حقيقي + مطاعم/مطبخ للخليج، بهوية عُمانية. التميّز: امتثال OTA، كاشير↔GL واحد، dual-control عملي، فصل قطاعات المخزون، أوفلاين متجر، مدفوعات خليجية.
 
 ---
 
@@ -98,42 +112,15 @@ npx prisma migrate deploy
 - **J** جهاز tap-to-pay طرفي إن لزم
 - **K** Capacitor build إن فشلت PWA
 - **L** تحسينات UX onboarding وقوالب قطاعات
+- **Resto** معدّلات أصناف · قناة توصيل · SSE للمطبخ
 
 ---
 
-## 6) مطابقة الطلبات
+## 6) مراجع
 
-| طلبك | الحالة |
-|------|--------|
-| محاسبة/POS/dual-control/رصيد متجر/X-Z | منجز على `main` |
-| واتساب+إيميل+اقرأني | منجز |
-| OTA / S3 / AI HITL / دفع شريك / أوفلاين مخزون | منجز **config-ready** |
-| Capacitor/BLE | هيكل + stubs |
-| عمولة كاشير + ولاء | منجز |
-| شعارات عملاء مدفوعين في الرئيسية | منجز |
-| نظام مطاعم ومطبخ كامل مربوط بالمحاسبة/POS | **R1–R4 أساسي** — صالة/مطبخ/تقارير + إغلاق بفاتورة POS؛ وصفات/حجوزات لاحقاً [`HISABY-RESTAURANT-KITCHEN-PLAN.md`](./HISABY-RESTAURANT-KITCHEN-PLAN.md) |
-| غير قابل للاختراق | طبقات قوية — **لا ضمان مطلق** |
-
----
-
-## 7) بعد كل نشر
-
-```bash
-npx prisma migrate deploy
-```
-
-يشمل أحدثها: `customer_disputes`، `pos_incentives`. تحقق Vercel بعد دفع `main`.
-
----
-
-## 8) المراسلات — حالة القرار (يوليو 2026 مساءً)
-
-- **مبرمج ومرفوع:** واتساب Cloud API + إيميل + SMS + `/integrations` + اقرأني.
-- **مؤجّل تشغيلياً:** اشتراك Meta / Resend حتى يتوفر الوقت.
-- **المرجع:** [`MESSAGING-WHATSAPP-EMAIL-GUIDE.md`](./MESSAGING-WHATSAPP-EMAIL-GUIDE.md)
-
-**الخطوة التالية الآن:** تأكيد أن Render على آخر `main` حيّ · لا حاجة لـ Meta اليوم · عند الجاهزية نفّذ §8 في دليل المراسلات.
-
----
-
-**خرائط مرتبطة:** [`HISABY-STATUS-AND-GAPS.md`](./HISABY-STATUS-AND-GAPS.md) · [`HISABY-POS-AND-SECURITY-ROADMAP.md`](./HISABY-POS-AND-SECURITY-ROADMAP.md) · [`INTEGRATIONS-MESSAGING-OTA.md`](./INTEGRATIONS-MESSAGING-OTA.md) · [`MESSAGING-WHATSAPP-EMAIL-GUIDE.md`](./MESSAGING-WHATSAPP-EMAIL-GUIDE.md)
+- [`HISABY-STATUS-AND-GAPS.md`](./HISABY-STATUS-AND-GAPS.md)
+- [`HISABY-RESTAURANT-KITCHEN-PLAN.md`](./HISABY-RESTAURANT-KITCHEN-PLAN.md)
+- [`HISABY-POS-AND-SECURITY-ROADMAP.md`](./HISABY-POS-AND-SECURITY-ROADMAP.md)
+- [`HISABY-SESSION-REPORT.md`](./HISABY-SESSION-REPORT.md)
+- [`RESTO-R1-QUICKSTART.md`](./RESTO-R1-QUICKSTART.md)
+- [`INTEGRATIONS-MESSAGING-OTA.md`](./INTEGRATIONS-MESSAGING-OTA.md)
