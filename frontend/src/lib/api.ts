@@ -411,6 +411,13 @@ class ApiClient {
     return this.post('/contacts', data);
   }
 
+  adjustContactStoreCredit(
+    id: string,
+    data: { amount: number; notes?: string; bankAccountId?: string },
+  ) {
+    return this.post(`/contacts/${id}/store-credit-adjust`, data);
+  }
+
   // Subscriptions
   getSubscriptionPlans() {
     return this.get('/subscriptions/plans');
