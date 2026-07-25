@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import api from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
 import { adminCopy } from "@/lib/admin-copy";
@@ -23,12 +24,18 @@ type Bill = {
   };
 };
 
-export default function AdminBillingPage() {
+function BillingInner() {
   const locale = useLocaleStore((s) => s.locale);
   const t = adminCopy[locale === "en" ? "en" : "ar"];
   const en = locale === "en";
+  const searchParams = useSearchParams();
   const [rows, setRows] = useState<Bill[]>([]);
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState(() => searchParams.get("status") || "");
+
+  useEffect(() => {
+    const fromUrl = searchParams.get("status") || "";
+    setStatus(fromUrl);
+  }, [searchParams]);
 
   useEffect(() => {
     api.getAdminBilling(status || undefined).then((res) => setRows(res.data as Bill[]));
@@ -95,5 +102,13 @@ export default function AdminBillingPage() {
         {rows.length === 0 && <p className="p-8 text-center text-slate-500 text-sm">{t.empty}</p>}
       </div>
     </div>
+  );
+}
+
+export default function AdminBillingPage() {
+  return (
+    <Suspense fallback={<div className="text-sm text-slate-500">…</div>}>
+      <BillingInner />
+    </Suspense>
   );
 }

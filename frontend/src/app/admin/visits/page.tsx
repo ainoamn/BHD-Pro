@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
+import { useLocaleStore } from "@/store/locale";
+import { adminCopy } from "@/lib/admin-copy";
 
 type VisitsPayload = {
   recent: {
@@ -32,96 +34,120 @@ type SessionRow = {
 };
 
 export default function AdminVisitsPage() {
+  const locale = useLocaleStore((s) => s.locale);
+  const t = adminCopy[locale === "en" ? "en" : "ar"];
+  const en = locale === "en";
   const [visits, setVisits] = useState<VisitsPayload | null>(null);
   const [sessions, setSessions] = useState<SessionRow[]>([]);
 
   useEffect(() => {
     api.getAdminVisits(150).then((res) => setVisits(res.data as VisitsPayload));
-    api.getAdminSessions(80).then((res) => setSessions(res.data as SessionRow[]));
+    api
+      .getAdminSessions(80)
+      .then((res) => setSessions(res.data as SessionRow[]));
   }, []);
 
   if (!visits) {
-    return (
-      <div className="py-16 flex justify-center">
-        <div className="animate-spin w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full" />
-      </div>
-    );
+    return <p className="text-sm text-slate-500">{t.loading}</p>;
   }
 
   return (
     <div className="space-y-6 max-w-6xl">
       <div>
-        <h2 className="text-2xl font-bold">الزيارات والـ IP</h2>
-        <p className="text-sm text-slate-400">تصفح الموقع + جلسات تسجيل الدخول للمستخدمين</p>
+        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+          {t.visits}
+        </h1>
+        <p className="text-sm text-slate-500 mt-1">
+          {en
+            ? "Public site traffic and authenticated login sessions"
+            : "تصفح الموقع + جلسات تسجيل الدخول للمستخدمين"}
+        </p>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-4">
-        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
-          <h3 className="font-semibold mb-3">أكثر الصفحات</h3>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <h3 className="font-bold text-teal-950 mb-3">
+            {en ? "Top pages" : "أكثر الصفحات"}
+          </h3>
           {visits.byPath.length === 0 ? (
-            <p className="text-sm text-slate-500">لا بيانات بعد</p>
+            <p className="text-sm text-slate-500">{t.empty}</p>
           ) : (
             visits.byPath.map((p) => (
-              <div key={p.path} className="flex justify-between text-sm py-1 border-b border-slate-800">
-                <span className="font-mono text-xs truncate max-w-[70%]">{p.path}</span>
-                <span>{p.count}</span>
+              <div
+                key={p.path}
+                className="flex justify-between text-sm py-1.5 border-b border-slate-100 last:border-0"
+              >
+                <span className="font-mono text-xs truncate max-w-[70%] text-slate-600">
+                  {p.path}
+                </span>
+                <span className="font-bold text-teal-800">{p.count}</span>
               </div>
             ))
           )}
         </div>
-        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
-          <h3 className="font-semibold mb-3">حسب الدولة</h3>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <h3 className="font-bold text-teal-950 mb-3">
+            {en ? "By country" : "حسب الدولة"}
+          </h3>
           {visits.byCountry.length === 0 ? (
-            <p className="text-sm text-slate-500">لا بيانات دولة بعد</p>
+            <p className="text-sm text-slate-500">{t.empty}</p>
           ) : (
             visits.byCountry.map((c) => (
-              <div key={c.country} className="flex justify-between text-sm py-1 border-b border-slate-800">
+              <div
+                key={c.country}
+                className="flex justify-between text-sm py-1.5 border-b border-slate-100 last:border-0"
+              >
                 <span>{c.country}</span>
-                <span>{c.count}</span>
+                <span className="font-bold text-teal-800">{c.count}</span>
               </div>
             ))
           )}
         </div>
-        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
-          <h3 className="font-semibold mb-3">آخر 14 يومًا</h3>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <h3 className="font-bold text-teal-950 mb-3">
+            {en ? "By day" : "حسب اليوم"}
+          </h3>
           {visits.byDay.length === 0 ? (
-            <p className="text-sm text-slate-500">لا بيانات</p>
+            <p className="text-sm text-slate-500">{t.empty}</p>
           ) : (
-            visits.byDay.map((d) => (
-              <div key={String(d.day)} className="flex justify-between text-sm py-1 border-b border-slate-800">
-                <span>{new Date(d.day).toLocaleDateString("ar")}</span>
-                <span>{d.count}</span>
+            visits.byDay.slice(0, 14).map((d) => (
+              <div
+                key={d.day}
+                className="flex justify-between text-sm py-1.5 border-b border-slate-100 last:border-0"
+              >
+                <span className="text-slate-600">{d.day}</span>
+                <span className="font-bold text-teal-800">{d.count}</span>
               </div>
             ))
           )}
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-800 overflow-x-auto">
-        <h3 className="font-semibold p-4 border-b border-slate-800">آخر الزيارات</h3>
+      <div className="rounded-2xl border border-slate-200 bg-white overflow-x-auto">
+        <div className="p-4 border-b border-slate-100">
+          <h3 className="font-bold text-teal-950">
+            {en ? "Recent visits" : "أحدث الزيارات"}
+          </h3>
+        </div>
         <table className="w-full text-sm">
-          <thead className="bg-slate-900 text-slate-400 text-xs">
+          <thead className="bg-slate-50 text-xs text-slate-500">
             <tr>
-              <th className="text-right p-3">الوقت</th>
-              <th className="text-right p-3">المسار</th>
-              <th className="text-right p-3">IP</th>
-              <th className="text-right p-3">الموقع</th>
-              <th className="text-right p-3">المصدر</th>
+              <th className="text-start p-3">{en ? "Path" : "المسار"}</th>
+              <th className="text-start p-3">IP</th>
+              <th className="text-start p-3">{t.location}</th>
+              <th className="text-start p-3">{t.created}</th>
             </tr>
           </thead>
           <tbody>
-            {visits.recent.map((v) => (
-              <tr key={v.id} className="border-t border-slate-800">
-                <td className="p-3 text-xs text-slate-400">
-                  {new Date(v.createdAt).toLocaleString("ar")}
-                </td>
+            {visits.recent.slice(0, 40).map((v) => (
+              <tr key={v.id} className="border-t border-slate-100">
                 <td className="p-3 font-mono text-xs">{v.path}</td>
-                <td className="p-3 font-mono text-xs">{v.ipAddress || "—"}</td>
+                <td className="p-3 text-xs">{v.ipAddress || "—"}</td>
                 <td className="p-3 text-xs">
-                  {[v.city, v.country].filter(Boolean).join("، ") || "—"}
+                  {[v.city, v.country].filter(Boolean).join(", ") || "—"}
                 </td>
-                <td className="p-3 text-xs text-slate-500 truncate max-w-[200px]">
-                  {v.referrer || "مباشر"}
+                <td className="p-3 text-xs text-slate-500">
+                  {new Date(v.createdAt).toLocaleString(en ? "en-GB" : "ar")}
                 </td>
               </tr>
             ))}
@@ -129,38 +155,38 @@ export default function AdminVisitsPage() {
         </table>
       </div>
 
-      <div className="rounded-xl border border-slate-800 overflow-x-auto">
-        <h3 className="font-semibold p-4 border-b border-slate-800">جلسات تسجيل الدخول (IP)</h3>
+      <div className="rounded-2xl border border-slate-200 bg-white overflow-x-auto">
+        <div className="p-4 border-b border-slate-100">
+          <h3 className="font-bold text-teal-950">{t.sessions}</h3>
+        </div>
         <table className="w-full text-sm">
-          <thead className="bg-slate-900 text-slate-400 text-xs">
+          <thead className="bg-slate-50 text-xs text-slate-500">
             <tr>
-              <th className="text-right p-3">الوقت</th>
-              <th className="text-right p-3">المستخدم</th>
-              <th className="text-right p-3">الشركة / الموقع</th>
-              <th className="text-right p-3">IP</th>
+              <th className="text-start p-3">{t.users}</th>
+              <th className="text-start p-3">{t.company}</th>
+              <th className="text-start p-3">IP</th>
+              <th className="text-start p-3">{t.created}</th>
             </tr>
           </thead>
           <tbody>
             {sessions.map((s) => (
-              <tr key={s.id} className="border-t border-slate-800">
-                <td className="p-3 text-xs text-slate-400">
-                  {new Date(s.createdAt).toLocaleString("ar")}
-                </td>
+              <tr key={s.id} className="border-t border-slate-100">
                 <td className="p-3">
-                  {s.user.name}
-                  <div className="text-[10px] text-slate-500">{s.user.email}</div>
+                  <p className="font-semibold">{s.user.name}</p>
+                  <p className="text-xs text-slate-500">{s.user.email}</p>
                 </td>
-                <td className="p-3 text-xs">
-                  {s.user.company.name}
-                  <div className="text-slate-500">
-                    {[s.user.company.city, s.user.company.country].filter(Boolean).join("، ")}
-                  </div>
+                <td className="p-3 text-xs">{s.user.company.name}</td>
+                <td className="p-3 text-xs">{s.ipAddress || "—"}</td>
+                <td className="p-3 text-xs text-slate-500">
+                  {new Date(s.createdAt).toLocaleString(en ? "en-GB" : "ar")}
                 </td>
-                <td className="p-3 font-mono text-xs">{s.ipAddress || "—"}</td>
               </tr>
             ))}
           </tbody>
         </table>
+        {sessions.length === 0 ? (
+          <p className="p-6 text-center text-sm text-slate-500">{t.empty}</p>
+        ) : null}
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import Link from "next/link";
 import api from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
 import { adminCopy } from "@/lib/admin-copy";
@@ -49,11 +50,6 @@ const emptyForm = {
   endsAt: "",
 };
 
-function toDateInput(v: string | null) {
-  if (!v) return "";
-  return v.slice(0, 10);
-}
-
 export default function AdminPlansPage() {
   const locale = useLocaleStore((s) => s.locale);
   const t = adminCopy[locale === "en" ? "en" : "ar"];
@@ -61,6 +57,7 @@ export default function AdminPlansPage() {
   const [offers, setOffers] = useState<Offer[]>([]);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   const load = () =>
     api.getAdminOffers().then((res) => setOffers(res.data as Offer[]));
@@ -72,10 +69,11 @@ export default function AdminPlansPage() {
   const onCreate = async (e: FormEvent) => {
     e.preventDefault();
     setSaving(true);
+    setError("");
     try {
       await api.createAdminOffer({
         plan: form.plan,
-        nameAr: form.nameAr || `عرض ${form.plan}`,
+        nameAr: form.nameAr || (en ? `${form.plan} offer` : `عرض ${form.plan}`),
         nameEn: form.nameEn || `${form.plan} offer`,
         discountPct: Number(form.discountPct) || 0,
         promoCode: form.promoCode || undefined,
@@ -87,18 +85,27 @@ export default function AdminPlansPage() {
       });
       setForm(emptyForm);
       await load();
+    } catch {
+      setError(en ? "Could not save offer" : "تعذر حفظ العرض");
     } finally {
       setSaving(false);
     }
   };
 
+  const fmtDate = (d?: string | null) => {
+    if (!d) return "—";
+    return new Date(d).toLocaleDateString(en ? "en-GB" : "ar");
+  };
+
   return (
     <div className="space-y-6 max-w-6xl">
       <div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-          {t.plans}
-        </h1>
-        <p className="text-sm text-slate-500 mt-1">{t.plansHint}</p>
+        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">{t.plans}</h1>
+        <p className="text-sm text-slate-500 mt-1">
+          {en
+            ? "Base prices are fixed in code — manage promos, windows, and override prices here"
+            : "أسعار الأساس ثابتة في الكود — العروض والنوافذ والأسعار البديلة تُدار من هنا"}
+        </p>
       </div>
 
       <div className="grid md:grid-cols-3 gap-3">
@@ -108,7 +115,7 @@ export default function AdminPlansPage() {
             className="rounded-2xl border border-slate-200 bg-white p-4"
           >
             <p className="text-xs font-bold text-teal-700">{p.id}</p>
-            <h3 className="text-lg font-extrabold mt-1 text-slate-900">
+            <h3 className="text-lg font-extrabold mt-1 text-teal-950">
               {en ? p.nameEn : p.nameAr}
             </h3>
             <p className="text-sm text-slate-600 mt-2">
@@ -125,7 +132,12 @@ export default function AdminPlansPage() {
         onSubmit={onCreate}
         className="rounded-2xl border border-slate-200 bg-white p-4 grid md:grid-cols-3 gap-3"
       >
-        <h3 className="md:col-span-3 font-bold text-slate-900">{t.addOffer}</h3>
+        <h2 className="md:col-span-3 font-bold text-teal-950">
+          {en ? "Add offer / discount" : "إضافة عرض / تخفيض"}
+        </h2>
+        {error ? (
+          <p className="md:col-span-3 text-sm text-rose-600">{error}</p>
+        ) : null}
         <select
           value={form.plan}
           onChange={(e) => setForm((f) => ({ ...f, plan: e.target.value }))}
@@ -138,26 +150,26 @@ export default function AdminPlansPage() {
           ))}
         </select>
         <input
-          placeholder={t.offerNameAr}
+          placeholder={en ? "Offer name (AR)" : "اسم العرض عربي"}
           value={form.nameAr}
           onChange={(e) => setForm((f) => ({ ...f, nameAr: e.target.value }))}
           className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
           required
         />
         <input
-          placeholder={t.offerNameEn}
+          placeholder={en ? "Offer name (EN)" : "اسم العرض إنجليزي"}
           value={form.nameEn}
           onChange={(e) => setForm((f) => ({ ...f, nameEn: e.target.value }))}
           className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
         />
         <input
-          placeholder={t.promoCode}
+          placeholder="Promo code"
           value={form.promoCode}
           onChange={(e) => setForm((f) => ({ ...f, promoCode: e.target.value }))}
-          className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
+          className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-mono"
         />
         <input
-          placeholder={t.discountPct}
+          placeholder={en ? "Discount %" : "نسبة الخصم %"}
           value={form.discountPct}
           onChange={(e) =>
             setForm((f) => ({ ...f, discountPct: e.target.value }))
@@ -165,7 +177,7 @@ export default function AdminPlansPage() {
           className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
         />
         <input
-          placeholder={t.altMonthly}
+          placeholder={en ? "Alt monthly OMR" : "سعر شهري بديل"}
           value={form.monthlyPrice}
           onChange={(e) =>
             setForm((f) => ({ ...f, monthlyPrice: e.target.value }))
@@ -173,7 +185,7 @@ export default function AdminPlansPage() {
           className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
         />
         <input
-          placeholder={t.altYearly}
+          placeholder={en ? "Alt yearly OMR" : "سعر سنوي بديل"}
           value={form.yearlyPrice}
           onChange={(e) =>
             setForm((f) => ({ ...f, yearlyPrice: e.target.value }))
@@ -181,16 +193,18 @@ export default function AdminPlansPage() {
           className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
         />
         <label className="text-xs text-slate-500 space-y-1">
-          <span>{t.startsAt}</span>
+          <span>{en ? "Starts" : "يبدأ"}</span>
           <input
             type="date"
             value={form.startsAt}
-            onChange={(e) => setForm((f) => ({ ...f, startsAt: e.target.value }))}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, startsAt: e.target.value }))
+            }
             className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
           />
         </label>
         <label className="text-xs text-slate-500 space-y-1">
-          <span>{t.endsAt}</span>
+          <span>{en ? "Ends" : "ينتهي"}</span>
           <input
             type="date"
             value={form.endsAt}
@@ -201,9 +215,9 @@ export default function AdminPlansPage() {
         <button
           type="submit"
           disabled={saving}
-          className="md:col-span-3 rounded-xl bg-teal-700 hover:bg-teal-800 text-white py-2.5 text-sm font-bold disabled:opacity-60"
+          className="md:col-span-3 rounded-xl bg-teal-700 hover:bg-teal-800 py-2.5 text-sm font-bold text-white disabled:opacity-60"
         >
-          {t.save}
+          {saving ? "…" : t.save}
         </button>
       </form>
 
@@ -211,44 +225,58 @@ export default function AdminPlansPage() {
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-slate-500 text-xs">
             <tr>
-              <th className="text-start p-3">{t.offer}</th>
+              <th className="text-start p-3">{en ? "Offer" : "العرض"}</th>
               <th className="text-start p-3">{t.plan}</th>
-              <th className="text-start p-3">{t.discount}</th>
-              <th className="text-start p-3">{t.promoCode}</th>
-              <th className="text-start p-3">{t.window}</th>
+              <th className="text-start p-3">{en ? "Discount" : "خصم"}</th>
+              <th className="text-start p-3">{en ? "Code" : "كود"}</th>
+              <th className="text-start p-3">{en ? "Window" : "النافذة"}</th>
               <th className="text-start p-3">{t.status}</th>
-              <th className="text-start p-3">{t.action}</th>
+              <th className="text-start p-3">{en ? "Action" : "إجراء"}</th>
             </tr>
           </thead>
           <tbody>
             {offers.map((o) => (
               <tr key={o.id} className="border-t border-slate-100">
-                <td className="p-3 font-semibold text-slate-900">
+                <td className="p-3 font-semibold text-teal-950">
                   {en && o.nameEn ? o.nameEn : o.nameAr}
                 </td>
                 <td className="p-3">{o.plan}</td>
                 <td className="p-3">{Number(o.discountPct)}%</td>
                 <td className="p-3 font-mono text-xs">{o.promoCode || "—"}</td>
                 <td className="p-3 text-xs text-slate-500">
-                  {toDateInput(o.startsAt) || "—"} → {toDateInput(o.endsAt) || "—"}
+                  {fmtDate(o.startsAt)} → {fmtDate(o.endsAt)}
+                  {o.monthlyPrice != null || o.yearlyPrice != null ? (
+                    <span className="block mt-0.5">
+                      {o.monthlyPrice != null
+                        ? `${Number(o.monthlyPrice)}/${en ? "mo" : "شهر"}`
+                        : ""}
+                      {o.yearlyPrice != null
+                        ? ` · ${Number(o.yearlyPrice)}/${en ? "yr" : "سنة"}`
+                        : ""}
+                    </span>
+                  ) : null}
                 </td>
                 <td className="p-3">
-                  {o.isActive ? (
-                    <span className="text-emerald-700 font-semibold">{t.active}</span>
-                  ) : (
-                    <span className="text-slate-400">{t.inactive}</span>
-                  )}
+                  <span
+                    className={`text-xs font-bold ${
+                      o.isActive ? "text-emerald-700" : "text-slate-400"
+                    }`}
+                  >
+                    {o.isActive ? t.active : t.inactive}
+                  </span>
                 </td>
                 <td className="p-3 space-x-2 rtl:space-x-reverse">
                   <button
                     type="button"
                     className="text-xs border border-slate-200 rounded-lg px-2 py-1 hover:bg-slate-50"
                     onClick={async () => {
-                      await api.updateAdminOffer(o.id, { isActive: !o.isActive });
+                      await api.updateAdminOffer(o.id, {
+                        isActive: !o.isActive,
+                      });
                       await load();
                     }}
                   >
-                    {o.isActive ? t.deactivate : t.activate}
+                    {o.isActive ? (en ? "Pause" : "إيقاف") : (en ? "Enable" : "تفعيل")}
                   </button>
                   <button
                     type="button"
@@ -258,7 +286,7 @@ export default function AdminPlansPage() {
                       await load();
                     }}
                   >
-                    {t.delete}
+                    {en ? "Delete" : "حذف"}
                   </button>
                 </td>
               </tr>
@@ -269,6 +297,12 @@ export default function AdminPlansPage() {
           <p className="p-6 text-center text-sm text-slate-500">{t.empty}</p>
         )}
       </div>
+
+      <p className="text-xs text-slate-400">
+        <Link href="/admin/billing" className="text-teal-700 font-semibold underline">
+          {t.billing}
+        </Link>
+      </p>
     </div>
   );
 }

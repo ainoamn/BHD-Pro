@@ -19,18 +19,22 @@ export function HisabyAppsPanel({ className }: { className?: string }) {
   const t = useTranslations("dashboard");
   const [posLinked, setPosLinked] = useState<LinkState>(null);
   const [restoLinked, setRestoLinked] = useState<LinkState>(null);
+  const [busy, setBusy] = useState<"pos" | "resto" | null>(null);
+
+  const refresh = async () => {
+    const [pos, resto] = await Promise.all([
+      api.getPosLinkStatus().catch(() => null),
+      api.getRestoLinkStatus().catch(() => null),
+    ]);
+    setPosLinked(pos ? !!pos.data.linked : false);
+    setRestoLinked(resto ? !!resto.data.linked : false);
+  };
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [pos, resto] = await Promise.all([
-          api.getPosLinkStatus().catch(() => null),
-          api.getRestoLinkStatus().catch(() => null),
-        ]);
-        if (cancelled) return;
-        setPosLinked(pos ? !!pos.data.linked : false);
-        setRestoLinked(resto ? !!resto.data.linked : false);
+        await refresh();
       } catch {
         if (!cancelled) {
           setPosLinked(false);
@@ -42,6 +46,19 @@ export function HisabyAppsPanel({ className }: { className?: string }) {
       cancelled = true;
     };
   }, []);
+
+  const quickLink = async (which: "pos" | "resto") => {
+    setBusy(which);
+    try {
+      if (which === "pos") await api.activatePosLink();
+      else await api.activateRestoLink();
+      await refresh();
+    } catch {
+      /* settings fallback */
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const apps = [
     {
@@ -139,13 +156,17 @@ export function HisabyAppsPanel({ className }: { className?: string }) {
                 >
                   {t("appOpen")}
                 </Link>
-                {!app.current && linked === false && app.settingsHref ? (
-                  <Link
-                    href={app.settingsHref}
-                    className="inline-flex rounded-lg border border-white/15 hover:bg-white/5 px-3 py-1.5 text-xs font-semibold text-white/80"
+                {!app.current && linked === false ? (
+                  <button
+                    type="button"
+                    disabled={busy === app.key}
+                    onClick={() =>
+                      void quickLink(app.key === "pos" ? "pos" : "resto")
+                    }
+                    className="inline-flex rounded-lg border border-white/15 hover:bg-white/5 px-3 py-1.5 text-xs font-semibold text-white/80 disabled:opacity-50"
                   >
-                    {t("appLinkNow")}
-                  </Link>
+                    {busy === app.key ? "…" : t("appLinkNow")}
+                  </button>
                 ) : null}
               </div>
             </div>

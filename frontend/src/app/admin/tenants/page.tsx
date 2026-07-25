@@ -33,6 +33,23 @@ function fmt(d?: string | null, en?: boolean) {
   return new Date(d).toLocaleDateString(en ? "en-GB" : "ar");
 }
 
+type TenantDetail = Tenant & {
+  users?: Array<{
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+    isActive: boolean;
+  }>;
+  billingInvoices?: Array<{
+    id: string;
+    number?: string;
+    status: string;
+    amount?: number | string;
+    createdAt: string;
+  }>;
+};
+
 export default function AdminTenantsPage() {
   const locale = useLocaleStore((s) => s.locale);
   const t = adminCopy[locale === "en" ? "en" : "ar"];
@@ -40,6 +57,7 @@ export default function AdminTenantsPage() {
   const [rows, setRows] = useState<Tenant[]>([]);
   const [q, setQ] = useState("");
   const [selected, setSelected] = useState<Tenant | null>(null);
+  const [detail, setDetail] = useState<TenantDetail | null>(null);
   const [usersLimit, setUsersLimit] = useState("");
   const [invoicesLimit, setInvoicesLimit] = useState("");
   const [planExpiry, setPlanExpiry] = useState("");
@@ -55,8 +73,9 @@ export default function AdminTenantsPage() {
     load();
   }, []);
 
-  const openEdit = (row: Tenant) => {
+  const openEdit = async (row: Tenant) => {
     setSelected(row);
+    setDetail(null);
     setPlan(row.plan);
     setUsersLimit(
       row.usersLimitOverride != null
@@ -69,6 +88,12 @@ export default function AdminTenantsPage() {
         : String(row.invoicesLimit)
     );
     setPlanExpiry(row.planExpiry ? row.planExpiry.slice(0, 10) : "");
+    try {
+      const res = await api.getAdminTenant(row.id);
+      setDetail(res.data as TenantDetail);
+    } catch {
+      setDetail(null);
+    }
   };
 
   const save = async () => {
@@ -240,6 +265,35 @@ export default function AdminTenantsPage() {
                 {selected.isActive ? t.inactive : t.active}
               </button>
             </div>
+
+            {detail?.users && detail.users.length > 0 ? (
+              <div className="rounded-xl bg-slate-50 p-3 space-y-2">
+                <p className="text-xs font-bold text-slate-500">{t.users}</p>
+                {detail.users.slice(0, 8).map((u) => (
+                  <div key={u.id} className="flex justify-between text-xs gap-2">
+                    <span className="truncate font-semibold">{u.name}</span>
+                    <span className="text-slate-500 shrink-0">{u.role}</span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            {detail?.billingInvoices && detail.billingInvoices.length > 0 ? (
+              <div className="rounded-xl bg-slate-50 p-3 space-y-2">
+                <p className="text-xs font-bold text-slate-500">{t.payments}</p>
+                {detail.billingInvoices.slice(0, 6).map((b) => (
+                  <div key={b.id} className="flex justify-between text-xs gap-2">
+                    <span className="text-slate-600">
+                      {fmt(b.createdAt, en)} · {b.status}
+                    </span>
+                    <span className="font-bold tabular-nums">
+                      {Number(b.amount ?? 0).toFixed(3)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
             <Link href={`/admin/users?q=${encodeURIComponent(selected.email || selected.name)}`} className="block text-center text-sm text-teal-800 font-semibold">
               {t.users}
             </Link>
