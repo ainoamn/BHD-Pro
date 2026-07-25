@@ -11,7 +11,13 @@ export class AdminService {
     | null = null;
 
   private publicLogosCache:
-    | { at: number; data: { companies: { id: string; name: string; logo: string }[]; updatedAt: string } }
+    | {
+        at: number;
+        data: {
+          companies: { id: string; name: string; logo: string; plan?: string }[];
+          updatedAt: string;
+        };
+      }
     | null = null;
 
   constructor(private prisma: PrismaService) {}
@@ -38,6 +44,7 @@ export class AdminService {
    * Logos of paid active companies for the landing page.
    * Paid = planExpiry in the future (set after successful subscription payment).
    * Unpaid/default STARTER signups have null planExpiry and are excluded.
+   * Ordered by plan tier (ENTERPRISE → PROFESSIONAL → STARTER), then newest paid first.
    * Cached ~2 minutes.
    */
   async publicCustomerLogos() {
@@ -45,6 +52,12 @@ export class AdminService {
     if (this.publicLogosCache && now - this.publicLogosCache.at < 120_000) {
       return this.publicLogosCache.data;
     }
+
+    const planRank: Record<Plan, number> = {
+      [Plan.ENTERPRISE]: 3,
+      [Plan.PROFESSIONAL]: 2,
+      [Plan.STARTER]: 1,
+    };
 
     const rows = await this.prisma.company.findMany({
       where: {
@@ -57,18 +70,28 @@ export class AdminService {
         id: true,
         name: true,
         logo: true,
+        plan: true,
         planStartedAt: true,
+        createdAt: true,
       },
-      orderBy: [{ planStartedAt: 'desc' }, { createdAt: 'desc' }],
-      take: 48,
+      take: 80,
     });
 
     const companies = rows
       .filter((r) => typeof r.logo === 'string' && r.logo.trim().length > 8)
+      .sort((a, b) => {
+        const rankDiff = (planRank[b.plan] || 0) - (planRank[a.plan] || 0);
+        if (rankDiff !== 0) return rankDiff;
+        const aStart = a.planStartedAt?.getTime() || a.createdAt.getTime();
+        const bStart = b.planStartedAt?.getTime() || b.createdAt.getTime();
+        return bStart - aStart;
+      })
+      .slice(0, 48)
       .map((r) => ({
         id: r.id,
         name: r.name,
         logo: r.logo!.trim(),
+        plan: r.plan,
       }));
 
     const data = { companies, updatedAt: new Date().toISOString() };
