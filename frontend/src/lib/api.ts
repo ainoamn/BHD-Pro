@@ -1702,8 +1702,29 @@ class ApiClient {
     >(`/pos/incentives/me/ledger?take=${take}`);
   }
 
-  payoutPosCommission(data: { userId: string; amount: number; note?: string }) {
+  payoutPosCommission(data: {
+    userId: string;
+    amount: number;
+    note?: string;
+    warehouseId?: string;
+    deductFromDrawer?: boolean;
+  }) {
     return this.post("/pos/incentives/payout", data);
+  }
+
+  getPosShiftAnomalies(shiftId: string) {
+    return this.get<{
+      score: number;
+      overallRisk: string;
+      summaryAr: string;
+      summaryEn: string;
+      findings: {
+        id: string;
+        severity: string;
+        messageAr: string;
+        messageEn: string;
+      }[];
+    }>(`/ai/shifts/${encodeURIComponent(shiftId)}/anomalies`);
   }
 
   getPosCustomerPoints(contactId: string) {

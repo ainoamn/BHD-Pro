@@ -110,6 +110,10 @@ export class PosController {
       dto.userId,
       dto.amount,
       dto.note,
+      {
+        deductFromDrawer: dto.deductFromDrawer,
+        warehouseId: dto.warehouseId,
+      },
     );
   }
 

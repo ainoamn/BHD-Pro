@@ -1,6 +1,7 @@
-import { Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { AiService } from './ai.service';
+import { PosService } from '../pos/pos.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -13,7 +14,10 @@ import { UserRole } from '@prisma/client';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('ai')
 export class AiController {
-  constructor(private aiService: AiService) {}
+  constructor(
+    private aiService: AiService,
+    private posService: PosService,
+  ) {}
 
   @Get('analytics')
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
@@ -29,5 +33,17 @@ export class AiController {
   })
   propose(@CurrentUser() user: TokenPayload) {
     return this.aiService.proposeToManagers(user.companyId);
+  }
+
+  @Get('shifts/:shiftId/anomalies')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT, UserRole.CASHIER)
+  @ApiOperation({
+    summary: 'Rule-based POS shift anomaly review (variance, voids, cash-out, commission)',
+  })
+  shiftAnomalies(
+    @CurrentUser() user: TokenPayload,
+    @Param('shiftId') shiftId: string,
+  ) {
+    return this.posService.analyzeShiftAnomalies(user.companyId, shiftId);
   }
 }

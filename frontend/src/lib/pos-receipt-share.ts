@@ -19,6 +19,7 @@ export type PosShiftReportShareData = {
   salesTotal?: number;
   salesCount?: number;
   cashSales?: number;
+  cardSales?: number;
   cashIn?: number;
   cashOut?: number;
   refundTotal?: number;
@@ -26,6 +27,7 @@ export type PosShiftReportShareData = {
   expectedCash?: number;
   closingCash?: number | null;
   variance?: number | null;
+  varianceStatus?: string | null;
 };
 
 export function buildPosReceiptPlainText(receipt: PosReceiptShareData): string {
@@ -72,6 +74,7 @@ export function buildPosShiftReportPlainText(report: PosShiftReportShareData): s
     `Opening: ${money(report.openingCash)}`,
     `Sales: ${money(report.salesTotal)} (${report.salesCount ?? 0})`,
     `Cash sales: ${money(report.cashSales)}`,
+    `Card sales: ${money(report.cardSales)}`,
     `Cash in: ${money(report.cashIn)}`,
     `Cash out: ${money(report.cashOut)}`,
     `Refunds: ${money(report.refundTotal)}`,
@@ -81,6 +84,9 @@ export function buildPosShiftReportPlainText(report: PosShiftReportShareData): s
   if (report.kind === "Z") {
     lines.push(`Closing cash: ${money(report.closingCash)}`);
     lines.push(`Variance: ${money(report.variance)}`);
+    if (report.varianceStatus) {
+      lines.push(`Variance status: ${report.varianceStatus}`);
+    }
   }
   return lines.join("\n");
 }

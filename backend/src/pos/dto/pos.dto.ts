@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
@@ -349,4 +349,18 @@ export class PayoutCommissionDto {
   @IsString()
   @MaxLength(500)
   note?: string;
+
+  /** When true (default), also record PosCashMovement OUT on the open shift drawer. */
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value === false || value === 'false' || value === 0 || value === '0') return false;
+    if (value === true || value === 'true' || value === 1 || value === '1') return true;
+    return value;
+  })
+  @IsBoolean()
+  deductFromDrawer?: boolean;
+
+  @IsOptional()
+  @IsUUID()
+  warehouseId?: string;
 }

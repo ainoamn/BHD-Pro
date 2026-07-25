@@ -87,7 +87,17 @@ export function PosCommissionChip() {
     if (!(amount > 0)) return;
     setBusy(true);
     try {
-      await api.payoutPosCommission({ userId: user.id, amount });
+      let warehouseId: string | undefined;
+      try {
+        warehouseId = localStorage.getItem("hisaby-pos-warehouse-id") || undefined;
+      } catch {
+        warehouseId = undefined;
+      }
+      await api.payoutPosCommission({
+        userId: user.id,
+        amount,
+        warehouseId: warehouseId || undefined,
+      });
       toast.success(t.payoutOk);
       setPayoutAmt("");
       await refresh();

@@ -35,11 +35,14 @@ type ZReport = {
   cashSales?: number;
   cardSales?: number;
   bankSales?: number;
+  storeCreditSales?: number;
   cashIn?: number;
   cashOut?: number;
+  commissionCashOut?: number;
   cashMovements?: CashMovement[];
   refundTotal?: number;
   refundsTotal?: number;
+  cashRefundsTotal?: number;
   voidedTotal?: number;
   voidsTotal?: number;
   expectedCash?: number;
@@ -47,7 +50,46 @@ type ZReport = {
   openingFloat?: number;
   closingCash?: number | null;
   variance?: number | null;
+  varianceStatus?: "BALANCED" | "SHORT" | "OVER" | null;
+  formulaAr?: string;
+  formulaEn?: string;
 };
+
+function varianceBadgeLabel(
+  t: (typeof posCopy)["en"] | (typeof posCopy)["ar"],
+  status?: string | null,
+  variance?: number | null,
+) {
+  const s =
+    status ||
+    (variance == null
+      ? null
+      : Math.abs(variance) <= 0.005
+        ? "BALANCED"
+        : variance < 0
+          ? "SHORT"
+          : "OVER");
+  if (s === "SHORT") return t.shortage;
+  if (s === "OVER") return t.overage;
+  if (s === "BALANCED") return t.balanced;
+  return null;
+}
+
+function varianceBadgeClass(status?: string | null, variance?: number | null) {
+  const s =
+    status ||
+    (variance == null
+      ? null
+      : Math.abs(variance) <= 0.005
+        ? "BALANCED"
+        : variance < 0
+          ? "SHORT"
+          : "OVER");
+  if (s === "SHORT") return "bg-rose-500/20 text-rose-200 border-rose-400/40";
+  if (s === "OVER") return "bg-amber-500/20 text-amber-100 border-amber-400/40";
+  if (s === "BALANCED") return "bg-emerald-500/20 text-emerald-200 border-emerald-400/40";
+  return "bg-white/5 text-slate-400 border-white/10";
+}
 
 function toShareReport(
   report: ZReport,
@@ -63,6 +105,7 @@ function toShareReport(
     salesTotal: Number(report.salesTotal ?? 0),
     salesCount: Number(report.salesCount ?? 0),
     cashSales: Number(report.cashSales ?? 0),
+    cardSales: Number(report.cardSales ?? 0),
     cashIn: Number(report.cashIn ?? 0),
     cashOut: Number(report.cashOut ?? 0),
     refundTotal: Number(report.refundsTotal ?? report.refundTotal ?? 0),
@@ -70,6 +113,7 @@ function toShareReport(
     expectedCash: Number(report.expectedCash ?? 0),
     closingCash: report.closingCash != null ? Number(report.closingCash) : null,
     variance: report.variance != null ? Number(report.variance) : null,
+    varianceStatus: report.varianceStatus ?? null,
   };
 }
 
@@ -86,6 +130,7 @@ function printShiftReport(
     [t.zSales, report.salesTotal ?? 0],
     [t.zCount, report.salesCount ?? 0],
     [t.zCash, report.cashSales ?? 0],
+    [t.cardSales, report.cardSales ?? 0],
     [t.zCashIn, report.cashIn ?? 0],
     [t.zCashOut, report.cashOut ?? 0],
     [t.zRefunds, report.refundsTotal ?? report.refundTotal ?? 0],
@@ -95,6 +140,10 @@ function printShiftReport(
       ? ([
           [t.closingCash, report.closingCash ?? "—"],
           [t.zVariance, report.variance ?? "—"],
+          [
+            t.reconciliationTitle,
+            varianceBadgeLabel(t, report.varianceStatus, report.variance) || "—",
+          ],
         ] as [string, string | number][])
       : []),
   ];
@@ -159,6 +208,13 @@ export default function PosShiftsPage() {
   const [cashType, setCashType] = useState<"IN" | "OUT">("IN");
   const [cashAmount, setCashAmount] = useState("");
   const [cashReason, setCashReason] = useState("");
+  const [lastClosedShiftId, setLastClosedShiftId] = useState<string | null>(null);
+  const [aiBusyId, setAiBusyId] = useState<string | null>(null);
+  const [aiFindings, setAiFindings] = useState<{
+    shiftId: string;
+    summary: string;
+    findings: { severity: string; message: string }[];
+  } | null>(null);
 
   useEffect(() => {
     try {
@@ -263,8 +319,10 @@ export default function PosShiftsPage() {
       setClosingCash("");
       setApprovalOpen(false);
       setPendingCloseCash(null);
-      const z = (res.data as { zReport?: ZReport })?.zReport || null;
+      const payload = res.data as { zReport?: ZReport; shift?: { id?: string } };
+      const z = payload?.zReport || null;
       setLastZ(z);
+      setLastClosedShiftId(payload?.shift?.id || null);
       if (z) printShiftReport(t, z, "Z", company?.name);
       qc.invalidateQueries({ queryKey: ["pos-shift-current"] });
       qc.invalidateQueries({ queryKey: ["pos-shifts"] });
@@ -316,6 +374,42 @@ export default function PosShiftsPage() {
   const cashMovements = (data?.cashMovements ||
     live?.cashMovements ||
     []) as CashMovement[];
+
+  const previewVariance =
+    closingCash !== "" && !Number.isNaN(Number(closingCash))
+      ? Number((Number(closingCash) - expectedCash).toFixed(3))
+      : null;
+  const previewStatus =
+    previewVariance == null
+      ? null
+      : Math.abs(previewVariance) <= 0.005
+        ? ("BALANCED" as const)
+        : previewVariance < 0
+          ? ("SHORT" as const)
+          : ("OVER" as const);
+
+  const runAiReview = async (shiftId: string) => {
+    setAiBusyId(shiftId);
+    try {
+      const res = await api.getPosShiftAnomalies(shiftId);
+      const body = res.data;
+      const findings = (body.findings || []).map((f) => ({
+        severity: f.severity,
+        message: locale === "en" ? f.messageEn : f.messageAr,
+      }));
+      const summary = locale === "en" ? body.summaryEn : body.summaryAr;
+      setAiFindings({ shiftId, summary, findings });
+      if (!findings.length) toast.success(t.aiReviewOk);
+      else toast(summary, { icon: "⚠" });
+    } catch (err) {
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message || t.aiReviewFail;
+      toast.error(typeof msg === "string" ? msg : t.aiReviewFail);
+    } finally {
+      setAiBusyId(null);
+    }
+  };
 
   const requestClose = () => {
     const cash = Number(closingCash);
@@ -406,39 +500,38 @@ export default function PosShiftsPage() {
             {shift.warehouse ? ` · ${shift.warehouse.code}` : ""}
           </p>
           {live ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
-              <div className="rounded-lg bg-black/20 p-3">
-                <p className="text-slate-500 text-xs">{t.zSales}</p>
-                <p className="font-bold text-white">{live.salesTotal ?? 0}</p>
+            <div className="space-y-3">
+              <p className="text-xs font-semibold text-slate-300">{t.reconciliationTitle}</p>
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-sm">
+                <div className="rounded-lg bg-black/20 px-2.5 py-2">
+                  <p className="text-slate-500 text-[10px]">{t.cashSales}</p>
+                  <p className="font-bold text-white tabular-nums">{live.cashSales ?? 0}</p>
+                </div>
+                <div className="rounded-lg bg-black/20 px-2.5 py-2">
+                  <p className="text-slate-500 text-[10px]">{t.cardSales}</p>
+                  <p className="font-bold text-white tabular-nums">{live.cardSales ?? 0}</p>
+                </div>
+                <div className="rounded-lg bg-black/20 px-2.5 py-2">
+                  <p className="text-slate-500 text-[10px]">{t.expectedInDrawer}</p>
+                  <p className="font-bold text-emerald-300 tabular-nums">
+                    {live.expectedCash ?? 0}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-black/20 px-2.5 py-2">
+                  <p className="text-slate-500 text-[10px]">{t.zCashOut}</p>
+                  <p className="font-bold text-white tabular-nums">{live.cashOut ?? 0}</p>
+                </div>
+                <div className="rounded-lg bg-black/20 px-2.5 py-2">
+                  <p className="text-slate-500 text-[10px]">{t.zCashIn}</p>
+                  <p className="font-bold text-white tabular-nums">{live.cashIn ?? 0}</p>
+                </div>
               </div>
-              <div className="rounded-lg bg-black/20 p-3">
-                <p className="text-slate-500 text-xs">{t.zCash}</p>
-                <p className="font-bold text-white">{live.cashSales ?? 0}</p>
-              </div>
-              <div className="rounded-lg bg-black/20 p-3">
-                <p className="text-slate-500 text-xs">{t.zExpected}</p>
-                <p className="font-bold text-emerald-300">{live.expectedCash ?? 0}</p>
-              </div>
-              <div className="rounded-lg bg-black/20 p-3">
-                <p className="text-slate-500 text-xs">{t.zCashIn}</p>
-                <p className="font-bold text-white">{live.cashIn ?? 0}</p>
-              </div>
-              <div className="rounded-lg bg-black/20 p-3">
-                <p className="text-slate-500 text-xs">{t.zCashOut}</p>
-                <p className="font-bold text-white">{live.cashOut ?? 0}</p>
-              </div>
-              <div className="rounded-lg bg-black/20 p-3">
-                <p className="text-slate-500 text-xs">{t.zRefunds}</p>
-                <p className="font-bold text-white">{live.refundsTotal ?? live.refundTotal ?? 0}</p>
-              </div>
-              <div className="rounded-lg bg-black/20 p-3">
-                <p className="text-slate-500 text-xs">{t.zVoids}</p>
-                <p className="font-bold text-white">{live.voidsTotal ?? live.voidedTotal ?? 0}</p>
-              </div>
-              <div className="rounded-lg bg-black/20 p-3">
-                <p className="text-slate-500 text-xs">{t.zCount}</p>
-                <p className="font-bold text-white">{live.salesCount ?? 0}</p>
-              </div>
+              <p className="text-[10px] text-slate-500">
+                {locale === "en" ? live.formulaEn : live.formulaAr}
+                {live.commissionCashOut
+                  ? ` · ${t.payout}: ${live.commissionCashOut}`
+                  : ""}
+              </p>
             </div>
           ) : null}
 
@@ -535,55 +628,77 @@ export default function PosShiftsPage() {
             )}
           </div>
 
-          <div className="flex flex-wrap items-end gap-3">
-            <div>
-              <label className="block text-xs text-slate-400 mb-1">{t.closingCash}</label>
-              <input
-                value={closingCash}
-                onChange={(e) => setClosingCash(e.target.value)}
-                inputMode="decimal"
-                className="h-10 w-40 rounded-lg bg-black/30 border border-white/10 px-3 text-sm text-white"
-              />
+          <div className="rounded-xl border border-white/10 bg-black/20 p-4 space-y-3">
+            <p className="text-xs font-semibold text-slate-300">{t.reconciliationTitle}</p>
+            <div className="flex flex-wrap items-end gap-3">
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">{t.countedCash}</label>
+                <input
+                  value={closingCash}
+                  onChange={(e) => setClosingCash(e.target.value)}
+                  inputMode="decimal"
+                  className="h-10 w-40 rounded-lg bg-black/30 border border-white/10 px-3 text-sm text-white"
+                />
+              </div>
+              <div className="rounded-lg bg-black/30 px-3 py-2 min-w-[7rem]">
+                <p className="text-[10px] text-slate-500">{t.expectedInDrawer}</p>
+                <p className="font-bold text-emerald-300 tabular-nums">{expectedCash}</p>
+              </div>
+              <div className="rounded-lg bg-black/30 px-3 py-2 min-w-[7rem]">
+                <p className="text-[10px] text-slate-500">{t.difference}</p>
+                <p className="font-bold text-white tabular-nums">
+                  {previewVariance != null ? previewVariance : "—"}
+                </p>
+              </div>
+              {previewStatus ? (
+                <span
+                  className={`inline-flex h-9 items-center rounded-lg border px-3 text-xs font-semibold ${varianceBadgeClass(previewStatus, previewVariance)}`}
+                >
+                  {varianceBadgeLabel(t, previewStatus, previewVariance)}
+                </span>
+              ) : null}
             </div>
-            <button
-              type="button"
-              disabled={xReportMut.isPending}
-              onClick={() => xReportMut.mutate()}
-              className="h-10 px-4 rounded-lg border border-sky-500/40 bg-sky-500/10 text-sky-200 text-sm font-semibold disabled:opacity-50 inline-flex items-center gap-2"
-            >
-              {xReportMut.isPending ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Printer className="w-4 h-4" />
-              )}
-              {t.xReport}
-            </button>
-            <button
-              type="button"
-              onClick={() => shareReport(lastX || live || null, "X", "wa")}
-              disabled={!(lastX || live)}
-              className="h-10 px-3 rounded-lg border border-emerald-500/30 text-emerald-200 text-xs font-semibold inline-flex items-center gap-1.5 disabled:opacity-40"
-            >
-              <MessageCircle className="w-3.5 h-3.5" />
-              {t.shareReportWhatsApp}
-            </button>
-            <button
-              type="button"
-              onClick={() => shareReport(lastX || live || null, "X", "email")}
-              disabled={!(lastX || live)}
-              className="h-10 px-3 rounded-lg border border-white/15 text-slate-200 text-xs font-semibold inline-flex items-center gap-1.5 disabled:opacity-40"
-            >
-              <Mail className="w-3.5 h-3.5" />
-              {t.shareReportEmail}
-            </button>
-            <button
-              type="button"
-              disabled={closeMut.isPending || closingCash === ""}
-              onClick={requestClose}
-              className="h-10 px-4 rounded-lg bg-rose-500/90 text-white text-sm font-semibold disabled:opacity-50"
-            >
-              {closeMut.isPending ? "…" : t.closeShift}
-            </button>
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <button
+                type="button"
+                disabled={xReportMut.isPending}
+                onClick={() => xReportMut.mutate()}
+                className="h-10 px-4 rounded-lg border border-sky-500/40 bg-sky-500/10 text-sky-200 text-sm font-semibold disabled:opacity-50 inline-flex items-center gap-2"
+              >
+                {xReportMut.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Printer className="w-4 h-4" />
+                )}
+                {t.xReport}
+              </button>
+              <button
+                type="button"
+                onClick={() => shareReport(lastX || live || null, "X", "wa")}
+                disabled={!(lastX || live)}
+                className="h-10 px-3 rounded-lg border border-emerald-500/30 text-emerald-200 text-xs font-semibold inline-flex items-center gap-1.5 disabled:opacity-40"
+              >
+                <MessageCircle className="w-3.5 h-3.5" />
+                {t.shareReportWhatsApp}
+              </button>
+              <button
+                type="button"
+                onClick={() => shareReport(lastX || live || null, "X", "email")}
+                disabled={!(lastX || live)}
+                className="h-10 px-3 rounded-lg border border-white/15 text-slate-200 text-xs font-semibold inline-flex items-center gap-1.5 disabled:opacity-40"
+              >
+                <Mail className="w-3.5 h-3.5" />
+                {t.shareReportEmail}
+              </button>
+              <button
+                type="button"
+                disabled={closeMut.isPending || closingCash === ""}
+                onClick={requestClose}
+                className="h-10 px-4 rounded-lg bg-rose-500/90 text-white text-sm font-semibold disabled:opacity-50"
+              >
+                {closeMut.isPending ? "…" : t.closeShift}
+              </button>
+            </div>
           </div>
         </div>
       ) : (
@@ -637,6 +752,27 @@ export default function PosShiftsPage() {
             <Mail className="w-4 h-4" />
             {t.shareReportEmail}
           </button>
+          {lastClosedShiftId ? (
+            <button
+              type="button"
+              disabled={aiBusyId === lastClosedShiftId}
+              onClick={() => void runAiReview(lastClosedShiftId)}
+              className="inline-flex items-center gap-1.5 text-sm text-violet-300 hover:underline disabled:opacity-50"
+            >
+              {aiBusyId === lastClosedShiftId ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : null}
+              {t.aiReview}
+            </button>
+          ) : null}
+          {lastZ.varianceStatus || lastZ.variance != null ? (
+            <span
+              className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-semibold ${varianceBadgeClass(lastZ.varianceStatus, lastZ.variance)}`}
+            >
+              {varianceBadgeLabel(t, lastZ.varianceStatus, lastZ.variance)}
+              {lastZ.variance != null ? ` · ${lastZ.variance}` : ""}
+            </span>
+          ) : null}
         </div>
       ) : null}
 
@@ -756,13 +892,31 @@ export default function PosShiftsPage() {
               {s.zReportJson ? (
                 <div className="text-xs text-slate-400 text-end space-y-1">
                   <p>
-                    {t.zSales}: {s.zReportJson.salesTotal ?? "—"}
+                    {t.cashSales}: {s.zReportJson.cashSales ?? "—"} · {t.cardSales}:{" "}
+                    {s.zReportJson.cardSales ?? "—"}
                   </p>
                   <p>
-                    {t.zExpected}: {s.zReportJson.expectedCash ?? "—"}
+                    {t.expectedInDrawer}: {s.zReportJson.expectedCash ?? "—"}
                   </p>
-                  <p>
-                    {t.zVariance}: {s.zReportJson.variance ?? "—"}
+                  <p className="inline-flex items-center justify-end gap-2">
+                    <span>
+                      {t.zVariance}: {s.zReportJson.variance ?? "—"}
+                    </span>
+                    {varianceBadgeLabel(
+                      t,
+                      s.zReportJson.varianceStatus,
+                      s.zReportJson.variance,
+                    ) ? (
+                      <span
+                        className={`rounded border px-1.5 py-0.5 text-[10px] font-semibold ${varianceBadgeClass(s.zReportJson.varianceStatus, s.zReportJson.variance)}`}
+                      >
+                        {varianceBadgeLabel(
+                          t,
+                          s.zReportJson.varianceStatus,
+                          s.zReportJson.variance,
+                        )}
+                      </span>
+                    ) : null}
                   </p>
                   <div className="flex flex-wrap justify-end gap-2 pt-1">
                     <button
@@ -786,6 +940,16 @@ export default function PosShiftsPage() {
                     >
                       {t.shareReportEmail}
                     </button>
+                    {s.status === "CLOSED" ? (
+                      <button
+                        type="button"
+                        disabled={aiBusyId === s.id}
+                        onClick={() => void runAiReview(s.id)}
+                        className="text-violet-300 hover:underline disabled:opacity-50"
+                      >
+                        {aiBusyId === s.id ? "…" : t.aiReview}
+                      </button>
+                    ) : null}
                   </div>
                 </div>
               ) : null}

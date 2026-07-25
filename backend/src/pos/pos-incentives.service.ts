@@ -6,9 +6,11 @@ import {
 } from '@nestjs/common';
 import { InvoiceStatus, InvoiceType, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { GlPostingService } from '../journal/gl-posting.service';
 import { UpdateIncentivesConfigDto } from './dto/pos.dto';
 
 const WALK_IN_NAME = 'POS Walk-in / نقدي';
+const COMMISSION_CASH_OUT_REASON = 'Commission payout';
 
 export type IncentivesConfig = {
   cashierEnabled?: boolean;
@@ -22,7 +24,10 @@ export type IncentivesConfig = {
 export class PosIncentivesService {
   private readonly logger = new Logger(PosIncentivesService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private glPosting: GlPostingService,
+  ) {}
 
   normalizeConfig(raw: unknown): IncentivesConfig {
     const c = (raw && typeof raw === 'object' ? raw : {}) as IncentivesConfig;
@@ -390,6 +395,7 @@ export class PosIncentivesService {
     cashierUserId: string,
     amount: number,
     note?: string,
+    opts?: { deductFromDrawer?: boolean; warehouseId?: string },
   ) {
     const amt = Number(Number(amount).toFixed(3));
     if (!(amt > 0)) {
@@ -409,16 +415,73 @@ export class PosIncentivesService {
       );
     }
 
-    return this.prisma.cashierCommissionLedger.create({
+    const payoutNote = note?.trim() || COMMISSION_CASH_OUT_REASON;
+    const ledger = await this.prisma.cashierCommissionLedger.create({
       data: {
         companyId,
         userId: cashierUserId,
         type: 'PAYOUT',
         amount: amt,
-        note: note?.trim() || 'Commission payout',
+        note: payoutNote,
         createdById: adminId,
       },
     });
+
+    const deductFromDrawer = opts?.deductFromDrawer !== false;
+    if (!deductFromDrawer) {
+      return { ledger, cashMovement: null };
+    }
+
+    const warehouseId = opts?.warehouseId || null;
+    const shift = await this.prisma.posShift.findFirst({
+      where: {
+        companyId,
+        status: 'OPEN',
+        ...(warehouseId ? { warehouseId } : {}),
+      },
+      orderBy: { openedAt: 'desc' },
+      select: { id: true },
+    });
+
+    if (!shift) {
+      this.logger.warn(
+        `Commission payout ${ledger.id}: no open shift for drawer deduct (warehouse=${warehouseId || 'default'})`,
+      );
+      return { ledger, cashMovement: null };
+    }
+
+    let cashMovement = await this.prisma.posCashMovement.create({
+      data: {
+        companyId,
+        shiftId: shift.id,
+        type: 'OUT',
+        amount: amt,
+        reason: COMMISSION_CASH_OUT_REASON,
+        createdById: adminId,
+      },
+      include: {
+        createdBy: { select: { id: true, name: true } },
+      },
+    });
+
+    const reference = `POS-CASH-OUT:${cashMovement.id}`;
+    const journal = await this.glPosting.postPosCashOut(companyId, adminId, {
+      amount: amt,
+      reason: COMMISSION_CASH_OUT_REASON,
+      reference,
+    });
+
+    if (journal?.id) {
+      cashMovement = await this.prisma.posCashMovement.update({
+        where: { id: cashMovement.id },
+        data: { journalId: journal.id },
+        include: {
+          createdBy: { select: { id: true, name: true } },
+        },
+      });
+    }
+
+    return { ledger, cashMovement };
   }
 
   async getContactPoints(companyId: string, contactId: string) {

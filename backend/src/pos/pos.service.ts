@@ -1459,6 +1459,144 @@ export class PosService {
   }
 
   /**
+   * Rule-based shift anomaly review (no external LLM required).
+   * Returns score 0–1 plus bilingual findings.
+   */
+  async analyzeShiftAnomalies(companyId: string, shiftId: string) {
+    const { shift, zReport: raw } = await this.getZReport(companyId, shiftId);
+    const z = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<
+      string,
+      unknown
+    >;
+
+    const num = (v: unknown) => Number(v ?? 0) || 0;
+    const variance = z.variance != null ? Number(z.variance) : null;
+    const cashSales = num(z.cashSales);
+    const cashOut = num(z.cashOut);
+    const salesTotal = num(z.salesTotal);
+    const voidsCount = num(z.voidsCount ?? z.voidCount);
+    const refundsCount = num(z.refundsCount ?? z.refundCount);
+    const refundsTotal = num(z.refundsTotal ?? z.refundTotal);
+    const salesCount = num(z.salesCount);
+    const commissionCashOut = num(z.commissionCashOut);
+    const varianceStatus =
+      (z.varianceStatus as string | null | undefined) ??
+      (variance == null
+        ? null
+        : Math.abs(variance) <= 0.005
+          ? 'BALANCED'
+          : variance < 0
+            ? 'SHORT'
+            : 'OVER');
+
+    const limit = await this.dualControl.getShiftVarianceLimit(companyId);
+
+    type Finding = {
+      id: string;
+      severity: 'low' | 'medium' | 'high';
+      messageAr: string;
+      messageEn: string;
+    };
+    const findings: Finding[] = [];
+
+    if (variance != null && Math.abs(variance) > limit) {
+      findings.push({
+        id: 'variance-over-limit',
+        severity: 'high',
+        messageAr: `فارق النقد ${variance.toFixed(3)} يتجاوز الحد المسموح ${limit.toFixed(3)} (${varianceStatus || '—'})`,
+        messageEn: `Cash variance ${variance.toFixed(3)} exceeds limit ${limit.toFixed(3)} (${varianceStatus || '—'})`,
+      });
+    }
+
+    if (voidsCount > 3 || (salesCount > 0 && voidsCount / salesCount > 0.1)) {
+      findings.push({
+        id: 'high-voids',
+        severity: 'medium',
+        messageAr: `إلغاءات مرتفعة: ${voidsCount} من ${salesCount} عملية`,
+        messageEn: `Elevated voids: ${voidsCount} of ${salesCount} sales`,
+      });
+    }
+
+    if (cashSales > 0 && cashOut > cashSales * 0.3) {
+      findings.push({
+        id: 'high-cash-out',
+        severity: 'medium',
+        messageAr: `إخراج نقد (${cashOut.toFixed(3)}) يتجاوز 30% من المبيعات النقدية (${cashSales.toFixed(3)})`,
+        messageEn: `Cash out (${cashOut.toFixed(3)}) exceeds 30% of cash sales (${cashSales.toFixed(3)})`,
+      });
+    }
+
+    const from = shift.openedAt;
+    const to = shift.closedAt || new Date();
+    const payouts = await this.prisma.cashierCommissionLedger.findMany({
+      where: {
+        companyId,
+        type: 'PAYOUT',
+        createdAt: { gte: from, lte: to },
+      },
+      select: { amount: true },
+    });
+    const payoutTotal = payouts.reduce((s, p) => s + Number(p.amount), 0);
+    if (payoutTotal > 0.005 && commissionCashOut + 0.005 < payoutTotal) {
+      findings.push({
+        id: 'commission-without-drawer-out',
+        severity: 'medium',
+        messageAr: `صرف عمولة ${payoutTotal.toFixed(3)} بدون إخراج صندوق مطابق (${commissionCashOut.toFixed(3)})`,
+        messageEn: `Commission payout ${payoutTotal.toFixed(3)} without matching drawer cash-out (${commissionCashOut.toFixed(3)})`,
+      });
+    }
+
+    if (
+      refundsCount >= 5 ||
+      (salesTotal > 0 && refundsTotal / salesTotal > 0.15)
+    ) {
+      findings.push({
+        id: 'many-refunds',
+        severity: refundsCount >= 8 || refundsTotal / Math.max(salesTotal, 1) > 0.25
+          ? 'medium'
+          : 'low',
+        messageAr: `استردادات كثيرة: ${refundsCount} بقيمة ${refundsTotal.toFixed(3)}`,
+        messageEn: `Many refunds: ${refundsCount} totaling ${refundsTotal.toFixed(3)}`,
+      });
+    }
+
+    const severityWeight = { low: 0.12, medium: 0.28, high: 0.45 };
+    const score = Math.min(
+      1,
+      findings.reduce((s, f) => s + severityWeight[f.severity], 0),
+    );
+    const overallRisk =
+      score >= 0.5 ? 'high' : score >= 0.25 ? 'medium' : findings.length ? 'low' : 'none';
+
+    let llmNote: string | null = null;
+    if (process.env.OPENAI_API_KEY && findings.length > 0) {
+      llmNote =
+        'OPENAI_API_KEY present — enrichment skipped (rules-first review is authoritative).';
+    }
+
+    return {
+      engine: 'rules_v1',
+      shiftId: shift.id,
+      status: shift.status,
+      score: Number(score.toFixed(3)),
+      overallRisk,
+      varianceStatus,
+      variance,
+      shiftVarianceLimit: limit,
+      findings,
+      llmNote,
+      summaryAr:
+        findings.length === 0
+          ? 'لا مؤشرات شاذة وفق القواعد الحالية'
+          : `${findings.length} مؤشر — المخاطر: ${overallRisk}`,
+      summaryEn:
+        findings.length === 0
+          ? 'No anomalies under current rules'
+          : `${findings.length} finding(s) — risk: ${overallRisk}`,
+    };
+  }
+
+  /**
    * Mid-shift X-report: same totals as Z for the open window until now, without closing.
    */
   async getXReport(companyId: string, shiftId: string) {
@@ -1733,6 +1871,9 @@ export class PosService {
       })
       .reduce((s, r) => s + Number(r.total), 0);
     const cashSales = byPaymentMethod[PaymentMethod.CASH] || 0;
+    const cardSales = byPaymentMethod[PaymentMethod.CREDIT_CARD] || 0;
+    const bankSales = byPaymentMethod[PaymentMethod.BANK_TRANSFER] || 0;
+    const storeCreditSales = byPaymentMethod[PaymentMethod.STORE_CREDIT] || 0;
 
     const movements = await this.prisma.posCashMovement.findMany({
       where: { companyId, shiftId },
@@ -1741,19 +1882,51 @@ export class PosService {
     });
     let cashIn = 0;
     let cashOut = 0;
+    let commissionCashOut = 0;
     for (const m of movements) {
       const amt = Number(m.amount);
       if (m.type === 'IN') cashIn += amt;
-      else if (m.type === 'OUT') cashOut += amt;
+      else if (m.type === 'OUT') {
+        cashOut += amt;
+        const reason = String(m.reason || '');
+        if (/commission/i.test(reason)) {
+          commissionCashOut += amt;
+        }
+      }
     }
     cashIn = Number(cashIn.toFixed(3));
     cashOut = Number(cashOut.toFixed(3));
+    commissionCashOut = Number(commissionCashOut.toFixed(3));
+
+    // Fallback: PAYOUT ledger during shift window if drawer movements missed commission
+    if (commissionCashOut <= 0) {
+      const payouts = await this.prisma.cashierCommissionLedger.findMany({
+        where: {
+          companyId,
+          type: 'PAYOUT',
+          createdAt: { gte: from, lte: to },
+        },
+        select: { amount: true },
+      });
+      if (payouts.length) {
+        commissionCashOut = Number(
+          payouts.reduce((s, p) => s + Number(p.amount), 0).toFixed(3),
+        );
+      }
+    }
 
     const expectedCash = Number(
       (openingFloat + cashSales - cashRefundsTotal + cashIn - cashOut).toFixed(3),
     );
     const variance =
       closingCash != null ? Number((closingCash - expectedCash).toFixed(3)) : null;
+
+    let varianceStatus: 'BALANCED' | 'SHORT' | 'OVER' | null = null;
+    if (variance != null) {
+      if (Math.abs(variance) <= 0.005) varianceStatus = 'BALANCED';
+      else if (variance < 0) varianceStatus = 'SHORT';
+      else varianceStatus = 'OVER';
+    }
 
     return {
       shiftId,
@@ -1771,14 +1944,17 @@ export class PosService {
       refundsTotal: Number(refundsTotal.toFixed(3)),
       refundCount: refunds.length,
       refundTotal: Number(refundsTotal.toFixed(3)),
+      cashRefundsTotal: Number(cashRefundsTotal.toFixed(3)),
       byPaymentMethod: Object.fromEntries(
         Object.entries(byPaymentMethod).map(([k, v]) => [k, Number(v.toFixed(3))]),
       ),
       cashSales: Number(cashSales.toFixed(3)),
-      cardSales: Number((byPaymentMethod[PaymentMethod.CREDIT_CARD] || 0).toFixed(3)),
-      bankSales: Number((byPaymentMethod[PaymentMethod.BANK_TRANSFER] || 0).toFixed(3)),
+      cardSales: Number(cardSales.toFixed(3)),
+      bankSales: Number(bankSales.toFixed(3)),
+      storeCreditSales: Number(storeCreditSales.toFixed(3)),
       cashIn,
       cashOut,
+      commissionCashOut,
       cashMovements: movements.map((m) => ({
         id: m.id,
         type: m.type,
@@ -1791,6 +1967,9 @@ export class PosService {
       expectedCash,
       closingCash: closingCash ?? null,
       variance,
+      varianceStatus,
+      formulaAr: 'افتتاح + مبيعات نقد − استرداد نقد + إدخال − إخراج',
+      formulaEn: 'opening + cash sales − cash refunds + cash in − cash out',
     };
   }
 
