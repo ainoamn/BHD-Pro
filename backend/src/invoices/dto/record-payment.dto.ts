@@ -27,4 +27,9 @@ export class RecordPaymentDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @ApiPropertyOptional({ description: 'Optional bank account for cash/bank sync' })
+  @IsOptional()
+  @IsString()
+  bankAccountId?: string;
 }

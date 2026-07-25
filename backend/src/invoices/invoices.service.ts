@@ -13,6 +13,7 @@ import { BatchRecordPaymentDto } from './dto/batch-record-payment.dto';
 import { GlPostingService } from '../journal/gl-posting.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { PeriodsService } from '../periods/periods.service';
+import { ManagementAlertsService } from '../management-alerts/management-alerts.service';
 
 const OMAN_VAT_RATE = 5;
 
@@ -23,6 +24,7 @@ export class InvoicesService {
     private glPosting: GlPostingService,
     private subscriptions: SubscriptionsService,
     private periods: PeriodsService,
+    private managementAlerts: ManagementAlertsService,
   ) {}
 
   private calcLine(item: { quantity: number; unitPrice: number; discount?: number; taxRate?: number }) {
@@ -480,6 +482,7 @@ export class InvoicesService {
       date?: string;
       reference?: string;
       notes?: string;
+      bankAccountId?: string;
     },
   ) {
     await this.periods.assertOpen(companyId, meta.date || new Date());
@@ -504,6 +507,25 @@ export class InvoicesService {
       );
     }
 
+    if (meta.bankAccountId) {
+      const bank = await this.prisma.bankAccount.findFirst({
+        where: { id: meta.bankAccountId, companyId },
+      });
+      if (!bank) throw new BadRequestException('Bank account not found');
+    }
+
+    if (meta.reference) {
+      const sameInvoiceDup = await this.prisma.payment.findFirst({
+        where: {
+          invoiceId: invoice.id,
+          reference: meta.reference,
+        },
+      });
+      if (sameInvoiceDup) {
+        throw new BadRequestException('Payment reference already used on this invoice');
+      }
+    }
+
     const newPaid = Number((alreadyPaid + amount).toFixed(3));
     const paymentStatus =
       newPaid >= total - 0.001 ? PaymentStatus.PAID : PaymentStatus.PARTIAL;
@@ -518,6 +540,7 @@ export class InvoicesService {
         reference: meta.reference || null,
         notes: meta.notes || null,
         date: meta.date ? new Date(meta.date) : new Date(),
+        bankAccountId: meta.bankAccountId || null,
       },
     });
 
@@ -534,6 +557,18 @@ export class InvoicesService {
     await this.glPosting.postInvoice(companyId, userId, updated);
     await this.glPosting.postPayment(companyId, userId, payment, updated);
 
+    try {
+      await this.managementAlerts.scanPayment(companyId, {
+        id: payment.id,
+        amount,
+        reference: payment.reference,
+        invoiceId: invoice.id,
+        method: meta.method,
+      });
+    } catch {
+      // alerts must not block payment
+    }
+
     return updated;
   }
 
@@ -549,6 +584,7 @@ export class InvoicesService {
       date: dto.date,
       reference: dto.reference,
       notes: dto.notes,
+      bankAccountId: dto.bankAccountId,
     });
   }
 

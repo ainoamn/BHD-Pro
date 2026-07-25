@@ -11,7 +11,7 @@ import {
   MinLength,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { ProjectStatus, AssetCategory, PayrollStatus } from '@prisma/client';
+import { ProjectStatus, AssetCategory, PayrollStatus, PaymentMethod } from '@prisma/client';
 
 export class BranchDto {
   @ApiProperty() @IsString() @MinLength(1) code: string;
@@ -113,4 +113,12 @@ export class CreatePayrollDto {
 
 export class UpdatePayrollStatusDto {
   @ApiProperty({ enum: PayrollStatus }) @IsEnum(PayrollStatus) status: PayrollStatus;
+  @ApiPropertyOptional({ enum: PaymentMethod })
+  @IsOptional()
+  @IsEnum(PaymentMethod)
+  paymentMethod?: PaymentMethod;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  bankAccountId?: string;
 }

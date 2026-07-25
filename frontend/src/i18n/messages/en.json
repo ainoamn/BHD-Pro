@@ -104,6 +104,8 @@
     "assets": "Fixed Assets",
     "employees": "Employees & Payroll",
     "employeeClaims": "Employee Claims",
+    "commitments": "Recurring commitments",
+    "managementAlerts": "Management alerts",
     "addressBook": "Address Book",
     "journal": "Journal Entries",
     "inventory": "Inventory",
@@ -923,6 +925,8 @@
     "approve": "Approve",
     "markPaid": "Mark paid",
     "viewLines": "View lines",
+    "confirmPay": "Confirm payout",
+    "optionalBank": "Bank account (optional)",
     "noPayroll": "No payroll runs yet",
     "emptyChart": "No accounts yet",
     "parentAccount": "Parent account",
@@ -1453,5 +1457,24 @@
     "debit": "Debit",
     "credit": "Credit",
     "balance": "Balance"
+  },
+  "commitments": {
+    "title": "Recurring commitments",
+    "subtitle": "Rent, loans, scheduled salaries — pause or defer by day/month/year",
+    "add": "New commitment",
+    "empty": "No commitments yet",
+    "name": "Name",
+    "optionalBank": "Bank account (optional)",
+    "pauseMonth": "Defer one month",
+    "paused": "Paused / deferred",
+    "runDue": "Post due now",
+    "ran": "Posted"
+  },
+  "managementAlerts": {
+    "title": "Management alerts",
+    "subtitle": "Duplicate references and similar transactions — managers only",
+    "empty": "No open alerts",
+    "resolve": "Acknowledge",
+    "forbidden": "This page is for owner / admin / accountant only"
   }
 }

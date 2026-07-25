@@ -34,6 +34,9 @@ import { FxRevaluationModule } from './fx-revaluation/fx-revaluation.module';
 import { AdminModule } from './admin/admin.module';
 import { PosModule } from './pos/pos.module';
 import { DualControlModule } from './dual-control/dual-control.module';
+import { CommitmentsModule } from './commitments/commitments.module';
+import { AttachmentsModule } from './attachments/attachments.module';
+import { ManagementAlertsModule } from './management-alerts/management-alerts.module';
 import { HealthController } from './health.controller';
 import { DenyViewerMutationsGuard } from './common/guards/deny-viewer-mutations.guard';
 
@@ -78,6 +81,9 @@ import { DenyViewerMutationsGuard } from './common/guards/deny-viewer-mutations.
     AdminModule,
     PosModule,
     DualControlModule,
+    CommitmentsModule,
+    AttachmentsModule,
+    ManagementAlertsModule,
   ],
   controllers: [HealthController],
   providers: [

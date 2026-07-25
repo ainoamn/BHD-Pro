@@ -572,6 +572,8 @@ export class AuthService {
       { code: '1510', name: 'مجمع الإهلاك', type: 'ASSET', category: 'FIXED_ASSET' },
       { code: '2000', name: 'الخصوم', type: 'LIABILITY', category: 'CURRENT_LIABILITY' },
       { code: '2100', name: 'الموردين', type: 'LIABILITY', category: 'CURRENT_LIABILITY' },
+      { code: '2150', name: 'رواتب مستحقة', type: 'LIABILITY', category: 'CURRENT_LIABILITY' },
+      { code: '2160', name: 'مطالبات موظفين مستحقة', type: 'LIABILITY', category: 'CURRENT_LIABILITY' },
       { code: '2200', name: 'ضريبة القيمة المضافة', type: 'LIABILITY', category: 'CURRENT_LIABILITY' },
       { code: '3000', name: 'حقوق الملكية', type: 'EQUITY', category: 'EQUITY' },
       { code: '3100', name: 'رأس المال', type: 'EQUITY', category: 'EQUITY' },
@@ -582,6 +584,8 @@ export class AuthService {
       { code: '5000', name: 'المصروفات', type: 'EXPENSE', category: 'OPERATING_EXPENSE' },
       { code: '5100', name: 'تكلفة البضاعة المباعة', type: 'EXPENSE', category: 'COST_OF_SALES' },
       { code: '5200', name: 'مصروفات تشغيلية', type: 'EXPENSE', category: 'OPERATING_EXPENSE' },
+      { code: '5210', name: 'مصروف الرواتب', type: 'EXPENSE', category: 'OPERATING_EXPENSE' },
+      { code: '5220', name: 'مصروف مطالبات الموظفين', type: 'EXPENSE', category: 'OPERATING_EXPENSE' },
       { code: '5300', name: 'مصروف الإهلاك', type: 'EXPENSE', category: 'OPERATING_EXPENSE' },
       { code: '5400', name: 'خسائر فروق عملة غير محققة', type: 'EXPENSE', category: 'OTHER_EXPENSE' },
     ];

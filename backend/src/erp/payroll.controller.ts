@@ -24,7 +24,10 @@ export class PayrollController {
     @Param('id') id: string,
     @Body() dto: UpdatePayrollStatusDto,
   ) {
-    return this.erp.updatePayrollStatus(u.companyId, id, dto.status);
+    return this.erp.updatePayrollStatus(u.companyId, u.sub, id, dto.status, {
+      bankAccountId: dto.bankAccountId,
+      paymentMethod: dto.paymentMethod,
+    });
   }
   @Delete(':id') remove(@CurrentUser() u: TokenPayload, @Param('id') id: string) {
     return this.erp.deletePayrollRun(u.companyId, id);

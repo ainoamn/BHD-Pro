@@ -44,9 +44,19 @@ export default function EmployeesPage() {
   const [periodYear, setPeriodYear] = useState(now.getFullYear());
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
+  const [payBankId, setPayBankId] = useState("");
+  const [payingId, setPayingId] = useState<string | null>(null);
+
   const { data: payroll = [], isLoading } = useQuery({
     queryKey: ["payroll"],
     queryFn: async () => (await api.getPayrollRuns()).data as PayrollRun[],
+    enabled: tab === "payroll",
+  });
+
+  const { data: banks = [] } = useQuery({
+    queryKey: ["bank-accounts"],
+    queryFn: async () =>
+      (await api.getBankAccounts()).data as { id: string; name: string; bankName: string }[],
     enabled: tab === "payroll",
   });
 
@@ -64,10 +74,37 @@ export default function EmployeesPage() {
   });
 
   const statusMutation = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: string }) =>
-      api.updatePayrollStatus(id, status),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["payroll"] }),
+    mutationFn: ({
+      id,
+      status,
+      bankAccountId,
+    }: {
+      id: string;
+      status: string;
+      bankAccountId?: string;
+    }) =>
+      api.updatePayrollStatus(id, status, {
+        bankAccountId,
+        paymentMethod: bankAccountId ? "BANK_TRANSFER" : "CASH",
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["payroll"] });
+      setPayingId(null);
+      setPayBankId("");
+    },
   });
+
+  const markPaid = (id: string) => {
+    setPayingId(id);
+  };
+
+  const confirmPaid = (id: string) => {
+    statusMutation.mutate({
+      id,
+      status: "PAID",
+      bankAccountId: payBankId || undefined,
+    });
+  };
 
   const years = [now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1];
 
@@ -207,12 +244,37 @@ export default function EmployeesPage() {
                         </button>
                       )}
                       {p.status === "APPROVED" && (
-                        <button
-                          onClick={() => statusMutation.mutate({ id: p.id, status: "PAID" })}
-                          className="text-xs px-2 py-1 rounded bg-emerald-600/20 text-emerald-300"
-                        >
-                          {t("markPaid")}
-                        </button>
+                        <div className="flex flex-col gap-2 w-full">
+                          {payingId === p.id ? (
+                            <>
+                              <select
+                                value={payBankId}
+                                onChange={(e) => setPayBankId(e.target.value)}
+                                className="h-8 px-2 bg-slate-900 border border-slate-700 rounded text-xs text-white"
+                              >
+                                <option value="">{t("optionalBank")}</option>
+                                {banks.map((b) => (
+                                  <option key={b.id} value={b.id}>
+                                    {b.name}
+                                  </option>
+                                ))}
+                              </select>
+                              <button
+                                onClick={() => confirmPaid(p.id)}
+                                className="text-xs px-2 py-1 rounded bg-emerald-600/20 text-emerald-300"
+                              >
+                                {t("confirmPay")}
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => markPaid(p.id)}
+                              className="text-xs px-2 py-1 rounded bg-emerald-600/20 text-emerald-300"
+                            >
+                              {t("markPaid")}
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
                     {expandedId === p.id && p.lines && p.lines.length > 0 && (
@@ -283,14 +345,37 @@ export default function EmployeesPage() {
                                 </button>
                               )}
                               {p.status === "APPROVED" && (
-                                <button
-                                  onClick={() =>
-                                    statusMutation.mutate({ id: p.id, status: "PAID" })
-                                  }
-                                  className="text-xs px-2 py-1 rounded bg-emerald-600/20 text-emerald-300"
-                                >
-                                  {t("markPaid")}
-                                </button>
+                                <div className="flex items-center gap-2">
+                                  {payingId === p.id ? (
+                                    <>
+                                      <select
+                                        value={payBankId}
+                                        onChange={(e) => setPayBankId(e.target.value)}
+                                        className="h-8 px-2 bg-slate-900 border border-slate-700 rounded text-xs text-white"
+                                      >
+                                        <option value="">{t("optionalBank")}</option>
+                                        {banks.map((b) => (
+                                          <option key={b.id} value={b.id}>
+                                            {b.name}
+                                          </option>
+                                        ))}
+                                      </select>
+                                      <button
+                                        onClick={() => confirmPaid(p.id)}
+                                        className="text-xs px-2 py-1 rounded bg-emerald-600/20 text-emerald-300"
+                                      >
+                                        {t("confirmPay")}
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <button
+                                      onClick={() => markPaid(p.id)}
+                                      className="text-xs px-2 py-1 rounded bg-emerald-600/20 text-emerald-300"
+                                    >
+                                      {t("markPaid")}
+                                    </button>
+                                  )}
+                                </div>
                               )}
                             </div>
                           </td>

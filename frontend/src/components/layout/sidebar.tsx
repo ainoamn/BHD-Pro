@@ -58,6 +58,8 @@ const navItems = [
   { href: "/assets", icon: HardDrive, label: "assets" },
   { href: "/employees", icon: UserCircle, label: "employees" },
   { href: "/employee-claims", icon: Wallet, label: "employeeClaims" },
+  { href: "/commitments", icon: RefreshCcw, label: "commitments" },
+  { href: "/management-alerts", icon: ShieldAlert, label: "managementAlerts" },
   { href: "/inventory", icon: Package, label: "inventory" },
   { href: "/delivery-notes", icon: Truck, label: "deliveryNotes" },
   { href: "/stock-counts", icon: ClipboardList, label: "stockCounts" },

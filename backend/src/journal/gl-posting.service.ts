@@ -190,6 +190,21 @@ export class GlPostingService {
         });
       }
 
+      // Keep BankAccount.currentBalance in sync when GL cash/bank accounts move
+      const bankRows = await tx.bankAccount.findMany({
+        where: { companyId, accountId: { in: accountIds }, isActive: true },
+      });
+      for (const bank of bankRows) {
+        if (!bank.accountId) continue;
+        const related = filtered.filter((l) => l.accountId === bank.accountId);
+        const bankDelta = related.reduce((s, l) => s + (l.debit - l.credit), 0);
+        if (Math.abs(bankDelta) < 0.0005) continue;
+        await tx.bankAccount.update({
+          where: { id: bank.id },
+          data: { currentBalance: { increment: bankDelta } },
+        });
+      }
+
       return journal;
     });
   }
@@ -318,6 +333,7 @@ export class GlPostingService {
       method: PaymentMethod;
       date: Date;
       glJournalId?: string | null;
+      bankAccountId?: string | null;
     },
     invoice: {
       id: string;
@@ -329,7 +345,18 @@ export class GlPostingService {
 
     const accounts = await this.resolveAccounts(companyId);
     const amount = Number(payment.amount);
-    const cash = this.cashAccount(accounts, payment.method);
+    let cash = this.cashAccount(accounts, payment.method);
+    if (payment.bankAccountId) {
+      const bank = await this.prisma.bankAccount.findFirst({
+        where: { id: payment.bankAccountId, companyId },
+      });
+      if (bank?.accountId) {
+        const linked = await this.prisma.account.findFirst({
+          where: { id: bank.accountId, companyId, isActive: true },
+        });
+        if (linked) cash = linked;
+      }
+    }
     if (!cash) return null;
 
     let lines: JournalLineInput[] = [];
@@ -512,5 +539,302 @@ export class GlPostingService {
       description: `إعادة تقييم عملات أجنبية ${asOfKey}`,
       reference: `FX-REV:${asOfKey}`,
     }, lines);
+  }
+
+  /** Salary expense 5210 / wages payable 2150 / claims 5220+2160 */
+  async ensurePayrollAccounts(companyId: string) {
+    const defaults: Array<{
+      code: string;
+      name: string;
+      type: AccountType;
+      category: AccountCategory;
+    }> = [
+      {
+        code: '5210',
+        name: 'مصروف الرواتب',
+        type: AccountType.EXPENSE,
+        category: AccountCategory.OPERATING_EXPENSE,
+      },
+      {
+        code: '2150',
+        name: 'رواتب مستحقة',
+        type: AccountType.LIABILITY,
+        category: AccountCategory.CURRENT_LIABILITY,
+      },
+      {
+        code: '5220',
+        name: 'مصروف مطالبات الموظفين',
+        type: AccountType.EXPENSE,
+        category: AccountCategory.OPERATING_EXPENSE,
+      },
+      {
+        code: '2160',
+        name: 'مطالبات موظفين مستحقة',
+        type: AccountType.LIABILITY,
+        category: AccountCategory.CURRENT_LIABILITY,
+      },
+    ];
+
+    for (const acc of defaults) {
+      const existing = await this.prisma.account.findFirst({
+        where: { companyId, code: acc.code },
+      });
+      if (!existing) {
+        await this.prisma.account.create({
+          data: { companyId, ...acc, isActive: true },
+        });
+      }
+    }
+  }
+
+  private async resolveCashOrBank(
+    companyId: string,
+    method: PaymentMethod,
+    bankAccountId?: string | null,
+  ) {
+    const accounts = await this.resolveAccounts(companyId);
+    let cash = this.cashAccount(accounts, method);
+    if (bankAccountId) {
+      const bank = await this.prisma.bankAccount.findFirst({
+        where: { id: bankAccountId, companyId },
+      });
+      if (bank?.accountId) {
+        const linked = await this.prisma.account.findFirst({
+          where: { id: bank.accountId, companyId, isActive: true },
+        });
+        if (linked) cash = linked;
+      }
+    }
+    return cash;
+  }
+
+  async postPayrollAccrual(
+    companyId: string,
+    userId: string,
+    run: {
+      id: string;
+      number: string;
+      date: Date;
+      totalNet: unknown;
+      glAccrualJournalId?: string | null;
+    },
+  ) {
+    if (run.glAccrualJournalId) return null;
+    await this.ensurePayrollAccounts(companyId);
+    const amount = Number(run.totalNet);
+    if (amount <= 0) return null;
+
+    const [expense, payable] = await Promise.all([
+      this.accountByCode(companyId, '5210'),
+      this.accountByCode(companyId, '2150'),
+    ]);
+    if (!expense || !payable) return null;
+
+    const journal = await this.createEntry(
+      companyId,
+      userId,
+      {
+        date: run.date,
+        description: `استحقاق رواتب ${run.number}`,
+        reference: `PAYROLL-ACC:${run.id}`,
+      },
+      [
+        { accountId: expense.id, description: run.number, debit: amount, credit: 0 },
+        { accountId: payable.id, description: run.number, debit: 0, credit: amount },
+      ],
+    );
+
+    if (journal) {
+      await this.prisma.payrollRun.update({
+        where: { id: run.id },
+        data: { glAccrualJournalId: journal.id },
+      });
+    }
+    return journal;
+  }
+
+  async postPayrollPayment(
+    companyId: string,
+    userId: string,
+    run: {
+      id: string;
+      number: string;
+      totalNet: unknown;
+      paymentMethod?: PaymentMethod | null;
+      bankAccountId?: string | null;
+      glPaymentJournalId?: string | null;
+      paidAt?: Date | null;
+    },
+  ) {
+    if (run.glPaymentJournalId) return null;
+    await this.ensurePayrollAccounts(companyId);
+    const amount = Number(run.totalNet);
+    if (amount <= 0) return null;
+
+    const method = run.paymentMethod || PaymentMethod.BANK_TRANSFER;
+    const [payable, cash] = await Promise.all([
+      this.accountByCode(companyId, '2150'),
+      this.resolveCashOrBank(companyId, method, run.bankAccountId),
+    ]);
+    if (!payable || !cash) return null;
+
+    const journal = await this.createEntry(
+      companyId,
+      userId,
+      {
+        date: run.paidAt || new Date(),
+        description: `صرف رواتب ${run.number}`,
+        reference: `PAYROLL-PAY:${run.id}`,
+      },
+      [
+        { accountId: payable.id, description: run.number, debit: amount, credit: 0 },
+        { accountId: cash.id, description: run.number, debit: 0, credit: amount },
+      ],
+    );
+
+    if (journal) {
+      await this.prisma.payrollRun.update({
+        where: { id: run.id },
+        data: { glPaymentJournalId: journal.id },
+      });
+    }
+    return journal;
+  }
+
+  async postClaimAccrual(
+    companyId: string,
+    userId: string,
+    claim: {
+      id: string;
+      number: string;
+      date: Date;
+      total: unknown;
+      glAccrualJournalId?: string | null;
+    },
+  ) {
+    if (claim.glAccrualJournalId) return null;
+    await this.ensurePayrollAccounts(companyId);
+    const amount = Number(claim.total);
+    if (amount <= 0) return null;
+
+    const [expense, payable] = await Promise.all([
+      this.accountByCode(companyId, '5220'),
+      this.accountByCode(companyId, '2160'),
+    ]);
+    if (!expense || !payable) return null;
+
+    const journal = await this.createEntry(
+      companyId,
+      userId,
+      {
+        date: claim.date,
+        description: `استحقاق مطالبة ${claim.number}`,
+        reference: `CLAIM-ACC:${claim.id}`,
+      },
+      [
+        { accountId: expense.id, description: claim.number, debit: amount, credit: 0 },
+        { accountId: payable.id, description: claim.number, debit: 0, credit: amount },
+      ],
+    );
+
+    if (journal) {
+      await this.prisma.employeeClaim.update({
+        where: { id: claim.id },
+        data: { glAccrualJournalId: journal.id },
+      });
+    }
+    return journal;
+  }
+
+  async postClaimPayment(
+    companyId: string,
+    userId: string,
+    claim: {
+      id: string;
+      number: string;
+      total: unknown;
+      paymentMethod?: PaymentMethod | null;
+      bankAccountId?: string | null;
+      glPaymentJournalId?: string | null;
+      paidAt?: Date | null;
+    },
+  ) {
+    if (claim.glPaymentJournalId) return null;
+    await this.ensurePayrollAccounts(companyId);
+    const amount = Number(claim.total);
+    if (amount <= 0) return null;
+
+    const method = claim.paymentMethod || PaymentMethod.CASH;
+    const [payable, cash] = await Promise.all([
+      this.accountByCode(companyId, '2160'),
+      this.resolveCashOrBank(companyId, method, claim.bankAccountId),
+    ]);
+    if (!payable || !cash) return null;
+
+    const journal = await this.createEntry(
+      companyId,
+      userId,
+      {
+        date: claim.paidAt || new Date(),
+        description: `صرف مطالبة ${claim.number}`,
+        reference: `CLAIM-PAY:${claim.id}`,
+      },
+      [
+        { accountId: payable.id, description: claim.number, debit: amount, credit: 0 },
+        { accountId: cash.id, description: claim.number, debit: 0, credit: amount },
+      ],
+    );
+
+    if (journal) {
+      await this.prisma.employeeClaim.update({
+        where: { id: claim.id },
+        data: { glPaymentJournalId: journal.id },
+      });
+    }
+    return journal;
+  }
+
+  async postCommitmentAccrual(
+    companyId: string,
+    userId: string,
+    commitment: {
+      id: string;
+      name: string;
+      amount: unknown;
+      expenseAccountId?: string | null;
+      payableAccountId?: string | null;
+    },
+  ) {
+    await this.ensurePayrollAccounts(companyId);
+    const amount = Number(commitment.amount);
+    if (amount <= 0) return null;
+
+    const expense =
+      (commitment.expenseAccountId
+        ? await this.prisma.account.findFirst({
+            where: { id: commitment.expenseAccountId, companyId, isActive: true },
+          })
+        : null) || (await this.accountByCode(companyId, '5200'));
+    const payable =
+      (commitment.payableAccountId
+        ? await this.prisma.account.findFirst({
+            where: { id: commitment.payableAccountId, companyId, isActive: true },
+          })
+        : null) || (await this.accountByCode(companyId, '2100'));
+    if (!expense || !payable) return null;
+
+    return this.createEntry(
+      companyId,
+      userId,
+      {
+        date: new Date(),
+        description: `التزام دوري: ${commitment.name}`,
+        reference: `COMMIT:${commitment.id}:${Date.now()}`,
+      },
+      [
+        { accountId: expense.id, description: commitment.name, debit: amount, credit: 0 },
+        { accountId: payable.id, description: commitment.name, debit: 0, credit: amount },
+      ],
+    );
   }
 }

@@ -14,6 +14,7 @@ import {
   CreateEmployeeClaimDto,
   UpdateEmployeeClaimDto,
   RejectClaimDto,
+  MarkClaimPaidDto,
 } from './dto/employee-claim.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -58,7 +59,7 @@ export class EmployeeClaimsController {
 
   @Post(':id/approve')
   approve(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
-    return this.service.approve(user.companyId, id);
+    return this.service.approve(user.companyId, user.sub, id);
   }
 
   @Post(':id/reject')
@@ -72,8 +73,12 @@ export class EmployeeClaimsController {
 
   @Post(':id/pay')
   @ApiOperation({ summary: 'Mark approved claim as paid/reimbursed' })
-  markPaid(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
-    return this.service.markPaid(user.companyId, id);
+  markPaid(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+    @Body() dto: MarkClaimPaidDto,
+  ) {
+    return this.service.markPaid(user.companyId, user.sub, id, dto);
   }
 
   @Delete(':id')

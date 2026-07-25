@@ -81,6 +81,9 @@ model Company {
   approvalRequests ApprovalRequest[]
   posShifts     PosShift[]
   dualControlOtps DualControlOtp[]
+  recurringCommitments RecurringCommitment[]
+  attachments Attachment[]
+  managementAlerts ManagementAlert[]
 
   @@index([vatNumber])
   @@index([crNumber])
@@ -235,6 +238,10 @@ model Journal {
   lines       JournalLine[]
   invoicePosting Invoice? @relation("InvoiceGlJournal")
   paymentPosting Payment? @relation("PaymentGlJournal")
+  payrollAccrualPostings PayrollRun[] @relation("PayrollAccrualJournal")
+  payrollPaymentPostings PayrollRun[] @relation("PayrollPaymentJournal")
+  claimAccrualPostings EmployeeClaim[] @relation("ClaimAccrualJournal")
+  claimPaymentPostings EmployeeClaim[] @relation("ClaimPaymentJournal")
 
   @@index([companyId])
   @@index([date])
@@ -489,6 +496,17 @@ model PayrollRun {
   status      PayrollStatus @default(DRAFT)
   totalNet    Decimal       @default(0) @map("total_net")
   notes       String?
+
+  paidAt         DateTime?      @map("paid_at")
+  paymentMethod  PaymentMethod? @map("payment_method")
+  bankAccountId  String?        @map("bank_account_id")
+  bankAccount    BankAccount?   @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
+
+  glAccrualJournalId String?  @unique @map("gl_accrual_journal_id")
+  glAccrualJournal   Journal? @relation("PayrollAccrualJournal", fields: [glAccrualJournalId], references: [id])
+  glPaymentJournalId String?  @unique @map("gl_payment_journal_id")
+  glPaymentJournal   Journal? @relation("PayrollPaymentJournal", fields: [glPaymentJournalId], references: [id])
+
   createdAt   DateTime      @default(now()) @map("created_at")
   updatedAt   DateTime      @updatedAt @map("updated_at")
 
@@ -534,6 +552,15 @@ model EmployeeClaim {
   approvedAt  DateTime?           @map("approved_at")
   paidAt      DateTime?           @map("paid_at")
   rejectedAt  DateTime?           @map("rejected_at")
+
+  paymentMethod PaymentMethod? @map("payment_method")
+  bankAccountId String?        @map("bank_account_id")
+  bankAccount   BankAccount?   @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
+
+  glAccrualJournalId String?  @unique @map("gl_accrual_journal_id")
+  glAccrualJournal   Journal? @relation("ClaimAccrualJournal", fields: [glAccrualJournalId], references: [id])
+  glPaymentJournalId String?  @unique @map("gl_payment_journal_id")
+  glPaymentJournal   Journal? @relation("ClaimPaymentJournal", fields: [glPaymentJournalId], references: [id])
 
   createdById String              @map("created_by_id")
   createdBy   User                @relation("EmployeeClaimsCreated", fields: [createdById], references: [id])
@@ -611,6 +638,10 @@ model BankAccount {
   updatedAt      DateTime @updatedAt @map("updated_at")
 
   statementLines BankStatementLine[]
+  payrollRuns    PayrollRun[]
+  employeeClaims EmployeeClaim[]
+  payments       Payment[]
+  commitments    RecurringCommitment[]
 
   @@index([companyId])
   @@map("bank_accounts")
@@ -756,12 +787,16 @@ model Payment {
   date        DateTime
   notes       String?
 
+  bankAccountId String?      @map("bank_account_id")
+  bankAccount   BankAccount? @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
+
   glJournalId String?  @unique @map("gl_journal_id")
   glJournal   Journal? @relation("PaymentGlJournal", fields: [glJournalId], references: [id])
 
   createdAt   DateTime @default(now()) @map("created_at")
 
   @@index([invoiceId])
+  @@index([bankAccountId])
   @@map("payments")
 }
 
@@ -1520,4 +1555,80 @@ model DualControlOtp {
 
   @@index([companyId, action, requestedById])
   @@map("dual_control_otps")
+}
+
+/// Monthly / recurring company commitments (rent, salaries schedule, loans, etc.)
+model RecurringCommitment {
+  id               String    @id @default(uuid())
+  companyId        String    @map("company_id")
+  company          Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name             String
+  /// RENT | SALARY | LOAN | VENDOR | UTILITY | OTHER
+  type             String    @default("OTHER")
+  amount           Decimal   @default(0)
+  currency         String    @default("OMR")
+  /// WEEKLY | MONTHLY | QUARTERLY | YEARLY
+  frequency        String    @default("MONTHLY")
+  nextRunAt        DateTime  @map("next_run_at")
+  dayOfMonth       Int?      @map("day_of_month")
+  /// ACTIVE | PAUSED | CANCELLED
+  status           String    @default("ACTIVE")
+  pausedUntil      DateTime? @map("paused_until")
+  expenseAccountId String?   @map("expense_account_id")
+  payableAccountId String?   @map("payable_account_id")
+  bankAccountId    String?   @map("bank_account_id")
+  bankAccount      BankAccount? @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
+  contactId        String?   @map("contact_id")
+  notes            String?
+  lastRunAt        DateTime? @map("last_run_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  @@index([companyId])
+  @@index([nextRunAt])
+  @@index([status])
+  @@map("recurring_commitments")
+}
+
+/// Polymorphic file attachment metadata (storage_key = local/S3 path or data URL ref)
+model Attachment {
+  id           String   @id @default(uuid())
+  companyId    String   @map("company_id")
+  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  entityType   String   @map("entity_type")
+  entityId     String   @map("entity_id")
+  fileName     String   @map("file_name")
+  mimeType     String?  @map("mime_type")
+  sizeBytes    Int      @default(0) @map("size_bytes")
+  storageKey   String   @map("storage_key")
+  uploadedById String?  @map("uploaded_by_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([companyId, entityType, entityId])
+  @@map("attachments")
+}
+
+/// Admin/manager-only alerts (duplicate refs, suspicious similar txs)
+model ManagementAlert {
+  id           String    @id @default(uuid())
+  companyId    String    @map("company_id")
+  company      Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  /// DUPLICATE_REFERENCE | SIMILAR_TRANSACTION | PAYROLL_ANOMALY | OTHER
+  type         String
+  /// LOW | MEDIUM | HIGH
+  severity     String    @default("MEDIUM")
+  title        String
+  message      String
+  entityType   String?   @map("entity_type")
+  entityId     String?   @map("entity_id")
+  payloadJson  Json      @default("{}") @map("payload_json")
+  /// OPEN | ACKNOWLEDGED | RESOLVED | DISMISSED
+  status       String    @default("OPEN")
+  resolvedAt   DateTime? @map("resolved_at")
+  resolvedById String?   @map("resolved_by_id")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@index([companyId, status])
+  @@map("management_alerts")
 }

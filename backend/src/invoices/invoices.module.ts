@@ -14,6 +14,7 @@ import { JournalModule } from '../journal/journal.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { PeriodsModule } from '../periods/periods.module';
 import { DualControlModule } from '../dual-control/dual-control.module';
+import { ManagementAlertsModule } from '../management-alerts/management-alerts.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { DualControlModule } from '../dual-control/dual-control.module';
     SubscriptionsModule,
     PeriodsModule,
     DualControlModule,
+    ManagementAlertsModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: (config: ConfigService) => ({

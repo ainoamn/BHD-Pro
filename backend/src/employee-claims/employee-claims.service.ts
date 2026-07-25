@@ -8,12 +8,17 @@ import {
   CreateEmployeeClaimDto,
   UpdateEmployeeClaimDto,
   RejectClaimDto,
+  MarkClaimPaidDto,
 } from './dto/employee-claim.dto';
-import { EmployeeClaimStatus } from '@prisma/client';
+import { EmployeeClaimStatus, PaymentMethod } from '@prisma/client';
+import { GlPostingService } from '../journal/gl-posting.service';
 
 @Injectable()
 export class EmployeeClaimsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private glPosting: GlPostingService,
+  ) {}
 
   private async generateNumber(companyId: string) {
     const year = new Date().getFullYear();
@@ -31,52 +36,40 @@ export class EmployeeClaimsService {
     return `${prefix}${String(next).padStart(4, '0')}`;
   }
 
-  private calcTotal(lines: { amount: number }[]) {
-    return Number(lines.reduce((s, l) => s + Number(l.amount), 0).toFixed(3));
-  }
-
   findAll(companyId: string) {
     return this.prisma.employeeClaim.findMany({
       where: { companyId },
-      include: {
-        employee: {
-          select: { id: true, name: true, employeeNumber: true, department: true },
-        },
-        lines: true,
-        createdBy: { select: { id: true, name: true } },
-      },
       orderBy: { date: 'desc' },
+      include: {
+        employee: { select: { id: true, name: true, employeeNumber: true } },
+        lines: true,
+        bankAccount: true,
+      },
     });
   }
 
   async findOne(companyId: string, id: string) {
-    const row = await this.prisma.employeeClaim.findFirst({
+    const claim = await this.prisma.employeeClaim.findFirst({
       where: { id, companyId },
       include: {
-        employee: true,
+        employee: { select: { id: true, name: true, employeeNumber: true } },
         lines: true,
-        createdBy: { select: { id: true, name: true } },
+        bankAccount: true,
       },
     });
-    if (!row) throw new NotFoundException('Employee claim not found');
-    return row;
+    if (!claim) throw new NotFoundException('Claim not found');
+    return claim;
   }
 
   async create(companyId: string, userId: string, dto: CreateEmployeeClaimDto) {
     const employee = await this.prisma.employee.findFirst({
-      where: { id: dto.employeeId, companyId, isActive: true },
+      where: { id: dto.employeeId, companyId },
     });
     if (!employee) throw new BadRequestException('Employee not found');
 
-    const lines = dto.lines.map((l) => ({
-      description: l.description.trim(),
-      amount: Number(l.amount),
-      category: l.category?.trim() || null,
-      receiptRef: l.receiptRef?.trim() || null,
-    }));
-    const total = this.calcTotal(lines);
-    if (total <= 0) throw new BadRequestException('Claim total must be greater than zero');
-
+    const total = Number(
+      dto.lines.reduce((s, l) => s + Number(l.amount), 0).toFixed(3),
+    );
     const number = await this.generateNumber(companyId);
 
     return this.prisma.employeeClaim.create({
@@ -85,11 +78,17 @@ export class EmployeeClaimsService {
         number,
         date: new Date(dto.date),
         employeeId: dto.employeeId,
-        notes: dto.notes || null,
-        status: EmployeeClaimStatus.DRAFT,
+        notes: dto.notes,
         total,
         createdById: userId,
-        lines: { create: lines },
+        lines: {
+          create: dto.lines.map((l) => ({
+            description: l.description,
+            amount: l.amount,
+            category: l.category || null,
+            receiptRef: l.receiptRef || null,
+          })),
+        },
       },
       include: {
         employee: { select: { id: true, name: true, employeeNumber: true } },
@@ -99,43 +98,34 @@ export class EmployeeClaimsService {
   }
 
   async update(companyId: string, id: string, dto: UpdateEmployeeClaimDto) {
-    const existing = await this.findOne(companyId, id);
-    if (existing.status !== EmployeeClaimStatus.DRAFT) {
+    const claim = await this.findOne(companyId, id);
+    if (claim.status !== EmployeeClaimStatus.DRAFT) {
       throw new BadRequestException('Only draft claims can be edited');
     }
 
+    const data: Record<string, unknown> = {};
+    if (dto.date) data.date = new Date(dto.date);
+    if (dto.notes !== undefined) data.notes = dto.notes;
+
     if (dto.lines) {
+      const total = Number(
+        dto.lines.reduce((s, l) => s + Number(l.amount), 0).toFixed(3),
+      );
       await this.prisma.employeeClaimLine.deleteMany({ where: { claimId: id } });
-      const lines = dto.lines.map((l) => ({
-        claimId: id,
-        description: l.description.trim(),
-        amount: Number(l.amount),
-        category: l.category?.trim() || null,
-        receiptRef: l.receiptRef?.trim() || null,
-      }));
-      const total = this.calcTotal(lines);
-      if (total <= 0) throw new BadRequestException('Claim total must be greater than zero');
-      await this.prisma.employeeClaimLine.createMany({ data: lines });
-      return this.prisma.employeeClaim.update({
-        where: { id },
-        data: {
-          total,
-          ...(dto.date ? { date: new Date(dto.date) } : {}),
-          ...(dto.notes !== undefined ? { notes: dto.notes || null } : {}),
-        },
-        include: {
-          employee: { select: { id: true, name: true, employeeNumber: true } },
-          lines: true,
-        },
-      });
+      data.total = total;
+      data.lines = {
+        create: dto.lines.map((l) => ({
+          description: l.description,
+          amount: l.amount,
+          category: l.category || null,
+          receiptRef: l.receiptRef || null,
+        })),
+      };
     }
 
     return this.prisma.employeeClaim.update({
       where: { id },
-      data: {
-        ...(dto.date ? { date: new Date(dto.date) } : {}),
-        ...(dto.notes !== undefined ? { notes: dto.notes || null } : {}),
-      },
+      data,
       include: {
         employee: { select: { id: true, name: true, employeeNumber: true } },
         lines: true,
@@ -164,12 +154,12 @@ export class EmployeeClaimsService {
     });
   }
 
-  async approve(companyId: string, id: string) {
+  async approve(companyId: string, userId: string, id: string) {
     const claim = await this.findOne(companyId, id);
     if (claim.status !== EmployeeClaimStatus.SUBMITTED) {
       throw new BadRequestException('Only submitted claims can be approved');
     }
-    return this.prisma.employeeClaim.update({
+    const updated = await this.prisma.employeeClaim.update({
       where: { id },
       data: {
         status: EmployeeClaimStatus.APPROVED,
@@ -181,6 +171,8 @@ export class EmployeeClaimsService {
         lines: true,
       },
     });
+    await this.glPosting.postClaimAccrual(companyId, userId, updated);
+    return this.findOne(companyId, id);
   }
 
   async reject(companyId: string, id: string, dto: RejectClaimDto) {
@@ -205,22 +197,41 @@ export class EmployeeClaimsService {
     });
   }
 
-  async markPaid(companyId: string, id: string) {
+  async markPaid(companyId: string, userId: string, id: string, dto?: MarkClaimPaidDto) {
     const claim = await this.findOne(companyId, id);
     if (claim.status !== EmployeeClaimStatus.APPROVED) {
       throw new BadRequestException('Only approved claims can be marked paid');
     }
-    return this.prisma.employeeClaim.update({
+    if (!claim.glAccrualJournalId) {
+      await this.glPosting.postClaimAccrual(companyId, userId, claim);
+    }
+
+    const paymentMethod = dto?.paymentMethod || PaymentMethod.CASH;
+    const bankAccountId = dto?.bankAccountId || null;
+    if (bankAccountId) {
+      const bank = await this.prisma.bankAccount.findFirst({
+        where: { id: bankAccountId, companyId },
+      });
+      if (!bank) throw new BadRequestException('Bank account not found');
+    }
+
+    const paidAt = new Date();
+    const updated = await this.prisma.employeeClaim.update({
       where: { id },
       data: {
         status: EmployeeClaimStatus.PAID,
-        paidAt: new Date(),
+        paidAt,
+        paymentMethod,
+        bankAccountId,
       },
       include: {
         employee: { select: { id: true, name: true, employeeNumber: true } },
         lines: true,
+        bankAccount: true,
       },
     });
+    await this.glPosting.postClaimPayment(companyId, userId, updated);
+    return this.findOne(companyId, id);
   }
 
   async remove(companyId: string, id: string) {

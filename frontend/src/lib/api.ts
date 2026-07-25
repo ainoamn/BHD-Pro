@@ -779,8 +779,12 @@ class ApiClient {
   createPayrollRun(data: unknown) {
     return this.post('/payroll', data);
   }
-  updatePayrollStatus(id: string, status: string) {
-    return this.patch(`/payroll/${id}/status`, { status });
+  updatePayrollStatus(
+    id: string,
+    status: string,
+    opts?: { bankAccountId?: string; paymentMethod?: string },
+  ) {
+    return this.patch(`/payroll/${id}/status`, { status, ...opts });
   }
   deletePayrollRun(id: string) {
     return this.delete(`/payroll/${id}`);
@@ -877,12 +881,54 @@ class ApiClient {
     return this.post(`/employee-claims/${id}/reject`, data || {});
   }
 
-  payEmployeeClaim(id: string) {
-    return this.post(`/employee-claims/${id}/pay`);
+  payEmployeeClaim(
+    id: string,
+    data?: { paymentMethod?: string; bankAccountId?: string },
+  ) {
+    return this.post(`/employee-claims/${id}/pay`, data || {});
   }
 
   deleteEmployeeClaim(id: string) {
     return this.delete(`/employee-claims/${id}`);
+  }
+
+  getCommitments() {
+    return this.get('/commitments');
+  }
+  createCommitment(data: unknown) {
+    return this.post('/commitments', data);
+  }
+  updateCommitment(id: string, data: unknown) {
+    return this.put(`/commitments/${id}`, data);
+  }
+  pauseCommitment(id: string, data?: unknown) {
+    return this.post(`/commitments/${id}/pause`, data || {});
+  }
+  resumeCommitment(id: string) {
+    return this.post(`/commitments/${id}/resume`);
+  }
+  runDueCommitments() {
+    return this.post('/commitments/run-due');
+  }
+  deleteCommitment(id: string) {
+    return this.delete(`/commitments/${id}`);
+  }
+
+  getAttachments(entityType: string, entityId: string) {
+    return this.get('/attachments', { params: { entityType, entityId } });
+  }
+  createAttachment(data: unknown) {
+    return this.post('/attachments', data);
+  }
+  deleteAttachment(id: string) {
+    return this.delete(`/attachments/${id}`);
+  }
+
+  getManagementAlerts(status?: string) {
+    return this.get('/management-alerts', { params: status ? { status } : {} });
+  }
+  resolveManagementAlert(id: string, status = 'RESOLVED') {
+    return this.patch(`/management-alerts/${id}`, { status });
   }
 
   getDocumentTemplates(type?: string) {

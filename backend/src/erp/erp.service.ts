@@ -16,7 +16,7 @@ import {
   WarehouseDto,
   CreatePayrollDto,
 } from './dto/erp.dto';
-import { AccountCategory, AccountType, PayrollStatus } from '@prisma/client';
+import { AccountCategory, AccountType, PayrollStatus, PaymentMethod } from '@prisma/client';
 import { GlPostingService } from '../journal/gl-posting.service';
 import { ensureDefaultCostCentersAndProjects } from './default-analytics.seed';
 
@@ -581,9 +581,68 @@ export class ErpService {
     });
   }
 
-  async updatePayrollStatus(companyId: string, id: string, status: PayrollStatus) {
-    const run = await this.prisma.payrollRun.findFirst({ where: { id, companyId } });
+  async updatePayrollStatus(
+    companyId: string,
+    userId: string,
+    id: string,
+    status: PayrollStatus,
+    opts?: { bankAccountId?: string; paymentMethod?: PaymentMethod },
+  ) {
+    const run = await this.prisma.payrollRun.findFirst({
+      where: { id, companyId },
+      include: { lines: { include: { employee: true } } },
+    });
     if (!run) throw new NotFoundException('Payroll run not found');
+
+    if (status === PayrollStatus.APPROVED) {
+      if (run.status !== PayrollStatus.DRAFT && run.status !== PayrollStatus.APPROVED) {
+        throw new BadRequestException('Only draft payroll can be approved');
+      }
+      const updated = await this.prisma.payrollRun.update({
+        where: { id },
+        data: { status: PayrollStatus.APPROVED },
+        include: { lines: { include: { employee: true } } },
+      });
+      await this.glPosting.postPayrollAccrual(companyId, userId, updated);
+      return this.prisma.payrollRun.findFirst({
+        where: { id },
+        include: { lines: { include: { employee: true } }, bankAccount: true },
+      });
+    }
+
+    if (status === PayrollStatus.PAID) {
+      if (run.status !== PayrollStatus.APPROVED && run.status !== PayrollStatus.PAID) {
+        throw new BadRequestException('Only approved payroll can be marked paid');
+      }
+      if (!run.glAccrualJournalId) {
+        await this.glPosting.postPayrollAccrual(companyId, userId, run);
+      }
+      const paymentMethod = opts?.paymentMethod || PaymentMethod.BANK_TRANSFER;
+      const bankAccountId = opts?.bankAccountId || null;
+      if (bankAccountId) {
+        const bank = await this.prisma.bankAccount.findFirst({
+          where: { id: bankAccountId, companyId },
+        });
+        if (!bank) throw new BadRequestException('Bank account not found');
+      }
+      const paidAt = new Date();
+      const updated = await this.prisma.payrollRun.update({
+        where: { id },
+        data: {
+          status: PayrollStatus.PAID,
+          paidAt,
+          paymentMethod,
+          bankAccountId,
+        },
+        include: { lines: { include: { employee: true } }, bankAccount: true },
+      });
+      await this.glPosting.postPayrollPayment(companyId, userId, updated);
+      return this.prisma.payrollRun.findFirst({
+        where: { id },
+        include: { lines: { include: { employee: true } }, bankAccount: true },
+      });
+    }
+
     return this.prisma.payrollRun.update({
       where: { id },
       data: { status },
