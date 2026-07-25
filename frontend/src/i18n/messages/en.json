@@ -361,6 +361,7 @@
     "method_CHECK": "Cheque",
     "method_ONLINE": "Online",
     "method_OTHER": "Other",
+    "method_STORE_CREDIT": "Store credit",
     "convertQuotation": "Convert to invoice",
     "convertQuotationSuccess": "Sales invoice created — you can issue and collect payment now",
     "quotationDoc": "Quotation",

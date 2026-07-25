@@ -361,6 +361,7 @@
     "method_CHECK": "شيك",
     "method_ONLINE": "إلكتروني",
     "method_OTHER": "أخرى",
+    "method_STORE_CREDIT": "رصيد متجر",
     "convertQuotation": "تحويل لفاتورة",
     "convertQuotationSuccess": "تم إنشاء فاتورة مبيعات — يمكنك إصدارها وتحصيلها الآن",
     "quotationDoc": "عرض سعر",
