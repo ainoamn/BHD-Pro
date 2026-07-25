@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { BarChart3, Loader2 } from "lucide-react";
+import { BarChart3, Loader2, Printer } from "lucide-react";
 import api from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
 import { restoCopy } from "@/lib/resto-copy";
@@ -11,12 +11,15 @@ type Summary = Awaited<
   ReturnType<typeof api.getRestoReportsSummary>
 >["data"];
 
+type Flash = Awaited<ReturnType<typeof api.getRestoFlashReport>>["data"];
+
 export default function RestoReportsPage() {
   const locale = useLocaleStore((s) => s.locale);
   const t = restoCopy[locale === "en" ? "en" : "ar"];
   const [days, setDays] = useState(7);
   const [data, setData] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [flashBusy, setFlashBusy] = useState(false);
   const [hourMode, setHourMode] = useState<"orders" | "revenue">("orders");
 
   const load = useCallback(async () => {
@@ -35,6 +38,62 @@ export default function RestoReportsPage() {
     void load();
   }, [load]);
 
+  const printFlash = async () => {
+    setFlashBusy(true);
+    try {
+      const res = await api.getRestoFlashReport();
+      const flash = res.data as Flash;
+      const w = window.open("", "_blank", "noopener,noreferrer,width=720,height=900");
+      if (!w) return;
+      const rows = (flash.byServer || [])
+        .map(
+          (s) =>
+            `<tr><td>${s.name}</td><td>${s.orders}</td><td>${s.tips.toFixed(3)}</td></tr>`,
+        )
+        .join("");
+      const sections = (flash.sectionAssignments || [])
+        .map(
+          (a) =>
+            `<li>${a.zoneName}: <strong>${a.user?.name || "—"}</strong></li>`,
+        )
+        .join("");
+      w.document.write(`<!doctype html><html><head><title>${t.flashTitle}</title>
+<style>
+body{font-family:system-ui,sans-serif;padding:24px;color:#111}
+h1{font-size:20px;margin:0 0 4px}
+.meta{color:#555;font-size:12px;margin-bottom:16px}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:16px 0}
+.kpi{border:1px solid #ddd;padding:10px;border-radius:8px}
+.kpi b{display:block;font-size:18px}
+table{width:100%;border-collapse:collapse;margin-top:12px}
+th,td{border-bottom:1px solid #ddd;padding:6px 4px;text-align:start;font-size:13px}
+@media print{button{display:none}}
+</style></head><body>
+<h1>${t.flashTitle}</h1>
+<p class="meta">${t.flashPrinted}: ${new Date(flash.printedAt).toLocaleString()}</p>
+<div class="kpis">
+<div class="kpi"><span>${t.reportOrders}</span><b>${flash.orders}</b></div>
+<div class="kpi"><span>${t.reportClosed}</span><b>${flash.closed}</b></div>
+<div class="kpi"><span>${t.reportRevenue}</span><b>${flash.revenue.toFixed(3)}</b></div>
+<div class="kpi"><span>${t.reportTips}</span><b>${flash.tipsTotal.toFixed(3)}</b></div>
+<div class="kpi"><span>${t.reportServiceCharges}</span><b>${flash.serviceChargesTotal.toFixed(3)}</b></div>
+<div class="kpi"><span>${t.reportOpenNow}</span><b>${flash.openNow}</b></div>
+</div>
+<h2 style="font-size:15px">${t.reportByServer}</h2>
+<table><thead><tr><th>${t.tipAssignee}</th><th>${t.reportOrders}</th><th>${t.tipAmount}</th></tr></thead>
+<tbody>${rows || `<tr><td colspan="3">${t.reportEmpty}</td></tr>`}</tbody></table>
+<h2 style="font-size:15px;margin-top:20px">${t.flashSections}</h2>
+<ul>${sections || `<li>—</li>`}</ul>
+<script>window.onload=()=>{window.print()}</script>
+</body></html>`);
+      w.document.close();
+    } catch {
+      /* ignore */
+    } finally {
+      setFlashBusy(false);
+    }
+  };
+
   const maxHour = Math.max(
     1,
     ...((data?.byHour || []).map((h) =>
@@ -52,7 +111,21 @@ export default function RestoReportsPage() {
           </h1>
           <p className="text-sm text-stone-400 mt-1">{t.reportsSub}</p>
         </div>
-        <div className="flex gap-1 rounded-xl border border-white/10 p-1 bg-white/[0.03]">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            disabled={flashBusy}
+            onClick={() => void printFlash()}
+            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-amber-400/30 bg-amber-500/10 text-xs font-bold text-amber-100 hover:bg-amber-500/20 disabled:opacity-50"
+          >
+            {flashBusy ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Printer className="w-3.5 h-3.5" />
+            )}
+            {t.flashPrint}
+          </button>
+          <div className="flex gap-1 rounded-xl border border-white/10 p-1 bg-white/[0.03]">
           {[
             { d: 1, label: t.today },
             { d: 7, label: t.last7 },
@@ -72,6 +145,7 @@ export default function RestoReportsPage() {
               {opt.label}
             </button>
           ))}
+          </div>
         </div>
       </div>
 
