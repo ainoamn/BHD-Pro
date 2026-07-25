@@ -752,6 +752,55 @@ export default function PosShiftsPage() {
                 </span>
               ) : null}
             </div>
+            <div className="rounded-xl border border-white/10 bg-black/20 p-3 space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                {t.eodChecklist}
+              </p>
+              <ul className="space-y-1.5 text-sm">
+                <li className="flex items-center justify-between gap-2">
+                  <span className="text-slate-300">{t.eodParked}</span>
+                  <span
+                    className={`tabular-nums font-semibold ${
+                      parkedCount > 0 ? "text-amber-300" : "text-emerald-300"
+                    }`}
+                  >
+                    {parkedCount}
+                  </span>
+                </li>
+                {parkedCount > 0 ? (
+                  <li className="text-[11px] text-amber-200/90">{t.eodParkedWarn}</li>
+                ) : null}
+                <li className="flex items-center justify-between gap-2">
+                  <span className="text-slate-300">{t.eodVariance}</span>
+                  <span className="tabular-nums text-slate-100">
+                    {previewVariance != null ? previewVariance : "—"}
+                  </span>
+                </li>
+                <li className="flex items-center justify-between gap-2">
+                  <span className="text-slate-300">{t.eodOfflineQ}</span>
+                  <span
+                    className={`tabular-nums font-semibold ${
+                      quarantineCount > 0 ? "text-rose-300" : "text-emerald-300"
+                    }`}
+                  >
+                    {quarantineCount}
+                  </span>
+                </li>
+                <li className="flex items-center justify-between gap-2">
+                  <span className="text-slate-300">{t.eodAnomalies}</span>
+                  <span
+                    className={`tabular-nums font-semibold ${
+                      anomalyCount > 0 ? "text-amber-300" : "text-emerald-300"
+                    }`}
+                  >
+                    {anomalyCount}
+                  </span>
+                </li>
+              </ul>
+              {parkedCount === 0 && quarantineCount === 0 && anomalyCount === 0 ? (
+                <p className="text-[11px] text-emerald-300/90">{t.eodOk}</p>
+              ) : null}
+            </div>
             <div className="flex flex-wrap items-center gap-2 pt-1">
               <button
                 type="button"
