@@ -31,18 +31,29 @@ export function PosLinkSettings({
   const t = posCopy[locale === "en" ? "en" : "ar"];
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role === "ADMIN";
+  const canManage = user?.role === "ADMIN" || user?.role === "MANAGER";
   const [linked, setLinked] = useState(false);
   const [prefix, setPrefix] = useState<string | null>(null);
   const [companyName, setCompanyName] = useState("");
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
   const [pasteKey, setPasteKey] = useState("");
   const [busy, setBusy] = useState(false);
+  const [warehouses, setWarehouses] = useState<
+    { id: string; code: string; name: string; nameEn?: string | null; sector?: string; isActive?: boolean }[]
+  >([]);
+  const [warehouseId, setWarehouseId] = useState("");
 
   const refresh = async () => {
-    const res = await api.getPosLinkStatus();
-    setLinked(!!res.data.linked);
-    setPrefix(res.data.keyPrefix);
-    setCompanyName(res.data.companyName);
+    const [linkRes, whRes] = await Promise.all([
+      api.getPosLinkStatus(),
+      api.getWarehouses().catch(() => ({ data: [] })),
+    ]);
+    setLinked(!!linkRes.data.linked);
+    setPrefix(linkRes.data.keyPrefix);
+    setCompanyName(linkRes.data.companyName);
+    const rows = ((whRes.data as typeof warehouses) || []).filter((w) => w.isActive !== false);
+    setWarehouses(rows);
+    setWarehouseId(linkRes.data.warehouseId || "");
   };
 
   useEffect(() => {
@@ -59,10 +70,31 @@ export function PosLinkSettings({
   };
 
   const activate = async () => {
+    if (!warehouseId) {
+      toast.error(t.warehouseRequired);
+      return;
+    }
     setBusy(true);
     try {
-      await api.activatePosLink();
+      await api.activatePosLink(warehouseId);
       toast.success(t.linked);
+      await refresh();
+    } catch (err) {
+      toastApiError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveWarehouse = async () => {
+    if (!warehouseId) {
+      toast.error(t.warehouseRequired);
+      return;
+    }
+    setBusy(true);
+    try {
+      await api.setPosWarehouse(warehouseId);
+      toast.success(t.warehouseSaved);
       await refresh();
     } catch (err) {
       toastApiError(err);
@@ -89,7 +121,7 @@ export function PosLinkSettings({
   const generate = async () => {
     setBusy(true);
     try {
-      const res = await api.generatePosLinkKey();
+      const res = await api.generatePosLinkKey(warehouseId || undefined);
       setGeneratedKey(res.data.key);
       toast.success(t.keyHint);
       await refresh();
@@ -103,7 +135,7 @@ export function PosLinkSettings({
   const confirmKey = async () => {
     setBusy(true);
     try {
-      await api.confirmPosLinkKey(pasteKey);
+      await api.confirmPosLinkKey(pasteKey, warehouseId || undefined);
       toast.success(t.linked);
       setPasteKey("");
       await refresh();
@@ -174,8 +206,38 @@ export function PosLinkSettings({
       </div>
 
       <div className={panel}>
+        <label className="block space-y-1 mb-3">
+          <span className="text-xs text-slate-400">{t.warehouseLabel}</span>
+          <select
+            value={warehouseId}
+            onChange={(e) => setWarehouseId(e.target.value)}
+            className={inputCls}
+            disabled={!canManage && linked}
+          >
+            <option value="">{locale === "en" ? "Select warehouse…" : "اختر مخزناً…"}</option>
+            {warehouses.map((w) => (
+              <option key={w.id} value={w.id}>
+                {w.code} — {locale === "en" && w.nameEn ? w.nameEn : w.name}
+                {w.sector ? ` (${w.sector})` : ""}
+              </option>
+            ))}
+          </select>
+          <p className="text-[11px] text-slate-500">{t.warehouseBindHint}</p>
+        </label>
+
         {linked ? (
-          <button
+          <>
+            {canManage ? (
+              <button
+                type="button"
+                disabled={busy || !warehouseId}
+                onClick={() => void saveWarehouse()}
+                className={btnPrimary}
+              >
+                {t.warehouseSave}
+              </button>
+            ) : null}
+            <button
             type="button"
             disabled={busy || (!isAdmin && user?.role !== "MANAGER")}
             onClick={deactivate}
@@ -187,6 +249,7 @@ export function PosLinkSettings({
           >
             {t.unlinkSystems}
           </button>
+          </>
         ) : (
           <button type="button" disabled={busy} onClick={activate} className={btnPrimary}>
             {t.activateLink}

@@ -105,8 +105,15 @@ export function HisabyAppsLinkHub({
   const linkPos = async () => {
     setBusy("pos");
     try {
-      await api.activatePosLink();
-      toast.success(t.ok);
+      const res = await api.activatePosLink();
+      const needs = (res.data as { needsWarehouse?: boolean })?.needsWarehouse;
+      toast.success(
+        needs
+          ? locale === "en"
+            ? "Linked — pick a POS warehouse in Settings"
+            : "تم الربط — اختر مخزن الكاشير من الإعدادات"
+          : t.ok,
+      );
       await refresh();
     } catch (err) {
       toastFail(err);
@@ -132,8 +139,15 @@ export function HisabyAppsLinkHub({
   const linkResto = async () => {
     setBusy("resto");
     try {
-      await api.activateRestoLink();
-      toast.success(t.ok);
+      const res = await api.activateRestoLink();
+      const needs = (res.data as { needsWarehouse?: boolean })?.needsWarehouse;
+      toast.success(
+        needs
+          ? locale === "en"
+            ? "Linked — pick a restaurant warehouse in Settings"
+            : "تم الربط — اختر مخزن المطاعم من الإعدادات"
+          : t.ok,
+      );
       await refresh();
     } catch (err) {
       toastFail(err);
