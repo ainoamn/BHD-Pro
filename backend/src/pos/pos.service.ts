@@ -26,6 +26,7 @@ import {
   CreatePosSaleDto,
   CreatePosDraftDto,
   CreatePosCashMovementDto,
+  CreatePosNoSaleDto,
   OpenPosShiftDto,
   ClosePosShiftDto,
   RefundPosSaleDto,
@@ -468,6 +469,7 @@ export class PosService {
     warehouseId: string | undefined,
     reference: string,
     notes = 'POS sale (reserved)',
+    allowNegative = false,
   ) {
     await this.periods.assertOpen(companyId, new Date());
 
@@ -504,35 +506,51 @@ export class PosService {
         update: {},
       });
 
-      const whUpdated = await tx.warehouseStock.updateMany({
-        where: {
-          productId,
-          warehouseId: whId!,
-          quantity: { gte: qty },
-        },
-        data: { quantity: { decrement: qty } },
-      });
-      if (whUpdated.count === 0) {
-        throw new BadRequestException(
-          `Insufficient stock for "${product.name}" at this warehouse (on hand below requested ${qty}). Reduce quantity or restock before checkout.`,
-        );
-      }
+      if (allowNegative) {
+        await tx.warehouseStock.update({
+          where: {
+            productId_warehouseId: { productId, warehouseId: whId! },
+          },
+          data: { quantity: { decrement: qty } },
+        });
+        await tx.product.update({
+          where: { id: productId },
+          data: {
+            quantity: { decrement: qty },
+            warehouseId: whId!,
+          },
+        });
+      } else {
+        const whUpdated = await tx.warehouseStock.updateMany({
+          where: {
+            productId,
+            warehouseId: whId!,
+            quantity: { gte: qty },
+          },
+          data: { quantity: { decrement: qty } },
+        });
+        if (whUpdated.count === 0) {
+          throw new BadRequestException(
+            `Insufficient stock for "${product.name}" at this warehouse (on hand below requested ${qty}). Reduce quantity or restock before checkout.`,
+          );
+        }
 
-      const productUpdated = await tx.product.updateMany({
-        where: {
-          id: productId,
-          companyId,
-          quantity: { gte: qty },
-        },
-        data: {
-          quantity: { decrement: qty },
-          warehouseId: whId!,
-        },
-      });
-      if (productUpdated.count === 0) {
-        throw new BadRequestException(
-          `Insufficient stock for "${product.name}" (on hand below requested ${qty}). Reduce quantity or restock before checkout.`,
-        );
+        const productUpdated = await tx.product.updateMany({
+          where: {
+            id: productId,
+            companyId,
+            quantity: { gte: qty },
+          },
+          data: {
+            quantity: { decrement: qty },
+            warehouseId: whId!,
+          },
+        });
+        if (productUpdated.count === 0) {
+          throw new BadRequestException(
+            `Insufficient stock for "${product.name}" (on hand below requested ${qty}). Reduce quantity or restock before checkout.`,
+          );
+        }
       }
 
       await tx.stockMovement.create({
@@ -543,7 +561,7 @@ export class PosService {
           quantity: qty,
           unitCost: product.costPrice,
           reference,
-          notes,
+          notes: allowNegative ? `${notes} [STOCK_OVERRIDE]` : notes,
         },
       });
 
@@ -1052,9 +1070,13 @@ export class PosService {
       }
     }
 
-    const dualActions: Array<'POS_PRICE_OVERRIDE' | 'POS_LINE_DISCOUNT'> = [];
+    const dualActions: Array<
+      'POS_PRICE_OVERRIDE' | 'POS_LINE_DISCOUNT' | 'POS_STOCK_OVERRIDE'
+    > = [];
     if (hasPriceOverride) dualActions.push('POS_PRICE_OVERRIDE');
     if (hasExcessiveDiscount) dualActions.push('POS_LINE_DISCOUNT');
+    const allowNegativeStock = dto.allowNegativeStock === true;
+    if (allowNegativeStock) dualActions.push('POS_STOCK_OVERRIDE');
     if (dualActions.length) {
       await this.dualControl.assertApprovedForActions(
         companyId,
@@ -1161,6 +1183,8 @@ export class PosService {
           item.quantity,
           dto.warehouseId,
           reserveRef,
+          'POS sale (reserved)',
+          allowNegativeStock,
         );
         if (result.reserved) {
           reserved.push({
@@ -1176,9 +1200,12 @@ export class PosService {
         : (dto.paymentMethod ?? PaymentMethod.CASH);
       const partnerCheckout = !!dto.partnerCheckout && !useStoreCredit && !useSplit;
       const baseNotes = dto.notes?.trim() || 'Hisaby POS sale';
-      const withClient = clientSaleId
-        ? `${baseNotes} [CLIENT_SALE:${clientSaleId}]`
+      const withOverride = allowNegativeStock
+        ? `[STOCK_OVERRIDE] ${baseNotes}`
         : baseNotes;
+      const withClient = clientSaleId
+        ? `${withOverride} [CLIENT_SALE:${clientSaleId}]`
+        : withOverride;
       const notes =
         useStoreCredit || storeCreditPortion > 0
           ? `[STORE_CREDIT] ${withClient}`
@@ -1834,6 +1861,53 @@ export class PosService {
       shift: { id: shift.id },
       journalId: movement.journalId || null,
       postedToGl: !!movement.journalId,
+    };
+  }
+
+  /** Audited no-sale drawer open (amount 0). Does not affect expected cash. */
+  async createNoSale(
+    companyId: string,
+    actor: TokenPayload,
+    dto: CreatePosNoSaleDto,
+  ) {
+    const shift = await this.findOpenShift(companyId, dto.warehouseId || null);
+    if (!shift) throw new BadRequestException('No open shift');
+    const reason = dto.reason?.trim();
+    if (!reason) {
+      throw new BadRequestException('Reason is required for no-sale');
+    }
+
+    await this.dualControl.assertApproved(
+      companyId,
+      actor,
+      'POS_NO_SALE',
+      dto.approval,
+    );
+
+    const movement = await this.prisma.posCashMovement.create({
+      data: {
+        companyId,
+        shiftId: shift.id,
+        type: 'NO_SALE',
+        amount: 0,
+        reason,
+        createdById: actor.sub,
+      },
+      include: {
+        createdBy: { select: { id: true, name: true } },
+      },
+    });
+
+    const cashMovements = await this.prisma.posCashMovement.findMany({
+      where: { companyId, shiftId: shift.id },
+      orderBy: { createdAt: 'desc' },
+      include: { createdBy: { select: { id: true, name: true } } },
+    });
+
+    return {
+      movement,
+      cashMovements,
+      shift: { id: shift.id },
     };
   }
 

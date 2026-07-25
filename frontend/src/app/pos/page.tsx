@@ -12,11 +12,13 @@ import {
   Printer,
   RefreshCw,
   ScanBarcode,
+  ScanSearch,
   ShoppingCart,
   Star,
   Trash2,
   UserPlus,
   Warehouse,
+  Wallet,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
@@ -172,7 +174,20 @@ export default function PosCheckoutPage() {
   const [pendingSplitPayments, setPendingSplitPayments] = useState<
     { method: CheckoutMethod; amount: number }[] | null
   >(null);
+  const [pendingAllowNegativeStock, setPendingAllowNegativeStock] = useState(false);
   const [checkoutBusy, setCheckoutBusy] = useState(false);
+  const [priceCheckMode, setPriceCheckMode] = useState(false);
+  const [priceCheckProduct, setPriceCheckProduct] = useState<{
+    name: string;
+    price: number;
+    stock: number;
+    sku?: string;
+    barcode?: string | null;
+  } | null>(null);
+  const [noSaleOpen, setNoSaleOpen] = useState(false);
+  const [noSaleReason, setNoSaleReason] = useState("");
+  const [noSaleAwaitingApproval, setNoSaleAwaitingApproval] = useState(false);
+  const [noSaleBusy, setNoSaleBusy] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [catalogStale, setCatalogStale] = useState(false);
   const [catalogRefreshing, setCatalogRefreshing] = useState(false);
@@ -280,9 +295,12 @@ export default function PosCheckoutPage() {
 
   const checkoutApprovalAction = useCallback(():
     | "POS_PRICE_OVERRIDE"
-    | "POS_LINE_DISCOUNT" => {
-    return cartNeedsPriceApproval() ? "POS_PRICE_OVERRIDE" : "POS_LINE_DISCOUNT";
-  }, [cartNeedsPriceApproval]);
+    | "POS_LINE_DISCOUNT"
+    | "POS_STOCK_OVERRIDE" => {
+    if (cartNeedsPriceApproval()) return "POS_PRICE_OVERRIDE";
+    if (cartNeedsDiscountApproval()) return "POS_LINE_DISCOUNT";
+    return "POS_STOCK_OVERRIDE";
+  }, [cartNeedsPriceApproval, cartNeedsDiscountApproval]);
 
   useEffect(() => {
     setFavoriteIds(loadPosFavorites(companyId));
@@ -868,9 +886,25 @@ export default function PosCheckoutPage() {
         focusScan();
         return;
       }
+      if (e.key === "F3") {
+        e.preventDefault();
+        setPriceCheckMode((v) => {
+          const next = !v;
+          if (!next) setPriceCheckProduct(null);
+          toast.success(next ? t.priceCheckOn : t.priceCheckOff);
+          return next;
+        });
+        focusScan();
+        return;
+      }
       if (e.key === "F4") {
         e.preventDefault();
         document.querySelector<HTMLButtonElement>("[data-pos-park]")?.click();
+        return;
+      }
+      if (e.key === "F6") {
+        e.preventDefault();
+        setNoSaleOpen(true);
         return;
       }
       if (e.key === "F7") {
@@ -1047,6 +1081,24 @@ export default function PosCheckoutPage() {
     try {
       const res = await api.lookupPosProduct(trimmed, warehouseId || undefined);
       const data = res.data as PosProduct & { scanQty?: number };
+      if (priceCheckMode) {
+        setPriceCheckProduct({
+          name: data.name,
+          price: Number(data.salePrice),
+          stock: Number(data.quantity),
+          sku: data.sku,
+          barcode: data.barcode,
+        });
+        try {
+          playPosScanBeep();
+        } catch {
+          /* ignore */
+        }
+        setScan("");
+        setCameraOpen(false);
+        focusScan();
+        return;
+      }
       const qty =
         typeof data.scanQty === "number" && data.scanQty > 0
           ? data.scanQty
@@ -1065,6 +1117,24 @@ export default function PosCheckoutPage() {
           warehouseId || undefined,
         );
         if (cached) {
+          if (priceCheckMode) {
+            setPriceCheckProduct({
+              name: cached.name,
+              price: Number(cached.salePrice),
+              stock: Number(cached.quantity),
+              sku: cached.sku,
+              barcode: cached.barcode,
+            });
+            try {
+              playPosScanBeep();
+            } catch {
+              /* ignore */
+            }
+            setScan("");
+            setCameraOpen(false);
+            focusScan();
+            return;
+          }
           const qty =
             typeof cached.scanQty === "number" && cached.scanQty > 0
               ? cached.scanQty
@@ -1084,11 +1154,13 @@ export default function PosCheckoutPage() {
       }
       playPosDenyBeep();
       toast.error(t.notFound);
-      setQuickBarcode(trimmed);
-      setQuickName("");
-      setQuickPrice("");
-      setQuickCategory("General");
-      setQuickProductOpen(true);
+      if (!priceCheckMode) {
+        setQuickBarcode(trimmed);
+        setQuickName("");
+        setQuickPrice("");
+        setQuickCategory("General");
+        setQuickProductOpen(true);
+      }
       setScan("");
       focusScan();
     }
@@ -1543,6 +1615,7 @@ export default function PosCheckoutPage() {
     method: CheckoutMethod,
     approval?: DualApprovalPayload,
     payments?: { method: CheckoutMethod; amount: number }[],
+    opts?: { allowNegativeStock?: boolean },
   ) => {
     if (!cart.length || paying) return;
     if (requireOpenShift && !shiftOpen) {
@@ -1612,11 +1685,13 @@ export default function PosCheckoutPage() {
     const overStock = workingCart.filter(
       (l) => l.isTracked && l.quantity > l.stock,
     );
-    if (overStock.length) {
-      toast.error(
-        `${t.stockExceedsBlock}: ${overStock.map((l) => `${l.name} (${l.stock})`).join(", ")}`,
-      );
-      setPendingCheckout(null);
+    const needsStockOverride = overStock.length > 0;
+    const needsPriceOrDiscount =
+      cartNeedsPriceApproval() || cartNeedsDiscountApproval();
+    if ((needsStockOverride || needsPriceOrDiscount) && !approval) {
+      setPendingAllowNegativeStock(needsStockOverride);
+      setPendingSplitPayments(payments || null);
+      setPendingCheckout(method);
       setCheckoutBusy(false);
       return;
     }
@@ -1711,6 +1786,10 @@ export default function PosCheckoutPage() {
       warehouseId: warehouseId || undefined,
       contactId: contactId || undefined,
       approval,
+      allowNegativeStock:
+        opts?.allowNegativeStock === true ||
+        (needsStockOverride && !!approval) ||
+        undefined,
       items: workingCart.map((l) => ({
         productId: l.productId,
         quantity: l.quantity,
@@ -1932,12 +2011,6 @@ export default function PosCheckoutPage() {
       toast.error(t.splitSumMismatch);
       return;
     }
-    const needsApproval = cartNeedsCheckoutApproval();
-    if (needsApproval) {
-      setPendingSplitPayments(payments);
-      setPendingCheckout(payments[0].method);
-      return;
-    }
     await runCheckout(payments[0].method, undefined, payments);
   };
 
@@ -1966,10 +2039,6 @@ export default function PosCheckoutPage() {
       setCashTenderOpen(true);
       return;
     }
-    if (cartNeedsCheckoutApproval()) {
-      setPendingCheckout(method);
-      return;
-    }
     await runCheckout(method);
   };
 
@@ -1980,10 +2049,6 @@ export default function PosCheckoutPage() {
       return;
     }
     setCashTenderOpen(false);
-    if (cartNeedsCheckoutApproval()) {
-      setPendingCheckout("CASH");
-      return;
-    }
     await runCheckout("CASH");
   };
 
@@ -3545,19 +3610,30 @@ export default function PosCheckoutPage() {
             ? locale === "en"
               ? "Confirm price override"
               : "تأكيد تجاوز السعر"
-            : locale === "en"
-              ? "Confirm line discount"
-              : "تأكيد خصم السطر"
+            : checkoutApprovalAction() === "POS_LINE_DISCOUNT"
+              ? locale === "en"
+                ? "Confirm line discount"
+                : "تأكيد خصم السطر"
+              : locale === "en"
+                ? "Confirm stock override"
+                : "تأكيد تجاوز المخزون"
         }
-        payload={{ method: pendingCheckout || undefined }}
+        payload={{
+          method: pendingCheckout || undefined,
+          allowNegativeStock: pendingAllowNegativeStock || undefined,
+        }}
         summary={
           checkoutApprovalAction() === "POS_PRICE_OVERRIDE"
             ? locale === "en"
               ? "POS price override"
               : "تجاوز سعر الكاشير"
-            : locale === "en"
-              ? "POS line discount over limit"
-              : "خصم سطر يتجاوز الحد"
+            : checkoutApprovalAction() === "POS_LINE_DISCOUNT"
+              ? locale === "en"
+                ? "POS line discount over limit"
+                : "خصم سطر يتجاوز الحد"
+              : locale === "en"
+                ? "Sell past on-hand stock"
+                : "بيع بتجاوز المخزون المتاح"
         }
         actorRole={user?.role}
         busy={checkoutBusy || paying}
@@ -3565,14 +3641,19 @@ export default function PosCheckoutPage() {
           if (!checkoutBusy && !paying) {
             setPendingCheckout(null);
             setPendingSplitPayments(null);
+            setPendingAllowNegativeStock(false);
           }
         }}
         onConfirm={async (approval) => {
           if (!pendingCheckout) return;
           setCheckoutBusy(true);
           const split = pendingSplitPayments;
+          const allowNeg = pendingAllowNegativeStock;
           setPendingSplitPayments(null);
-          await runCheckout(pendingCheckout, approval, split || undefined);
+          setPendingAllowNegativeStock(false);
+          await runCheckout(pendingCheckout, approval, split || undefined, {
+            allowNegativeStock: allowNeg,
+          });
         }}
       />
 

@@ -13,6 +13,7 @@ import {
   ActivatePosLinkDto,
   ClosePosShiftDto,
   CreatePosCashMovementDto,
+  CreatePosNoSaleDto,
   CreatePosDraftDto,
   CreatePosSaleDto,
   LinkPosDto,
@@ -410,6 +411,19 @@ export class PosController {
     @Body() dto: CreatePosCashMovementDto,
   ) {
     return this.pos.createCashMovement(user.companyId, user, dto);
+  }
+
+  @Post('shifts/current/no-sale')
+  @Roles(...POS_STAFF)
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  @ApiOperation({
+    summary: 'Audited no-sale / open drawer (amount 0, dual-control POS_NO_SALE)',
+  })
+  createNoSale(
+    @CurrentUser() user: TokenPayload,
+    @Body() dto: CreatePosNoSaleDto,
+  ) {
+    return this.pos.createNoSale(user.companyId, user, dto);
   }
 
   @Get('customers/:id/recent-sales')

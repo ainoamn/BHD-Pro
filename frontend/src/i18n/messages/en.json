@@ -59,6 +59,8 @@
       "POS_VOID": "POS void sale",
       "POS_PRICE_OVERRIDE": "POS price override",
       "POS_LINE_DISCOUNT": "POS line discount over limit",
+      "POS_STOCK_OVERRIDE": "POS sell past on-hand stock",
+      "POS_NO_SALE": "POS no-sale / open drawer",
       "POS_REFUND": "POS partial refund",
       "STOCK_ADJUST": "Stock adjustment",
       "STOCK_TRANSFER": "Stock transfer",

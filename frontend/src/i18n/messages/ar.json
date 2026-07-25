@@ -59,6 +59,8 @@
       "POS_VOID": "إلغاء بيع الكاشير",
       "POS_PRICE_OVERRIDE": "تجاوز سعر الكاشير",
       "POS_LINE_DISCOUNT": "خصم سطر يتجاوز الحد",
+      "POS_STOCK_OVERRIDE": "بيع بتجاوز المخزون المتاح",
+      "POS_NO_SALE": "فتح الدرج بلا بيع",
       "POS_REFUND": "استرداد جزئي للكاشير",
       "STOCK_ADJUST": "تعديل المخزون",
       "STOCK_TRANSFER": "تحويل المخزون",

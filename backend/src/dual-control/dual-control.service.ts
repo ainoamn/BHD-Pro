@@ -110,6 +110,8 @@ export class DualControlService {
       POS_VOID: config.actions?.POS_VOID !== false,
       POS_PRICE_OVERRIDE: config.actions?.POS_PRICE_OVERRIDE !== false,
       POS_LINE_DISCOUNT: config.actions?.POS_LINE_DISCOUNT !== false,
+      POS_STOCK_OVERRIDE: config.actions?.POS_STOCK_OVERRIDE !== false,
+      POS_NO_SALE: config.actions?.POS_NO_SALE !== false,
       POS_REFUND: config.actions?.POS_REFUND !== false,
       STOCK_ADJUST: config.actions?.STOCK_ADJUST !== false,
       STOCK_TRANSFER: config.actions?.STOCK_TRANSFER !== false,

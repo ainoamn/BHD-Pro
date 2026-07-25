@@ -70,6 +70,8 @@ export const DUAL_CONTROL_ACTIONS = [
   'POS_VOID',
   'POS_PRICE_OVERRIDE',
   'POS_LINE_DISCOUNT',
+  'POS_STOCK_OVERRIDE',
+  'POS_NO_SALE',
   'POS_REFUND',
   'STOCK_ADJUST',
   'STOCK_TRANSFER',
@@ -96,6 +98,14 @@ export class DualControlActionsDto {
   @IsOptional()
   @IsBoolean()
   POS_LINE_DISCOUNT?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  POS_STOCK_OVERRIDE?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  POS_NO_SALE?: boolean;
 
   @IsOptional()
   @IsBoolean()

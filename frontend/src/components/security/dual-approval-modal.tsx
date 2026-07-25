@@ -11,6 +11,8 @@ export type DualControlAction =
   | "POS_VOID"
   | "POS_PRICE_OVERRIDE"
   | "POS_LINE_DISCOUNT"
+  | "POS_STOCK_OVERRIDE"
+  | "POS_NO_SALE"
   | "POS_REFUND"
   | "STOCK_ADJUST"
   | "STOCK_TRANSFER"

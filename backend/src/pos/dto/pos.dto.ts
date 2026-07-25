@@ -122,6 +122,14 @@ export class CreatePosSaleDto {
   @Type(() => DualApprovalDto)
   approval?: DualApprovalDto;
 
+  /**
+   * Allow selling past on-hand for tracked items (manager dual-control:
+   * POS_STOCK_OVERRIDE). Stock goes negative; movement notes tagged.
+   */
+  @IsOptional()
+  @IsBoolean()
+  allowNegativeStock?: boolean;
+
   @IsOptional()
   @IsBoolean()
   useStoreCredit?: boolean;
@@ -241,6 +249,23 @@ export class CreatePosCashMovementDto {
   @IsString()
   @MaxLength(500)
   reason?: string;
+
+  @IsOptional()
+  @IsUUID()
+  warehouseId?: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DualApprovalDto)
+  approval?: DualApprovalDto;
+}
+
+/** Audited drawer open without a sale (amount 0, type NO_SALE). */
+export class CreatePosNoSaleDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(500)
+  reason: string;
 
   @IsOptional()
   @IsUUID()
