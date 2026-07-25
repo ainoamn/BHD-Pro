@@ -91,8 +91,9 @@ Public flags: `asyncApprovals: true`, `nfcBadgesConfigured`, `shiftVarianceLimit
 - [x] **Cashier commission + customer loyalty points** (`incentives_config`, ledgers, compact header chip, `/pos/settings` toggles; accrue on sale / reverse on void)
 
 ### Planned
-- [ ] Partner NFC tap-to-pay (gateway / wallet partners — not badge dual-control)
-- [ ] Native wrapper (Capacitor) if PWA limits hit
+- [ ] Hardware NFC tap-to-pay terminal (beyond hosted gateway checkout)
+- [x] Partner gateway pay from POS (`PARTNER` + `POST /pos/sales/:id/partner-checkout`) — not badge dual-control
+- [ ] Native Capacitor build (scaffold in `mobile/`)
 - [ ] Reliable multi-vendor Web Bluetooth thermal (current BLE path is best-effort)
 - [ ] Optional dual-control for large cash-out (`SHIFT_CASH_OUT` above threshold)
 - [x] Contacts store-credit wallet UI + GL-backed adjust (`POST /contacts/:id/store-credit-adjust` → 2130)
@@ -118,23 +119,24 @@ Public flags: `asyncApprovals: true`, `nfcBadgesConfigured`, `shiftVarianceLimit
 7. Offline sales queue in IndexedDB flushes when the browser goes online; header shows pending count + Sync.
 8. NFC badge registration is ADMIN-only in Security settings; hashes live in `security_config` JSON (no new migration). Web NFC = Android Chrome + HTTPS.
 9. Closing a shift with `|closingCash − expectedCash| > shiftVarianceLimit` requires dual-control (`SHIFT_CLOSE_VARIANCE`).
-10. Deploy migration `20260725240000_pos_incentives` for commission/loyalty (`incentives_config`, `cashier_commission_ledger`, `loyalty_points_ledger`, `contacts.loyalty_points`). Enable via **POS Settings → Commission & loyalty**.10. Creating an `ApprovalRequest` best-effort WhatsApps configured manager phones (or company phone) with a short Arabic/English ping to `/pos/approvals`.
-11. Checkout strip: open shift → `/pos/shifts`; today totals from `GET /pos/stats/today` (Asia/Muscat day boundary).
-12. Cash drawer: ESC `p 0 25 250` via Web Serial; auto-kick after cash when `preferCashDrawer` is on (defaults with prefer-thermal).
-13. `requireOpenShift` (default **false**) blocks `POST /pos/sales` and checkout UI when no open shift; enable in Dual Control / POS settings.
-14. Floor polish: qty keypad, scan beep (`hisaby-pos-mute-beep`), favorites (`hisaby-pos-favorites:{companyId}`), receipt WhatsApp/email share, refund reason chips, draft rename, `?` shortcuts help.
-15. X-report: mid-shift live totals via `GET /pos/shifts/current/x-report?warehouseId=` (or `/pos/shifts/:id/x-report`); print from `/pos/shifts` without closing.
-16. Bank internal transfer dual-control (`BANK_INTERNAL_TRANSFER`) + statement match suggestions UI on `/bank-reconciliation`.
-17. Store-credit GL: `PaymentMethod.STORE_CREDIT` posts Dr/Cr liability **2130** against AR (not cash 1100); wallet `Contact.currentBalance` remains operational.
-18. Management alerts polish: status tabs + acknowledge/dismiss/resolve + severity; commitments edit with GL accounts + attachments open.
-19. Deploy migration `20260725200000_pos_cash_movements` for drawer paid-in/out audit; cash movements appear on current shift, X/Z print, and expected cash.
-20. Customer recent sales: `GET /pos/customers/:id/recent-sales` (last 5) under POS customer select; tap to reprint.
-21. Share X/Z: WhatsApp / email buttons on `/pos/shifts` using plain-text report summary (same pattern as receipt share).
-22. Alert → invoice deep-link (`/accounting?open=`), dashboard/notifications open-alert count, journal attachments.
-23. Deploy migration `20260725210000_pos_draft_notes`; split tender + tip on `POST /pos/sales`; Z-report aggregates payment amounts by method.
-24. Deploy migration `20260725220000_pos_cash_movement_journal`; cash in/out posts GL (`postPosCashIn`/`postPosCashOut`, accounts 4290/5290 ↔ 1100); reason required for OUT.
-25. Checkout soft-blocks when tracked qty > on-hand; confirms when stock would fall to/below `minQuantity`.
-26. Manager today board: `GET /pos/stats/shifts-today` + «ورديات اليوم» table on `/pos/shifts` (ADMIN/MANAGER/ACCOUNTANT).
-27. Customer phone-first: dial default from `company.country`; CUSTOMER create requires E.164 phone; POS/accounting quick-add uses dial+local.
-28. Auto POS receipt WhatsApp (`CustomerNotifyService`) after sale + void/refund notify; dispute URL `/dispute/{publicVerifyCode}`; migration `20260725230000_customer_disputes`.
-29. Next: SMTP email receipts + Twilio SMS (mailto/WhatsApp manual share already exist). Deploy `customer_disputes` migration.
+10. Deploy migration `20260725240000_pos_incentives` for commission/loyalty (`incentives_config`, `cashier_commission_ledger`, `loyalty_points_ledger`, `contacts.loyalty_points`). Enable via **POS Settings → Commission & loyalty**.
+11. Creating an `ApprovalRequest` best-effort WhatsApps configured manager phones (or company phone) with a short Arabic/English ping to `/pos/approvals`.
+12. Checkout strip: open shift → `/pos/shifts`; today totals from `GET /pos/stats/today` (Asia/Muscat day boundary).
+13. Cash drawer: ESC `p 0 25 250` via Web Serial; auto-kick after cash when `preferCashDrawer` is on (defaults with prefer-thermal).
+14. `requireOpenShift` (default **false**) blocks `POST /pos/sales` and checkout UI when no open shift; enable in Dual Control / POS settings.
+15. Floor polish: qty keypad, scan beep (`hisaby-pos-mute-beep`), favorites (`hisaby-pos-favorites:{companyId}`), receipt WhatsApp/email share, refund reason chips, draft rename, `?` shortcuts help.
+16. X-report: mid-shift live totals via `GET /pos/shifts/current/x-report?warehouseId=` (or `/pos/shifts/:id/x-report`); print from `/pos/shifts` without closing.
+17. Bank internal transfer dual-control (`BANK_INTERNAL_TRANSFER`) + statement match suggestions UI on `/bank-reconciliation`.
+18. Store-credit GL: `PaymentMethod.STORE_CREDIT` posts Dr/Cr liability **2130** against AR (not cash 1100); wallet `Contact.currentBalance` remains operational.
+19. Management alerts polish: status tabs + acknowledge/dismiss/resolve + severity; commitments edit with GL accounts + attachments open.
+20. Deploy migration `20260725200000_pos_cash_movements` for drawer paid-in/out audit; cash movements appear on current shift, X/Z print, and expected cash.
+21. Customer recent sales: `GET /pos/customers/:id/recent-sales` (last 5) under POS customer select; tap to reprint.
+22. Share X/Z: WhatsApp / email buttons on `/pos/shifts` using plain-text report summary (same pattern as receipt share).
+23. Alert → invoice deep-link (`/accounting?open=`), dashboard/notifications open-alert count, journal attachments.
+24. Deploy migration `20260725210000_pos_draft_notes`; split tender + tip on `POST /pos/sales`; Z-report aggregates payment amounts by method.
+25. Deploy migration `20260725220000_pos_cash_movement_journal`; cash in/out posts GL (`postPosCashIn`/`postPosCashOut`, accounts 4290/5290 ↔ 1100); reason required for OUT.
+26. Checkout soft-blocks when tracked qty > on-hand; confirms when stock would fall to/below `minQuantity`.
+27. Manager today board: `GET /pos/stats/shifts-today` + «ورديات اليوم» table on `/pos/shifts` (ADMIN/MANAGER/ACCOUNTANT).
+28. Customer phone-first: dial default from `company.country`; CUSTOMER create requires E.164 phone; POS/accounting quick-add uses dial+local.
+29. Auto POS receipt WhatsApp (`CustomerNotifyService`) after sale + void/refund notify; dispute URL `/dispute/{publicVerifyCode}`; migration `20260725230000_customer_disputes`.
+30. Next: Twilio SMS optional. Email receipts via Resend/SMTP when configured. Deploy `20260725240000_pos_incentives` after pull.
