@@ -41,6 +41,10 @@ export type CompanySecurityConfig = {
   voidAlertThreshold?: number;
   /** Live void alerts on POS shell (default true) */
   voidAlertEnabled?: boolean;
+  /** Absolute line discount limit before dual-control (default 5) */
+  maxLineDiscountAmount?: number;
+  /** Percent of line gross before dual-control (default 20) */
+  maxLineDiscountPercent?: number;
   /** Manager emails for Z-report on close */
   zReportNotifyEmails?: string[];
   methods?: Array<'SELF_CONFIRM' | 'PASSWORD' | 'PIN' | 'WHATSAPP_OTP' | 'NFC' | 'APPROVAL_REQUEST'>;
@@ -105,6 +109,7 @@ export class DualControlService {
     const actions = {
       POS_VOID: config.actions?.POS_VOID !== false,
       POS_PRICE_OVERRIDE: config.actions?.POS_PRICE_OVERRIDE !== false,
+      POS_LINE_DISCOUNT: config.actions?.POS_LINE_DISCOUNT !== false,
       POS_REFUND: config.actions?.POS_REFUND !== false,
       STOCK_ADJUST: config.actions?.STOCK_ADJUST !== false,
       STOCK_TRANSFER: config.actions?.STOCK_TRANSFER !== false,
@@ -159,6 +164,16 @@ export class DualControlService {
         config.voidAlertThreshold >= 0
           ? Number(config.voidAlertThreshold)
           : 3,
+      maxLineDiscountAmount:
+        typeof config.maxLineDiscountAmount === 'number' &&
+        config.maxLineDiscountAmount >= 0
+          ? Number(config.maxLineDiscountAmount)
+          : 5,
+      maxLineDiscountPercent:
+        typeof config.maxLineDiscountPercent === 'number' &&
+        config.maxLineDiscountPercent >= 0
+          ? Number(config.maxLineDiscountPercent)
+          : 20,
       zReportNotifyEmails: (config.zReportNotifyEmails || [])
         .map((e) => String(e || '').trim().toLowerCase())
         .filter((e) => e.includes('@')),
@@ -203,6 +218,25 @@ export class DualControlService {
     return {
       enabled: config.autoEmailZReportOnClose === true && emails.length > 0,
       emails,
+    };
+  }
+
+  async getLineDiscountLimits(companyId: string): Promise<{
+    amount: number;
+    percent: number;
+  }> {
+    const config = await this.loadConfig(companyId);
+    return {
+      amount:
+        typeof config.maxLineDiscountAmount === 'number' &&
+        config.maxLineDiscountAmount >= 0
+          ? Number(config.maxLineDiscountAmount)
+          : 5,
+      percent:
+        typeof config.maxLineDiscountPercent === 'number' &&
+        config.maxLineDiscountPercent >= 0
+          ? Number(config.maxLineDiscountPercent)
+          : 20,
     };
   }
 
@@ -924,6 +958,18 @@ export class DualControlService {
     }
     if (dto.voidAlertThreshold !== undefined) {
       next.voidAlertThreshold = Math.max(0, Number(dto.voidAlertThreshold));
+    }
+    if (dto.maxLineDiscountAmount !== undefined) {
+      next.maxLineDiscountAmount = Math.max(
+        0,
+        Number(dto.maxLineDiscountAmount),
+      );
+    }
+    if (dto.maxLineDiscountPercent !== undefined) {
+      next.maxLineDiscountPercent = Math.max(
+        0,
+        Number(dto.maxLineDiscountPercent),
+      );
     }
     if (dto.zReportNotifyEmails !== undefined) {
       next.zReportNotifyEmails = dto.zReportNotifyEmails

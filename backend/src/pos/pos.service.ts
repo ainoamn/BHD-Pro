@@ -935,6 +935,9 @@ export class PosService {
     }[] = [];
 
     let hasPriceOverride = false;
+    let hasExcessiveDiscount = false;
+    const discountLimits =
+      await this.dualControl.getLineDiscountLimits(companyId);
     for (const item of dto.items) {
       const product = await this.products.findOne(companyId, item.productId);
       if (!product.isActive) {
@@ -949,12 +952,30 @@ export class PosService {
         // Any POS role may request an override; dual-control approval is required below
         hasPriceOverride = true;
       }
+      const qty = Number(item.quantity);
+      const discount = Number(item.discount || 0);
+      if (discount < 0) {
+        throw new BadRequestException('Line discount must be >= 0');
+      }
+      const lineGross = unitPrice * qty;
+      if (discount > lineGross + 0.0005) {
+        throw new BadRequestException(
+          `Discount exceeds line total for ${product.name}`,
+        );
+      }
+      const pct = lineGross > 0.0005 ? (discount / lineGross) * 100 : 0;
+      if (
+        discount > discountLimits.amount + 0.0005 ||
+        pct > discountLimits.percent + 0.0005
+      ) {
+        hasExcessiveDiscount = true;
+      }
       lineItems.push({
         productId: product.id,
         description: product.name,
-        quantity: Number(item.quantity),
+        quantity: qty,
         unitPrice,
-        discount: item.discount || 0,
+        discount,
       });
     }
 
@@ -1035,6 +1056,14 @@ export class PosService {
         companyId,
         actor,
         'POS_PRICE_OVERRIDE',
+        dto.approval,
+      );
+    }
+    if (hasExcessiveDiscount) {
+      await this.dualControl.assertApproved(
+        companyId,
+        actor,
+        'POS_LINE_DISCOUNT',
         dto.approval,
       );
     }

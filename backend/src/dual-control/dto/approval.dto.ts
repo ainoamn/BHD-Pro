@@ -69,6 +69,7 @@ export class DualApprovalDto {
 export const DUAL_CONTROL_ACTIONS = [
   'POS_VOID',
   'POS_PRICE_OVERRIDE',
+  'POS_LINE_DISCOUNT',
   'POS_REFUND',
   'STOCK_ADJUST',
   'STOCK_TRANSFER',
@@ -91,6 +92,10 @@ export class DualControlActionsDto {
   @IsOptional()
   @IsBoolean()
   POS_PRICE_OVERRIDE?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  POS_LINE_DISCOUNT?: boolean;
 
   @IsOptional()
   @IsBoolean()
@@ -241,6 +246,22 @@ export class UpdateSecurityConfigDto {
   @IsOptional()
   @IsBoolean()
   voidAlertEnabled?: boolean;
+
+  /** Absolute max line discount before POS_LINE_DISCOUNT approval (default 5) */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  maxLineDiscountAmount?: number;
+
+  /** Max line discount as % of line gross before approval (default 20) */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  maxLineDiscountPercent?: number;
 
   /** Manager emails that receive Z-report on shift close */
   @ApiPropertyOptional({ type: [String] })
