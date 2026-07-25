@@ -24,7 +24,9 @@ export class ContactsService {
     private glPosting: GlPostingService,
   ) {}
 
-  async findAll(companyId: string, type?: ContactType) {
+  async findAll(companyId: string, type?: ContactType, q?: string) {
+    const term = q?.trim() || '';
+    const digits = term.replace(/\D/g, '');
     const contacts = await this.prisma.contact.findMany({
       where: {
         companyId,
@@ -41,8 +43,22 @@ export class ContactsService {
               },
             }
           : {}),
+        ...(term
+          ? {
+              OR: [
+                { name: { contains: term, mode: 'insensitive' } },
+                { nameEn: { contains: term, mode: 'insensitive' } },
+                { phone: { contains: term, mode: 'insensitive' } },
+                { email: { contains: term, mode: 'insensitive' } },
+                ...(digits.length >= 3
+                  ? [{ phone: { contains: digits, mode: 'insensitive' as const } }]
+                  : []),
+              ],
+            }
+          : {}),
       },
       orderBy: { name: 'asc' },
+      take: term ? 40 : undefined,
     });
 
     const openInvoices = await this.prisma.invoice.findMany({

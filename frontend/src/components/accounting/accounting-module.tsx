@@ -43,6 +43,7 @@ import {
   combinePhone,
   DEFAULT_DIAL_CODE,
 } from "@/lib/phone";
+import { ContactSearchSelect } from "@/components/contacts/contact-search-select";
 import { downloadCsv } from "@/lib/export-csv";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import {
@@ -1562,19 +1563,18 @@ export function AccountingModule() {
                     {invoiceType === "SALES" ? t("customer") : t("supplier")}
                   </label>
                   <div className="flex gap-2">
-                    <select
+                    <ContactSearchSelect
+                      type={invoiceType === "SALES" ? "CUSTOMER" : "SUPPLIER"}
                       value={contactId}
-                      onChange={(e) => setContactId(e.target.value)}
-                      className="flex-1 h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500"
-                      required
-                    >
-                      <option value="">
-                        {invoiceType === "SALES" ? t("selectCustomer") : t("selectSupplier")}
-                      </option>
-                      {contacts.map((c) => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                    </select>
+                      onChange={(id) => setContactId(id)}
+                      emptyLabel={
+                        invoiceType === "SALES" ? t("selectCustomer") : t("selectSupplier")
+                      }
+                      placeholder={t("searchContact")}
+                      initialItems={contacts}
+                      defaultDialCode={defaultDial}
+                      variant="accounting"
+                    />
                     <button
                       type="button"
                       onClick={() => {

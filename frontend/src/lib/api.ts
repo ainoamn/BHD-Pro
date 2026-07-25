@@ -403,8 +403,13 @@ class ApiClient {
   }
 
   // Contacts
-  getContacts(type?: string) {
-    return this.get('/contacts', { params: type ? { type } : {} });
+  getContacts(type?: string, q?: string) {
+    return this.get('/contacts', {
+      params: {
+        ...(type ? { type } : {}),
+        ...(q?.trim() ? { q: q.trim() } : {}),
+      },
+    });
   }
 
   createContact(data: unknown) {
@@ -1397,6 +1402,7 @@ class ApiClient {
     payments?: { method: string; amount: number }[];
     tipAmount?: number;
     useStoreCredit?: boolean;
+    partnerCheckout?: boolean;
     taxRate?: number;
     notes?: string;
     warehouseId?: string;

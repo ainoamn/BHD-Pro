@@ -28,8 +28,14 @@ export class ContactsController {
 
   @Get()
   @ApiQuery({ name: 'type', required: false, enum: ContactType })
-  findAll(@CurrentUser() user: TokenPayload, @Query('type') type?: ContactType) {
-    return this.contactsService.findAll(user.companyId, type);
+  @ApiQuery({ name: 'q', required: false, description: 'Search by name, phone, or email' })
+  @ApiOperation({ summary: 'List contacts (optional type + name/phone search)' })
+  findAll(
+    @CurrentUser() user: TokenPayload,
+    @Query('type') type?: ContactType,
+    @Query('q') q?: string,
+  ) {
+    return this.contactsService.findAll(user.companyId, type, q);
   }
 
   @Get(':id')

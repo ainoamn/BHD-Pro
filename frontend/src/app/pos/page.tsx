@@ -40,6 +40,7 @@ import {
   combinePhone,
   DEFAULT_DIAL_CODE,
 } from "@/lib/phone";
+import { ContactSearchSelect } from "@/components/contacts/contact-search-select";
 
 const POS_WAREHOUSE_KEY = "hisaby-pos-warehouse-id";
 
@@ -76,7 +77,7 @@ type ParkedCart = {
   lines: CartLine[];
 };
 
-type CheckoutMethod = "CASH" | "CREDIT_CARD" | "BANK_TRANSFER" | "STORE_CREDIT";
+type CheckoutMethod = "CASH" | "CREDIT_CARD" | "BANK_TRANSFER" | "STORE_CREDIT" | "PARTNER";
 
 type PosWarehouse = {
   id: string;
@@ -894,6 +895,7 @@ export default function PosCheckoutPage() {
     const m = method.toUpperCase();
     if (m === "CASH") return t.payCash;
     if (m === "CREDIT_CARD" || m === "CARD") return t.payCard;
+    if (m === "PARTNER") return t.partnerPay;
     if (m === "BANK_TRANSFER") return t.payBank;
     if (m === "STORE_CREDIT" || m === "OTHER") return t.payStoreCredit;
     return method;
@@ -1167,6 +1169,10 @@ export default function PosCheckoutPage() {
         return;
       }
     }
+    if (method === "PARTNER" && (typeof navigator !== "undefined" && navigator.onLine === false)) {
+      toast.error(t.partnerPayOffline);
+      return;
+    }
     const tipLine =
       tipValue > 0.0005 ? [{ name: t.tip, qty: 1, lineTotal: tipValue }] : [];
     const snapshot = [
@@ -1181,6 +1187,7 @@ export default function PosCheckoutPage() {
       ? `${cartNotes.trim()} — Hisaby POS sale`
       : undefined;
     const useStoreCredit = method === "STORE_CREDIT" && !payments?.length;
+    const isPartner = method === "PARTNER" && !payments?.length;
     const paymentLabelJoined = payments?.length
       ? payments
           .map((p) => `${paymentLabel(p.method)} ${p.amount.toFixed(3)}`)
@@ -1191,7 +1198,10 @@ export default function PosCheckoutPage() {
         ? undefined
         : useStoreCredit
           ? "STORE_CREDIT"
-          : method,
+          : isPartner
+            ? "CREDIT_CARD"
+            : method,
+      partnerCheckout: isPartner || undefined,
       payments: payments?.length
         ? payments.map((p) => ({ method: p.method, amount: p.amount }))
         : undefined,
@@ -1267,6 +1277,24 @@ export default function PosCheckoutPage() {
         paymentMethod: paymentLabelJoined,
         warehouseLabel: warehouseLabel || undefined,
       });
+      if (isPartner && inv.id) {
+        try {
+          const payRes = await api.createPosPartnerCheckout(inv.id);
+          const data = payRes.data as {
+            checkout?: { redirectUrl?: string };
+            checkoutUrl?: string;
+          };
+          const url = data?.checkout?.redirectUrl || data?.checkoutUrl;
+          if (url) {
+            window.open(url, "_blank", "noopener,noreferrer");
+            toast.success(t.partnerPayOpened);
+          } else {
+            toast.error(t.partnerPayFail);
+          }
+        } catch {
+          toast.error(t.partnerPayFail);
+        }
+      }
       setCart([]);
       setCartNotes("");
       setTipAmount(0);
@@ -1505,25 +1533,18 @@ export default function PosCheckoutPage() {
         <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 space-y-1">
           <label className="flex items-center gap-2">
             <span className="text-xs text-slate-400 shrink-0">{t.customer}</span>
-            <select
+            <ContactSearchSelect
+              type="CUSTOMER"
               value={contactId}
-              onChange={(e) => setContactId(e.target.value)}
-              className="flex-1 min-w-0 bg-transparent text-sm text-white focus:outline-none"
-              aria-label={t.customer}
-            >
-              <option value="" className="bg-[#111827] text-white">
-                {t.walkIn}
-              </option>
-              {customers.map((c) => {
-                const bal = Number(c.currentBalance ?? 0);
-                return (
-                  <option key={c.id} value={c.id} className="bg-[#111827] text-white">
-                    {c.name}
-                    {bal > 0 ? ` · ${t.creditBalance} ${bal}` : ""}
-                  </option>
-                );
-              })}
-            </select>
+              onChange={(id) => setContactId(id)}
+              emptyLabel={t.walkIn}
+              placeholder={t.searchCustomer}
+              initialItems={customers}
+              showBalance
+              balanceLabel={t.creditBalance}
+              defaultDialCode={defaultDial}
+              variant="pos"
+            />
             <button
               type="button"
               onClick={() => {
@@ -2174,7 +2195,7 @@ export default function PosCheckoutPage() {
               {t.splitTender}
             </button>
           )}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             <button
               type="button"
               disabled={!cart.length || paying}
@@ -2191,6 +2212,15 @@ export default function PosCheckoutPage() {
               className="min-h-12 h-12 rounded-xl bg-sky-500 text-white font-bold disabled:opacity-40 hover:bg-sky-400 text-sm"
             >
               {t.payCard}
+            </button>
+            <button
+              type="button"
+              disabled={!cart.length || paying}
+              onClick={() => checkout("PARTNER")}
+              className="min-h-12 h-12 rounded-xl bg-violet-600 text-white font-bold disabled:opacity-40 hover:bg-violet-500 text-sm"
+              title={t.partnerPayHint}
+            >
+              {t.partnerPay}
             </button>
             <button
               type="button"
