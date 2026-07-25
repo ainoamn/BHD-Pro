@@ -411,6 +411,7 @@ export default function PosCheckoutPage() {
   const [receiptsLoading, setReceiptsLoading] = useState(false);
 
   const loadRecentSales = useCallback(async () => {
+    setReceiptsLoading(true);
     try {
       const res = await api.listRecentPosSales({
         take: 20,
@@ -422,6 +423,8 @@ export default function PosCheckoutPage() {
       setRecentSales(rows);
     } catch {
       /* ignore */
+    } finally {
+      setReceiptsLoading(false);
     }
   }, [warehouseId]);
 
@@ -2158,45 +2161,44 @@ export default function PosCheckoutPage() {
         ) : null}
 
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2.5 space-y-2">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
-              <Link
-                href="/pos/shifts"
-                className={`font-semibold hover:underline ${
-                  shiftOpen ? "text-emerald-300" : "text-slate-500"
-                }`}
-              >
-                {shiftOpen ? t.shiftStripOpen : t.shiftStripClosed}
-              </Link>
-              {todayStats ? (
-                <span className="text-slate-400">
-                  {t.todaySales}:{" "}
-                  <span className="text-white font-semibold">{todayStats.salesCount}</span>
-                  {" · "}
-                  <span className="text-sky-300 font-semibold">
-                    {formatMoney(todayStats.salesTotal, currency)}
-                  </span>
-                  {todayStats.voidCount || todayStats.refundCount ? (
-                    <span className="text-slate-500 ms-1">
-                      ({t.zVoids} {todayStats.voidCount} · {t.zRefunds} {todayStats.refundCount})
-                    </span>
-                  ) : null}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
+            <Link
+              href="/pos/shifts"
+              className={`font-semibold hover:underline ${
+                shiftOpen ? "text-emerald-300" : "text-slate-500"
+              }`}
+            >
+              {shiftOpen ? t.shiftStripOpen : t.shiftStripClosed}
+            </Link>
+            {todayStats ? (
+              <span className="text-slate-400">
+                {t.todaySales}:{" "}
+                <span className="text-white font-semibold">{todayStats.salesCount}</span>
+                {" · "}
+                <span className="text-sky-300 font-semibold">
+                  {formatMoney(todayStats.salesTotal, currency)}
                 </span>
-              ) : null}
-            </div>
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-xs font-bold text-slate-300">{t.recentSales}</p>
-              <button
-                type="button"
-                onClick={() => {
-                  setReceiptsOpen(true);
-                  void loadRecentSales();
-                }}
-                className="h-7 px-2 rounded-lg border border-white/15 text-[10px] font-semibold text-slate-300 hover:bg-white/5"
-              >
-                {t.receiptsDrawer} · F7
-              </button>
-            </div>
+                {todayStats.voidCount || todayStats.refundCount ? (
+                  <span className="text-slate-500 ms-1">
+                    ({t.zVoids} {todayStats.voidCount} · {t.zRefunds} {todayStats.refundCount})
+                  </span>
+                ) : null}
+              </span>
+            ) : null}
+          </div>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-bold text-slate-300">{t.recentSales}</p>
+            <button
+              type="button"
+              onClick={() => {
+                setReceiptsOpen(true);
+                void loadRecentSales();
+              }}
+              className="h-7 px-2 rounded-lg border border-white/15 text-[10px] font-semibold text-slate-300 hover:bg-white/5"
+            >
+              {t.receiptsDrawer} · F7
+            </button>
+          </div>
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -3442,6 +3444,97 @@ export default function PosCheckoutPage() {
         }}
       />
 
+      {receiptsOpen ? (
+        <div
+          className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-black/60 p-3"
+          onClick={() => setReceiptsOpen(false)}
+        >
+          <div
+            className="w-full max-w-lg max-h-[80vh] overflow-hidden rounded-2xl border border-white/10 bg-[#121a2b] shadow-xl flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-white/10">
+              <div>
+                <p className="font-bold text-white">{t.receiptsDrawerTitle}</p>
+                <p className="text-[11px] text-slate-400">{t.receiptsDrawerHint}</p>
+              </div>
+              <button
+                type="button"
+                className="text-slate-400 text-sm"
+                onClick={() => setReceiptsOpen(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="overflow-y-auto p-3 space-y-2">
+              {receiptsLoading ? (
+                <p className="text-sm text-slate-400 inline-flex items-center gap-2 py-6 justify-center w-full">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  …
+                </p>
+              ) : !recentSales.length ? (
+                <p className="text-sm text-slate-500 text-center py-8">{t.noRecentSales}</p>
+              ) : (
+                recentSales.map((sale) => (
+                  <div
+                    key={sale.id}
+                    className="rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 space-y-2"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-bold text-white truncate">{sale.number}</p>
+                        <p className="text-[11px] text-slate-500">
+                          {sale.createdAt
+                            ? new Date(sale.createdAt).toLocaleString()
+                            : sale.date
+                              ? new Date(sale.date).toLocaleDateString()
+                              : "—"}
+                        </p>
+                      </div>
+                      <p className="text-sky-300 font-semibold tabular-nums shrink-0">
+                        {formatMoney(Number(sale.total), currency)}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          reprintSale(sale);
+                          setReceiptsOpen(false);
+                        }}
+                        className="h-8 px-2.5 rounded-lg border border-sky-500/30 text-[11px] font-semibold text-sky-200 hover:bg-sky-500/15"
+                      >
+                        {t.reprint}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          voidSale(sale);
+                          setReceiptsOpen(false);
+                        }}
+                        className="h-8 px-2.5 rounded-lg border border-rose-500/30 text-[11px] font-semibold text-rose-300 hover:bg-rose-500/15"
+                      >
+                        {t.voidSale}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void openRefund(sale);
+                          setReceiptsOpen(false);
+                        }}
+                        className="h-8 px-2.5 rounded-lg border border-amber-500/30 text-[11px] font-semibold text-amber-200 hover:bg-amber-500/15"
+                      >
+                        {t.refundSale}
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <QtyKeypadModal
         open={!!qtyKeypadLine}
         title={qtyKeypadLine?.name || t.qty}
@@ -3494,6 +3587,7 @@ export default function PosCheckoutPage() {
               <li>{t.shortcutScan}</li>
               <li>{t.shortcutF2}</li>
               <li>{t.shortcutF4}</li>
+              <li>{t.shortcutF7}</li>
               <li>{t.shortcutF8}</li>
               <li>{t.shortcutF9}</li>
               <li>{t.shortcutF10}</li>

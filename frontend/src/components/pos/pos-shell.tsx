@@ -23,7 +23,10 @@ import { useAuthStore } from "@/store/auth";
 import { useLocaleStore } from "@/store/locale";
 import { posCopy } from "@/lib/pos-copy";
 import { flushPendingPosSales, pendingAllCount, quarantinedAllCount, discardAllQuarantined } from "@/lib/pos-offline-sync";
+import { playPosAlertBeep } from "@/lib/pos-beep";
 import { PosCommissionChip } from "@/components/pos/pos-commission-chip";
+
+const VOID_ALERT_KEY = "hisaby-pos-void-alert-day";
 
 export function PosShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -102,6 +105,58 @@ export function PosShell({ children }: { children: React.ReactNode }) {
       window.clearInterval(id);
     };
   }, [hydrated, isLogin, refreshPending, runFlush]);
+
+  useEffect(() => {
+    if (!hydrated || isLogin || !canSeeApprovals) return;
+    let cancelled = false;
+    const checkVoids = async () => {
+      try {
+        const [statsRes, secRes] = await Promise.all([
+          api.getPosTodayStats(),
+          api.getCompanySecurity(),
+        ]);
+        if (cancelled) return;
+        const cfg = secRes.data as {
+          voidAlertEnabled?: boolean;
+          voidAlertThreshold?: number;
+        };
+        if (cfg.voidAlertEnabled === false) return;
+        const threshold =
+          typeof cfg.voidAlertThreshold === "number" && cfg.voidAlertThreshold >= 0
+            ? cfg.voidAlertThreshold
+            : 3;
+        const stats = statsRes.data as {
+          voidCount?: number;
+          salesCount?: number;
+        };
+        const voids = Number(stats.voidCount) || 0;
+        const sales = Number(stats.salesCount) || 0;
+        const overCount = voids > threshold;
+        const overRate = sales > 0 && voids / sales > 0.1;
+        if (!overCount && !overRate) return;
+        const dayKey = new Date().toISOString().slice(0, 10);
+        try {
+          if (localStorage.getItem(VOID_ALERT_KEY) === dayKey) return;
+          localStorage.setItem(VOID_ALERT_KEY, dayKey);
+        } catch {
+          /* ignore */
+        }
+        playPosAlertBeep();
+        toast.error(
+          `${t.voidAlertToast}: ${voids}${sales ? ` / ${sales}` : ""}`,
+          { duration: 6000 },
+        );
+      } catch {
+        /* ignore */
+      }
+    };
+    void checkVoids();
+    const id = window.setInterval(() => void checkVoids(), 60000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [hydrated, isLogin, canSeeApprovals, t.voidAlertToast]);
 
   useEffect(() => {
     if (!hydrated || isLogin) return;

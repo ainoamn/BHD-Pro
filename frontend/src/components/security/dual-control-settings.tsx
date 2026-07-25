@@ -24,6 +24,8 @@ type SecurityPublic = {
   autoSendPosReceiptEmail?: boolean;
   autoSendPosReceiptSms?: boolean;
   autoEmailZReportOnClose?: boolean;
+  voidAlertEnabled?: boolean;
+  voidAlertThreshold?: number;
   zReportNotifyEmails?: string[];
   actions: {
     POS_VOID: boolean;
@@ -91,6 +93,8 @@ export function DualControlSettings() {
   const [autoSendPosReceiptEmail, setAutoSendPosReceiptEmail] = useState(true);
   const [autoSendPosReceiptSms, setAutoSendPosReceiptSms] = useState(true);
   const [autoEmailZReportOnClose, setAutoEmailZReportOnClose] = useState(false);
+  const [voidAlertEnabled, setVoidAlertEnabled] = useState(true);
+  const [voidAlertThreshold, setVoidAlertThreshold] = useState("3");
   const [zReportEmails, setZReportEmails] = useState("");
 
   const { data, isLoading } = useQuery({
@@ -127,6 +131,8 @@ export function DualControlSettings() {
     setAutoSendPosReceiptEmail(data.autoSendPosReceiptEmail !== false);
     setAutoSendPosReceiptSms(data.autoSendPosReceiptSms !== false);
     setAutoEmailZReportOnClose(data.autoEmailZReportOnClose === true);
+    setVoidAlertEnabled(data.voidAlertEnabled !== false);
+    setVoidAlertThreshold(String(data.voidAlertThreshold ?? 3));
     setZReportEmails((data.zReportNotifyEmails || []).join(", "));
   }, [data]);
 
@@ -154,6 +160,8 @@ export function DualControlSettings() {
     autoSendPosReceiptEmail,
     autoSendPosReceiptSms,
     autoEmailZReportOnClose,
+    voidAlertEnabled,
+    voidAlertThreshold: Number(voidAlertThreshold) || 0,
   });
 
   if (isLoading) {
@@ -310,6 +318,35 @@ export function DualControlSettings() {
               onChange={(e) => setAutoEmailZReportOnClose(e.target.checked)}
             />
           </label>
+
+          <label className="flex items-center justify-between gap-4 text-sm text-slate-200">
+            <span>
+              <span className="block">{t("voidAlertEnabled")}</span>
+              <span className="block text-[11px] text-slate-500 mt-0.5 font-normal">
+                {t("voidAlertEnabledHint")}
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              checked={voidAlertEnabled}
+              disabled={!isAdmin || saveMutation.isPending}
+              onChange={(e) => setVoidAlertEnabled(e.target.checked)}
+            />
+          </label>
+
+          <div>
+            <label className="block text-sm text-slate-300 mb-1">{t("voidAlertThreshold")}</label>
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={voidAlertThreshold}
+              disabled={!isAdmin || saveMutation.isPending}
+              onChange={(e) => setVoidAlertThreshold(e.target.value)}
+              className="h-10 w-32 px-3 rounded-lg bg-slate-900/60 border border-white/10 text-sm text-white disabled:opacity-50"
+            />
+            <p className="text-[11px] text-slate-500 mt-1">{t("voidAlertThresholdHint")}</p>
+          </div>
 
           <div className="space-y-2">
             <p className="text-sm text-slate-300">{t("zReportNotifyEmails")}</p>

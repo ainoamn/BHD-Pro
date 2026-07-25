@@ -133,6 +133,12 @@ Public flags: `asyncApprovals: true`, `nfcBadgesConfigured`, `shiftVarianceLimit
 - Shifts-today board: void counts, live pulse, 15s poll; dashboard KPI → `/pos/shifts`
 - Doc: [`UPGRADE-POS-WAVE11-2026-07.md`](./UPGRADE-POS-WAVE11-2026-07.md)
 
+### Done (Wave 12 — Price fairness & receipt speed)
+- Cashier price override via dual-control (`POS_PRICE_OVERRIDE`)
+- Recent receipts drawer (`GET /pos/sales/recent`, F7)
+- Live void-threshold alert on POS shell (managers)
+- Doc: [`UPGRADE-POS-WAVE12-2026-07.md`](./UPGRADE-POS-WAVE12-2026-07.md)
+
 - [x] Full catalog sync API `GET /pos/catalog/sync` + offline IDB per warehouse
 - [x] Broader refunds + store-credit MVP (hardened debit / void restore / UI)
 - [x] Cash change due + receipt number lookup for refunds
