@@ -121,6 +121,12 @@ Public flags: `asyncApprovals: true`, `nfcBadgesConfigured`, `shiftVarianceLimit
 - Keyboard `+/-` last-line quantity
 - Doc: [`UPGRADE-POS-WAVE9-2026-07.md`](./UPGRADE-POS-WAVE9-2026-07.md)
 
+### Done (Wave 10 — Scan recovery & close trust)
+- Quick-create product on barcode miss (cart + catalog cache)
+- Auto Z-report email on shift close (`autoEmailZReportOnClose` + `zReportNotifyEmails`)
+- Pre-close EOD checklist (parked / variance / quarantine / anomalies)
+- Doc: [`UPGRADE-POS-WAVE10-2026-07.md`](./UPGRADE-POS-WAVE10-2026-07.md)
+
 - [x] Full catalog sync API `GET /pos/catalog/sync` + offline IDB per warehouse
 - [x] Broader refunds + store-credit MVP (hardened debit / void restore / UI)
 - [x] Cash change due + receipt number lookup for refunds
