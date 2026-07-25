@@ -124,4 +124,14 @@ npx prisma migrate deploy
 
 ---
 
-**خرائط مرتبطة:** [`HISABY-STATUS-AND-GAPS.md`](./HISABY-STATUS-AND-GAPS.md) · [`HISABY-POS-AND-SECURITY-ROADMAP.md`](./HISABY-POS-AND-SECURITY-ROADMAP.md) · [`INTEGRATIONS-MESSAGING-OTA.md`](./INTEGRATIONS-MESSAGING-OTA.md)
+## 8) المراسلات — حالة القرار (يوليو 2026 مساءً)
+
+- **مبرمج ومرفوع:** واتساب Cloud API + إيميل + SMS + `/integrations` + اقرأني.
+- **مؤجّل تشغيلياً:** اشتراك Meta / Resend حتى يتوفر الوقت.
+- **المرجع:** [`MESSAGING-WHATSAPP-EMAIL-GUIDE.md`](./MESSAGING-WHATSAPP-EMAIL-GUIDE.md)
+
+**الخطوة التالية الآن:** تأكيد أن Render على آخر `main` حيّ · لا حاجة لـ Meta اليوم · عند الجاهزية نفّذ §8 في دليل المراسلات.
+
+---
+
+**خرائط مرتبطة:** [`HISABY-STATUS-AND-GAPS.md`](./HISABY-STATUS-AND-GAPS.md) · [`HISABY-POS-AND-SECURITY-ROADMAP.md`](./HISABY-POS-AND-SECURITY-ROADMAP.md) · [`INTEGRATIONS-MESSAGING-OTA.md`](./INTEGRATIONS-MESSAGING-OTA.md) · [`MESSAGING-WHATSAPP-EMAIL-GUIDE.md`](./MESSAGING-WHATSAPP-EMAIL-GUIDE.md)

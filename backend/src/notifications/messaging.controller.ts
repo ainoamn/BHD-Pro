@@ -91,22 +91,26 @@ export class MessagingController {
       sections: [
         {
           id: 'whatsapp',
-          titleAr: 'واتساب (Meta Cloud API)',
+          titleAr: 'واتساب (Meta Cloud API) — جاهز برمجياً · التفعيل لاحقاً',
           stepsAr: [
-            'أنشئ تطبيق Meta Business واحصل على WhatsApp Cloud API.',
-            'ضع WHATSAPP_TOKEN و WHATSAPP_PHONE_NUMBER_ID في بيئة الـ API.',
-            'للاختبار بدون ميتا: WHATSAPP_TOKEN=mock',
-            'فعّل الإرسال التلقائي لإيصالات الكاشير من إعدادات الحماية (dual-control).',
-            'أضف أرقام المديرين في whatsappNotifyPhones لاستلام OTP وطلبات الموافقة.',
+            'الوضع الحالي: الكود يرسل تلقائياً بعد البيع/OTP عند ضبط المفاتيح — بدون Meta لا يُرسل حقيقياً.',
+            'لاحقاً: business.facebook.com → محفظة أعمال → developers.facebook.com → Create App → WhatsApp.',
+            'من API Setup انسخ Access Token و Phone number ID.',
+            'ضعها على Render: WHATSAPP_TOKEN و WHATSAPP_PHONE_NUMBER_ID (إنتاج: System User token دائم).',
+            'للاختبار الداخلي فقط: WHATSAPP_TOKEN=mock',
+            'أضف أرقام المديرين في whatsappNotifyPhones — واترك autoSendPosReceipts مفعّلاً.',
+            'دليل كامل: docs/MESSAGING-WHATSAPP-EMAIL-GUIDE.md',
           ],
         },
         {
           id: 'email',
-          titleAr: 'البريد الإلكتروني',
+          titleAr: 'البريد الإلكتروني — مربوط برمجياً',
           stepsAr: [
-            'الخيار أ: RESEND_API_KEY + EMAIL_FROM',
-            'الخيار ب: SMTP_HOST / SMTP_PORT / SMTP_USER / SMTP_PASS (+ تثبيت nodemailer)',
-            'للاختبار: EMAIL_MODE=mock (يُسجَّل في سجلات الخادم فقط)',
+            'الخيار أ (موصى): RESEND_API_KEY + EMAIL_FROM على نطاقك.',
+            'الخيار ب: SMTP_HOST / SMTP_PORT / SMTP_USER / SMTP_PASS.',
+            'بدون مفاتيح: EMAIL_MODE=mock أو القناة off — لا إرسال حقيقي.',
+            'يُرسل تلقائياً مع إيصال الكاشير إن وُجد بريد للعميل.',
+            'دليل كامل: docs/MESSAGING-WHATSAPP-EMAIL-GUIDE.md',
           ],
         },
         {
