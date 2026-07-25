@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { ChefHat, Loader2, RefreshCw } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ChefHat, Loader2, RefreshCw, Volume2, VolumeX } from "lucide-react";
 import api from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
 import { restoCopy } from "@/lib/resto-copy";
@@ -27,20 +27,56 @@ type Station = {
   sortOrder: number;
 };
 
+type StatusFilter = "" | "SENT" | "PREPARING" | "READY";
+
+function playChime() {
+  try {
+    const Ctx =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext })
+        .webkitAudioContext;
+    const ctx = new Ctx();
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = "sine";
+    o.frequency.value = 880;
+    g.gain.value = 0.08;
+    o.connect(g);
+    g.connect(ctx.destination);
+    o.start();
+    g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.35);
+    o.stop(ctx.currentTime + 0.4);
+    window.setTimeout(() => void ctx.close(), 500);
+  } catch {
+    /* ignore */
+  }
+}
+
 export default function RestoKitchenPage() {
   const locale = useLocaleStore((s) => s.locale);
   const t = restoCopy[locale === "en" ? "en" : "ar"];
   const [items, setItems] = useState<KitchenItem[]>([]);
   const [stations, setStations] = useState<Station[]>([]);
   const [stationId, setStationId] = useState<string>("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("");
+  const [soundOn, setSoundOn] = useState(true);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const knownIds = useRef<Set<string>>(new Set());
+  const primed = useRef(false);
 
   const load = useCallback(async () => {
     try {
       const res = await api.getRestoKitchen(stationId || undefined);
-      setItems(res.data.items || []);
+      const next = res.data.items || [];
+      if (primed.current && soundOn) {
+        const fresh = next.filter((it) => !knownIds.current.has(it.id));
+        if (fresh.length > 0) playChime();
+      }
+      knownIds.current = new Set(next.map((it) => it.id));
+      primed.current = true;
+      setItems(next);
       setStations(res.data.stations || []);
       setError("");
     } catch {
@@ -48,12 +84,14 @@ export default function RestoKitchenPage() {
     } finally {
       setLoading(false);
     }
-  }, [stationId, t.actionFail]);
+  }, [stationId, soundOn, t.actionFail]);
 
   useEffect(() => {
     setLoading(true);
+    primed.current = false;
+    knownIds.current = new Set();
     void load();
-    const id = window.setInterval(() => void load(), 8000);
+    const id = window.setInterval(() => void load(), 5000);
     return () => window.clearInterval(id);
   }, [load]);
 
@@ -72,6 +110,29 @@ export default function RestoKitchenPage() {
     }
   };
 
+  const bumpOldestReady = useCallback(async () => {
+    const ready = items
+      .filter((i) => i.status === "READY")
+      .sort(
+        (a, b) =>
+          new Date(a.sentAt || 0).getTime() - new Date(b.sentAt || 0).getTime(),
+      );
+    if (ready[0]) await setStatus(ready[0].id, "SERVED");
+  }, [items]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "b" || e.key === "B") {
+        const tag = (e.target as HTMLElement)?.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+        e.preventDefault();
+        void bumpOldestReady();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [bumpOldestReady]);
+
   const ageMin = (sentAt: string | null) => {
     if (!sentAt) return 0;
     return Math.max(
@@ -87,6 +148,17 @@ export default function RestoKitchenPage() {
     return "border-white/10 bg-white/[0.04]";
   };
 
+  const visible = statusFilter
+    ? items.filter((i) => i.status === statusFilter)
+    : items;
+
+  const statusFilters: { id: StatusFilter; label: string }[] = [
+    { id: "", label: t.kdsFilterAll },
+    { id: "SENT", label: t.sent },
+    { id: "PREPARING", label: t.preparing },
+    { id: "READY", label: t.ready },
+  ];
+
   return (
     <div className="p-4 sm:p-6 max-w-[1600px] mx-auto space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -96,18 +168,38 @@ export default function RestoKitchenPage() {
             {t.kitchenTitle}
           </h1>
           <p className="text-sm text-stone-400 mt-1">{t.kitchenSub}</p>
+          <p className="text-[11px] text-stone-500 mt-1">{t.kdsBumpHint}</p>
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            setLoading(true);
-            void load();
-          }}
-          className="inline-flex items-center gap-1.5 h-9 rounded-lg border border-white/10 px-3 text-xs font-semibold text-stone-300 hover:bg-white/5"
-        >
-          <RefreshCw className="w-3.5 h-3.5" />
-          {t.refresh}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setSoundOn((v) => !v)}
+            className={`inline-flex items-center gap-1.5 h-9 rounded-lg border px-3 text-xs font-semibold ${
+              soundOn
+                ? "border-amber-500/40 text-amber-200 bg-amber-500/10"
+                : "border-white/10 text-stone-400 hover:bg-white/5"
+            }`}
+            title={t.kdsSoundOn}
+          >
+            {soundOn ? (
+              <Volume2 className="w-3.5 h-3.5" />
+            ) : (
+              <VolumeX className="w-3.5 h-3.5" />
+            )}
+            {t.kdsSoundOn}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setLoading(true);
+              void load();
+            }}
+            className="inline-flex items-center gap-1.5 h-9 rounded-lg border border-white/10 px-3 text-xs font-semibold text-stone-300 hover:bg-white/5"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            {t.refresh}
+          </button>
+        </div>
       </div>
 
       {stations.length > 0 ? (
@@ -143,6 +235,23 @@ export default function RestoKitchenPage() {
         </div>
       ) : null}
 
+      <div className="flex flex-wrap gap-2">
+        {statusFilters.map((f) => (
+          <button
+            key={f.id || "all"}
+            type="button"
+            onClick={() => setStatusFilter(f.id)}
+            className={`rounded-lg px-2.5 py-1 text-[11px] font-bold ${
+              statusFilter === f.id
+                ? "bg-white/15 text-white"
+                : "border border-white/10 text-stone-400 hover:bg-white/5"
+            }`}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+
       {error ? (
         <p className="text-sm text-rose-300 bg-rose-500/10 border border-rose-500/20 rounded-xl px-3 py-2">
           {error}
@@ -153,11 +262,11 @@ export default function RestoKitchenPage() {
         <div className="flex justify-center py-20 text-stone-400">
           <Loader2 className="w-6 h-6 animate-spin" />
         </div>
-      ) : items.length === 0 ? (
+      ) : visible.length === 0 ? (
         <p className="text-center text-sm text-stone-400 py-20">{t.kitchenEmpty}</p>
       ) : (
         <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {items.map((it) => {
+          {visible.map((it) => {
             const minutes = ageMin(it.sentAt);
             const busy = busyId === it.id;
             return (
@@ -198,7 +307,7 @@ export default function RestoKitchenPage() {
                       type="button"
                       disabled={busy}
                       onClick={() => void setStatus(it.id, "READY")}
-                      className="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-bold text-[#0f1410] disabled:opacity-50"
+                      className="rounded-lg bg-emerald-500/90 px-3 py-1.5 text-xs font-bold text-[#0b1a12] disabled:opacity-50"
                     >
                       {t.markReady}
                     </button>
@@ -208,7 +317,7 @@ export default function RestoKitchenPage() {
                       type="button"
                       disabled={busy}
                       onClick={() => void setStatus(it.id, "SERVED")}
-                      className="rounded-lg border border-white/20 px-3 py-1.5 text-xs font-semibold text-stone-100 disabled:opacity-50"
+                      className="rounded-lg bg-sky-500/90 px-3 py-1.5 text-xs font-bold text-[#0b1220] disabled:opacity-50"
                     >
                       {t.markServed}
                     </button>

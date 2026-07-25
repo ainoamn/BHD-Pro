@@ -13,9 +13,10 @@ import {
   Link2Off,
   LogOut,
   Settings2,
+  ShoppingBag,
+  Soup,
   Store,
   UtensilsCrossed,
-  Soup,
 } from "lucide-react";
 import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
@@ -93,6 +94,12 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
       label: t.floor,
       icon: LayoutGrid,
       active: pathname === "/resto" || pathname?.startsWith("/resto/orders"),
+    },
+    {
+      href: "/resto/takeaway",
+      label: t.takeaway,
+      icon: ShoppingBag,
+      active: pathname?.startsWith("/resto/takeaway"),
     },
     {
       href: "/resto/menu",

@@ -32,6 +32,7 @@ import {
   SeedRestoFloorDto,
   SetRestoProductStationDto,
   SetRestoWarehouseDto,
+  UpdateRestoOrderDto,
   UpdateRestoOrderItemDto,
   UpsertRestoRecipeDto,
   UpdateRestoReservationStatusDto,
@@ -186,10 +187,31 @@ export class RestoController {
     return this.resto.openOrder(user.companyId, user.sub, dto);
   }
 
+  @Get('orders')
+  @Roles(...RESTO_STAFF)
+  @ApiOperation({ summary: 'List active floor/takeaway/delivery orders' })
+  listOrders(
+    @CurrentUser() user: TokenPayload,
+    @Query('channel') channel?: 'DINE_IN' | 'TAKEAWAY' | 'DELIVERY',
+  ) {
+    return this.resto.listActiveOrders(user.companyId, channel);
+  }
+
   @Get('orders/:id')
   @Roles(...RESTO_STAFF)
   getOrder(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.resto.getOrder(user.companyId, id);
+  }
+
+  @Patch('orders/:id')
+  @Roles(...RESTO_STAFF)
+  @ApiOperation({ summary: 'Update open order guests / notes' })
+  updateOrder(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+    @Body() dto: UpdateRestoOrderDto,
+  ) {
+    return this.resto.updateOrder(user.companyId, id, dto);
   }
 
   @Post('orders/:id/items')

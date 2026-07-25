@@ -8,10 +8,13 @@ import {
   Trash2,
   X,
   LayoutGrid,
+  Printer,
 } from "lucide-react";
 import api, { type RestoOrderPayload } from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
+import { useAuthStore } from "@/store/auth";
 import { restoCopy } from "@/lib/resto-copy";
+import { printRestoGuestCheck } from "@/lib/resto-guest-check";
 
 type FloorTable = {
   id: string;
@@ -70,6 +73,7 @@ function statusStyle(status: string, occupied: boolean) {
 export default function RestoFloorPage() {
   const locale = useLocaleStore((s) => s.locale);
   const t = restoCopy[locale === "en" ? "en" : "ar"];
+  const company = useAuthStore((s) => s.company);
   const [companyName, setCompanyName] = useState("");
   const [zones, setZones] = useState<FloorZone[]>([]);
   const [empty, setEmpty] = useState(false);
@@ -83,6 +87,8 @@ export default function RestoFloorPage() {
   const [guests, setGuests] = useState(2);
   const [stations, setStations] = useState<Station[]>([]);
   const [stationId, setStationId] = useState("");
+  const [itemNote, setItemNote] = useState("");
+  const [tipAmount, setTipAmount] = useState("");
 
   const loadFloor = useCallback(async () => {
     setLoading(true);
@@ -194,10 +200,52 @@ export default function RestoFloorPage() {
       const res = await api.addRestoOrderItem(order.id, {
         productId,
         qty: 1,
+        notes: itemNote.trim() || undefined,
         stationId: stationId || defaultStationId || undefined,
       });
       setOrder(res.data);
+      setItemNote("");
       await loadFloor();
+    } catch {
+      setError(t.actionFail);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const bumpQty = async (itemId: string, qty: number) => {
+    if (!order || qty < 0.001) return;
+    setBusy(true);
+    try {
+      const res = await api.updateRestoOrderItem(order.id, itemId, { qty });
+      setOrder(res.data);
+    } catch {
+      setError(t.actionFail);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveItemNote = async (itemId: string, notes: string) => {
+    if (!order) return;
+    setBusy(true);
+    try {
+      const res = await api.updateRestoOrderItem(order.id, itemId, { notes });
+      setOrder(res.data);
+    } catch {
+      setError(t.actionFail);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveGuests = async (n: number) => {
+    if (!order) return;
+    setBusy(true);
+    try {
+      const res = await api.updateRestoOrder(order.id, { guests: n });
+      setOrder(res.data);
+      setGuests(n);
     } catch {
       setError(t.actionFail);
     } finally {
@@ -233,6 +281,29 @@ export default function RestoFloorPage() {
     }
   };
 
+  const printCheck = () => {
+    if (!order) return;
+    printRestoGuestCheck({
+      order,
+      company: company
+        ? {
+            name: company.name,
+            address: company.address,
+            city: company.city,
+            country: company.country,
+            phone: company.phone,
+            email: company.email,
+            vatNumber: company.vatNumber,
+            crNumber: company.crNumber,
+            logo: company.logo,
+          }
+        : { name: companyName || "Hisaby" },
+      currency: company?.currency || "OMR",
+      locale: locale === "en" ? "en" : "ar",
+      tipAmount: Number(tipAmount) || 0,
+    });
+  };
+
   const closeOrder = async (
     method: "CASH" | "CREDIT_CARD" | "soft" = "CASH",
   ) => {
@@ -242,9 +313,13 @@ export default function RestoFloorPage() {
       if (method === "soft") {
         await api.closeRestoOrder(order.id, { soft: true });
       } else {
-        await api.closeRestoOrder(order.id, { paymentMethod: method });
+        await api.closeRestoOrder(order.id, {
+          paymentMethod: method,
+          tipAmount: Number(tipAmount) || undefined,
+        });
       }
       setOrder(null);
+      setTipAmount("");
       await loadFloor();
     } catch {
       setError(t.actionFail);
@@ -428,8 +503,20 @@ export default function RestoFloorPage() {
                       {t.table} {order.table?.code}
                     </p>
                     <p className="font-bold text-amber-100">{order.number}</p>
-                    <p className="text-xs text-stone-400 mt-0.5">
-                      {t.guests}: {order.guests} · {itemStatusLabel(order.status)}
+                    <p className="text-xs text-stone-400 mt-0.5 flex items-center gap-2 flex-wrap">
+                      <span>{t.guestsEdit}</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={99}
+                        value={order.guests}
+                        disabled={busy}
+                        onChange={(e) =>
+                          void saveGuests(Math.max(1, Number(e.target.value) || 1))
+                        }
+                        className="w-14 h-7 rounded-md bg-black/30 border border-white/10 px-1 text-xs tabular-nums"
+                      />
+                      <span>· {itemStatusLabel(order.status)}</span>
                     </p>
                   </div>
                   <button
@@ -448,26 +535,67 @@ export default function RestoFloorPage() {
                     order.items.map((it) => (
                       <li
                         key={it.id}
-                        className="flex items-start justify-between gap-2 rounded-xl bg-white/[0.04] px-3 py-2"
+                        className="rounded-xl bg-white/[0.04] px-3 py-2 space-y-1.5"
                       >
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold truncate">
-                            {it.qty}× {it.name}
-                          </p>
-                          <p className="text-[11px] text-stone-500">
-                            {itemStatusLabel(it.status)} · {fmt(it.lineTotal)}
-                          </p>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold truncate">{it.name}</p>
+                            <p className="text-[11px] text-stone-500">
+                              {itemStatusLabel(it.status)} · {fmt(it.lineTotal)}
+                            </p>
+                          </div>
+                          {it.status === "PENDING" ? (
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                type="button"
+                                disabled={busy || it.qty <= 1}
+                                onClick={() => void bumpQty(it.id, Number(it.qty) - 1)}
+                                className="w-7 h-7 rounded-md border border-white/10 text-xs font-bold disabled:opacity-40"
+                              >
+                                −
+                              </button>
+                              <span className="w-6 text-center text-xs tabular-nums">
+                                {it.qty}
+                              </span>
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => void bumpQty(it.id, Number(it.qty) + 1)}
+                                className="w-7 h-7 rounded-md border border-white/10 text-xs font-bold"
+                              >
+                                +
+                              </button>
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => void removeItem(it.id)}
+                                className="text-stone-500 hover:text-rose-300 p-1"
+                                title={t.remove}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-xs tabular-nums text-stone-400">
+                              ×{it.qty}
+                            </span>
+                          )}
                         </div>
                         {it.status === "PENDING" ? (
-                          <button
-                            type="button"
+                          <input
+                            defaultValue={it.notes || ""}
+                            placeholder={t.itemNotesPh}
                             disabled={busy}
-                            onClick={() => void removeItem(it.id)}
-                            className="text-stone-500 hover:text-rose-300 p-1"
-                            title={t.remove}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                            onBlur={(e) => {
+                              const v = e.target.value.trim();
+                              if (v !== (it.notes || "")) {
+                                void saveItemNote(it.id, v);
+                              }
+                            }}
+                            className="w-full h-8 rounded-md bg-black/30 border border-white/10 px-2 text-[11px]"
+                          />
+                        ) : it.notes ? (
+                          <p className="text-[11px] text-amber-200/80">{it.notes}</p>
                         ) : null}
                       </li>
                     ))
@@ -479,6 +607,29 @@ export default function RestoFloorPage() {
                   <span className="tabular-nums text-amber-200">
                     {fmt(order.subtotal)}
                   </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="block space-y-1">
+                    <span className="text-[11px] text-stone-500">{t.tipAmount}</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.001"
+                      value={tipAmount}
+                      onChange={(e) => setTipAmount(e.target.value)}
+                      className="w-full h-9 rounded-lg bg-black/30 border border-white/10 px-2 text-sm tabular-nums"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    disabled={!order.items.length}
+                    onClick={printCheck}
+                    className="self-end inline-flex items-center justify-center gap-1.5 h-9 rounded-lg border border-white/15 text-xs font-semibold hover:bg-white/5 disabled:opacity-40"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    {t.printCheck}
+                  </button>
                 </div>
 
                 <div className="space-y-2">
@@ -532,6 +683,12 @@ export default function RestoFloorPage() {
 
                 <div className="border-t border-white/10 pt-3 space-y-2">
                   <p className="text-xs font-bold text-stone-300">{t.addItems}</p>
+                  <input
+                    value={itemNote}
+                    onChange={(e) => setItemNote(e.target.value)}
+                    placeholder={t.itemNotesPh}
+                    className="w-full h-9 rounded-lg bg-black/30 border border-white/10 px-3 text-sm"
+                  />
                   {stations.length > 0 ? (
                     <select
                       value={stationId}

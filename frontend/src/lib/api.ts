@@ -1655,6 +1655,34 @@ class ApiClient {
     return this.post<RestoOrderPayload>('/resto/orders', data);
   }
 
+  getRestoActiveOrders(channel?: 'DINE_IN' | 'TAKEAWAY' | 'DELIVERY') {
+    return this.get<{
+      count: number;
+      channel: string | null;
+      orders: Array<{
+        id: string;
+        number: string;
+        channel: string;
+        status: string;
+        guests: number;
+        notes: string | null;
+        createdAt: string;
+        table: { id: string; code: string; name: string | null } | null;
+        itemCount: number;
+        total: number;
+        items: Array<{
+          id: string;
+          name: string;
+          qty: number;
+          status: string;
+          unitPrice: string | number;
+        }>;
+      }>;
+    }>('/resto/orders', {
+      params: channel ? { channel } : undefined,
+    });
+  }
+
   getRestoOrder(id: string) {
     return this.get<RestoOrderPayload>(`/resto/orders/${id}`);
   }
@@ -1664,6 +1692,24 @@ class ApiClient {
     data: { productId: string; qty?: number; notes?: string; stationId?: string },
   ) {
     return this.post<RestoOrderPayload>(`/resto/orders/${orderId}/items`, data);
+  }
+
+  updateRestoOrderItem(
+    orderId: string,
+    itemId: string,
+    data: { qty?: number; notes?: string },
+  ) {
+    return this.patch<RestoOrderPayload>(
+      `/resto/orders/${orderId}/items/${itemId}`,
+      data,
+    );
+  }
+
+  updateRestoOrder(
+    orderId: string,
+    data: { guests?: number; notes?: string },
+  ) {
+    return this.patch<RestoOrderPayload>(`/resto/orders/${orderId}`, data);
   }
 
   removeRestoOrderItem(orderId: string, itemId: string) {

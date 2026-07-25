@@ -139,6 +139,20 @@ export class UpdateRestoOrderItemDto {
   notes?: string;
 }
 
+export class UpdateRestoOrderDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(99)
+  guests?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  notes?: string;
+}
+
 export class CloseRestoOrderDto {
   /**
    * When true: free table only (no invoice). Default false = paid close via POS.

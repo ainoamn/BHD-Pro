@@ -23,6 +23,7 @@ import {
   CreateRestoTableDto,
   CreateRestoZoneDto,
   OpenRestoOrderDto,
+  UpdateRestoOrderDto,
   UpdateRestoOrderItemDto,
   UpsertRestoRecipeDto,
 } from './dto/resto.dto';
@@ -806,6 +807,31 @@ export class RestoService {
     return this.getOrder(companyId, orderId);
   }
 
+  async updateOrder(
+    companyId: string,
+    orderId: string,
+    dto: UpdateRestoOrderDto,
+  ) {
+    const order = await this.prisma.restoOrder.findFirst({
+      where: { id: orderId, companyId },
+    });
+    if (!order) throw new NotFoundException('Order not found');
+    if (
+      order.status === RestoOrderStatus.CLOSED ||
+      order.status === RestoOrderStatus.CANCELLED
+    ) {
+      throw new BadRequestException('Order is closed');
+    }
+    await this.prisma.restoOrder.update({
+      where: { id: orderId },
+      data: {
+        ...(dto.guests !== undefined ? { guests: dto.guests } : {}),
+        ...(dto.notes !== undefined ? { notes: dto.notes?.trim() || null } : {}),
+      },
+    });
+    return this.getOrder(companyId, orderId);
+  }
+
   async removeItem(companyId: string, orderId: string, itemId: string) {
     const item = await this.prisma.restoOrderItem.findFirst({
       where: { id: itemId, orderId, order: { companyId } },
@@ -909,6 +935,63 @@ export class RestoService {
         data: { status: next },
       });
     }
+  }
+
+  async listActiveOrders(
+    companyId: string,
+    channel?: 'DINE_IN' | 'TAKEAWAY' | 'DELIVERY',
+  ) {
+    const rows = await this.prisma.restoOrder.findMany({
+      where: {
+        companyId,
+        status: { in: ACTIVE_ORDER },
+        ...(channel ? { channel } : {}),
+      },
+      include: {
+        table: { select: { id: true, code: true, name: true } },
+        items: {
+          where: { status: { not: RestoOrderItemStatus.CANCELLED } },
+          select: {
+            id: true,
+            name: true,
+            qty: true,
+            status: true,
+            unitPrice: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+      take: 100,
+    });
+    return {
+      count: rows.length,
+      channel: channel || null,
+      orders: rows.map((o) => {
+        const total = o.items.reduce(
+          (s, i) => s + Number(i.qty) * Number(i.unitPrice),
+          0,
+        );
+        return {
+          id: o.id,
+          number: o.number,
+          channel: o.channel,
+          status: o.status,
+          guests: o.guests,
+          notes: o.notes,
+          createdAt: o.createdAt,
+          table: o.table,
+          itemCount: o.items.length,
+          total,
+          items: o.items.map((i) => ({
+            id: i.id,
+            name: i.name,
+            qty: Number(i.qty),
+            status: i.status,
+            unitPrice: i.unitPrice,
+          })),
+        };
+      }),
+    };
   }
 
   async getKitchenQueue(companyId: string, stationId?: string) {
@@ -1342,6 +1425,25 @@ export class RestoService {
         where: { id: dto.tableId, companyId },
       });
       if (!table) throw new NotFoundException('Table not found');
+
+      const windowMs = 90 * 60 * 1000;
+      const conflict = await this.prisma.restoReservation.findFirst({
+        where: {
+          companyId,
+          tableId: dto.tableId,
+          status: { in: ['PENDING', 'CONFIRMED'] },
+          reservedAt: {
+            gte: new Date(reservedAt.getTime() - windowMs),
+            lte: new Date(reservedAt.getTime() + windowMs),
+          },
+        },
+        select: { id: true, guestName: true, reservedAt: true },
+      });
+      if (conflict) {
+        throw new BadRequestException(
+          `Table already reserved near that time (${conflict.guestName} @ ${conflict.reservedAt.toISOString()})`,
+        );
+      }
     }
     const created = await this.prisma.restoReservation.create({
       data: {
@@ -1358,11 +1460,26 @@ export class RestoService {
         table: { select: { id: true, code: true, name: true } },
       },
     });
-    if (created.tableId) {
-      await this.prisma.restoTable.update({
-        where: { id: created.tableId },
-        data: { status: RestoTableStatus.RESERVED },
+    // Only lock the floor table when the booking is imminent (within 2 hours)
+    const soonMs = 2 * 60 * 60 * 1000;
+    if (
+      created.tableId &&
+      reservedAt.getTime() - Date.now() <= soonMs &&
+      reservedAt.getTime() >= Date.now() - 15 * 60 * 1000
+    ) {
+      const active = await this.prisma.restoOrder.findFirst({
+        where: {
+          companyId,
+          tableId: created.tableId,
+          status: { in: ACTIVE_ORDER },
+        },
       });
+      if (!active) {
+        await this.prisma.restoTable.update({
+          where: { id: created.tableId },
+          data: { status: RestoTableStatus.RESERVED },
+        });
+      }
     }
     return this.mapReservation(created);
   }
@@ -1401,16 +1518,30 @@ export class RestoService {
             data: { status: RestoTableStatus.FREE },
           });
         }
-      } else if (status === 'SEATED' || status === 'CONFIRMED' || status === 'PENDING') {
+      } else if (status === 'SEATED') {
         await this.prisma.restoTable.update({
           where: { id: row.tableId },
-          data: {
-            status:
-              status === 'SEATED'
-                ? RestoTableStatus.OCCUPIED
-                : RestoTableStatus.RESERVED,
-          },
+          data: { status: RestoTableStatus.OCCUPIED },
         });
+      } else if (status === 'CONFIRMED' || status === 'PENDING') {
+        // Only lock floor when booking is imminent (within 2h) — matches createReservation
+        const soonMs = 2 * 60 * 60 * 1000;
+        const at = row.reservedAt.getTime();
+        if (at - Date.now() <= soonMs && at >= Date.now() - 15 * 60 * 1000) {
+          const active = await this.prisma.restoOrder.findFirst({
+            where: {
+              companyId,
+              tableId: row.tableId,
+              status: { in: ACTIVE_ORDER },
+            },
+          });
+          if (!active) {
+            await this.prisma.restoTable.update({
+              where: { id: row.tableId },
+              data: { status: RestoTableStatus.RESERVED },
+            });
+          }
+        }
       }
     }
 

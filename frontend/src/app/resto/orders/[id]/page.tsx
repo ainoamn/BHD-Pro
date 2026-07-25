@@ -3,11 +3,21 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowRight, Loader2, Plus, Send, Trash2, XCircle } from "lucide-react";
+import {
+  ArrowRight,
+  Loader2,
+  Plus,
+  Printer,
+  Send,
+  Trash2,
+  XCircle,
+} from "lucide-react";
 import toast from "react-hot-toast";
 import api, { RestoOrderPayload } from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
+import { useAuthStore } from "@/store/auth";
 import { restoCopy } from "@/lib/resto-copy";
+import { printRestoGuestCheck } from "@/lib/resto-guest-check";
 import { cn } from "@/lib/utils";
 
 type MenuItem = {
@@ -30,10 +40,13 @@ export default function RestoOrderPage() {
   const router = useRouter();
   const locale = useLocaleStore((s) => s.locale);
   const t = restoCopy[locale === "en" ? "en" : "ar"];
+  const company = useAuthStore((s) => s.company);
   const [order, setOrder] = useState<RestoOrderPayload | null>(null);
   const [menu, setMenu] = useState<MenuItem[]>([]);
   const [stations, setStations] = useState<Station[]>([]);
   const [stationId, setStationId] = useState("");
+  const [itemNote, setItemNote] = useState("");
+  const [tipAmount, setTipAmount] = useState("");
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -112,7 +125,52 @@ export default function RestoOrderPage() {
         productId,
         qty: 1,
         stationId: stationId || undefined,
+        notes: itemNote.trim() || undefined,
       });
+      setOrder(res.data);
+      setItemNote("");
+    } catch (err) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response
+        ?.data?.message;
+      toast.error(typeof msg === "string" ? msg : t.fail);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const bumpQty = async (itemId: string, qty: number) => {
+    if (qty < 1) return;
+    setBusy(true);
+    try {
+      const res = await api.updateRestoOrderItem(orderId, itemId, { qty });
+      setOrder(res.data);
+    } catch (err) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response
+        ?.data?.message;
+      toast.error(typeof msg === "string" ? msg : t.fail);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveItemNote = async (itemId: string, notes: string) => {
+    setBusy(true);
+    try {
+      const res = await api.updateRestoOrderItem(orderId, itemId, { notes });
+      setOrder(res.data);
+    } catch (err) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response
+        ?.data?.message;
+      toast.error(typeof msg === "string" ? msg : t.fail);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveGuests = async (n: number) => {
+    setBusy(true);
+    try {
+      const res = await api.updateRestoOrder(orderId, { guests: n });
       setOrder(res.data);
     } catch (err) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response
@@ -152,6 +210,29 @@ export default function RestoOrderPage() {
     }
   };
 
+  const printCheck = () => {
+    if (!order) return;
+    printRestoGuestCheck({
+      order,
+      company: company
+        ? {
+            name: company.name,
+            address: company.address,
+            city: company.city,
+            country: company.country,
+            phone: company.phone,
+            email: company.email,
+            vatNumber: company.vatNumber,
+            crNumber: company.crNumber,
+            logo: company.logo,
+          }
+        : { name: "Hisaby" },
+      currency: company?.currency || "OMR",
+      locale: locale === "en" ? "en" : "ar",
+      tipAmount: Number(tipAmount) || 0,
+    });
+  };
+
   const close = async (method: "CASH" | "CREDIT_CARD" | "soft" = "CASH") => {
     if (method === "soft") {
       if (!window.confirm(t.closeConfirm)) return;
@@ -161,7 +242,10 @@ export default function RestoOrderPage() {
       if (method === "soft") {
         await api.closeRestoOrder(orderId, { soft: true });
       } else {
-        await api.closeRestoOrder(orderId, { paymentMethod: method });
+        await api.closeRestoOrder(orderId, {
+          paymentMethod: method,
+          tipAmount: Number(tipAmount) || undefined,
+        });
         toast.success(t.closePaidOk);
       }
       router.push("/resto");
@@ -199,8 +283,7 @@ export default function RestoOrderPage() {
   }
 
   const pendingCount = order.items.filter((i) => i.status === "PENDING").length;
-  const closed =
-    order.status === "CLOSED" || order.status === "CANCELLED";
+  const closed = order.status === "CLOSED" || order.status === "CANCELLED";
 
   return (
     <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-4">
@@ -216,14 +299,32 @@ export default function RestoOrderPage() {
           <h1 className="text-xl font-extrabold">
             {t.order} {order.number}
           </h1>
-          <p className="text-sm text-stone-400 mt-1">
+          <p className="text-sm text-stone-400 mt-1 flex flex-wrap items-center gap-2">
             {order.table
               ? `${t.table} ${order.table.code}${order.table.name ? ` · ${order.table.name}` : ""}`
               : "—"}
-            {" · "}
-            {order.guests} {t.guests}
-            {" · "}
-            {statusLabel(order.status)}
+            <span>·</span>
+            {!closed ? (
+              <>
+                <span>{t.guestsEdit}</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={99}
+                  value={order.guests}
+                  disabled={busy}
+                  onChange={(e) =>
+                    void saveGuests(Math.max(1, Number(e.target.value) || 1))
+                  }
+                  className="w-14 h-8 rounded-lg bg-[#1a1614] border border-white/10 px-2 text-sm tabular-nums"
+                />
+              </>
+            ) : (
+              <span>
+                {order.guests} {t.guests}
+              </span>
+            )}
+            <span>· {statusLabel(order.status)}</span>
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -247,6 +348,15 @@ export default function RestoOrderPage() {
                 <Send className="w-4 h-4" />
                 {t.sendKitchen}
                 {pendingCount > 0 ? ` (${pendingCount})` : ""}
+              </button>
+              <button
+                type="button"
+                disabled={!order.items.length}
+                onClick={printCheck}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-white/15 px-3 py-2 text-xs font-bold hover:bg-white/5 disabled:opacity-40"
+              >
+                <Printer className="w-4 h-4" />
+                {t.printCheck}
               </button>
               <button
                 type="button"
@@ -286,6 +396,20 @@ export default function RestoOrderPage() {
         </div>
       </div>
 
+      {!closed ? (
+        <label className="inline-flex items-center gap-2 text-sm text-stone-300">
+          <span>{t.tipAmount}</span>
+          <input
+            type="number"
+            min={0}
+            step="0.001"
+            value={tipAmount}
+            onChange={(e) => setTipAmount(e.target.value)}
+            className="w-28 h-9 rounded-xl bg-[#1a1614] border border-white/10 px-3 text-sm tabular-nums"
+          />
+        </label>
+      ) : null}
+
       {showMenu && !closed ? (
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 space-y-3">
           {stations.length > 0 ? (
@@ -304,6 +428,12 @@ export default function RestoOrderPage() {
               </select>
             </label>
           ) : null}
+          <input
+            value={itemNote}
+            onChange={(e) => setItemNote(e.target.value)}
+            placeholder={t.itemNotesPh}
+            className="w-full h-10 rounded-xl bg-[#1a1614] border border-white/10 px-3 text-sm focus:outline-none focus:border-amber-500"
+          />
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
@@ -338,33 +468,74 @@ export default function RestoOrderPage() {
         ) : (
           <ul className="divide-y divide-white/5">
             {order.items.map((item) => (
-              <li
-                key={item.id}
-                className="flex items-start justify-between gap-3 px-4 py-3"
-              >
-                <div className="min-w-0">
-                  <p className="font-semibold">{item.name}</p>
-                  <p className="text-xs text-stone-500 mt-0.5">
-                    {item.qty} × {item.unitPrice.toFixed(3)} · {statusLabel(item.status)}
-                    {item.notes ? ` · ${item.notes}` : ""}
-                  </p>
+              <li key={item.id} className="px-4 py-3 space-y-2">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-semibold">{item.name}</p>
+                    <p className="text-xs text-stone-500 mt-0.5">
+                      {item.unitPrice.toFixed(3)} · {statusLabel(item.status)}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {item.status === "PENDING" && !closed ? (
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          disabled={busy || item.qty <= 1}
+                          onClick={() => void bumpQty(item.id, Number(item.qty) - 1)}
+                          className="w-8 h-8 rounded-lg border border-white/10 text-sm font-bold disabled:opacity-40"
+                        >
+                          −
+                        </button>
+                        <span className="w-7 text-center text-sm tabular-nums">
+                          {item.qty}
+                        </span>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => void bumpQty(item.id, Number(item.qty) + 1)}
+                          className="w-8 h-8 rounded-lg border border-white/10 text-sm font-bold"
+                        >
+                          +
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-sm tabular-nums text-stone-400">
+                        ×{item.qty}
+                      </span>
+                    )}
+                    <span className="font-bold tabular-nums text-amber-200">
+                      {item.lineTotal.toFixed(3)}
+                    </span>
+                    {item.status === "PENDING" && !closed ? (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void removeItem(item.id)}
+                        className="p-1.5 rounded-lg text-stone-400 hover:bg-rose-500/15 hover:text-rose-300"
+                        title={t.remove}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="font-bold tabular-nums text-amber-200">
-                    {item.lineTotal.toFixed(3)}
-                  </span>
-                  {item.status === "PENDING" && !closed ? (
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void removeItem(item.id)}
-                      className="p-1.5 rounded-lg text-stone-400 hover:bg-rose-500/15 hover:text-rose-300"
-                      title={t.remove}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  ) : null}
-                </div>
+                {item.status === "PENDING" && !closed ? (
+                  <input
+                    defaultValue={item.notes || ""}
+                    placeholder={t.itemNotesPh}
+                    disabled={busy}
+                    onBlur={(e) => {
+                      const v = e.target.value.trim();
+                      if (v !== (item.notes || "")) {
+                        void saveItemNote(item.id, v);
+                      }
+                    }}
+                    className="w-full h-9 rounded-lg bg-[#1a1614] border border-white/10 px-3 text-xs"
+                  />
+                ) : item.notes ? (
+                  <p className="text-xs text-amber-200/80">{item.notes}</p>
+                ) : null}
               </li>
             ))}
           </ul>
