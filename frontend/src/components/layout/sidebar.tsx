@@ -36,6 +36,8 @@ import {
   Truck,
   ClipboardList,
   ShieldAlert,
+  MessageCircle,
+  Brain,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUIStore } from "@/store/ui";
@@ -66,6 +68,8 @@ const navItems = [
   { href: "/warehouses", icon: Warehouse, label: "warehouses" },
   { href: "/contacts", icon: Users, label: "addressBook" },
   { href: "/vat", icon: Receipt, label: "vat" },
+  { href: "/integrations", icon: MessageCircle, label: "integrations" },
+  { href: "/ai-analytics", icon: Brain, label: "aiAnalytics" },
 ];
 
 const settingsItems = [

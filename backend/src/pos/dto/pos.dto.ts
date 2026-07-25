@@ -63,6 +63,14 @@ export class CreatePosSaleDto {
   @IsEnum(PaymentMethod)
   paymentMethod?: PaymentMethod;
 
+  /**
+   * When true: create an unpaid POS invoice and let the cashier open partner
+   * gateway checkout (Thawani/Stripe/PayPal). Not NFC badge dual-control.
+   */
+  @IsOptional()
+  @IsBoolean()
+  partnerCheckout?: boolean;
+
   /** Multi-method split tender — amounts must sum to invoice total (incl. tip) */
   @IsOptional()
   @IsArray()

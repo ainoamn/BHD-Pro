@@ -819,11 +819,14 @@ export class PosService {
       const paymentMethod = useStoreCredit
         ? PaymentMethod.STORE_CREDIT
         : (dto.paymentMethod ?? PaymentMethod.CASH);
+      const partnerCheckout = !!dto.partnerCheckout && !useStoreCredit && !useSplit;
       const baseNotes = dto.notes?.trim() || 'Hisaby POS sale';
       const notes =
         useStoreCredit || storeCreditPortion > 0
           ? `[STORE_CREDIT] ${baseNotes}`
-          : baseNotes;
+          : partnerCheckout
+            ? `[PARTNER_PAY] ${baseNotes}`
+            : baseNotes;
 
       let invoice = await this.invoices.create(companyId, userId, {
         type: InvoiceType.SALES,
@@ -832,8 +835,8 @@ export class PosService {
         dueDate: today,
         taxRate,
         notes,
-        payImmediately: !useSplit,
-        paymentMethod: useSplit ? undefined : paymentMethod,
+        payImmediately: partnerCheckout ? false : !useSplit,
+        paymentMethod: useSplit || partnerCheckout ? undefined : paymentMethod,
         items: lineItems.map((li) => ({
           productId: li.productId || undefined,
           description: li.description,
@@ -844,6 +847,21 @@ export class PosService {
         })),
       });
       invoiceCreated = true;
+
+      if (partnerCheckout) {
+        await this.prisma.invoice.update({
+          where: { id: invoice.id },
+          data: { isCash: true, status: InvoiceStatus.SENT },
+        });
+        invoice = await this.prisma.invoice.findUniqueOrThrow({
+          where: { id: invoice.id },
+          include: {
+            contact: true,
+            items: true,
+            payments: true,
+          },
+        });
+      }
 
       if (useSplit) {
         await this.prisma.invoice.update({

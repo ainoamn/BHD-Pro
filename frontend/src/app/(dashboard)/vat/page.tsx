@@ -1,8 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { FileText, Send, Loader2, CheckCircle } from "lucide-react";
+import { FileText, Send, Loader2, CheckCircle, Settings2 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { cn, formatMoney, formatDate } from "@/lib/utils";
@@ -26,12 +27,24 @@ interface VatStats {
   total: number;
 }
 
+type OtaConfig = {
+  mode: "mock" | "sandbox" | "live";
+  apiBaseUrl?: string;
+  clientId?: string;
+  taxpayerTin?: string;
+  hasLiveCredentials?: boolean;
+};
+
 export default function VatPage() {
   const t = useTranslations("vat");
   const tStatus = useTranslations("status");
   const { company } = useAuthStore();
   const currency = company?.currency || "OMR";
   const queryClient = useQueryClient();
+  const [mode, setMode] = useState<"mock" | "sandbox" | "live">("mock");
+  const [apiBaseUrl, setApiBaseUrl] = useState("");
+  const [clientId, setClientId] = useState("");
+  const [taxpayerTin, setTaxpayerTin] = useState("");
 
   const { data: invoices = [], isLoading } = useQuery({
     queryKey: ["vat-invoices"],
@@ -46,6 +59,37 @@ export default function VatPage() {
     queryFn: async () => {
       const res = await api.getVatStats();
       return res.data as VatStats;
+    },
+  });
+
+  const { data: ota } = useQuery({
+    queryKey: ["ota-config"],
+    queryFn: async () => {
+      const res = await api.getOtaConfig();
+      const data = res.data as OtaConfig;
+      setMode(data.mode || "mock");
+      setApiBaseUrl(data.apiBaseUrl || "");
+      setClientId(data.clientId || "");
+      setTaxpayerTin(data.taxpayerTin || "");
+      return data;
+    },
+  });
+
+  const saveOtaMutation = useMutation({
+    mutationFn: () =>
+      api.updateOtaConfig({
+        mode,
+        apiBaseUrl: apiBaseUrl.trim() || undefined,
+        clientId: clientId.trim() || undefined,
+        taxpayerTin: taxpayerTin.trim() || undefined,
+        clientSecretConfigured: !!(clientId.trim() && apiBaseUrl.trim()),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ota-config"] });
+      toast.success(t("otaSaved"));
+    },
+    onError: (err: { response?: { data?: { message?: string } } }) => {
+      toast.error(err.response?.data?.message || t("otaSaveError"));
     },
   });
 
@@ -84,6 +128,71 @@ export default function VatPage() {
   return (
     <div className="space-y-6">
       <PageHeader title={t("title")} subtitle={t("subtitle")} />
+
+      <GlassCard className="p-4 space-y-3">
+        <div className="flex items-center gap-2 text-white font-semibold">
+          <Settings2 className="w-5 h-5 text-emerald-400" />
+          {t("otaSettings")}
+        </div>
+        <p className="text-sm text-slate-400">{t("otaSettingsHint")}</p>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <label className="text-sm text-slate-300 space-y-1">
+            <span>{t("otaMode")}</span>
+            <select
+              className="w-full rounded-lg border border-white/10 bg-slate-900 px-3 py-2"
+              value={mode}
+              onChange={(e) => setMode(e.target.value as typeof mode)}
+            >
+              <option value="mock">mock</option>
+              <option value="sandbox">sandbox</option>
+              <option value="live">live</option>
+            </select>
+          </label>
+          <label className="text-sm text-slate-300 space-y-1">
+            <span>{t("otaApiBase")}</span>
+            <input
+              className="w-full rounded-lg border border-white/10 bg-slate-900 px-3 py-2"
+              value={apiBaseUrl}
+              onChange={(e) => setApiBaseUrl(e.target.value)}
+              placeholder="https://…"
+            />
+          </label>
+          <label className="text-sm text-slate-300 space-y-1">
+            <span>{t("otaClientId")}</span>
+            <input
+              className="w-full rounded-lg border border-white/10 bg-slate-900 px-3 py-2"
+              value={clientId}
+              onChange={(e) => setClientId(e.target.value)}
+            />
+          </label>
+          <label className="text-sm text-slate-300 space-y-1">
+            <span>{t("otaTin")}</span>
+            <input
+              className="w-full rounded-lg border border-white/10 bg-slate-900 px-3 py-2"
+              value={taxpayerTin}
+              onChange={(e) => setTaxpayerTin(e.target.value)}
+            />
+          </label>
+        </div>
+        <div className="flex items-center gap-3 text-xs text-slate-400">
+          <span>
+            {t("currentMode")}: {ota?.mode || "mock"}
+            {ota?.hasLiveCredentials ? ` · ${t("credentialsPresent")}` : ""}
+          </span>
+          <button
+            type="button"
+            onClick={() => saveOtaMutation.mutate()}
+            disabled={saveOtaMutation.isPending}
+            className="rounded-lg bg-emerald-600 px-3 py-1.5 text-white text-xs font-semibold disabled:opacity-50"
+          >
+            {saveOtaMutation.isPending ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin inline" />
+            ) : (
+              t("saveOta")
+            )}
+          </button>
+        </div>
+      </GlassCard>
 
       <div className="grid grid-cols-3 gap-4">
         {[

@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards, BadRequestException } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { UserRole, PaymentGatewaySlug } from '@prisma/client';
@@ -316,15 +316,25 @@ export class PosController {
     summary:
       'Start partner payment checkout (card/wallet via Thawani/Stripe/PayPal) for a POS sales invoice',
   })
-  partnerCheckout(
+  async partnerCheckout(
     @CurrentUser() user: TokenPayload,
     @Param('invoiceId') invoiceId: string,
     @Body() dto: PartnerCheckoutDto,
   ) {
+    let slug = dto.gatewaySlug;
+    if (!slug) {
+      const enabled = await this.companyGateways.listEnabled(user.companyId);
+      slug = enabled[0]?.slug;
+    }
+    if (!slug) {
+      throw new BadRequestException(
+        'No enabled company payment gateway — configure Thawani/Stripe/PayPal first',
+      );
+    }
     return this.payments.createInvoiceCollectionCheckout({
       companyId: user.companyId,
       invoiceId,
-      gatewaySlug: dto.gatewaySlug,
+      gatewaySlug: slug as any,
       customerEmail: dto.customerEmail,
     });
   }

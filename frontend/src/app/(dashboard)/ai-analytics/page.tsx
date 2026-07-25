@@ -1,13 +1,15 @@
 "use client";
 
 import { useTranslations, useLocale } from "next-intl";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Brain,
   TrendingUp,
   AlertTriangle,
   Shield,
   BarChart3,
+  UserCheck,
+  Loader2,
 } from "lucide-react";
 import {
   BarChart,
@@ -18,6 +20,8 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import toast from "react-hot-toast";
+import Link from "next/link";
 import api from "@/lib/api";
 import { cn, formatMoney, formatDate } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
@@ -30,9 +34,13 @@ interface AiRecommendation {
   titleEn?: string;
   description: string;
   descriptionEn?: string;
+  requiresHumanApproval?: boolean;
 }
 
 interface AiAnalytics {
+  mode?: string;
+  disclaimerAr?: string;
+  disclaimerEn?: string;
   summary: {
     totalRevenue: number;
     avgInvoice: number;
@@ -42,6 +50,7 @@ interface AiAnalytics {
   };
   monthlyData: { month: string; revenue: number }[];
   recommendations: AiRecommendation[];
+  pendingHumanReviews?: { id: string; title: string; severity: string }[];
   anomalyScore: number;
   fraudRisk: string;
 }
@@ -67,6 +76,7 @@ export default function AiAnalyticsPage() {
   const { company } = useAuthStore();
   const currency = company?.currency || "OMR";
   const isEn = locale === "en";
+  const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
     queryKey: ["ai-analytics"],
@@ -76,25 +86,64 @@ export default function AiAnalyticsPage() {
     },
   });
 
-  const chartData = data?.monthlyData.map((d) => ({
-    ...d,
-    label: formatDate(d.month),
-  })) ?? [];
+  const proposeMutation = useMutation({
+    mutationFn: () => api.proposeAiSuggestions(),
+    onSuccess: (res) => {
+      const count = (res.data as { createdCount?: number })?.createdCount ?? 0;
+      toast.success(t("proposed", { count }));
+      queryClient.invalidateQueries({ queryKey: ["ai-analytics"] });
+    },
+    onError: (err: { response?: { data?: { message?: string } } }) => {
+      toast.error(err.response?.data?.message || t("proposeFail"));
+    },
+  });
+
+  const chartData =
+    data?.monthlyData.map((d) => ({
+      ...d,
+      label: formatDate(d.month),
+    })) ?? [];
 
   return (
     <div className="space-y-6">
-      <PageHeader title={t("title")} subtitle={t("subtitle")} />
+      <PageHeader
+        title={t("title")}
+        subtitle={t("subtitle")}
+        action={
+          <button
+            type="button"
+            onClick={() => proposeMutation.mutate()}
+            disabled={proposeMutation.isPending}
+            className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {proposeMutation.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <UserCheck className="h-4 w-4" />
+            )}
+            {t("sendForReview")}
+          </button>
+        }
+      />
 
       {isLoading || !data ? (
         <LoadingSpinner />
       ) : (
         <>
+          <GlassCard className="p-4 text-sm text-amber-100/90 border border-amber-500/20 bg-amber-500/5">
+            {isEn ? data.disclaimerEn : data.disclaimerAr}
+          </GlassCard>
+
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
               { label: t("totalRevenue"), value: formatMoney(data.summary.totalRevenue, currency) },
               { label: t("avgInvoice"), value: formatMoney(data.summary.avgInvoice, currency) },
               { label: t("forecast"), value: formatMoney(data.summary.forecast, currency) },
-              { label: t("invoiceCount"), value: data.summary.invoiceCount.toString(), isCount: true },
+              {
+                label: t("invoiceCount"),
+                value: data.summary.invoiceCount.toString(),
+                isCount: true,
+              },
             ].map((s) => (
               <div key={s.label} className="glass rounded-xl p-4">
                 <p className="text-sm text-slate-400">{s.label}</p>
@@ -149,14 +198,20 @@ export default function AiAnalyticsPage() {
                       style={{ width: `${Math.min(data.anomalyScore * 100, 100)}%` }}
                     />
                   </div>
-                  <p className="text-xs text-slate-500 mt-1">{(data.anomalyScore * 100).toFixed(0)}%</p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    {(data.anomalyScore * 100).toFixed(0)}%
+                  </p>
                 </div>
                 <div>
                   <p className="text-sm text-slate-400">{t("fraudRisk")}</p>
-                  <span className={cn(
-                    "inline-block mt-1 px-3 py-1 rounded-full text-xs font-medium",
-                    data.fraudRisk === "low" ? "bg-emerald-500/10 text-emerald-400" : "bg-amber-500/10 text-amber-400"
-                  )}>
+                  <span
+                    className={cn(
+                      "inline-block mt-1 px-3 py-1 rounded-full text-xs font-medium",
+                      data.fraudRisk === "low"
+                        ? "bg-emerald-500/10 text-emerald-400"
+                        : "bg-amber-500/10 text-amber-400",
+                    )}
+                  >
                     {t(`risk_${data.fraudRisk}`)}
                   </span>
                 </div>
@@ -166,6 +221,12 @@ export default function AiAnalyticsPage() {
                     {t("lowStockWarning", { count: data.summary.lowStockCount })}
                   </div>
                 )}
+                <Link
+                  href="/management-alerts"
+                  className="inline-flex text-sm text-emerald-400 underline underline-offset-2"
+                >
+                  {t("openAlerts")}
+                </Link>
               </div>
             </GlassCard>
           </div>
@@ -184,20 +245,21 @@ export default function AiAnalyticsPage() {
                   return (
                     <div
                       key={idx}
-                      className={cn("border rounded-xl p-4", priorityColors[rec.priority] || priorityColors.low)}
+                      className={cn(
+                        "border rounded-xl p-4",
+                        priorityColors[rec.priority] || priorityColors.low,
+                      )}
                     >
                       <div className="flex items-start gap-3">
-                        <Icon className="w-5 h-5 text-emerald-400 mt-0.5 shrink-0" />
+                        <Icon className="w-5 h-5 mt-0.5 shrink-0" />
                         <div>
-                          <p className="text-white font-medium text-sm">
-                            {isEn ? (rec.titleEn || rec.title) : rec.title}
+                          <p className="font-medium text-white">
+                            {isEn ? rec.titleEn || rec.title : rec.title}
                           </p>
-                          <p className="text-slate-400 text-xs mt-1">
-                            {isEn ? (rec.descriptionEn || rec.description) : rec.description}
+                          <p className="text-sm text-slate-300 mt-1">
+                            {isEn ? rec.descriptionEn || rec.description : rec.description}
                           </p>
-                          <span className="inline-block mt-2 text-xs text-slate-500 capitalize">
-                            {t(`priority_${rec.priority}`)}
-                          </span>
+                          <p className="text-xs text-amber-300/90 mt-2">{t("humanOnly")}</p>
                         </div>
                       </div>
                     </div>
