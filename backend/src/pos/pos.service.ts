@@ -1426,7 +1426,7 @@ export class PosService {
 
   async createCashMovement(
     companyId: string,
-    userId: string,
+    actor: TokenPayload,
     dto: CreatePosCashMovementDto,
   ) {
     const shift = await this.findOpenShift(companyId, dto.warehouseId || null);
@@ -1440,6 +1440,18 @@ export class PosService {
       throw new BadRequestException('Reason is required for cash out');
     }
 
+    if (dto.type === 'OUT') {
+      const limit = await this.dualControl.getCashOutApprovalLimit(companyId);
+      if (amount >= limit) {
+        await this.dualControl.assertApproved(
+          companyId,
+          actor,
+          'SHIFT_CASH_OUT',
+          dto.approval,
+        );
+      }
+    }
+
     let movement = await this.prisma.posCashMovement.create({
       data: {
         companyId,
@@ -1447,7 +1459,7 @@ export class PosService {
         type: dto.type,
         amount,
         reason,
-        createdById: userId,
+        createdById: actor.sub,
       },
       include: {
         createdBy: { select: { id: true, name: true } },
@@ -1457,12 +1469,12 @@ export class PosService {
     const reference = `POS-CASH-${dto.type}:${movement.id}`;
     const journal =
       dto.type === 'OUT'
-        ? await this.glPosting.postPosCashOut(companyId, userId, {
+        ? await this.glPosting.postPosCashOut(companyId, actor.sub, {
             amount,
             reason: reason || undefined,
             reference,
           })
-        : await this.glPosting.postPosCashIn(companyId, userId, {
+        : await this.glPosting.postPosCashIn(companyId, actor.sub, {
             amount,
             reason: reason || undefined,
             reference,

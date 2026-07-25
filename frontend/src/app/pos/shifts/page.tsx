@@ -204,10 +204,12 @@ export default function PosShiftsPage() {
   const [warehouses, setWarehouses] = useState<{ id: string; name: string; code: string }[]>([]);
   const [varianceLimit, setVarianceLimit] = useState(DEFAULT_VARIANCE_LIMIT);
   const [approvalOpen, setApprovalOpen] = useState(false);
+  const [cashApprovalOpen, setCashApprovalOpen] = useState(false);
   const [pendingCloseCash, setPendingCloseCash] = useState<number | null>(null);
   const [cashType, setCashType] = useState<"IN" | "OUT">("IN");
   const [cashAmount, setCashAmount] = useState("");
   const [cashReason, setCashReason] = useState("");
+  const [cashOutLimit, setCashOutLimit] = useState(20);
   const [lastClosedShiftId, setLastClosedShiftId] = useState<string | null>(null);
   const [aiBusyId, setAiBusyId] = useState<string | null>(null);
   const [aiFindings, setAiFindings] = useState<{
@@ -235,8 +237,14 @@ export default function PosShiftsPage() {
       }
       try {
         const sec = await api.getCompanySecurity();
-        const limit = (sec.data as { shiftVarianceLimit?: number })?.shiftVarianceLimit;
+        const cfg = sec.data as {
+          shiftVarianceLimit?: number;
+          cashOutApprovalLimit?: number;
+        };
+        const limit = cfg?.shiftVarianceLimit;
         if (typeof limit === "number" && limit >= 0) setVarianceLimit(limit);
+        const outLim = cfg?.cashOutApprovalLimit;
+        if (typeof outLim === "number" && outLim >= 0) setCashOutLimit(outLim);
       } catch {
         /* ignore */
       }
@@ -343,12 +351,13 @@ export default function PosShiftsPage() {
   });
 
   const cashMut = useMutation({
-    mutationFn: () =>
+    mutationFn: (approval?: Parameters<typeof api.createPosCashMovement>[0]["approval"]) =>
       api.createPosCashMovement({
         type: cashType,
         amount: Number(cashAmount),
         reason: cashReason.trim() || undefined,
         warehouseId: warehouseId || undefined,
+        approval,
       }),
     onSuccess: (res) => {
       const posted = (res.data as { postedToGl?: boolean })?.postedToGl;
@@ -361,10 +370,18 @@ export default function PosShiftsPage() {
       );
       setCashAmount("");
       setCashReason("");
+      setCashApprovalOpen(false);
       qc.invalidateQueries({ queryKey: ["pos-shift-current"] });
       qc.invalidateQueries({ queryKey: ["pos-shifts-today"] });
     },
-    onError: (err: { response?: { data?: { message?: string | string[] } } }) => {
+    onError: (err: {
+      response?: { status?: number; data?: { message?: string | string[] } };
+    }) => {
+      if (isDualControlRequired(err) && cashType === "OUT") {
+        setCashApprovalOpen(true);
+        toast.error(t.cashOutNeedApproval);
+        return;
+      }
       const raw = err.response?.data?.message;
       const msg = Array.isArray(raw) ? raw[0] : raw;
       toast.error(msg || t.cashMovementFail);
@@ -594,7 +611,7 @@ export default function PosShiftsPage() {
                   !(Number(cashAmount) > 0) ||
                   (cashType === "OUT" && !cashReason.trim())
                 }
-                onClick={() => cashMut.mutate()}
+                onClick={() => cashMut.mutate(undefined)}
                 className="h-10 px-4 rounded-lg bg-sky-500/90 text-white text-sm font-semibold disabled:opacity-50"
               >
                 {cashMut.isPending ? "…" : cashType === "IN" ? t.cashIn : t.cashOut}
@@ -984,6 +1001,24 @@ export default function PosShiftsPage() {
         onConfirm={async (approval) => {
           if (pendingCloseCash == null) return;
           await closeMut.mutateAsync({ closingCash: pendingCloseCash, approval });
+        }}
+      />
+
+      <DualApprovalModal
+        open={cashApprovalOpen}
+        action="SHIFT_CASH_OUT"
+        actionLabel={t.cashOutNeedApproval}
+        payload={{
+          amount: Number(cashAmount),
+          reason: cashReason,
+          limit: cashOutLimit,
+        }}
+        summary={`${t.cashOut}: ${cashAmount} (≥ ${cashOutLimit})`}
+        actorRole={user?.role}
+        busy={cashMut.isPending}
+        onCancel={() => setCashApprovalOpen(false)}
+        onConfirm={async (approval) => {
+          await cashMut.mutateAsync(approval);
         }}
       />
 

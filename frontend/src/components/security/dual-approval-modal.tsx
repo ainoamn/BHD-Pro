@@ -16,6 +16,7 @@ export type DualControlAction =
   | "INVOICE_CANCEL"
   | "PAYMENT_REVERSE"
   | "SHIFT_CLOSE_VARIANCE"
+  | "SHIFT_CASH_OUT"
   | "PAYROLL_PAY"
   | "CLAIM_PAY"
   | "BANK_INTERNAL_TRANSFER";

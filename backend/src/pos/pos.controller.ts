@@ -339,7 +339,7 @@ export class PosController {
     @CurrentUser() user: TokenPayload,
     @Body() dto: CreatePosCashMovementDto,
   ) {
-    return this.pos.createCashMovement(user.companyId, user.sub, dto);
+    return this.pos.createCashMovement(user.companyId, user, dto);
   }
 
   @Get('customers/:id/recent-sales')

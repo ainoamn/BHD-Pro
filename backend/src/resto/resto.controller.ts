@@ -20,6 +20,7 @@ import { RestoService } from './resto.service';
 import {
   AddRestoOrderItemDto,
   CloseRestoOrderDto,
+  CreateRestoStationDto,
   CreateRestoTableDto,
   CreateRestoZoneDto,
   LinkRestoDto,
@@ -195,15 +196,35 @@ export class RestoController {
   }
 
   @Post('orders/:id/cancel')
-  @Roles(...RESTO_STAFF)
+  @Roles(...RESTO_FLOOR_MGR)
   cancel(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.resto.cancelOrder(user.companyId, id);
   }
 
+  @Get('stations')
+  @Roles(...RESTO_STAFF)
+  @ApiOperation({ summary: 'List kitchen stations' })
+  stations(@CurrentUser() user: TokenPayload) {
+    return this.resto.listStations(user.companyId);
+  }
+
+  @Post('stations')
+  @Roles(...RESTO_FLOOR_MGR)
+  @ApiOperation({ summary: 'Create kitchen station' })
+  createStation(
+    @CurrentUser() user: TokenPayload,
+    @Body() dto: CreateRestoStationDto,
+  ) {
+    return this.resto.createStation(user.companyId, dto);
+  }
+
   @Get('kitchen')
   @Roles(...RESTO_STAFF)
-  kitchen(@CurrentUser() user: TokenPayload) {
-    return this.resto.getKitchenQueue(user.companyId);
+  kitchen(
+    @CurrentUser() user: TokenPayload,
+    @Query('stationId') stationId?: string,
+  ) {
+    return this.resto.getKitchenQueue(user.companyId, stationId);
   }
 
   @Post('kitchen/items/:itemId/status')

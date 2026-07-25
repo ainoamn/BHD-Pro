@@ -64,6 +64,7 @@
       "INVOICE_CANCEL": "Invoice cancel",
       "PAYMENT_REVERSE": "Reverse all payments",
       "SHIFT_CLOSE_VARIANCE": "Shift close cash variance",
+      "SHIFT_CASH_OUT": "Shift cash-out above limit",
       "PAYROLL_PAY": "Payroll payout",
       "CLAIM_PAY": "Employee claim payout",
       "BANK_INTERNAL_TRANSFER": "Internal bank transfer"
@@ -82,6 +83,8 @@
     "nfcBadges": "NFC badges",
     "varianceLimit": "Shift cash variance limit",
     "varianceHint": "Closing cash differing more than this (default 1.000) requires dual-control approval",
+    "cashOutLimit": "Cash-out approval limit",
+    "cashOutLimitHint": "Cash-out at or above this amount requires dual-control (default 20)",
     "requireOpenShift": "Require open shift before POS sale",
     "requireOpenShiftHint": "When enabled, checkout is blocked until a cash-drawer shift is open (default off)",
     "autoSendPosReceipts": "Auto-send POS receipts on WhatsApp",

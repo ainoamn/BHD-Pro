@@ -18,6 +18,7 @@ import { TokenPayload } from '../auth/interfaces/token-payload.interface';
 import {
   AddRestoOrderItemDto,
   CloseRestoOrderDto,
+  CreateRestoStationDto,
   CreateRestoTableDto,
   CreateRestoZoneDto,
   OpenRestoOrderDto,
@@ -190,7 +191,7 @@ export class RestoService {
     };
   }
 
-  /** Ensure at least one kitchen station exists */
+  /** Ensure at least one kitchen station exists (Kitchen; Bar seeded via seedFloor). */
   private async ensureStation(companyId: string) {
     const existing = await this.prisma.restoStation.findFirst({
       where: { companyId, isActive: true },
@@ -207,12 +208,47 @@ export class RestoService {
     });
   }
 
+  async listStations(companyId: string) {
+    await this.ensureStation(companyId);
+    const stations = await this.prisma.restoStation.findMany({
+      where: { companyId },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+    });
+    return { stations, count: stations.length };
+  }
+
+  async createStation(companyId: string, dto: CreateRestoStationDto) {
+    const name = dto.name.trim();
+    if (!name) throw new BadRequestException('Station name required');
+    return this.prisma.restoStation.create({
+      data: {
+        companyId,
+        name,
+        nameEn: dto.nameEn?.trim() || null,
+        sortOrder: dto.sortOrder ?? 0,
+      },
+    });
+  }
+
   /**
-   * Seed a starter floor: Main hall + N tables + kitchen station.
+   * Seed a starter floor: Main hall + N tables + kitchen/bar stations.
    * Idempotent when tables already exist.
    */
   async seedFloor(companyId: string, tableCount = 8) {
     await this.ensureStation(companyId);
+    const stationCount = await this.prisma.restoStation.count({
+      where: { companyId },
+    });
+    if (stationCount < 2) {
+      await this.prisma.restoStation.create({
+        data: {
+          companyId,
+          name: 'البار',
+          nameEn: 'Bar',
+          sortOrder: 1,
+        },
+      });
+    }
     const existing = await this.prisma.restoTable.count({ where: { companyId } });
     if (existing > 0) {
       return this.getFloor(companyId);
@@ -555,7 +591,12 @@ export class RestoService {
     });
     if (!product) throw new NotFoundException('Product not found');
 
-    const station = await this.ensureStation(companyId);
+    const station = dto.stationId
+      ? await this.prisma.restoStation.findFirst({
+          where: { id: dto.stationId, companyId, isActive: true },
+        })
+      : await this.ensureStation(companyId);
+    if (!station) throw new NotFoundException('Station not found');
     const qty = dto.qty ?? 1;
 
     await this.prisma.restoOrderItem.create({
@@ -704,8 +745,14 @@ export class RestoService {
     }
   }
 
-  async getKitchenQueue(companyId: string) {
+  async getKitchenQueue(companyId: string, stationId?: string) {
     await this.ensureStation(companyId);
+    const stations = await this.prisma.restoStation.findMany({
+      where: { companyId, isActive: true },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+      select: { id: true, name: true, nameEn: true, sortOrder: true },
+    });
+
     const items = await this.prisma.restoOrderItem.findMany({
       where: {
         status: {
@@ -715,6 +762,7 @@ export class RestoService {
             RestoOrderItemStatus.READY,
           ],
         },
+        ...(stationId ? { stationId } : {}),
         order: {
           companyId,
           status: { in: ACTIVE_ORDER },
@@ -722,6 +770,7 @@ export class RestoService {
       },
       orderBy: [{ sentAt: 'asc' }, { createdAt: 'asc' }],
       include: {
+        station: { select: { id: true, name: true, nameEn: true } },
         order: {
           select: {
             id: true,
@@ -735,6 +784,8 @@ export class RestoService {
 
     return {
       count: items.length,
+      stations,
+      stationId: stationId || null,
       items: items.map((it) => ({
         id: it.id,
         name: it.name,
@@ -742,6 +793,8 @@ export class RestoService {
         notes: it.notes,
         status: it.status,
         sentAt: it.sentAt,
+        stationId: it.stationId,
+        stationName: it.station?.name ?? null,
         orderId: it.order.id,
         orderNumber: it.order.number,
         table: it.order.table

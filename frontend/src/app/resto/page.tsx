@@ -227,6 +227,21 @@ export default function RestoFloorPage() {
     }
   };
 
+  const cancelOrder = async () => {
+    if (!order) return;
+    if (!window.confirm(t.cancelConfirm)) return;
+    setBusy(true);
+    try {
+      await api.cancelRestoOrder(order.id);
+      setOrder(null);
+      await loadFloor();
+    } catch {
+      setError(t.actionFail);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const openTakeaway = async () => {
     setBusy(true);
     setError("");
@@ -475,6 +490,14 @@ export default function RestoFloorPage() {
                     className="w-full rounded-xl border border-white/15 px-3 py-2 text-[11px] font-semibold text-stone-300 hover:bg-white/5 disabled:opacity-50"
                   >
                     {t.softClose}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void cancelOrder()}
+                    className="w-full rounded-xl border border-rose-500/35 text-rose-200 px-3 py-2 text-[11px] font-semibold hover:bg-rose-500/10 disabled:opacity-50"
+                  >
+                    {t.cancelOrder}
                   </button>
                   <p className="text-[11px] text-stone-500 leading-relaxed">
                     {t.closePaidHint}

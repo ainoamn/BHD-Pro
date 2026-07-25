@@ -98,6 +98,28 @@ export class AddRestoOrderItemDto {
   @IsString()
   @MaxLength(300)
   notes?: string;
+
+  @IsOptional()
+  @IsUUID()
+  stationId?: string;
+}
+
+export class CreateRestoStationDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(80)
+  name: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  nameEn?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  sortOrder?: number;
 }
 
 export class UpdateRestoOrderItemDto {

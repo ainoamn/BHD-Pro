@@ -18,6 +18,7 @@ type SecurityPublic = {
   nfcBadgesConfigured?: boolean;
   nfcBadgeCount?: number;
   shiftVarianceLimit?: number;
+  cashOutApprovalLimit?: number;
   requireOpenShift?: boolean;
   autoSendPosReceipts?: boolean;
   actions: {
@@ -29,6 +30,7 @@ type SecurityPublic = {
     INVOICE_CANCEL: boolean;
     PAYMENT_REVERSE: boolean;
     SHIFT_CLOSE_VARIANCE: boolean;
+    SHIFT_CASH_OUT: boolean;
     PAYROLL_PAY: boolean;
     CLAIM_PAY: boolean;
     BANK_INTERNAL_TRANSFER: boolean;
@@ -44,6 +46,7 @@ const ACTION_KEYS = [
   "INVOICE_CANCEL",
   "PAYMENT_REVERSE",
   "SHIFT_CLOSE_VARIANCE",
+  "SHIFT_CASH_OUT",
   "PAYROLL_PAY",
   "CLAIM_PAY",
   "BANK_INTERNAL_TRANSFER",
@@ -66,6 +69,7 @@ export function DualControlSettings() {
     INVOICE_CANCEL: true,
     PAYMENT_REVERSE: true,
     SHIFT_CLOSE_VARIANCE: true,
+    SHIFT_CASH_OUT: true,
     PAYROLL_PAY: true,
     CLAIM_PAY: true,
     BANK_INTERNAL_TRANSFER: true,
@@ -74,6 +78,7 @@ export function DualControlSettings() {
   const [whatsappPhones, setWhatsappPhones] = useState("");
   const [nfcSecret, setNfcSecret] = useState("");
   const [varianceLimit, setVarianceLimit] = useState("1");
+  const [cashOutLimit, setCashOutLimit] = useState("20");
   const [requireOpenShift, setRequireOpenShift] = useState(false);
   const [autoSendPosReceipts, setAutoSendPosReceipts] = useState(true);
 
@@ -97,12 +102,14 @@ export function DualControlSettings() {
       INVOICE_CANCEL: true,
       PAYMENT_REVERSE: true,
       SHIFT_CLOSE_VARIANCE: true,
+      SHIFT_CASH_OUT: true,
       PAYROLL_PAY: true,
       CLAIM_PAY: true,
       BANK_INTERNAL_TRANSFER: true,
     };
     setActions({ ...defaults, ...data.actions });
     setVarianceLimit(String(data.shiftVarianceLimit ?? 1));
+    setCashOutLimit(String(data.cashOutApprovalLimit ?? 20));
     setRequireOpenShift(data.requireOpenShift === true);
     setAutoSendPosReceipts(data.autoSendPosReceipts !== false);
   }, [data]);
@@ -125,6 +132,7 @@ export function DualControlSettings() {
     dualControlEnabled: enabled,
     actions,
     shiftVarianceLimit: Number(varianceLimit) || 0,
+    cashOutApprovalLimit: Number(cashOutLimit) || 0,
     requireOpenShift,
     autoSendPosReceipts,
   });
@@ -194,6 +202,19 @@ export function DualControlSettings() {
               className="w-full sm:w-40 h-10 px-3 rounded-lg bg-slate-900/60 border border-white/10 text-sm text-white"
             />
             <p className="text-[11px] text-slate-500 mt-1">{t("varianceHint")}</p>
+          </div>
+
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">{t("cashOutLimit")}</label>
+            <input
+              type="number"
+              min={0}
+              step="0.001"
+              value={cashOutLimit}
+              onChange={(e) => setCashOutLimit(e.target.value)}
+              className="w-full sm:w-40 h-10 px-3 rounded-lg bg-slate-900/60 border border-white/10 text-sm text-white"
+            />
+            <p className="text-[11px] text-slate-500 mt-1">{t("cashOutLimitHint")}</p>
           </div>
 
           <label className="flex items-center justify-between gap-4 text-sm text-slate-200">

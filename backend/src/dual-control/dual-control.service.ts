@@ -25,6 +25,8 @@ export type CompanySecurityConfig = {
   nfcBadgeHashes?: string[];
   /** Max abs cash variance on shift close before dual-control (default 1.000) */
   shiftVarianceLimit?: number;
+  /** Cash-out amount requiring SHIFT_CASH_OUT approval (default 20) */
+  cashOutApprovalLimit?: number;
   /** When true, POS sales require an open shift (default false — opt-in) */
   requireOpenShift?: boolean;
   /** Auto WhatsApp POS receipts to customer (default true when WA configured) */
@@ -35,6 +37,8 @@ export type CompanySecurityConfig = {
 
 /** Default OMR-ish float variance before SHIFT_CLOSE_VARIANCE */
 export const DEFAULT_SHIFT_VARIANCE_LIMIT = 1;
+/** Default cash-out amount that requires SHIFT_CASH_OUT */
+export const DEFAULT_CASH_OUT_APPROVAL_LIMIT = 20;
 
 export type DualControlActor = {
   sub: string;
@@ -95,6 +99,7 @@ export class DualControlService {
       INVOICE_CANCEL: config.actions?.INVOICE_CANCEL !== false,
       PAYMENT_REVERSE: config.actions?.PAYMENT_REVERSE !== false,
       SHIFT_CLOSE_VARIANCE: config.actions?.SHIFT_CLOSE_VARIANCE !== false,
+      SHIFT_CASH_OUT: config.actions?.SHIFT_CASH_OUT !== false,
       PAYROLL_PAY: config.actions?.PAYROLL_PAY !== false,
       CLAIM_PAY: config.actions?.CLAIM_PAY !== false,
       BANK_INTERNAL_TRANSFER: config.actions?.BANK_INTERNAL_TRANSFER !== false,
@@ -123,6 +128,11 @@ export class DualControlService {
       nfcBadgesConfigured,
       nfcBadgeCount: (config.nfcBadgeHashes || []).length,
       shiftVarianceLimit,
+      cashOutApprovalLimit:
+        typeof config.cashOutApprovalLimit === 'number' &&
+        config.cashOutApprovalLimit >= 0
+          ? config.cashOutApprovalLimit
+          : DEFAULT_CASH_OUT_APPROVAL_LIMIT,
       requireOpenShift: config.requireOpenShift === true,
       /** Default on when WhatsApp is configured; false only when explicitly disabled */
       autoSendPosReceipts: config.autoSendPosReceipts === false ? false : true,
@@ -137,6 +147,17 @@ export class DualControlService {
       return config.shiftVarianceLimit;
     }
     return DEFAULT_SHIFT_VARIANCE_LIMIT;
+  }
+
+  async getCashOutApprovalLimit(companyId: string): Promise<number> {
+    const config = await this.loadConfig(companyId);
+    if (
+      typeof config.cashOutApprovalLimit === 'number' &&
+      config.cashOutApprovalLimit >= 0
+    ) {
+      return config.cashOutApprovalLimit;
+    }
+    return DEFAULT_CASH_OUT_APPROVAL_LIMIT;
   }
 
   /** Opt-in: default false so existing tenants are not blocked */
@@ -813,6 +834,9 @@ export class DualControlService {
     }
     if (dto.shiftVarianceLimit !== undefined) {
       next.shiftVarianceLimit = Number(dto.shiftVarianceLimit);
+    }
+    if (dto.cashOutApprovalLimit !== undefined) {
+      next.cashOutApprovalLimit = Number(dto.cashOutApprovalLimit);
     }
     if (dto.requireOpenShift !== undefined) {
       next.requireOpenShift = !!dto.requireOpenShift;

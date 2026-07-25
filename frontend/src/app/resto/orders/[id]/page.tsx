@@ -151,6 +151,22 @@ export default function RestoOrderPage() {
     }
   };
 
+  const cancel = async () => {
+    if (!window.confirm(t.cancelConfirm)) return;
+    setBusy(true);
+    try {
+      await api.cancelRestoOrder(orderId);
+      toast.success(t.cancelOk);
+      router.push("/resto");
+    } catch (err) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response
+        ?.data?.message;
+      toast.error(typeof msg === "string" ? msg : t.fail);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (loading || !order) {
     return (
       <div className="flex justify-center py-24 text-stone-400">
@@ -233,6 +249,14 @@ export default function RestoOrderPage() {
               >
                 <XCircle className="w-4 h-4" />
                 {t.softClose}
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void cancel()}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-rose-500/40 text-rose-200 px-3 py-2 text-xs font-bold hover:bg-rose-500/10"
+              >
+                {t.cancelOrder}
               </button>
             </>
           ) : null}

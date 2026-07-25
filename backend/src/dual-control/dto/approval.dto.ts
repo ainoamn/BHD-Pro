@@ -74,6 +74,7 @@ export const DUAL_CONTROL_ACTIONS = [
   'INVOICE_CANCEL',
   'PAYMENT_REVERSE',
   'SHIFT_CLOSE_VARIANCE',
+  'SHIFT_CASH_OUT',
   'PAYROLL_PAY',
   'CLAIM_PAY',
   'BANK_INTERNAL_TRANSFER',
@@ -112,6 +113,10 @@ export class DualControlActionsDto {
   @IsOptional()
   @IsBoolean()
   SHIFT_CLOSE_VARIANCE?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  SHIFT_CASH_OUT?: boolean;
 
   @IsOptional()
   @IsBoolean()
@@ -178,6 +183,14 @@ export class UpdateSecurityConfigDto {
   @IsNumber()
   @Min(0)
   shiftVarianceLimit?: number;
+
+  /** Cash-out amount that triggers SHIFT_CASH_OUT dual-control (default 20) */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  cashOutApprovalLimit?: number;
 
   /** When true, block POS sales without an open shift (default false) */
   @ApiPropertyOptional()

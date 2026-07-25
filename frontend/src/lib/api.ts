@@ -1513,7 +1513,7 @@ class ApiClient {
 
   addRestoOrderItem(
     orderId: string,
-    data: { productId: string; qty?: number; notes?: string },
+    data: { productId: string; qty?: number; notes?: string; stationId?: string },
   ) {
     return this.post<RestoOrderPayload>(`/resto/orders/${orderId}/items`, data);
   }
@@ -1548,7 +1548,24 @@ class ApiClient {
     return this.post<RestoOrderPayload>(`/resto/orders/${orderId}/cancel`, {});
   }
 
-  getRestoKitchen() {
+  getRestoStations() {
+    return this.get<{
+      stations: Array<{
+        id: string;
+        name: string;
+        nameEn: string | null;
+        sortOrder: number;
+        isActive: boolean;
+      }>;
+      count: number;
+    }>('/resto/stations');
+  }
+
+  createRestoStation(data: { name: string; nameEn?: string; sortOrder?: number }) {
+    return this.post('/resto/stations', data);
+  }
+
+  getRestoKitchen(stationId?: string) {
     return this.get<{
       items: Array<{
         id: string;
@@ -1557,12 +1574,23 @@ class ApiClient {
         notes: string | null;
         status: string;
         sentAt: string | null;
+        stationId?: string | null;
+        stationName?: string | null;
         orderId: string;
         orderNumber: string;
         table: { id: string; code: string; name: string | null } | null;
       }>;
+      stations?: Array<{
+        id: string;
+        name: string;
+        nameEn: string | null;
+        sortOrder: number;
+      }>;
+      stationId?: string | null;
       count: number;
-    }>('/resto/kitchen');
+    }>('/resto/kitchen', {
+      params: stationId ? { stationId } : undefined,
+    });
   }
 
   setRestoKitchenItemStatus(
@@ -1734,6 +1762,7 @@ class ApiClient {
     amount: number;
     reason?: string;
     warehouseId?: string;
+    approval?: DualApprovalPayload;
   }) {
     return this.post<{
       movement: {

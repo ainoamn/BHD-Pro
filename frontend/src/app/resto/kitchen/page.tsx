@@ -13,32 +13,45 @@ type KitchenItem = {
   notes: string | null;
   status: string;
   sentAt: string | null;
+  stationId?: string | null;
+  stationName?: string | null;
   orderId: string;
   orderNumber: string;
   table: { id: string; code: string; name: string | null } | null;
+};
+
+type Station = {
+  id: string;
+  name: string;
+  nameEn: string | null;
+  sortOrder: number;
 };
 
 export default function RestoKitchenPage() {
   const locale = useLocaleStore((s) => s.locale);
   const t = restoCopy[locale === "en" ? "en" : "ar"];
   const [items, setItems] = useState<KitchenItem[]>([]);
+  const [stations, setStations] = useState<Station[]>([]);
+  const [stationId, setStationId] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
     try {
-      const res = await api.getRestoKitchen();
+      const res = await api.getRestoKitchen(stationId || undefined);
       setItems(res.data.items || []);
+      setStations(res.data.stations || []);
       setError("");
     } catch {
       setError(t.actionFail);
     } finally {
       setLoading(false);
     }
-  }, [t.actionFail]);
+  }, [stationId, t.actionFail]);
 
   useEffect(() => {
+    setLoading(true);
     void load();
     const id = window.setInterval(() => void load(), 8000);
     return () => window.clearInterval(id);
@@ -61,7 +74,10 @@ export default function RestoKitchenPage() {
 
   const ageMin = (sentAt: string | null) => {
     if (!sentAt) return 0;
-    return Math.max(0, Math.floor((Date.now() - new Date(sentAt).getTime()) / 60000));
+    return Math.max(
+      0,
+      Math.floor((Date.now() - new Date(sentAt).getTime()) / 60000),
+    );
   };
 
   const cardTone = (status: string, minutes: number) => {
@@ -94,6 +110,39 @@ export default function RestoKitchenPage() {
         </button>
       </div>
 
+      {stations.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setStationId("")}
+            className={`rounded-xl px-3 py-1.5 text-xs font-bold ${
+              !stationId
+                ? "bg-amber-500 text-[#14110f]"
+                : "border border-white/15 text-stone-300 hover:bg-white/5"
+            }`}
+          >
+            {t.allStations}
+          </button>
+          {stations.map((s) => {
+            const label = locale === "en" && s.nameEn ? s.nameEn : s.name;
+            return (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => setStationId(s.id)}
+                className={`rounded-xl px-3 py-1.5 text-xs font-bold ${
+                  stationId === s.id
+                    ? "bg-amber-500 text-[#14110f]"
+                    : "border border-white/15 text-stone-300 hover:bg-white/5"
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+
       {error ? (
         <p className="text-sm text-rose-300 bg-rose-500/10 border border-rose-500/20 rounded-xl px-3 py-2">
           {error}
@@ -120,6 +169,7 @@ export default function RestoKitchenPage() {
                   <div>
                     <p className="text-xs text-stone-400">
                       {t.table} {it.table?.code || "—"} · {it.orderNumber}
+                      {it.stationName ? ` · ${it.stationName}` : ""}
                     </p>
                     <p className="text-lg font-extrabold mt-0.5">
                       {it.qty}× {it.name}
