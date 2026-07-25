@@ -5,6 +5,7 @@ export type EscPosReceiptLine = {
   qty: number;
   lineTotal: number;
   barcode?: string | null;
+  note?: string | null;
 };
 
 export type EscPosReceipt = {
@@ -110,6 +111,7 @@ export function buildEscPosReceipt(r: EscPosReceipt): Uint8Array {
   for (const l of r.lines) {
     const name = l.name.slice(0, 24);
     parts.push(line(`${name}`));
+    if (l.note?.trim()) parts.push(line(`  * ${l.note.trim().slice(0, 28)}`));
     parts.push(line(`  x${l.qty}  ${l.lineTotal.toFixed(3)} ${r.currency}`));
     const bc = (l.barcode || "").trim();
     if (bc) parts.push(line(`  BC: ${bc.slice(0, 28)}`));

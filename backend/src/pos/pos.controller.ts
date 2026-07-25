@@ -338,6 +338,17 @@ export class PosController {
     return this.pos.resendSaleNotify(user.companyId, id);
   }
 
+  @Post('sales/:id/reprint')
+  @Roles(...POS_STAFF)
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @ApiOperation({ summary: 'Audit a POS receipt reprint and return reprint count' })
+  reprintSale(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+  ) {
+    return this.pos.recordReceiptReprint(user.companyId, user, id);
+  }
+
   @Post('sales/:id/void')
   @Roles(...POS_STAFF)
   @Throttle({ default: { limit: 30, ttl: 60000 } })
@@ -368,8 +379,16 @@ export class PosController {
   todayStats(
     @CurrentUser() user: TokenPayload,
     @Query('warehouseId') warehouseId?: string,
+    @Query('cashierId') cashierId?: string,
   ) {
-    return this.pos.getTodayStats(user.companyId, warehouseId || undefined);
+    const mine =
+      cashierId === 'me' || (!cashierId && user.role === UserRole.CASHIER)
+        ? user.sub
+        : cashierId?.trim() || user.sub;
+    return this.pos.getTodayStats(user.companyId, {
+      warehouseId: warehouseId || undefined,
+      cashierId: mine,
+    });
   }
 
   @Get('books/summary')

@@ -152,6 +152,12 @@ Public flags: `asyncApprovals: true`, `nfcBadgesConfigured`, `shiftVarianceLimit
 - Manager stock override (`POS_STOCK_OVERRIDE` + `allowNegativeStock`)
 - Doc: [`UPGRADE-POS-WAVE14-2026-07.md`](./UPGRADE-POS-WAVE14-2026-07.md)
 
+### Done (Wave 15 — Line notes, cashier KPI, reprint audit)
+- Per-line cart notes → `invoice_items.notes` + receipt print
+- Today stats: `mine` vs `store` (`cashierId=me`)
+- Audited receipt reprint (`POST /pos/sales/:id/reprint` + count badge)
+- Doc: [`UPGRADE-POS-WAVE15-2026-07.md`](./UPGRADE-POS-WAVE15-2026-07.md)
+
 - [x] Full catalog sync API `GET /pos/catalog/sync` + offline IDB per warehouse
 - [x] Broader refunds + store-credit MVP (hardened debit / void restore / UI)
 - [x] Cash change due + receipt number lookup for refunds

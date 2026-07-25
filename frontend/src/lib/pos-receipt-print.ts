@@ -13,6 +13,7 @@ export type PosReceiptLine = {
   lineTotal: number;
   barcode?: string | null;
   sku?: string | null;
+  note?: string | null;
 };
 
 export type PosReceiptCompany = {
@@ -107,6 +108,7 @@ export function buildPosReceiptHtml(data: PosReceiptPrintData): string {
       return `<tr>
         <td>
           <div class="item-name">${escapeHtml(l.name)}</div>
+          ${l.note ? `<div class="item-note">${escapeHtml(l.note)}</div>` : ""}
           ${bcBlock}
         </td>
         <td class="qty">${l.qty}</td>
@@ -141,6 +143,7 @@ export function buildPosReceiptHtml(data: PosReceiptPrintData): string {
   td.qty { width: 2.2em; text-align: center; }
   td.amt { width: 5.8em; text-align: end; white-space: nowrap; font-size: 11px; }
   .item-name { font-weight: 700; font-size: 12px; }
+  .item-note { font-size: 10px; color: #475569; margin-top: 2px; }
   .bc { margin-top: 3px; text-align: center; }
   .bc img { max-width: 100%; height: auto; }
   .bc-num { font-size: 9px; font-family: ui-monospace, monospace; color: #222; }

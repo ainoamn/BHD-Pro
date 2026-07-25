@@ -40,6 +40,11 @@ export class PosSaleItemDto {
   @IsNumber()
   @Min(0)
   discount?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  notes?: string;
 }
 
 export class PosPaymentLineDto {

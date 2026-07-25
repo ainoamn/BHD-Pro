@@ -43,8 +43,10 @@ import {
   pluWeightQty,
   productMatchesPluArticle,
 } from '../common/pos-plu';
+import { AuditService } from '../audit/audit.service';
 
 const WALK_IN_NAME = 'POS Walk-in / نقدي';
+const POS_REPRINT_ACTION = 'POS_RECEIPT_REPRINT';
 
 @Injectable()
 export class PosService {
@@ -61,6 +63,7 @@ export class PosService {
     private customerNotify: CustomerNotifyService,
     private emailNotify: EmailNotifyService,
     private incentives: PosIncentivesService,
+    private audit: AuditService,
   ) {}
 
   private hashKey(secret: string) {
@@ -951,6 +954,7 @@ export class PosService {
       unitPrice: number;
       discount: number;
       taxRate?: number;
+      notes?: string | null;
     }[] = [];
 
     let hasPriceOverride = false;
@@ -995,6 +999,7 @@ export class PosService {
         quantity: qty,
         unitPrice,
         discount,
+        notes: item.notes?.trim() || null,
       });
     }
 
@@ -1229,6 +1234,7 @@ export class PosService {
           unitPrice: li.unitPrice,
           discount: li.discount || 0,
           ...(li.taxRate != null ? { taxRate: li.taxRate } : {}),
+          ...(li.notes ? { notes: li.notes } : {}),
         })),
       });
       invoiceCreated = true;
@@ -1587,51 +1593,94 @@ export class PosService {
    * Lightweight today totals for POS checkout strip.
    * Counts Hisaby POS invoices since start of day (Asia/Muscat).
    */
-  async getTodayStats(companyId: string, warehouseId?: string) {
+  async getTodayStats(
+    companyId: string,
+    opts?: { warehouseId?: string; cashierId?: string },
+  ) {
+    const warehouseId = opts?.warehouseId;
+    const cashierId = opts?.cashierId;
     const from = this.startOfDayMuscat();
     const warehouseFilter = warehouseId
       ? { posShift: { is: { warehouseId } } }
       : {};
 
-    const sales = await this.prisma.invoice.findMany({
-      where: {
-        companyId,
-        type: InvoiceType.SALES,
-        isCash: true,
-        notes: { contains: 'Hisaby POS' },
-        createdAt: { gte: from },
-        ...warehouseFilter,
-      },
-      select: { id: true, total: true, status: true },
-    });
+    const baseWhere = {
+      companyId,
+      type: InvoiceType.SALES,
+      isCash: true,
+      notes: { contains: 'Hisaby POS' },
+      createdAt: { gte: from },
+      ...warehouseFilter,
+    };
 
-    let salesCount = 0;
-    let salesTotal = 0;
-    let voidCount = 0;
-    for (const inv of sales) {
-      if (inv.status === InvoiceStatus.CANCELLED) {
-        voidCount += 1;
-        continue;
+    const [storeSales, mySales, storeRefundCount, myRefundCount] =
+      await Promise.all([
+        this.prisma.invoice.findMany({
+          where: baseWhere,
+          select: { id: true, total: true, status: true, createdById: true },
+        }),
+        cashierId
+          ? this.prisma.invoice.findMany({
+              where: { ...baseWhere, createdById: cashierId },
+              select: { id: true, total: true, status: true },
+            })
+          : Promise.resolve([] as { id: string; total: unknown; status: InvoiceStatus }[]),
+        this.prisma.invoice.count({
+          where: {
+            companyId,
+            type: InvoiceType.CREDIT_NOTE,
+            notes: { contains: 'Hisaby POS refund' },
+            createdAt: { gte: from },
+            ...warehouseFilter,
+          },
+        }),
+        cashierId
+          ? this.prisma.invoice.count({
+              where: {
+                companyId,
+                type: InvoiceType.CREDIT_NOTE,
+                notes: { contains: 'Hisaby POS refund' },
+                createdAt: { gte: from },
+                createdById: cashierId,
+                ...warehouseFilter,
+              },
+            })
+          : Promise.resolve(0),
+      ]);
+
+    const summarize = (
+      rows: { total: unknown; status: InvoiceStatus }[],
+      refundCount: number,
+    ) => {
+      let salesCount = 0;
+      let salesTotal = 0;
+      let voidCount = 0;
+      for (const inv of rows) {
+        if (inv.status === InvoiceStatus.CANCELLED) {
+          voidCount += 1;
+          continue;
+        }
+        salesCount += 1;
+        salesTotal += Number(inv.total);
       }
-      salesCount += 1;
-      salesTotal += Number(inv.total);
-    }
+      return {
+        salesCount,
+        salesTotal: Number(salesTotal.toFixed(3)),
+        refundCount,
+        voidCount,
+      };
+    };
 
-    const refundCount = await this.prisma.invoice.count({
-      where: {
-        companyId,
-        type: InvoiceType.CREDIT_NOTE,
-        notes: { contains: 'Hisaby POS refund' },
-        createdAt: { gte: from },
-        ...warehouseFilter,
-      },
-    });
+    const store = summarize(storeSales, storeRefundCount);
+    const mine = cashierId
+      ? summarize(mySales, myRefundCount)
+      : store;
 
     return {
-      salesCount,
-      salesTotal: Number(salesTotal.toFixed(3)),
-      refundCount,
-      voidCount,
+      ...store,
+      mine,
+      store,
+      cashierId: cashierId || null,
       from,
     };
   }
@@ -1708,7 +1757,7 @@ export class PosService {
           _sum: { amount: true },
           _count: true,
         }),
-        this.getTodayStats(companyId),
+        this.getTodayStats(companyId, {}),
       ]);
 
     const revenue = monthSales.reduce((s, inv) => s + Number(inv.total), 0);
@@ -1987,6 +2036,11 @@ export class PosService {
       },
     });
 
+    const reprintCounts = await this.getReprintCounts(
+      companyId,
+      sales.map((s) => s.id),
+    );
+
     return sales.map((inv) => ({
       id: inv.id,
       number: inv.number,
@@ -1999,7 +2053,73 @@ export class PosService {
       contact: inv.contact,
       items: inv.items,
       payments: inv.payments,
+      reprintCount: reprintCounts[inv.id] || 0,
     }));
+  }
+
+  /** Log audited receipt reprint; returns updated reprint count for the sale. */
+  async recordReceiptReprint(
+    companyId: string,
+    actor: TokenPayload,
+    invoiceId: string,
+  ) {
+    const inv = await this.prisma.invoice.findFirst({
+      where: {
+        id: invoiceId,
+        companyId,
+        type: InvoiceType.SALES,
+        isCash: true,
+        notes: { contains: 'Hisaby POS' },
+      },
+      select: { id: true, number: true, status: true },
+    });
+    if (!inv) throw new NotFoundException('POS sale not found');
+
+    await this.audit.log({
+      companyId,
+      userId: actor.sub,
+      action: POS_REPRINT_ACTION,
+      entity: 'Invoice',
+      entityId: inv.id,
+      newValues: { number: inv.number, status: inv.status },
+    });
+
+    const reprintCount = await this.prisma.auditLog.count({
+      where: {
+        companyId,
+        entity: 'Invoice',
+        entityId: inv.id,
+        action: POS_REPRINT_ACTION,
+      },
+    });
+
+    return {
+      id: inv.id,
+      number: inv.number,
+      reprintCount,
+    };
+  }
+
+  async getReprintCounts(
+    companyId: string,
+    invoiceIds: string[],
+  ): Promise<Record<string, number>> {
+    if (!invoiceIds.length) return {};
+    const rows = await this.prisma.auditLog.groupBy({
+      by: ['entityId'],
+      where: {
+        companyId,
+        entity: 'Invoice',
+        action: POS_REPRINT_ACTION,
+        entityId: { in: invoiceIds },
+      },
+      _count: { _all: true },
+    });
+    const map: Record<string, number> = {};
+    for (const r of rows) {
+      if (r.entityId) map[r.entityId] = r._count._all;
+    }
+    return map;
   }
 
   async openShift(companyId: string, userId: string, dto: OpenPosShiftDto) {

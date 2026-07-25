@@ -74,6 +74,7 @@ type CartLine = {
   discount: number;
   stock: number;
   isTracked: boolean;
+  notes?: string;
 };
 
 type ParkedCart = {
@@ -99,7 +100,14 @@ type ReceiptSnapshot = {
   id?: string;
   number?: string;
   total?: number;
-  lines?: { name: string; qty: number; lineTotal: number; barcode?: string | null; sku?: string | null }[];
+  lines?: {
+    name: string;
+    qty: number;
+    lineTotal: number;
+    barcode?: string | null;
+    sku?: string | null;
+    note?: string | null;
+  }[];
   paymentMethod?: string;
   warehouseLabel?: string;
 };
@@ -118,9 +126,11 @@ type RecentCashSale = {
     quantity: number | string;
     unitPrice?: number | string;
     total: number | string;
+    notes?: string | null;
     product?: { barcode?: string | null; sku?: string | null } | null;
   }[];
   payments?: { method?: string; amount?: number | string }[];
+  reprintCount?: number;
 };
 
 export default function PosCheckoutPage() {
@@ -198,6 +208,7 @@ export default function PosCheckoutPage() {
     salesTotal: number;
     refundCount: number;
     voidCount: number;
+    mine?: { salesCount: number; salesTotal: number };
   } | null>(null);
   const [addCustomerOpen, setAddCustomerOpen] = useState(false);
   const [newCustomerName, setNewCustomerName] = useState("");
@@ -465,10 +476,16 @@ export default function PosCheckoutPage() {
       setTodayStats(
         s
           ? {
-              salesCount: Number(s.salesCount) || 0,
-              salesTotal: Number(s.salesTotal) || 0,
-              refundCount: Number(s.refundCount) || 0,
-              voidCount: Number(s.voidCount) || 0,
+              salesCount: Number(s.store?.salesCount ?? s.salesCount) || 0,
+              salesTotal: Number(s.store?.salesTotal ?? s.salesTotal) || 0,
+              refundCount: Number(s.store?.refundCount ?? s.refundCount) || 0,
+              voidCount: Number(s.store?.voidCount ?? s.voidCount) || 0,
+              mine: s.mine
+                ? {
+                    salesCount: Number(s.mine.salesCount) || 0,
+                    salesTotal: Number(s.mine.salesTotal) || 0,
+                  }
+                : undefined,
             }
           : null,
       );
@@ -1308,6 +1325,7 @@ export default function PosCheckoutPage() {
         lineTotal: l.lineTotal,
         barcode: l.barcode || null,
         sku: l.sku || null,
+        note: l.note || null,
       }));
       const printData: PosReceiptPrintData = {
         brand: t.brand,
@@ -1406,7 +1424,21 @@ export default function PosCheckoutPage() {
     return method;
   };
 
-  const reprintSale = (sale: RecentCashSale) => {
+  const reprintSale = async (sale: RecentCashSale) => {
+    let reprintCount = sale.reprintCount || 0;
+    if (sale.id && !String(sale.id).startsWith("OFF-")) {
+      try {
+        const res = await api.recordPosSaleReprint(sale.id);
+        reprintCount = Number(res.data.reprintCount) || reprintCount + 1;
+        setRecentSales((prev) =>
+          prev.map((r) =>
+            r.id === sale.id ? { ...r, reprintCount } : r,
+          ),
+        );
+      } catch {
+        /* still print locally */
+      }
+    }
     const payMethods = (sale.payments || [])
       .map((p) => paymentLabel(p.method))
       .filter(Boolean);
@@ -1434,9 +1466,13 @@ export default function PosCheckoutPage() {
           lineTotal: Number(item.total),
           barcode,
           sku: item.product?.sku || fromCatalog?.sku || null,
+          note: item.notes || null,
         };
       }),
     });
+    if (reprintCount > 0) {
+      /* count shown on drawer badge */
+    }
   };
 
   const voidSale = (sale: RecentCashSale) => {
@@ -1752,6 +1788,7 @@ export default function PosCheckoutPage() {
         lineTotal: lineTotal(l),
         barcode: l.barcode || null,
         sku: l.sku || null,
+        note: l.notes?.trim() || null,
       })),
       ...tipLine,
     ];
@@ -1795,6 +1832,7 @@ export default function PosCheckoutPage() {
         quantity: l.quantity,
         unitPrice: l.unitPrice,
         discount: l.discount || 0,
+        notes: l.notes?.trim() || undefined,
       })),
     };
     setPaying(true);
@@ -2251,7 +2289,7 @@ export default function PosCheckoutPage() {
                       <button
                         key={sale.id}
                         type="button"
-                        onClick={() => reprintSale(sale)}
+                        onClick={() => void reprintSale(sale)}
                         className="shrink-0 rounded-lg border border-white/10 bg-black/25 px-2.5 py-1.5 text-start min-w-[7.5rem] hover:border-sky-400/40 transition"
                         title={t.reprint}
                       >
@@ -2410,15 +2448,31 @@ export default function PosCheckoutPage() {
               {shiftOpen ? t.shiftStripOpen : t.shiftStripClosed}
             </Link>
             {todayStats ? (
-              <span className="text-slate-400">
-                {t.todaySales}:{" "}
-                <span className="text-white font-semibold">{todayStats.salesCount}</span>
-                {" · "}
-                <span className="text-sky-300 font-semibold">
-                  {formatMoney(todayStats.salesTotal, currency)}
+              <span className="text-slate-400 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                <span>
+                  {t.mySalesToday}:{" "}
+                  <span className="text-white font-semibold">
+                    {todayStats.mine?.salesCount ?? todayStats.salesCount}
+                  </span>
+                  {" · "}
+                  <span className="text-emerald-300 font-semibold">
+                    {formatMoney(
+                      todayStats.mine?.salesTotal ?? todayStats.salesTotal,
+                      currency,
+                    )}
+                  </span>
+                </span>
+                <span className="text-slate-600">·</span>
+                <span>
+                  {t.storeSalesToday}:{" "}
+                  <span className="text-white font-semibold">{todayStats.salesCount}</span>
+                  {" · "}
+                  <span className="text-sky-300 font-semibold">
+                    {formatMoney(todayStats.salesTotal, currency)}
+                  </span>
                 </span>
                 {todayStats.voidCount || todayStats.refundCount ? (
-                  <span className="text-slate-500 ms-1">
+                  <span className="text-slate-500">
                     ({t.zVoids} {todayStats.voidCount} · {t.zRefunds} {todayStats.refundCount})
                   </span>
                 ) : null}
@@ -2473,7 +2527,7 @@ export default function PosCheckoutPage() {
                 >
                   <button
                     type="button"
-                    onClick={() => reprintSale(sale)}
+                    onClick={() => void reprintSale(sale)}
                     className="w-full text-start hover:opacity-90 transition"
                     title={t.reprint}
                   >
@@ -2817,6 +2871,24 @@ export default function PosCheckoutPage() {
               {lineNeedsDiscountApproval(l) ? (
                 <p className="mt-1 text-[10px] text-amber-300/90">{t.lineDiscountHint}</p>
               ) : null}
+              <div className="mt-2">
+                <label className="text-[11px] text-slate-500 block mb-1">{t.lineNote}</label>
+                <input
+                  type="text"
+                  maxLength={200}
+                  value={l.notes || ""}
+                  onChange={(e) => {
+                    const next = e.target.value.slice(0, 200);
+                    setCart((prev) =>
+                      prev.map((x) =>
+                        x.productId === l.productId ? { ...x, notes: next } : x,
+                      ),
+                    );
+                  }}
+                  placeholder={t.lineNotePlaceholder}
+                  className="w-full h-8 px-2 rounded-md bg-black/30 border border-white/10 text-xs text-white placeholder:text-slate-600"
+                />
+              </div>
             </div>
           ))}
         </div>
@@ -3867,6 +3939,12 @@ export default function PosCheckoutPage() {
                             : sale.date
                               ? new Date(sale.date).toLocaleDateString()
                               : "—"}
+                          {sale.reprintCount ? (
+                            <span className="text-amber-300/90">
+                              {" "}
+                              · {t.reprintCount}: {sale.reprintCount}
+                            </span>
+                          ) : null}
                         </p>
                       </div>
                       <p className="text-sky-300 font-semibold tabular-nums shrink-0">
@@ -3877,7 +3955,7 @@ export default function PosCheckoutPage() {
                       <button
                         type="button"
                         onClick={() => {
-                          reprintSale(sale);
+                          void reprintSale(sale);
                           setReceiptsOpen(false);
                         }}
                         className="h-8 px-2.5 rounded-lg border border-sky-500/30 text-[11px] font-semibold text-sky-200 hover:bg-sky-500/15"

@@ -46,6 +46,11 @@ export class InvoiceItemDto {
   @Type(() => Number)
   @IsNumber()
   taxRate?: number;
+
+  @IsOptional()
+  @IsString()
+  @Length(0, 200)
+  notes?: string;
 }
 
 export class CreateInvoiceDto {

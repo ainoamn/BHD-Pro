@@ -11,6 +11,7 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { JournalModule } from '../journal/journal.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { PaymentsModule } from '../payments/payments.module';
+import { AuditModule } from '../audit/audit.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { PaymentsModule } from '../payments/payments.module';
     JournalModule,
     NotificationsModule,
     PaymentsModule,
+    AuditModule,
   ],
   controllers: [PosController],
   providers: [PosService, PosIncentivesService, TerminalTapService],

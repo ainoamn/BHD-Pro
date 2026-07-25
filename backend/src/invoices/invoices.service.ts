@@ -203,6 +203,7 @@ export class InvoicesService {
         taxRate: calc.taxRate,
         taxAmount: calc.taxAmount,
         total: calc.total,
+        notes: item.notes?.trim() || null,
       };
     });
 
@@ -317,6 +318,7 @@ export class InvoicesService {
           taxRate: calc.taxRate,
           taxAmount: calc.taxAmount,
           total: calc.total,
+          notes: item.notes?.trim() || null,
         };
       });
 
