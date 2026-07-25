@@ -139,7 +139,32 @@
     "todayExpenses": "Spent today",
     "pendingCollection": "Awaiting collection",
     "recordReceipt": "Receipt / collection",
-    "recordReceiptDesc": "Record cash or bank payment"
+    "recordReceiptDesc": "Record cash or bank payment",
+    "todaySales": "Today's sales",
+    "todaySalesHint": "{count} invoices today",
+    "overdueAr": "Overdue receivables",
+    "overdueArHint": "{count} overdue invoices",
+    "lowStock": "Low stock",
+    "lowStockHint": "Products below minimum",
+    "vatPending": "VAT pending",
+    "vatPendingHint": "Invoices without tax UUID this month",
+    "open": "Open"
+  },
+  "onboarding": {
+    "title": "Set up your company",
+    "subtitle": "Complete these steps to get Hisaby ready",
+    "progress": "{done} of {total} · {percent}%",
+    "continue": "Continue setup",
+    "step": {
+      "hasLogo": "Upload company logo",
+      "hasVat": "Add VAT number",
+      "hasCr": "Add commercial registration",
+      "hasAddress": "Add address",
+      "hasPhone": "Add phone number",
+      "hasCustomers": "Add your first customer",
+      "hasProducts": "Add your first product",
+      "hasInvoices": "Issue your first invoice"
+    }
   },
   "invoices": {
     "title": "Invoices",
@@ -461,7 +486,11 @@
     "pendingCollectionTitle": "Pending collection",
     "pendingCollectionMsg": "{count} invoices awaiting collection",
     "overduePurchasesTitle": "Overdue purchase invoices",
-    "overduePurchasesMsg": "{count} purchase invoices overdue"
+    "overduePurchasesMsg": "{count} purchase invoices overdue",
+    "vatPendingTitle": "Invoices without tax link",
+    "vatPendingMsg": "{count} invoices this month without tax UUID",
+    "subscriptionTitle": "Subscription ending soon",
+    "subscriptionMsg": "{days} days left on your plan"
   },
   "status": {
     "paid": "Paid",
@@ -1269,7 +1298,9 @@
   },
   "reportsExport": {
     "csv": "Export CSV",
-    "print": "Print / PDF"
+    "excel": "Export Excel",
+    "pdf": "Export PDF",
+    "print": "Print"
   },
   "auditLog": {
     "title": "Audit Log",

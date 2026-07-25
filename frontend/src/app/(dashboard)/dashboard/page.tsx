@@ -10,6 +10,8 @@ import { RevenueChart } from "@/components/dashboard/revenue-chart";
 import { RecentInvoices } from "@/components/dashboard/recent-invoices";
 import { PageHeader, LoadingSpinner } from "@/components/ui/page-shell";
 import { QuickActions } from "@/components/dashboard/quick-actions";
+import { SmartKpis } from "@/components/dashboard/smart-kpis";
+import { OnboardingChecklist, OnboardingState } from "@/components/dashboard/onboarding-checklist";
 import { RecordPaymentModal } from "@/components/invoices/record-payment-modal";
 
 interface DashboardData {
@@ -21,7 +23,14 @@ interface DashboardData {
   productCount: number;
   todayReceived?: number;
   todayExpenses?: number;
+  todaySales?: number;
+  todaySalesCount?: number;
   pendingCollectionCount?: number;
+  overdueCount?: number;
+  overdueAmount?: number;
+  lowStockCount?: number;
+  vatPendingCount?: number;
+  onboarding?: OnboardingState;
   recentInvoices: {
     id: string;
     number: string;
@@ -68,8 +77,10 @@ export default function DashboardPage() {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 sm:space-y-6">
       <PageHeader title={t("title")} subtitle={t("subtitle")} />
+
+      {data?.onboarding && <OnboardingChecklist data={data.onboarding} />}
 
       <QuickActions
         todayReceived={data?.todayReceived ?? 0}
@@ -83,6 +94,19 @@ export default function DashboardPage() {
         <LoadingSpinner />
       ) : (
         <>
+          <SmartKpis
+            data={{
+              todaySales: data.todaySales ?? 0,
+              todaySalesCount: data.todaySalesCount ?? 0,
+              overdueCount: data.overdueCount ?? 0,
+              overdueAmount: data.overdueAmount ?? 0,
+              lowStockCount: data.lowStockCount ?? 0,
+              vatPendingCount: data.vatPendingCount ?? 0,
+              pendingCollectionCount: data.pendingCollectionCount ?? 0,
+            }}
+            currency={currency}
+          />
+
           <DashboardStats
             data={{
               revenue: data.revenue,
@@ -95,11 +119,11 @@ export default function DashboardPage() {
             currency={currency}
           />
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+            <div className="lg:col-span-2 min-w-0">
               <RevenueChart data={data.cashFlow} />
             </div>
-            <div>
+            <div className="min-w-0">
               <RecentInvoices invoices={data.recentInvoices} currency={currency} />
             </div>
           </div>

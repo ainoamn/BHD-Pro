@@ -20,6 +20,7 @@ export interface Company {
   email?: string;
   logo?: string;
   plan: 'STARTER' | 'PROFESSIONAL' | 'ENTERPRISE';
+  planExpiry?: string | null;
   currency: string;
   language: string;
   isActive: boolean;

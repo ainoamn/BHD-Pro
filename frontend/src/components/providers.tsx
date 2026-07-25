@@ -10,6 +10,7 @@ import enMessages from "@/i18n/messages/en.json";
 import { useLocaleStore, type Locale } from "@/store/locale";
 import { ThemeAwareToaster } from "@/components/theme-aware-toaster";
 import { SiteVisitTracker } from "@/components/analytics/site-visit-tracker";
+import { PwaRegister } from "@/components/pwa-register";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 
 const messagesMap: Record<Locale, typeof arMessages> = {
@@ -57,6 +58,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       >
         <QueryClientProvider client={queryClient}>
           <SiteVisitTracker />
+          <PwaRegister />
           {children}
           <ThemeAwareToaster />
           {process.env.NODE_ENV === "development" ? (

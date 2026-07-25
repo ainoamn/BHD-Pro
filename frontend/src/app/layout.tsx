@@ -30,6 +30,15 @@ export const metadata: Metadata = {
     "بن حمود للتطوير",
   ],
   authors: [{ name: "Bin Hamood Development" }],
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "حسابي",
+    statusBarStyle: "black-translucent",
+  },
+  other: {
+    "theme-color": "#065f46",
+  },
   openGraph: {
     title: "حسابي Hisaby",
     description: "محاسبة سحابية لأعمال الخليج والمنطقة — شركة بن حمود للتطوير",

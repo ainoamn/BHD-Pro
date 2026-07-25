@@ -139,7 +139,32 @@
     "todayExpenses": "مصروف اليوم",
     "pendingCollection": "بانتظار التحصيل",
     "recordReceipt": "إيصال / تحصيل",
-    "recordReceiptDesc": "تسجيل دفعة نقد أو بنك"
+    "recordReceiptDesc": "تسجيل دفعة نقد أو بنك",
+    "todaySales": "مبيعات اليوم",
+    "todaySalesHint": "{count} فاتورة اليوم",
+    "overdueAr": "مستحقات متأخرة",
+    "overdueArHint": "{count} فاتورة متأخرة",
+    "lowStock": "مخزون منخفض",
+    "lowStockHint": "منتجات تحت الحد الأدنى",
+    "vatPending": "ضريبة معلّقة",
+    "vatPendingHint": "فواتير بلا رقم ضريبي هذا الشهر",
+    "open": "فتح"
+  },
+  "onboarding": {
+    "title": "إعداد شركتك",
+    "subtitle": "أكمل هذه الخطوات لتجهيز حسابي للعمل",
+    "progress": "{done} من {total} · {percent}%",
+    "continue": "متابعة الإعداد",
+    "step": {
+      "hasLogo": "رفع شعار الشركة",
+      "hasVat": "إضافة الرقم الضريبي",
+      "hasCr": "إضافة السجل التجاري",
+      "hasAddress": "إضافة العنوان",
+      "hasPhone": "إضافة رقم الهاتف",
+      "hasCustomers": "إضافة أول عميل",
+      "hasProducts": "إضافة أول منتج",
+      "hasInvoices": "إصدار أول فاتورة"
+    }
   },
   "invoices": {
     "title": "الفواتير",
@@ -461,7 +486,11 @@
     "pendingCollectionTitle": "تحصيل معلّق",
     "pendingCollectionMsg": "{count} فاتورة بانتظار التحصيل",
     "overduePurchasesTitle": "فواتير مشتريات متأخرة",
-    "overduePurchasesMsg": "{count} فاتورة مشتريات متأخرة"
+    "overduePurchasesMsg": "{count} فاتورة مشتريات متأخرة",
+    "vatPendingTitle": "فواتير بلا ربط ضريبي",
+    "vatPendingMsg": "{count} فاتورة هذا الشهر بلا رقم ضريبي",
+    "subscriptionTitle": "الاشتراك ينتهي قريباً",
+    "subscriptionMsg": "يتبقى {days} يوماً على انتهاء الباقة"
   },
   "status": {
     "paid": "مدفوع",
@@ -1269,7 +1298,9 @@
   },
   "reportsExport": {
     "csv": "تصدير CSV",
-    "print": "طباعة / PDF"
+    "excel": "تصدير Excel",
+    "pdf": "تصدير PDF",
+    "print": "طباعة"
   },
   "auditLog": {
     "title": "سجل التدقيق",

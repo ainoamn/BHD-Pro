@@ -4,9 +4,19 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
-import { Bell, AlertTriangle, FileWarning, Package, CheckCheck, Loader2 } from "lucide-react";
+import {
+  Bell,
+  AlertTriangle,
+  FileWarning,
+  Package,
+  CheckCheck,
+  Loader2,
+  Receipt,
+  Crown,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
+import { useAuthStore } from "@/store/auth";
 
 type AlertItem = {
   id: string;
@@ -18,22 +28,24 @@ type AlertItem = {
 
 export function NotificationsButton() {
   const t = useTranslations("notifications");
+  const company = useAuthStore((s) => s.company);
   const [open, setOpen] = useState(false);
   const [dismissed, setDismissed] = useState<string[]>([]);
   const [hasAlerts, setHasAlerts] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
   const { data: alerts = [], isLoading, isFetching } = useQuery({
-    queryKey: ["topbar-alerts"],
+    queryKey: ["topbar-alerts", company?.id],
     queryFn: async (): Promise<AlertItem[]> => {
       const items: AlertItem[] = [];
-      // Prefer invoice stats (cheap counts) — product stats only when needed
-      const [salesStats, purchaseStats] = await Promise.all([
+      const [salesStats, purchaseStats, productStats, dash] = await Promise.all([
         api.getInvoiceStats("SALES").catch(() => null),
         api.getInvoiceStats("PURCHASE").catch(() => null),
+        api.getProductStats().catch(() => null),
+        api.getDashboardStats().catch(() => null),
       ]);
 
-      const overdueSales = Number(salesStats?.data?.overdueCount ?? 0);
+      const overdueSales = Number(salesStats?.data?.overdueCount ?? dash?.data?.overdueCount ?? 0);
       if (overdueSales > 0) {
         items.push({
           id: "overdue-sales",
@@ -44,7 +56,9 @@ export function NotificationsButton() {
         });
       }
 
-      const pendingCollection = Number(salesStats?.data?.pendingCollectionCount ?? 0);
+      const pendingCollection = Number(
+        salesStats?.data?.pendingCollectionCount ?? dash?.data?.pendingCollectionCount ?? 0
+      );
       if (pendingCollection > 0) {
         items.push({
           id: "pending-collection",
@@ -66,20 +80,73 @@ export function NotificationsButton() {
         });
       }
 
+      const lowStock = Number(productStats?.data?.lowStock ?? dash?.data?.lowStockCount ?? 0);
+      if (lowStock > 0) {
+        items.push({
+          id: "low-stock",
+          title: t("lowStockTitle"),
+          message: t("lowStockMsg", { count: lowStock }),
+          href: "/inventory",
+          type: "warning",
+        });
+      }
+
+      const vatPending = Number(dash?.data?.vatPendingCount ?? 0);
+      if (vatPending > 0) {
+        items.push({
+          id: "vat-pending",
+          title: t("vatPendingTitle"),
+          message: t("vatPendingMsg", { count: vatPending }),
+          href: "/vat",
+          type: "info",
+        });
+      }
+
+      const planExpiry = (company as { planExpiry?: string } | null)?.planExpiry;
+      if (planExpiry) {
+        const days = Math.ceil((new Date(planExpiry).getTime() - Date.now()) / 86400000);
+        if (days >= 0 && days <= 14) {
+          items.push({
+            id: "subscription-expiring",
+            title: t("subscriptionTitle"),
+            message: t("subscriptionMsg", { days }),
+            href: "/subscription",
+            type: days <= 3 ? "error" : "warning",
+          });
+        }
+      }
+
       return items;
     },
     enabled: open,
-    staleTime: 5 * 60_000,
+    staleTime: 2 * 60_000,
     refetchOnWindowFocus: false,
-    refetchOnMount: false,
   });
 
   useEffect(() => {
     if (alerts.length > 0) setHasAlerts(true);
   }, [alerts]);
 
+  // Prefetch a lightweight badge signal once after mount
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const sales = await api.getInvoiceStats("SALES");
+        const overdue = Number(sales?.data?.overdueCount ?? 0);
+        const pending = Number(sales?.data?.pendingCollectionCount ?? 0);
+        if (!cancelled && (overdue > 0 || pending > 0)) setHasAlerts(true);
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const visible = alerts.filter((a) => !dismissed.includes(a.id));
-  const showDot = open ? visible.length > 0 : hasAlerts && dismissed.length < alerts.length;
+  const showDot = open ? visible.length > 0 : hasAlerts;
 
   useEffect(() => {
     if (!open) return;
@@ -99,9 +166,12 @@ export function NotificationsButton() {
     };
   }, [open]);
 
-  const iconFor = (type: AlertItem["type"]) => {
+  const iconFor = (type: AlertItem["type"], id: string) => {
+    if (id === "low-stock") return Package;
+    if (id === "vat-pending") return Receipt;
+    if (id === "subscription-expiring") return Crown;
     if (type === "error") return FileWarning;
-    if (type === "warning") return Package;
+    if (type === "warning") return AlertTriangle;
     return AlertTriangle;
   };
 
@@ -150,7 +220,7 @@ export function NotificationsButton() {
             ) : (
               <ul className="divide-y divide-slate-200 dark:divide-slate-800">
                 {visible.map((alert) => {
-                  const Icon = iconFor(alert.type);
+                  const Icon = iconFor(alert.type, alert.id);
                   return (
                     <li key={alert.id}>
                       <Link

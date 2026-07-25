@@ -58,6 +58,12 @@ export class DashboardService {
       purchasesByMonth,
       todayPayments,
       pendingCollection,
+      todaySalesAgg,
+      overdueSales,
+      overdueAmountAgg,
+      lowStockProducts,
+      vatPending,
+      hasLogo,
     ] = await Promise.all([
       this.prisma.invoice.aggregate({
         where: { ...notCancelled, type: 'SALES', date: { gte: startOfMonth } },
@@ -102,6 +108,67 @@ export class DashboardService {
           paymentStatus: { in: [PaymentStatus.UNPAID, PaymentStatus.PARTIAL] },
         },
       }),
+      this.prisma.invoice.aggregate({
+        where: {
+          ...notCancelled,
+          type: 'SALES',
+          date: { gte: startOfDay, lte: endOfDay },
+        },
+        _sum: { total: true },
+        _count: true,
+      }),
+      this.prisma.invoice.count({
+        where: {
+          companyId,
+          type: 'SALES',
+          status: { not: InvoiceStatus.CANCELLED },
+          OR: [
+            { status: InvoiceStatus.OVERDUE },
+            {
+              dueDate: { lt: startOfDay },
+              paymentStatus: { in: [PaymentStatus.UNPAID, PaymentStatus.PARTIAL] },
+            },
+          ],
+        },
+      }),
+      this.prisma.invoice.aggregate({
+        where: {
+          companyId,
+          type: 'SALES',
+          status: { not: InvoiceStatus.CANCELLED },
+          OR: [
+            { status: InvoiceStatus.OVERDUE },
+            {
+              dueDate: { lt: startOfDay },
+              paymentStatus: { in: [PaymentStatus.UNPAID, PaymentStatus.PARTIAL] },
+            },
+          ],
+        },
+        _sum: { total: true, paidAmount: true },
+      }),
+      this.prisma.product.findMany({
+        where: { companyId, isActive: true },
+        select: { id: true, quantity: true, minQuantity: true },
+      }),
+      this.prisma.invoice.count({
+        where: {
+          companyId,
+          type: 'SALES',
+          status: { not: InvoiceStatus.CANCELLED },
+          vatUuid: null,
+          date: { gte: startOfMonth },
+        },
+      }),
+      this.prisma.company.findUnique({
+        where: { id: companyId },
+        select: {
+          logo: true,
+          vatNumber: true,
+          crNumber: true,
+          address: true,
+          phone: true,
+        },
+      }),
     ]);
 
     const revenue = Number(monthSales._sum.total || 0);
@@ -115,6 +182,17 @@ export class DashboardService {
       if (p.invoice.type === 'SALES') todayReceived += amt;
       else if (p.invoice.type === 'PURCHASE') todayExpenses += amt;
     }
+
+    const todaySales = Number(todaySalesAgg._sum.total || 0);
+    const todaySalesCount = todaySalesAgg._count || 0;
+    const overdueCount = overdueSales;
+    const overdueAmount = Math.max(
+      0,
+      Number(overdueAmountAgg._sum.total || 0) - Number(overdueAmountAgg._sum.paidAmount || 0),
+    );
+    const lowStockCount = lowStockProducts.filter(
+      (p) => Number(p.quantity) <= Number(p.minQuantity),
+    ).length;
 
     const monthKey = (d: Date) =>
       `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -138,6 +216,17 @@ export class DashboardService {
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([month, v]) => ({ month, revenue: v.revenue, expenses: v.expenses }));
 
+    const onboarding = {
+      hasLogo: !!(hasLogo?.logo && String(hasLogo.logo).trim()),
+      hasVat: !!(hasLogo?.vatNumber && String(hasLogo.vatNumber).trim()),
+      hasCr: !!(hasLogo?.crNumber && String(hasLogo.crNumber).trim()),
+      hasAddress: !!(hasLogo?.address && String(hasLogo.address).trim()),
+      hasPhone: !!(hasLogo?.phone && String(hasLogo.phone).trim()),
+      hasCustomers: contacts > 0,
+      hasProducts: products > 0,
+      hasInvoices: allInvoices > 0,
+    };
+
     return {
       revenue,
       expenses,
@@ -147,7 +236,20 @@ export class DashboardService {
       productCount: products,
       todayReceived,
       todayExpenses,
+      todaySales,
+      todaySalesCount,
       pendingCollectionCount: pendingCollection,
+      overdueCount,
+      overdueAmount,
+      lowStockCount,
+      vatPendingCount: vatPending,
+      alerts: {
+        overdue: overdueCount > 0,
+        lowStock: lowStockCount > 0,
+        vatPending: vatPending > 0,
+        pendingCollection: pendingCollection > 0,
+      },
+      onboarding,
       recentInvoices: recentInvoices.map((inv) => ({
         id: inv.id,
         number: inv.number,

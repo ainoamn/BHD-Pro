@@ -1,0 +1,26 @@
+{
+  "name": "حسابي Hisaby",
+  "short_name": "حسابي",
+  "description": "محاسبة سحابية وكاشير لأعمال الخليج والمنطقة",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#065f46",
+  "lang": "ar",
+  "dir": "rtl",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/brand/hisaby-mark.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/brand/hisaby-mark.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
