@@ -19,6 +19,7 @@ type SecurityPublic = {
   nfcBadgeCount?: number;
   shiftVarianceLimit?: number;
   requireOpenShift?: boolean;
+  autoSendPosReceipts?: boolean;
   actions: {
     POS_VOID: boolean;
     POS_PRICE_OVERRIDE: boolean;
@@ -74,6 +75,7 @@ export function DualControlSettings() {
   const [nfcSecret, setNfcSecret] = useState("");
   const [varianceLimit, setVarianceLimit] = useState("1");
   const [requireOpenShift, setRequireOpenShift] = useState(false);
+  const [autoSendPosReceipts, setAutoSendPosReceipts] = useState(true);
 
   const { data, isLoading } = useQuery({
     queryKey: ["company-security"],
@@ -102,6 +104,7 @@ export function DualControlSettings() {
     setActions({ ...defaults, ...data.actions });
     setVarianceLimit(String(data.shiftVarianceLimit ?? 1));
     setRequireOpenShift(data.requireOpenShift === true);
+    setAutoSendPosReceipts(data.autoSendPosReceipts !== false);
   }, [data]);
 
   const saveMutation = useMutation({
@@ -123,6 +126,7 @@ export function DualControlSettings() {
     actions,
     shiftVarianceLimit: Number(varianceLimit) || 0,
     requireOpenShift,
+    autoSendPosReceipts,
   });
 
   if (isLoading) {
@@ -204,6 +208,21 @@ export function DualControlSettings() {
               checked={requireOpenShift}
               disabled={!isAdmin || saveMutation.isPending}
               onChange={(e) => setRequireOpenShift(e.target.checked)}
+            />
+          </label>
+
+          <label className="flex items-center justify-between gap-4 text-sm text-slate-200">
+            <span>
+              <span className="block">{t("autoSendPosReceipts")}</span>
+              <span className="block text-[11px] text-slate-500 mt-0.5 font-normal">
+                {t("autoSendPosReceiptsHint")}
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              checked={autoSendPosReceipts}
+              disabled={!isAdmin || saveMutation.isPending}
+              onChange={(e) => setAutoSendPosReceipts(e.target.checked)}
             />
           </label>
 

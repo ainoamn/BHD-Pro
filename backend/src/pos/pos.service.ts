@@ -32,6 +32,7 @@ import {
 } from './dto/pos.dto';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { GlPostingService } from '../journal/gl-posting.service';
+import { CustomerNotifyService } from '../notifications/customer-notify.service';
 
 const WALK_IN_NAME = 'POS Walk-in / نقدي';
 
@@ -45,6 +46,7 @@ export class PosService {
     private dualControl: DualControlService,
     private subscriptions: SubscriptionsService,
     private glPosting: GlPostingService,
+    private customerNotify: CustomerNotifyService,
   ) {}
 
   private hashKey(secret: string) {
@@ -199,8 +201,10 @@ export class PosService {
         barcode: true,
         salePrice: true,
         quantity: true,
+        minQuantity: true,
         isTracked: true,
         warehouseId: true,
+        updatedAt: true,
       },
     });
     const withStock = await this.applyWarehouseQuantity(products, warehouseId);
@@ -209,6 +213,92 @@ export class PosService {
       syncedAt: new Date(),
       count: withStock.length,
       products: withStock,
+      full: true,
+    };
+  }
+
+  /**
+   * Incremental stock/qty sync for offline POS.
+   * Pass `since` ISO timestamp to receive only products updated after that time.
+   * Without since → same as full catalog sync (full: true).
+   */
+  async syncStock(companyId: string, warehouseId?: string, since?: string) {
+    if (!since) {
+      return this.syncCatalog(companyId, warehouseId);
+    }
+    const sinceDate = new Date(since);
+    if (Number.isNaN(sinceDate.getTime())) {
+      return this.syncCatalog(companyId, warehouseId);
+    }
+
+    const products = await this.prisma.product.findMany({
+      where: {
+        companyId,
+        isActive: true,
+        updatedAt: { gt: sinceDate },
+      },
+      take: 5000,
+      select: {
+        id: true,
+        name: true,
+        sku: true,
+        barcode: true,
+        salePrice: true,
+        quantity: true,
+        minQuantity: true,
+        isTracked: true,
+        warehouseId: true,
+        updatedAt: true,
+      },
+    });
+    const withStock = await this.applyWarehouseQuantity(products, warehouseId);
+
+    // Also include warehouse stock rows touched after since (qty-only changes)
+    let warehouseTouched: typeof withStock = [];
+    if (warehouseId) {
+      const touched = await this.prisma.warehouseStock.findMany({
+        where: {
+          warehouseId,
+          updatedAt: { gt: sinceDate },
+          product: { companyId, isActive: true },
+        },
+        take: 5000,
+        include: {
+          product: {
+            select: {
+              id: true,
+              name: true,
+              sku: true,
+              barcode: true,
+              salePrice: true,
+              quantity: true,
+              minQuantity: true,
+              isTracked: true,
+              warehouseId: true,
+              updatedAt: true,
+            },
+          },
+        },
+      });
+      const byId = new Map(withStock.map((p) => [p.id, p]));
+      for (const row of touched) {
+        if (byId.has(row.product.id)) continue;
+        byId.set(row.product.id, {
+          ...row.product,
+          quantity: row.quantity,
+        } as (typeof withStock)[number]);
+      }
+      warehouseTouched = Array.from(byId.values());
+    }
+
+    const productsOut = warehouseId ? warehouseTouched : withStock;
+    return {
+      warehouseId: warehouseId || null,
+      syncedAt: new Date(),
+      since: sinceDate,
+      count: productsOut.length,
+      products: productsOut,
+      full: false,
     };
   }
 
@@ -478,10 +568,40 @@ export class PosService {
       }
     }
 
+    this.fireCustomerNotify('void', companyId, invoiceId, invoice.contactId);
+
     return {
       voided: true,
       invoice: cancelled,
     };
+  }
+
+  private fireCustomerNotify(
+    kind: 'sale' | 'void' | 'refund',
+    companyId: string,
+    invoiceId: string,
+    contactId: string | null | undefined,
+    creditNoteId?: string,
+  ) {
+    if (!contactId) return;
+    void (async () => {
+      try {
+        if (kind === 'sale') {
+          await this.customerNotify.notifyPosSale(companyId, invoiceId, contactId);
+        } else if (kind === 'void') {
+          await this.customerNotify.notifyPosVoid(companyId, invoiceId, contactId);
+        } else {
+          await this.customerNotify.notifyPosRefund(
+            companyId,
+            invoiceId,
+            contactId,
+            creditNoteId,
+          );
+        }
+      } catch {
+        /* never fail the POS action */
+      }
+    })();
   }
 
   private async resolveSaleContact(companyId: string, contactId?: string) {
@@ -864,6 +984,10 @@ export class PosService {
         });
       } catch {
         /* ignore */
+      }
+
+      if (contact.name !== WALK_IN_NAME && contact.phone) {
+        this.fireCustomerNotify('sale', companyId, invoice.id, contact.id);
       }
 
       return invoice;
@@ -1862,6 +1986,14 @@ export class PosService {
     } catch {
       /* ignore */
     }
+
+    this.fireCustomerNotify(
+      'refund',
+      companyId,
+      invoice.id,
+      invoice.contactId,
+      creditNote.id,
+    );
 
     return {
       refunded: true,

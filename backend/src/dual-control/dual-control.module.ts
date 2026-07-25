@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
 import { DualControlService } from './dual-control.service';
 import { DualControlController } from './dual-control.controller';
-import { WhatsappNotifyService } from './whatsapp-notify.service';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
+  imports: [NotificationsModule],
   controllers: [DualControlController],
-  providers: [DualControlService, WhatsappNotifyService],
-  exports: [DualControlService, WhatsappNotifyService],
+  providers: [DualControlService],
+  exports: [DualControlService, NotificationsModule],
 })
 export class DualControlModule {}

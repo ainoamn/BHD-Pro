@@ -1276,9 +1276,40 @@ class ApiClient {
     return this.post(`/vat/submit/${invoiceId}`);
   }
 
+  getOtaConfig() {
+    return this.get('/vat/ota-config');
+  }
+
+  updateOtaConfig(data: {
+    mode?: 'mock' | 'sandbox' | 'live';
+    apiBaseUrl?: string;
+    clientId?: string;
+    taxpayerTin?: string;
+    clientSecretConfigured?: boolean;
+  }) {
+    return this.post('/vat/ota-config', data);
+  }
+
   // AI
   getAiAnalytics() {
     return this.get('/ai/analytics');
+  }
+
+  proposeAiSuggestions() {
+    return this.post('/ai/propose');
+  }
+
+  // Messaging / integrations
+  getMessagingStatus() {
+    return this.get('/messaging/status');
+  }
+
+  getMessagingReadme() {
+    return this.get('/messaging/readme');
+  }
+
+  testMessaging(data: { channel: 'whatsapp' | 'email'; to: string; body?: string }) {
+    return this.post('/messaging/test', data);
   }
 
   // Hisaby POS
@@ -1327,9 +1358,37 @@ class ApiClient {
       syncedAt: string;
       count: number;
       products: unknown[];
+      full?: boolean;
     }>('/pos/catalog/sync', {
       params: warehouseId ? { warehouseId } : {},
     });
+  }
+
+  syncPosStock(warehouseId?: string, since?: string) {
+    return this.get<{
+      warehouseId: string | null;
+      syncedAt: string;
+      count: number;
+      products: unknown[];
+      full?: boolean;
+      since?: string;
+    }>('/pos/stock/sync', {
+      params: {
+        ...(warehouseId ? { warehouseId } : {}),
+        ...(since ? { since } : {}),
+      },
+    });
+  }
+
+  getPosPartnerGateways() {
+    return this.get('/pos/partner-pay/gateways');
+  }
+
+  createPosPartnerCheckout(
+    invoiceId: string,
+    data?: { gatewaySlug?: string; customerEmail?: string },
+  ) {
+    return this.post(`/pos/sales/${invoiceId}/partner-checkout`, data || {});
   }
 
   createPosSale(data: {

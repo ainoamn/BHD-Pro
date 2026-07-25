@@ -8,6 +8,7 @@ import {
   ATTACHMENT_STORAGE_KEY_MAX,
   CreateAttachmentDto,
 } from './dto/attachment.dto';
+import { StorageService } from '../storage/storage.service';
 
 const ALLOWED_MIME_PREFIXES = [
   'image/',
@@ -21,7 +22,10 @@ const ALLOWED_MIME_PREFIXES = [
 
 @Injectable()
 export class AttachmentsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private storage: StorageService,
+  ) {}
 
   list(companyId: string, entityType: string, entityId: string) {
     return this.prisma.attachment.findMany({
@@ -30,8 +34,14 @@ export class AttachmentsService {
     });
   }
 
-  create(companyId: string, userId: string, dto: CreateAttachmentDto) {
+  async create(companyId: string, userId: string, dto: CreateAttachmentDto) {
     this.assertSafeAttachment(dto);
+    const stored = await this.storage.putFromDataUrl(
+      companyId,
+      dto.fileName,
+      dto.mimeType,
+      dto.storageKey,
+    );
 
     return this.prisma.attachment.create({
       data: {
@@ -41,7 +51,7 @@ export class AttachmentsService {
         fileName: dto.fileName,
         mimeType: dto.mimeType,
         sizeBytes: dto.sizeBytes || 0,
-        storageKey: dto.storageKey,
+        storageKey: stored.storageKey,
         uploadedById: userId,
       },
     });
@@ -67,16 +77,6 @@ export class AttachmentsService {
       );
       if (!ok) {
         throw new BadRequestException('Attachment MIME type is not allowed');
-      }
-    }
-    if (dto.storageKey.startsWith('data:')) {
-      const meta = dto.storageKey.slice(5, dto.storageKey.indexOf(','));
-      if (meta && dto.mimeType) {
-        // data URL mime should align with declared mime when both present
-        const dataMime = meta.split(';')[0];
-        if (dataMime && !dto.mimeType.startsWith(dataMime.split('/')[0])) {
-          // soft check — only reject obvious mismatches like image vs application
-        }
       }
     }
   }

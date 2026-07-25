@@ -162,3 +162,19 @@ export async function adjustCachedStock(
   });
   await saveCatalogCache(next, warehouseId);
 }
+
+/** Merge incremental stock/catalog deltas into the offline cache. */
+export async function mergeCatalogDeltas(
+  deltas: CachedPosProduct[],
+  warehouseId?: string,
+): Promise<number> {
+  if (!deltas.length) return 0;
+  const existing = await loadCatalogCache(warehouseId);
+  const byId = new Map(existing.map((p) => [p.id, p]));
+  for (const row of deltas) {
+    const prev = byId.get(row.id);
+    byId.set(row.id, prev ? { ...prev, ...row } : row);
+  }
+  await saveCatalogCache(Array.from(byId.values()), warehouseId);
+  return deltas.length;
+}

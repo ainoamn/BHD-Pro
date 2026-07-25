@@ -38,6 +38,11 @@ import {
   DualApprovalModal,
   type DualApprovalPayload,
 } from "@/components/security/dual-approval-modal";
+import {
+  PHONE_DIAL_CODES,
+  combinePhone,
+  DEFAULT_DIAL_CODE,
+} from "@/lib/phone";
 import { downloadCsv } from "@/lib/export-csv";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import {
@@ -204,6 +209,8 @@ export function AccountingModule() {
   const [lines, setLines] = useState<LineItemForm[]>([emptyLine()]);
   const [quickCustomerOpen, setQuickCustomerOpen] = useState(false);
   const [quickCustomerName, setQuickCustomerName] = useState("");
+  const [quickCustomerDial, setQuickCustomerDial] = useState(DEFAULT_DIAL_CODE);
+  const [quickCustomerLocal, setQuickCustomerLocal] = useState("");
   const [collectOpen, setCollectOpen] = useState(false);
   const [collectInvoiceId, setCollectInvoiceId] = useState<string | undefined>();
   const [reversePaymentInvoice, setReversePaymentInvoice] = useState<Invoice | null>(null);
@@ -217,6 +224,9 @@ export function AccountingModule() {
   const [searchQuery, setSearchQuery] = useState("");
 
   const baseCurrency = company?.currency || "OMR";
+  const defaultDial =
+    PHONE_DIAL_CODES.find((d) => d.country === company?.country)?.code ??
+    DEFAULT_DIAL_CODE;
   const companyApplyVat = company?.applyVat !== false;
   const companyVatRate = Number(company?.vatRate ?? 5);
   const isForeignCurrency = docCurrency.toUpperCase() !== baseCurrency.toUpperCase();
@@ -535,21 +545,42 @@ export function AccountingModule() {
   }
 
   const quickCustomerMutation = useMutation({
-    mutationFn: () =>
-      api.createContact({
+    mutationFn: () => {
+      const local = quickCustomerLocal.replace(/\D/g, "").replace(/^0+/, "");
+      if (contactType === "CUSTOMER") {
+        if (local.length < 7) {
+          throw new Error("phone_required");
+        }
+      }
+      const phone =
+        local.length >= 7
+          ? combinePhone(quickCustomerDial || defaultDial, local)
+          : "";
+      return api.createContact({
         type: contactType,
         name: quickCustomerName,
         email: "",
-        phone: "",
-      }),
+        phone,
+      });
+    },
     onSuccess: (res) => {
       refetchContacts();
       setContactId((res.data as Contact).id);
       setQuickCustomerOpen(false);
       setQuickCustomerName("");
+      setQuickCustomerLocal("");
+      setQuickCustomerDial(defaultDial);
       toast.success(t("saved"));
     },
-    onError: () => toast.error(t("saveError")),
+    onError: (err: unknown) => {
+      if (err instanceof Error && err.message === "phone_required") {
+        toast.error(t("phoneRequired"));
+        return;
+      }
+      const msg = (err as { response?: { data?: { message?: string } } })?.response
+        ?.data?.message;
+      toast.error(typeof msg === "string" ? msg : t("saveError"));
+    },
   });
 
   const invalidateInvoiceQueries = () => {
@@ -1546,7 +1577,10 @@ export function AccountingModule() {
                     </select>
                     <button
                       type="button"
-                      onClick={() => setQuickCustomerOpen(!quickCustomerOpen)}
+                      onClick={() => {
+                        setQuickCustomerDial(defaultDial);
+                        setQuickCustomerOpen(!quickCustomerOpen);
+                      }}
                       className="h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-emerald-400 hover:bg-slate-700"
                       title={t("quickAddCustomer")}
                     >
@@ -1559,23 +1593,57 @@ export function AccountingModule() {
                     </p>
                   )}
                   {quickCustomerOpen && (
-                    <div className="mt-2 space-y-1">
+                    <div className="mt-2 space-y-2">
                       <FormLabel>{invoiceType === "SALES" ? t("customer") : t("supplier")}</FormLabel>
-                      <div className="flex gap-2">
                       <input
                         value={quickCustomerName}
                         onChange={(e) => setQuickCustomerName(e.target.value)}
-                        className="flex-1 h-9 px-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
+                        className="w-full h-9 px-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
                       />
+                      {(invoiceType === "SALES" || contactType === "CUSTOMER") && (
+                        <div className="flex gap-2">
+                          <select
+                            value={quickCustomerDial}
+                            onChange={(e) => setQuickCustomerDial(e.target.value)}
+                            className="w-28 h-9 px-1 bg-slate-800 border border-slate-700 rounded-lg text-white text-xs"
+                            title={t("phoneCountryCode")}
+                          >
+                            {PHONE_DIAL_CODES.map((dc) => (
+                              <option key={dc.code} value={dc.code}>
+                                +{dc.code}
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            value={quickCustomerLocal}
+                            onChange={(e) =>
+                              setQuickCustomerLocal(
+                                e.target.value.replace(/\D/g, "").replace(/^0+/, ""),
+                              )
+                            }
+                            inputMode="numeric"
+                            className="flex-1 h-9 px-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
+                          />
+                        </div>
+                      )}
+                      {quickCustomerLocal.length >= 7 && (
+                        <p className="text-[11px] text-emerald-400/80">
+                          {combinePhone(quickCustomerDial, quickCustomerLocal)}
+                        </p>
+                      )}
                       <button
                         type="button"
                         onClick={() => quickCustomerMutation.mutate()}
-                        disabled={!quickCustomerName || quickCustomerMutation.isPending}
+                        disabled={
+                          !quickCustomerName ||
+                          quickCustomerMutation.isPending ||
+                          ((invoiceType === "SALES" || contactType === "CUSTOMER") &&
+                            quickCustomerLocal.replace(/\D/g, "").length < 7)
+                        }
                         className="px-3 h-9 bg-emerald-600 text-white rounded-lg text-sm disabled:opacity-50"
                       >
                         {tCommon("save")}
                       </button>
-                      </div>
                     </div>
                   )}
                 </div>

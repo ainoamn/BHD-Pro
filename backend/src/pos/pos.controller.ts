@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { UserRole } from '@prisma/client';
+import { UserRole, PaymentGatewaySlug } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -19,6 +19,20 @@ import {
   UpdatePosDraftDto,
   VoidPosSaleDto,
 } from './dto/pos.dto';
+import { PaymentsService } from '../payments/payments.service';
+import { CompanyGatewaysService } from '../payments/company-gateways.service';
+import { GATEWAY_META } from '../payments/gateway.constants';
+import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
+
+class PartnerCheckoutDto {
+  @IsEnum(PaymentGatewaySlug)
+  gatewaySlug: PaymentGatewaySlug;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  customerEmail?: string;
+}
 
 const POS_STAFF = [
   UserRole.ADMIN,
@@ -32,7 +46,11 @@ const POS_STAFF = [
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('pos')
 export class PosController {
-  constructor(private pos: PosService) {}
+  constructor(
+    private pos: PosService,
+    private payments: PaymentsService,
+    private companyGateways: CompanyGatewaysService,
+  ) {}
 
   @Get('link-status')
   @ApiOperation({ summary: 'Accounting ↔ POS link status for company' })
@@ -87,6 +105,19 @@ export class PosController {
   @ApiOperation({ summary: 'Full active catalog + stock for offline cache' })
   syncCatalog(@CurrentUser() user: TokenPayload, @Query('warehouseId') warehouseId?: string) {
     return this.pos.syncCatalog(user.companyId, warehouseId);
+  }
+
+  @Get('stock/sync')
+  @Roles(...POS_STAFF)
+  @ApiOperation({
+    summary: 'Full or incremental stock sync for offline POS (pass since=ISO for deltas)',
+  })
+  syncStock(
+    @CurrentUser() user: TokenPayload,
+    @Query('warehouseId') warehouseId?: string,
+    @Query('since') since?: string,
+  ) {
+    return this.pos.syncStock(user.companyId, warehouseId, since);
   }
 
   @Get('drafts')
@@ -254,5 +285,47 @@ export class PosController {
   @ApiOperation({ summary: 'Z-report totals for a POS shift' })
   zReport(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.pos.getZReport(user.companyId, id);
+  }
+
+  @Get('partner-pay/gateways')
+  @Roles(...POS_STAFF)
+  @ApiOperation({
+    summary:
+      'List enabled company payment gateways for partner card/wallet pay (NOT NFC badge dual-control)',
+  })
+  async partnerGateways(@CurrentUser() user: TokenPayload) {
+    const gateways = await this.companyGateways.listEnabled(user.companyId);
+    return {
+      note: 'Partner gateway checkout (Thawani/Stripe/PayPal). NFC badge is dual-control approval only.',
+      gateways: gateways.map((g) => {
+        const meta = GATEWAY_META[g.slug as keyof typeof GATEWAY_META];
+        return {
+          slug: g.slug,
+          name: meta?.nameEn || g.slug,
+          provider: g.slug,
+          isTestMode: g.isTestMode,
+        };
+      }),
+    };
+  }
+
+  @Post('sales/:invoiceId/partner-checkout')
+  @Roles(...POS_STAFF)
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  @ApiOperation({
+    summary:
+      'Start partner payment checkout (card/wallet via Thawani/Stripe/PayPal) for a POS sales invoice',
+  })
+  partnerCheckout(
+    @CurrentUser() user: TokenPayload,
+    @Param('invoiceId') invoiceId: string,
+    @Body() dto: PartnerCheckoutDto,
+  ) {
+    return this.payments.createInvoiceCollectionCheckout({
+      companyId: user.companyId,
+      invoiceId,
+      gatewaySlug: dto.gatewaySlug,
+      customerEmail: dto.customerEmail,
+    });
   }
 }

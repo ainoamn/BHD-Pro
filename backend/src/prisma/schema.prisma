@@ -85,6 +85,7 @@ model Company {
   recurringCommitments RecurringCommitment[]
   attachments Attachment[]
   managementAlerts ManagementAlert[]
+  customerDisputes CustomerDispute[]
 
   @@index([vatNumber])
   @@index([crNumber])
@@ -740,6 +741,7 @@ model Invoice {
 
   items       InvoiceItem[]
   payments    Payment[]
+  customerDisputes CustomerDispute[]
 
   customFieldsJson Json @default("{}") @map("custom_fields_json")
 
@@ -1661,4 +1663,25 @@ model ManagementAlert {
 
   @@index([companyId, status])
   @@map("management_alerts")
+}
+
+/// Customer-reported suspicious POS/invoice transaction (public dispute link)
+model CustomerDispute {
+  id            String   @id @default(uuid())
+  companyId     String   @map("company_id")
+  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoiceId     String   @map("invoice_id")
+  invoice       Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  publicCode    String   @map("public_code")
+  reason        String
+  reporterPhone String?  @map("reporter_phone")
+  reporterName  String?  @map("reporter_name")
+  /// OPEN | REVIEWED | RESOLVED | DISMISSED
+  status        String   @default("OPEN")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([companyId, status])
+  @@index([invoiceId])
+  @@index([publicCode])
+  @@map("customer_disputes")
 }

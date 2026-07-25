@@ -22,6 +22,7 @@ export class CreateContactDto {
   @IsEmail()
   email?: string;
 
+  /** Required for CUSTOMER/BOTH — enforced in ContactsService */
   @IsOptional()
   @IsString()
   phone?: string;
@@ -33,6 +34,10 @@ export class CreateContactDto {
   @IsOptional()
   @IsString()
   city?: string;
+
+  @IsOptional()
+  @IsString()
+  country?: string;
 
   @IsOptional()
   @IsObject()

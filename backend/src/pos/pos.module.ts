@@ -7,6 +7,8 @@ import { PeriodsModule } from '../periods/periods.module';
 import { DualControlModule } from '../dual-control/dual-control.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { JournalModule } from '../journal/journal.module';
+import { NotificationsModule } from '../notifications/notifications.module';
+import { PaymentsModule } from '../payments/payments.module';
 
 @Module({
   imports: [
@@ -16,6 +18,8 @@ import { JournalModule } from '../journal/journal.module';
     DualControlModule,
     SubscriptionsModule,
     JournalModule,
+    NotificationsModule,
+    PaymentsModule,
   ],
   controllers: [PosController],
   providers: [PosService],

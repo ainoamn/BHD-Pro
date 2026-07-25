@@ -184,6 +184,12 @@ export class UpdateSecurityConfigDto {
   @IsOptional()
   @IsBoolean()
   requireOpenShift?: boolean;
+
+  /** Auto-send POS receipt WhatsApp to customer phone (default true when WA configured) */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  autoSendPosReceipts?: boolean;
 }
 
 export class CreateApprovalRequestDto {

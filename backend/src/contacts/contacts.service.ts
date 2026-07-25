@@ -10,6 +10,11 @@ import { AdjustStoreCreditDto } from './dto/adjust-store-credit.dto';
 import { ContactType, InvoiceStatus, PaymentStatus } from '@prisma/client';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { GlPostingService } from '../journal/gl-posting.service';
+import {
+  dialCodeForCountry,
+  isValidMobileE164,
+  toE164Digits,
+} from '../common/phone';
 
 @Injectable()
 export class ContactsService {
@@ -88,7 +93,8 @@ export class ContactsService {
 
   async create(companyId: string, userId: string, dto: CreateContactDto) {
     await this.subscriptions.assertSubscriptionActive(companyId);
-    const { customFieldsJson, openingBalance, creditLimit, ...rest } = dto;
+    const { customFieldsJson, openingBalance, creditLimit, country, phone, ...rest } =
+      dto;
     const opening = Number(openingBalance || 0);
     const limit =
       creditLimit !== undefined && creditLimit !== null
@@ -102,11 +108,37 @@ export class ContactsService {
       throw new BadRequestException('Opening balance exceeds credit limit');
     }
 
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { country: true },
+    });
+    const companyCountry = company?.country || 'OM';
+    const contactCountry = (country?.trim() || companyCountry).toUpperCase();
+    const dial = dialCodeForCountry(companyCountry);
+
+    const isCustomer =
+      dto.type === ContactType.CUSTOMER || dto.type === ContactType.BOTH;
+    let normalizedPhone: string | null = null;
+    if (phone?.trim()) {
+      const digits = toE164Digits(phone, dial);
+      if (!isValidMobileE164(digits)) {
+        throw new BadRequestException(
+          'Invalid phone number — use international format with country code',
+        );
+      }
+      normalizedPhone = `+${digits}`;
+    } else if (isCustomer) {
+      throw new BadRequestException(
+        'Phone is required for customers (رقم الهاتف مطلوب للعملاء)',
+      );
+    }
+
     const contact = await this.prisma.contact.create({
       data: {
         ...rest,
         companyId,
-        country: 'OM',
+        country: contactCountry,
+        phone: normalizedPhone,
         openingBalance: opening,
         currentBalance: opening,
         creditLimit: limit,

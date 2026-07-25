@@ -1,19 +1,33 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { AiService } from './ai.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
+import { UserRole } from '@prisma/client';
 
 @ApiTags('AI Analytics')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('ai')
 export class AiController {
   constructor(private aiService: AiService) {}
 
   @Get('analytics')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
+  @ApiOperation({ summary: 'Rule-based analytics + human-in-loop suggestions (no auto-apply)' })
   getAnalytics(@CurrentUser() user: TokenPayload) {
     return this.aiService.getAnalytics(user.companyId);
+  }
+
+  @Post('propose')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @ApiOperation({
+    summary: 'Queue AI suggestions as management alerts for human approval',
+  })
+  propose(@CurrentUser() user: TokenPayload) {
+    return this.aiService.proposeToManagers(user.companyId);
   }
 }

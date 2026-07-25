@@ -35,6 +35,11 @@ import { playPosScanBeep } from "@/lib/pos-beep";
 import { openPosReceiptEmail, openPosReceiptWhatsApp } from "@/lib/pos-receipt-share";
 import { loadPosFavorites, togglePosFavorite } from "@/lib/pos-favorites";
 import { useQuery } from "@tanstack/react-query";
+import {
+  PHONE_DIAL_CODES,
+  combinePhone,
+  DEFAULT_DIAL_CODE,
+} from "@/lib/phone";
 
 const POS_WAREHOUSE_KEY = "hisaby-pos-warehouse-id";
 
@@ -81,6 +86,7 @@ type PosWarehouse = {
 };
 
 type ReceiptSnapshot = {
+  id?: string;
   number?: string;
   total?: number;
   lines?: { name: string; qty: number; lineTotal: number }[];
@@ -158,7 +164,9 @@ export default function PosCheckoutPage() {
   } | null>(null);
   const [addCustomerOpen, setAddCustomerOpen] = useState(false);
   const [newCustomerName, setNewCustomerName] = useState("");
-  const [newCustomerPhone, setNewCustomerPhone] = useState("");
+  const [newCustomerDial, setNewCustomerDial] = useState(DEFAULT_DIAL_CODE);
+  const [newCustomerLocal, setNewCustomerLocal] = useState("");
+  const [newCustomerEmail, setNewCustomerEmail] = useState("");
   const [savingCustomer, setSavingCustomer] = useState(false);
   const [webSerialOk, setWebSerialOk] = useState(false);
   const [qtyKeypadLineId, setQtyKeypadLineId] = useState<string | null>(null);
@@ -173,6 +181,9 @@ export default function PosCheckoutPage() {
 
   const currency = company?.currency || "OMR";
   const companyId = company?.id;
+  const defaultDial =
+    PHONE_DIAL_CODES.find((d) => d.country === company?.country)?.code ??
+    DEFAULT_DIAL_CODE;
   const canOverridePrice = user?.role === "ADMIN" || user?.role === "MANAGER";
   const taxRate =
     company?.applyVat === false
@@ -243,18 +254,34 @@ export default function PosCheckoutPage() {
     try {
       if (typeof api.syncPosCatalog === "function") {
         const wh = warehouseId || undefined;
-        const res = await api.syncPosCatalog(wh);
-        const rows = (res.data?.products as PosProduct[]) || [];
-        const { saveCatalogCache } = await import("@/lib/pos-catalog-cache");
-        await saveCatalogCache(rows, wh);
-        setCatalogStale(false);
-        if (search.trim()) {
-          await loadCatalog(search, wh);
+        const { loadCatalogCacheMeta, saveCatalogCache, mergeCatalogDeltas, isCatalogStale } =
+          await import("@/lib/pos-catalog-cache");
+        const meta = await loadCatalogCacheMeta(wh);
+        if (meta.savedAt && !isCatalogStale(meta.savedAt) && typeof api.syncPosStock === "function") {
+          const deltaRes = await api.syncPosStock(wh, meta.savedAt);
+          const deltas = (deltaRes.data?.products as PosProduct[]) || [];
+          if (deltaRes.data?.full) {
+            await saveCatalogCache(deltas, wh);
+            setCatalog(deltas.slice(0, 80));
+          } else if (deltas.length) {
+            await mergeCatalogDeltas(deltas, wh);
+          }
+          setCatalogStale(false);
+          if (search.trim()) await loadCatalog(search, wh);
+          toast.success(t.catalogSynced);
         } else {
-          setCatalog(rows.slice(0, 80));
-          setCatalogLoaded(true);
+          const res = await api.syncPosCatalog(wh);
+          const rows = (res.data?.products as PosProduct[]) || [];
+          await saveCatalogCache(rows, wh);
+          setCatalogStale(false);
+          if (search.trim()) {
+            await loadCatalog(search, wh);
+          } else {
+            setCatalog(rows.slice(0, 80));
+            setCatalogLoaded(true);
+          }
+          toast.success(t.catalogSynced);
         }
-        toast.success(t.catalogSynced);
       } else {
         await loadCatalog(search, warehouseId || undefined);
         toast.success(t.refreshCatalog);
@@ -270,6 +297,7 @@ export default function PosCheckoutPage() {
     t.catalogSynced,
     t.catalogSyncFail,
     t.syncFail,
+    t.refreshCatalog,
     warehouseId,
   ]);
 
@@ -978,13 +1006,25 @@ export default function PosCheckoutPage() {
 
   const saveNewCustomer = async () => {
     const name = newCustomerName.trim();
+    const local = newCustomerLocal.replace(/\D/g, "").replace(/^0+/, "");
     if (!name) return;
+    if (local.length < 7) {
+      toast.error(t.phoneRequired);
+      return;
+    }
+    const phone = combinePhone(newCustomerDial || defaultDial, local);
+    if (!phone) {
+      toast.error(t.phoneRequired);
+      return;
+    }
     setSavingCustomer(true);
     try {
+      const email = newCustomerEmail.trim();
       const res = await api.createContact({
         type: "CUSTOMER",
         name,
-        phone: newCustomerPhone.trim() || undefined,
+        phone,
+        ...(email ? { email } : {}),
       });
       const created = res.data as Contact;
       const contactRes = await api.getContacts("CUSTOMER");
@@ -995,7 +1035,9 @@ export default function PosCheckoutPage() {
       setContactId(created.id);
       setAddCustomerOpen(false);
       setNewCustomerName("");
-      setNewCustomerPhone("");
+      setNewCustomerLocal("");
+      setNewCustomerEmail("");
+      setNewCustomerDial(defaultDial);
       toast.success(t.customerSaved);
       focusScan();
     } catch (err: unknown) {
@@ -1216,8 +1258,9 @@ export default function PosCheckoutPage() {
       }
 
       const res = await api.createPosSale(payload);
-      const inv = res.data as { number?: string; total?: number | string };
+      const inv = res.data as { id?: string; number?: string; total?: number | string };
       setLastInvoice({
+        id: inv.id,
         number: inv.number,
         total: Number(inv.total),
         lines: snapshot,
@@ -1483,7 +1526,10 @@ export default function PosCheckoutPage() {
             </select>
             <button
               type="button"
-              onClick={() => setAddCustomerOpen(true)}
+              onClick={() => {
+                setNewCustomerDial(defaultDial);
+                setAddCustomerOpen(true);
+              }}
               className="shrink-0 h-8 px-2 rounded-lg border border-sky-400/30 text-[11px] font-semibold text-sky-200 hover:bg-sky-500/15 inline-flex items-center gap-1"
               title={t.addCustomer}
             >
@@ -2212,6 +2258,35 @@ export default function PosCheckoutPage() {
               <button
                 type="button"
                 onClick={async () => {
+                  if (!lastInvoice.id) {
+                    toast.error(t.partnerPayOffline);
+                    return;
+                  }
+                  try {
+                    const res = await api.createPosPartnerCheckout(lastInvoice.id);
+                    const data = res.data as {
+                      checkout?: { redirectUrl?: string };
+                      checkoutUrl?: string;
+                    };
+                    const url = data?.checkout?.redirectUrl || data?.checkoutUrl;
+                    if (url) {
+                      window.open(url, "_blank", "noopener,noreferrer");
+                      toast.success(t.partnerPayOpened);
+                    } else {
+                      toast.error(t.partnerPayFail);
+                    }
+                  } catch {
+                    toast.error(t.partnerPayFail);
+                  }
+                }}
+                className="w-full min-h-10 h-10 rounded-xl border border-violet-500/30 text-sm text-violet-200 hover:bg-violet-500/10"
+                title={t.partnerPayHint}
+              >
+                {t.partnerPay}
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
                   try {
                     const { tryPrintEscPosSmart } = await import("@/lib/pos-escpos");
                     const ok = await tryPrintEscPosSmart({
@@ -2279,18 +2354,63 @@ export default function PosCheckoutPage() {
                 autoFocus
               />
             </label>
+            <div className="space-y-1">
+              <span className="text-[11px] text-slate-400">{t.customerPhone} *</span>
+              <div className="flex gap-2">
+                <label className="w-[7.5rem] shrink-0 space-y-0.5">
+                  <span className="text-[10px] text-slate-500">{t.phoneCountryCode}</span>
+                  <select
+                    value={newCustomerDial}
+                    onChange={(e) => setNewCustomerDial(e.target.value)}
+                    className="w-full h-10 rounded-xl bg-white/5 border border-white/10 px-2 text-sm text-white"
+                  >
+                    {PHONE_DIAL_CODES.map((dc) => (
+                      <option key={dc.code} value={dc.code} className="bg-[#111827]">
+                        {locale === "en" ? dc.labelEn : dc.labelAr}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex-1 space-y-0.5">
+                  <span className="text-[10px] text-slate-500">{t.phoneLocal}</span>
+                  <input
+                    value={newCustomerLocal}
+                    onChange={(e) =>
+                      setNewCustomerLocal(
+                        e.target.value.replace(/\D/g, "").replace(/^0+/, ""),
+                      )
+                    }
+                    className="w-full h-10 rounded-xl bg-white/5 border border-white/10 px-3 text-sm text-white"
+                    inputMode="numeric"
+                    placeholder="9xxxxxxx"
+                  />
+                </label>
+              </div>
+              {newCustomerLocal.length >= 7 ? (
+                <p className="text-[11px] text-sky-300/90">
+                  {t.phonePreview}: {combinePhone(newCustomerDial, newCustomerLocal)}
+                </p>
+              ) : (
+                <p className="text-[11px] text-slate-500">{t.phoneRequired}</p>
+              )}
+            </div>
             <label className="block space-y-1">
-              <span className="text-[11px] text-slate-400">{t.customerPhone}</span>
+              <span className="text-[11px] text-slate-400">{t.customerEmail}</span>
               <input
-                value={newCustomerPhone}
-                onChange={(e) => setNewCustomerPhone(e.target.value)}
+                type="email"
+                value={newCustomerEmail}
+                onChange={(e) => setNewCustomerEmail(e.target.value)}
                 className="w-full h-10 rounded-xl bg-white/5 border border-white/10 px-3 text-sm text-white"
-                inputMode="tel"
+                inputMode="email"
               />
             </label>
             <button
               type="button"
-              disabled={!newCustomerName.trim() || savingCustomer}
+              disabled={
+                !newCustomerName.trim() ||
+                newCustomerLocal.replace(/\D/g, "").length < 7 ||
+                savingCustomer
+              }
               onClick={() => void saveNewCustomer()}
               className="w-full h-11 rounded-xl bg-sky-500 text-white font-bold disabled:opacity-40 inline-flex items-center justify-center gap-2"
             >

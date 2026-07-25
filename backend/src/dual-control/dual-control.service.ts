@@ -14,7 +14,7 @@ import {
   DUAL_CONTROL_ACTIONS,
   UpdateSecurityConfigDto,
 } from './dto/approval.dto';
-import { WhatsappNotifyService } from './whatsapp-notify.service';
+import { WhatsappNotifyService } from '../notifications/whatsapp-notify.service';
 
 export type CompanySecurityConfig = {
   dualControlEnabled?: boolean;
@@ -27,6 +27,8 @@ export type CompanySecurityConfig = {
   shiftVarianceLimit?: number;
   /** When true, POS sales require an open shift (default false — opt-in) */
   requireOpenShift?: boolean;
+  /** Auto WhatsApp POS receipts to customer (default true when WA configured) */
+  autoSendPosReceipts?: boolean;
   methods?: Array<'SELF_CONFIRM' | 'PASSWORD' | 'PIN' | 'WHATSAPP_OTP' | 'NFC' | 'APPROVAL_REQUEST'>;
   actions?: DualControlActionsDto;
 };
@@ -122,6 +124,8 @@ export class DualControlService {
       nfcBadgeCount: (config.nfcBadgeHashes || []).length,
       shiftVarianceLimit,
       requireOpenShift: config.requireOpenShift === true,
+      /** Default on when WhatsApp is configured; false only when explicitly disabled */
+      autoSendPosReceipts: config.autoSendPosReceipts === false ? false : true,
       actions,
       asyncApprovals: true,
     };
@@ -812,6 +816,9 @@ export class DualControlService {
     }
     if (dto.requireOpenShift !== undefined) {
       next.requireOpenShift = !!dto.requireOpenShift;
+    }
+    if (dto.autoSendPosReceipts !== undefined) {
+      next.autoSendPosReceipts = !!dto.autoSendPosReceipts;
     }
 
     await this.prisma.company.update({

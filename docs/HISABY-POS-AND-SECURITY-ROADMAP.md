@@ -61,11 +61,15 @@ Public flags: `asyncApprovals: true`, `nfcBadgesConfigured`, `shiftVarianceLimit
 - [x] Harden WhatsApp OTP (invalidate unused prior OTPs + max 3 / 10 min)
 - [x] WhatsApp notify managers when `ApprovalRequest` is created (best-effort + audit `APPROVAL_REQUEST_NOTIFIED`)
 - [x] Today POS stats strip (`GET /pos/stats/today`) + open-shift link on checkout
-- [x] Quick create customer from POS (name + phone)
+- [x] Quick create customer from POS (name + **required phone** with dial code)
 - [x] ESC/POS cash drawer kick (`openCashDrawer` / `tryOpenCashDrawer` + optional auto after cash)
 - [x] Offline catalog cache keyed by warehouse + stale indicator (>30 min) + refresh
 - [x] Require open shift before sale (`requireOpenShift` in `security_config`, default off; ADMIN toggle)
 - [x] Share receipt via WhatsApp + mailto from last-sale card
+- [x] **Auto WhatsApp POS receipt** after payment (server, best-effort) + dispute link for customer protection
+- [x] Auto-notify customer on POS void / refund
+- [x] Public dispute form `/dispute/[code]` → `POST /api/public/documents/c/:code/dispute` (`CustomerDispute`)
+- [x] `autoSendPosReceipts` security toggle (default on when WhatsApp configured)
 - [x] Touch quantity keypad modal on cart lines
 - [x] Scan success beep (Web Audio) + mute setting
 - [x] Refund reason preset chips (AR/EN)
@@ -130,3 +134,6 @@ Public flags: `asyncApprovals: true`, `nfcBadgesConfigured`, `shiftVarianceLimit
 24. Deploy migration `20260725220000_pos_cash_movement_journal`; cash in/out posts GL (`postPosCashIn`/`postPosCashOut`, accounts 4290/5290 ↔ 1100); reason required for OUT.
 25. Checkout soft-blocks when tracked qty > on-hand; confirms when stock would fall to/below `minQuantity`.
 26. Manager today board: `GET /pos/stats/shifts-today` + «ورديات اليوم» table on `/pos/shifts` (ADMIN/MANAGER/ACCOUNTANT).
+27. Customer phone-first: dial default from `company.country`; CUSTOMER create requires E.164 phone; POS/accounting quick-add uses dial+local.
+28. Auto POS receipt WhatsApp (`CustomerNotifyService`) after sale + void/refund notify; dispute URL `/dispute/{publicVerifyCode}`; migration `20260725230000_customer_disputes`.
+29. Next: SMTP email receipts + Twilio SMS (mailto/WhatsApp manual share already exist). Deploy `customer_disputes` migration.
