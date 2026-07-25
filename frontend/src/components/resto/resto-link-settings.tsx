@@ -12,6 +12,14 @@ import { cn } from "@/lib/utils";
 
 type Variant = "resto" | "accounting";
 
+type Warehouse = {
+  id: string;
+  code: string;
+  name: string;
+  nameEn?: string | null;
+  sector?: string;
+};
+
 function errMessage(err: unknown, fallback: string) {
   const msg = (err as { response?: { data?: { message?: string | string[] } } })?.response?.data
     ?.message;
@@ -31,18 +39,30 @@ export function RestoLinkSettings({
   const t = restoCopy[locale === "en" ? "en" : "ar"];
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role === "ADMIN";
+  const canManage =
+    user?.role === "ADMIN" ||
+    user?.role === "MANAGER" ||
+    user?.role === "RESTO_MANAGER";
   const [linked, setLinked] = useState(false);
   const [prefix, setPrefix] = useState<string | null>(null);
   const [companyName, setCompanyName] = useState("");
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
   const [pasteKey, setPasteKey] = useState("");
   const [busy, setBusy] = useState(false);
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [warehouseId, setWarehouseId] = useState("");
 
   const refresh = async () => {
-    const res = await api.getRestoLinkStatus();
-    setLinked(!!res.data.linked);
-    setPrefix(res.data.keyPrefix);
-    setCompanyName(res.data.companyName);
+    const [linkRes, whRes] = await Promise.all([
+      api.getRestoLinkStatus(),
+      api.getWarehouses().catch(() => ({ data: [] as Warehouse[] })),
+    ]);
+    setLinked(!!linkRes.data.linked);
+    setPrefix(linkRes.data.keyPrefix);
+    setCompanyName(linkRes.data.companyName);
+    const list = (Array.isArray(whRes.data) ? whRes.data : []) as Warehouse[];
+    setWarehouses(list);
+    setWarehouseId(linkRes.data.warehouseId || "");
   };
 
   useEffect(() => {
@@ -59,10 +79,31 @@ export function RestoLinkSettings({
   };
 
   const activate = async () => {
+    if (!warehouseId) {
+      toast.error(t.warehouseRequired);
+      return;
+    }
     setBusy(true);
     try {
-      await api.activateRestoLink();
+      await api.activateRestoLink(warehouseId);
       toast.success(t.linked);
+      await refresh();
+    } catch (err) {
+      toastApiError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveWarehouse = async () => {
+    if (!warehouseId) {
+      toast.error(t.warehouseRequired);
+      return;
+    }
+    setBusy(true);
+    try {
+      await api.setRestoWarehouse(warehouseId);
+      toast.success(t.warehouseSaved);
       await refresh();
     } catch (err) {
       toastApiError(err);
@@ -89,7 +130,7 @@ export function RestoLinkSettings({
   const generate = async () => {
     setBusy(true);
     try {
-      const res = await api.generateRestoLinkKey();
+      const res = await api.generateRestoLinkKey(warehouseId || undefined);
       setGeneratedKey(res.data.key);
       toast.success(t.keyHint);
       await refresh();
@@ -103,7 +144,7 @@ export function RestoLinkSettings({
   const confirmKey = async () => {
     setBusy(true);
     try {
-      await api.confirmRestoLinkKey(pasteKey);
+      await api.confirmRestoLinkKey(pasteKey, warehouseId || undefined);
       toast.success(t.linked);
       setPasteKey("");
       await refresh();
@@ -136,6 +177,15 @@ export function RestoLinkSettings({
   const secondaryBtn = isAccounting
     ? "w-full h-10 rounded-lg border border-slate-600 font-semibold text-slate-200 hover:bg-slate-800 disabled:opacity-40"
     : "w-full h-10 rounded-xl border border-white/15 font-semibold hover:bg-white/5 disabled:opacity-40";
+  const selectCls = isAccounting
+    ? "w-full h-10 rounded-lg bg-slate-900 border border-slate-700 px-3 text-sm text-white"
+    : "w-full h-11 rounded-xl bg-[#1a1614] border border-white/10 px-3 text-sm";
+
+  const sectorLabel = (s?: string) => {
+    if (s === "RESTAURANT") return locale === "en" ? "Restaurant" : "مطاعم";
+    if (s === "RETAIL") return locale === "en" ? "Retail" : "تجزئة";
+    return locale === "en" ? "General" : "عام";
+  };
 
   return (
     <div className={cn("space-y-4", className)}>
@@ -170,24 +220,58 @@ export function RestoLinkSettings({
         </div>
       )}
 
-      <div className={cn(panel, linked ? statusOk : statusWarn)}>
+      <div className={cn(panel, linked && warehouseId ? statusOk : statusWarn)}>
         <p className="text-sm font-semibold">
           {linked ? t.linked : t.notLinked}
           {prefix ? (
             <span className="ms-2 font-mono text-xs opacity-70">({prefix}…)</span>
           ) : null}
         </p>
+        {linked && !warehouseId ? (
+          <p className="text-xs text-amber-200 mt-1">{t.needsWarehouse}</p>
+        ) : null}
       </div>
 
       <div className="space-y-2">
+        <label className="block space-y-1">
+          <span className="text-xs opacity-70">{t.warehouseLabel}</span>
+          <select
+            value={warehouseId}
+            onChange={(e) => setWarehouseId(e.target.value)}
+            className={selectCls}
+            disabled={!canManage && linked}
+          >
+            <option value="">{locale === "en" ? "Select warehouse…" : "اختر مخزناً…"}</option>
+            {warehouses.map((w) => (
+              <option key={w.id} value={w.id}>
+                {w.code} — {locale === "en" && w.nameEn ? w.nameEn : w.name} (
+                {sectorLabel(w.sector)})
+              </option>
+            ))}
+          </select>
+          <p className="text-[11px] opacity-60">{t.warehouseHint}</p>
+        </label>
+
         {!linked ? (
           <button type="button" disabled={busy} onClick={() => void activate()} className={btnPrimary}>
             {t.activateLink}
           </button>
         ) : (
-          <button type="button" disabled={busy} onClick={() => void deactivate()} className={secondaryBtn}>
-            {t.unlink}
-          </button>
+          <>
+            {canManage ? (
+              <button
+                type="button"
+                disabled={busy || !warehouseId}
+                onClick={() => void saveWarehouse()}
+                className={btnPrimary}
+              >
+                {t.warehouseSave}
+              </button>
+            ) : null}
+            <button type="button" disabled={busy} onClick={() => void deactivate()} className={secondaryBtn}>
+              {t.unlink}
+            </button>
+          </>
         )}
 
         {isAdmin ? (

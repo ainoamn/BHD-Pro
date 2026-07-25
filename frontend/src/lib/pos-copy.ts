@@ -57,6 +57,11 @@ export const posCopy = {
     unlinked:
       "النظامان غير مربوطين — المخزون ودفتر العناوين سجلات الشركة تبقى؛ اربطهما للمحاسبة الكاملة",
     activateLink: "ربط عبر تسجيل الدخول",
+    warehouseLabel: "مخزن الكاشير",
+    warehouseHint: "الكتالوج يعرض فقط أصناف هذا المخزن (قطاع التجزئة أو العام)",
+    warehouseSave: "حفظ المخزن",
+    warehouseRequired: "اختر مخزن الكاشير أولاً",
+    warehouseSaved: "تم ربط المخزن",
     unlinkSystems: "فصل الربط (تجربة منفصلة)",
     unlinkOk: "تم فصل المحاسبة عن الكاشير — السجلات محفوظة",
     unlinkConfirm:
@@ -421,6 +426,11 @@ export const posCopy = {
     unlinked:
       "Apps are not linked — inventory & address book stay; link for full accounting",
     activateLink: "Link via shared login",
+    warehouseLabel: "POS warehouse",
+    warehouseHint: "Catalog shows only products assigned or stocked in this warehouse",
+    warehouseSave: "Save warehouse",
+    warehouseRequired: "Select a POS warehouse first",
+    warehouseSaved: "Warehouse linked",
     unlinkSystems: "Unlink (test separately)",
     unlinkOk: "Accounting and POS unlinked — records kept",
     unlinkConfirm:
