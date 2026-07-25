@@ -1481,6 +1481,7 @@ model PosDraft {
   createdById String   @map("created_by_id")
   createdBy   User     @relation("PosDraftsCreated", fields: [createdById], references: [id])
   name        String
+  notes       String?
   warehouseId String?  @map("warehouse_id")
   contactId   String?  @map("contact_id")
   linesJson   Json     @map("lines_json") // CartLine[]

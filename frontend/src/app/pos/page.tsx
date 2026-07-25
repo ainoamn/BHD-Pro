@@ -64,6 +64,7 @@ type CartLine = {
 type ParkedCart = {
   id: string;
   name: string;
+  notes?: string;
   createdAt: string;
   warehouseId: string;
   contactId?: string;
@@ -102,7 +103,7 @@ type RecentCashSale = {
     unitPrice?: number | string;
     total: number | string;
   }[];
-  payments?: { method?: string }[];
+  payments?: { method?: string; amount?: number | string }[];
 };
 
 export default function PosCheckoutPage() {
@@ -141,6 +142,9 @@ export default function PosCheckoutPage() {
   const [receiptLookup, setReceiptLookup] = useState("");
   const [receiptLookupBusy, setReceiptLookupBusy] = useState(false);
   const [pendingCheckout, setPendingCheckout] = useState<CheckoutMethod | null>(null);
+  const [pendingSplitPayments, setPendingSplitPayments] = useState<
+    { method: CheckoutMethod; amount: number }[] | null
+  >(null);
   const [checkoutBusy, setCheckoutBusy] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [catalogStale, setCatalogStale] = useState(false);
@@ -160,6 +164,12 @@ export default function PosCheckoutPage() {
   const [qtyKeypadLineId, setQtyKeypadLineId] = useState<string | null>(null);
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [cartNotes, setCartNotes] = useState("");
+  const [tipAmount, setTipAmount] = useState(0);
+  const [tipCustom, setTipCustom] = useState("");
+  const [splitOpen, setSplitOpen] = useState(false);
+  const [splitCashAmt, setSplitCashAmt] = useState("");
+  const [splitCardAmt, setSplitCardAmt] = useState("");
 
   const currency = company?.currency || "OMR";
   const companyId = company?.id;
@@ -353,6 +363,7 @@ export default function PosCheckoutPage() {
     (d: {
       id: string;
       name: string;
+      notes?: string | null;
       warehouseId: string | null;
       contactId?: string | null;
       linesJson: unknown;
@@ -360,6 +371,7 @@ export default function PosCheckoutPage() {
     }): ParkedCart => ({
       id: d.id,
       name: d.name,
+      notes: d.notes || undefined,
       createdAt: d.createdAt,
       warehouseId: d.warehouseId || "",
       contactId: d.contactId || undefined,
@@ -487,6 +499,7 @@ export default function PosCheckoutPage() {
     try {
       await api.createPosDraft({
         name: `${t.parkName} ${parkedCarts.length + 1}`,
+        notes: cartNotes.trim() || undefined,
         warehouseId: warehouseId || undefined,
         contactId: contactId || undefined,
         lines: cart.map((l) => ({
@@ -501,6 +514,10 @@ export default function PosCheckoutPage() {
         })),
       });
       setCart([]);
+      setCartNotes("");
+      setTipAmount(0);
+      setTipCustom("");
+      setSplitOpen(false);
       await loadParkedCarts();
       toast.success(t.parkOk);
       focusScan();
@@ -538,6 +555,10 @@ export default function PosCheckoutPage() {
       /* best-effort */
     }
     setCart(lines);
+    setCartNotes(parked.notes || "");
+    setTipAmount(0);
+    setTipCustom("");
+    setSplitOpen(false);
     if (parked.warehouseId) onWarehouseChange(parked.warehouseId);
     if (parked.contactId) setContactId(parked.contactId);
     try {
@@ -565,6 +586,18 @@ export default function PosCheckoutPage() {
     if (!name || name === parked.name) return;
     try {
       await api.updatePosDraft(parked.id, { name });
+      await loadParkedCarts();
+      toast.success(t.renameParkedOk);
+    } catch {
+      toast.error(t.parkFail);
+    }
+  };
+
+  const editParkedNotes = async (parked: ParkedCart) => {
+    const next = window.prompt(t.parkNotes, parked.notes || "");
+    if (next == null) return;
+    try {
+      await api.updatePosDraft(parked.id, { notes: next.trim() });
       await loadParkedCarts();
       toast.success(t.renameParkedOk);
     } catch {
@@ -696,6 +729,10 @@ export default function PosCheckoutPage() {
     if (!cart.length) return;
     if (window.confirm(t.clearConfirm)) {
       setCart([]);
+      setCartNotes("");
+      setTipAmount(0);
+      setTipCustom("");
+      setSplitOpen(false);
       focusScan();
     }
   };
@@ -707,8 +744,37 @@ export default function PosCheckoutPage() {
     () => cart.reduce((s, l) => s + lineTotal(l), 0),
     [cart],
   );
-  const tax = useMemo(() => Number(((subtotal * taxRate) / 100).toFixed(3)), [subtotal]);
-  const total = useMemo(() => Number((subtotal + tax).toFixed(3)), [subtotal, tax]);
+  const tax = useMemo(
+    () => Number(((subtotal * taxRate) / 100).toFixed(3)),
+    [subtotal, taxRate],
+  );
+  const merchandiseTotal = useMemo(
+    () => Number((subtotal + tax).toFixed(3)),
+    [subtotal, tax],
+  );
+  const tipValue = useMemo(
+    () => Math.max(0, Number(Number(tipAmount || 0).toFixed(3))),
+    [tipAmount],
+  );
+  const total = useMemo(
+    () => Number((merchandiseTotal + tipValue).toFixed(3)),
+    [merchandiseTotal, tipValue],
+  );
+
+  const applyTipPercent = (pct: number) => {
+    const next = Number(((merchandiseTotal * pct) / 100).toFixed(3));
+    setTipAmount(next);
+    setTipCustom(String(next));
+  };
+
+  const openSplitTender = () => {
+    if (!cart.length) return;
+    const half = Number((total / 2).toFixed(3));
+    const rest = Number((total - half).toFixed(3));
+    setSplitCashAmt(String(half));
+    setSplitCardAmt(String(rest));
+    setSplitOpen(true);
+  };
 
   const printReceiptSnapshot = useCallback(
     async (receipt: ReceiptSnapshot) => {
@@ -806,10 +872,15 @@ export default function PosCheckoutPage() {
   };
 
   const reprintSale = (sale: RecentCashSale) => {
+    const payMethods = (sale.payments || [])
+      .map((p) => paymentLabel(p.method))
+      .filter(Boolean);
     printReceiptSnapshot({
       number: sale.number,
       total: Number(sale.total),
-      paymentMethod: paymentLabel(sale.payments?.[0]?.method),
+      paymentMethod: payMethods.length
+        ? payMethods.join(" + ")
+        : paymentLabel(sale.payments?.[0]?.method),
       warehouseLabel: warehouseLabel || undefined,
       lines: (sale.items || []).map((item) => ({
         name: item.description,
@@ -935,7 +1006,11 @@ export default function PosCheckoutPage() {
     }
   };
 
-  const runCheckout = async (method: CheckoutMethod, approval?: DualApprovalPayload) => {
+  const runCheckout = async (
+    method: CheckoutMethod,
+    approval?: DualApprovalPayload,
+    payments?: { method: CheckoutMethod; amount: number }[],
+  ) => {
     if (!cart.length || paying) return;
     if (requireOpenShift && !shiftOpen) {
       toast(
@@ -957,27 +1032,57 @@ export default function PosCheckoutPage() {
       setCheckoutBusy(false);
       return;
     }
-    if (method === "STORE_CREDIT") {
+    const usesStoreCredit =
+      method === "STORE_CREDIT" ||
+      !!payments?.some((p) => p.method === "STORE_CREDIT");
+    if (usesStoreCredit) {
       if (!contactId) {
         toast.error(t.storeCreditNeedCustomer);
         return;
       }
       const cust = customers.find((c) => c.id === contactId);
       const bal = Number(cust?.currentBalance ?? 0);
-      if (bal + 0.0005 < total) {
+      const creditNeed = payments
+        ? payments
+            .filter((p) => p.method === "STORE_CREDIT")
+            .reduce((sum, p) => sum + p.amount, 0)
+        : total;
+      if (bal + 0.0005 < creditNeed) {
         toast.error(t.storeCreditLow);
         return;
       }
     }
-    const snapshot = cart.map((l) => ({
-      name: l.name,
-      qty: l.quantity,
-      lineTotal: lineTotal(l),
-    }));
-    const useStoreCredit = method === "STORE_CREDIT";
+    const tipLine =
+      tipValue > 0.0005 ? [{ name: t.tip, qty: 1, lineTotal: tipValue }] : [];
+    const snapshot = [
+      ...cart.map((l) => ({
+        name: l.name,
+        qty: l.quantity,
+        lineTotal: lineTotal(l),
+      })),
+      ...tipLine,
+    ];
+    const saleNotes = cartNotes.trim()
+      ? `${cartNotes.trim()} — Hisaby POS sale`
+      : undefined;
+    const useStoreCredit = method === "STORE_CREDIT" && !payments?.length;
+    const paymentLabelJoined = payments?.length
+      ? payments
+          .map((p) => `${paymentLabel(p.method)} ${p.amount.toFixed(3)}`)
+          .join(" + ")
+      : paymentLabel(method);
     const payload = {
-      paymentMethod: useStoreCredit ? "STORE_CREDIT" : method,
+      paymentMethod: payments?.length
+        ? undefined
+        : useStoreCredit
+          ? "STORE_CREDIT"
+          : method,
+      payments: payments?.length
+        ? payments.map((p) => ({ method: p.method, amount: p.amount }))
+        : undefined,
+      tipAmount: tipValue > 0.0005 ? tipValue : undefined,
       useStoreCredit: useStoreCredit || undefined,
+      notes: saleNotes,
       warehouseId: warehouseId || undefined,
       contactId: contactId || undefined,
       approval,
@@ -992,7 +1097,7 @@ export default function PosCheckoutPage() {
     try {
       const offline = typeof navigator !== "undefined" && navigator.onLine === false;
       if (offline) {
-        if (useStoreCredit) {
+        if (usesStoreCredit || payments?.length) {
           toast.error(t.storeCreditOffline);
           return;
         }
@@ -1005,6 +1110,8 @@ export default function PosCheckoutPage() {
           payload: {
             items: payload.items,
             paymentMethod: method,
+            tipAmount: payload.tipAmount,
+            notes: saleNotes,
             warehouseId: warehouseId || undefined,
             contactId: contactId || undefined,
           },
@@ -1012,7 +1119,7 @@ export default function PosCheckoutPage() {
             number: localNumber,
             total,
             lines: snapshot,
-            paymentMethod: paymentLabel(method),
+            paymentMethod: paymentLabelJoined,
             warehouseLabel: warehouseLabel || undefined,
           },
         });
@@ -1021,10 +1128,14 @@ export default function PosCheckoutPage() {
           number: localNumber,
           total,
           lines: snapshot,
-          paymentMethod: paymentLabel(method),
+          paymentMethod: paymentLabelJoined,
           warehouseLabel: warehouseLabel || undefined,
         });
         setCart([]);
+        setCartNotes("");
+        setTipAmount(0);
+        setTipCustom("");
+        setSplitOpen(false);
         setPendingCheckout(null);
         toast.success(t.saleQueued);
         focusScan();
@@ -1037,14 +1148,20 @@ export default function PosCheckoutPage() {
         number: inv.number,
         total: Number(inv.total),
         lines: snapshot,
-        paymentMethod: paymentLabel(method),
+        paymentMethod: paymentLabelJoined,
         warehouseLabel: warehouseLabel || undefined,
       });
       setCart([]);
+      setCartNotes("");
+      setTipAmount(0);
+      setTipCustom("");
+      setSplitOpen(false);
       setPendingCheckout(null);
       toast.success(t.saleOk);
-      void maybeKickDrawer(method);
-      if (useStoreCredit) {
+      void maybeKickDrawer(
+        payments?.some((p) => p.method === "CASH") ? "CASH" : method,
+      );
+      if (usesStoreCredit) {
         try {
           const cres = await api.getContacts("CUSTOMER");
           setCustomers(
@@ -1065,7 +1182,7 @@ export default function PosCheckoutPage() {
         (err as { code?: string; message?: string }).code === "ERR_NETWORK" ||
         /network/i.test(String((err as { message?: string }).message || ""));
       if (networkFail) {
-        if (useStoreCredit) {
+        if (usesStoreCredit || payments?.length) {
           toast.error(t.storeCreditOffline);
           return;
         }
@@ -1079,6 +1196,8 @@ export default function PosCheckoutPage() {
             payload: {
               items: payload.items,
               paymentMethod: method,
+              tipAmount: payload.tipAmount,
+              notes: saleNotes,
               warehouseId: warehouseId || undefined,
               contactId: contactId || undefined,
             },
@@ -1086,7 +1205,7 @@ export default function PosCheckoutPage() {
               number: localNumber,
               total,
               lines: snapshot,
-              paymentMethod: paymentLabel(method),
+              paymentMethod: paymentLabelJoined,
               warehouseLabel: warehouseLabel || undefined,
             },
           });
@@ -1095,10 +1214,14 @@ export default function PosCheckoutPage() {
             number: localNumber,
             total,
             lines: snapshot,
-            paymentMethod: paymentLabel(method),
+            paymentMethod: paymentLabelJoined,
             warehouseLabel: warehouseLabel || undefined,
           });
           setCart([]);
+          setCartNotes("");
+          setTipAmount(0);
+          setTipCustom("");
+          setSplitOpen(false);
           setPendingCheckout(null);
           toast.success(t.saleQueued);
           focusScan();
@@ -1107,12 +1230,40 @@ export default function PosCheckoutPage() {
           /* fall through */
         }
       }
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data
+        ?.message;
       toast.error(typeof msg === "string" ? msg : t.saleFail);
     } finally {
       setPaying(false);
       setCheckoutBusy(false);
     }
+  };
+
+  const completeSplitCheckout = async () => {
+    const cash = Math.max(0, parseFloat(splitCashAmt) || 0);
+    const card = Math.max(0, parseFloat(splitCardAmt) || 0);
+    const sum = Number((cash + card).toFixed(3));
+    if (Math.abs(sum - total) > 0.005) {
+      toast.error(t.splitSumMismatch);
+      return;
+    }
+    const payments: { method: CheckoutMethod; amount: number }[] = [];
+    if (cash > 0.0005) payments.push({ method: "CASH", amount: Number(cash.toFixed(3)) });
+    if (card > 0.0005)
+      payments.push({ method: "CREDIT_CARD", amount: Number(card.toFixed(3)) });
+    if (!payments.length) {
+      toast.error(t.splitSumMismatch);
+      return;
+    }
+    const needsPriceApproval = cart.some(
+      (l) => Math.abs(l.unitPrice - (l.catalogPrice ?? l.unitPrice)) > 0.001,
+    );
+    if (needsPriceApproval) {
+      setPendingSplitPayments(payments);
+      setPendingCheckout(payments[0].method);
+      return;
+    }
+    await runCheckout(payments[0].method, undefined, payments);
   };
 
   const checkout = async (method: CheckoutMethod) => {
@@ -1624,7 +1775,18 @@ export default function PosCheckoutPage() {
                     <p className="text-[10px] text-slate-500">
                       {p.lines.length} · {new Date(p.createdAt).toLocaleTimeString()}
                     </p>
+                    {p.notes ? (
+                      <p className="text-[10px] text-amber-200/80 truncate">{p.notes}</p>
+                    ) : null}
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => void editParkedNotes(p)}
+                    className="h-7 px-2 rounded-md text-[10px] font-semibold text-slate-400 hover:bg-white/10"
+                    title={t.editParkNotes}
+                  >
+                    {t.editParkNotes}
+                  </button>
                   <button
                     type="button"
                     onClick={() => void renameParked(p)}
@@ -1762,6 +1924,16 @@ export default function PosCheckoutPage() {
         </div>
 
         <div className="border-t border-white/10 p-4 space-y-3 sticky bottom-0 z-20 bg-[#111827] lg:static shadow-[0_-8px_24px_rgba(0,0,0,0.35)] lg:shadow-none">
+          <div className="space-y-1.5">
+            <label className="text-[11px] text-slate-500">{t.parkNotes}</label>
+            <textarea
+              value={cartNotes}
+              onChange={(e) => setCartNotes(e.target.value)}
+              rows={2}
+              placeholder={t.parkNotesPlaceholder}
+              className="w-full rounded-lg bg-black/30 border border-white/10 px-2.5 py-1.5 text-xs text-white placeholder:text-slate-600 resize-none"
+            />
+          </div>
           <div className="space-y-1 text-sm">
             <div className="flex justify-between text-slate-400">
               <span>{t.subtotal}</span>
@@ -1773,11 +1945,116 @@ export default function PosCheckoutPage() {
               </span>
               <span>{formatMoney(tax, currency)}</span>
             </div>
+            <div className="pt-1 space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-slate-400 text-sm">{t.tip}</span>
+                <div className="flex items-center gap-1">
+                  {[0, 5, 10].map((pct) => (
+                    <button
+                      key={pct}
+                      type="button"
+                      disabled={!cart.length}
+                      onClick={() => applyTipPercent(pct)}
+                      className="h-7 px-2 rounded-md text-[10px] font-semibold border border-white/10 text-slate-300 hover:bg-white/10 disabled:opacity-40"
+                    >
+                      {pct === 0 ? "0" : `${pct}%`}
+                    </button>
+                  ))}
+                  <input
+                    type="number"
+                    min={0}
+                    step={0.001}
+                    value={tipCustom}
+                    disabled={!cart.length}
+                    onChange={(e) => {
+                      setTipCustom(e.target.value);
+                      setTipAmount(Math.max(0, parseFloat(e.target.value) || 0));
+                    }}
+                    placeholder={t.tipCustom}
+                    className="w-20 h-7 px-2 rounded-md bg-black/30 border border-white/10 text-xs text-end text-white disabled:opacity-40"
+                  />
+                </div>
+              </div>
+              {tipValue > 0.0005 ? (
+                <div className="flex justify-between text-slate-400">
+                  <span>{t.tip}</span>
+                  <span>{formatMoney(tipValue, currency)}</span>
+                </div>
+              ) : null}
+            </div>
             <div className="flex justify-between text-lg font-extrabold text-white pt-1">
               <span>{t.total}</span>
               <span>{formatMoney(total, currency)}</span>
             </div>
           </div>
+          {splitOpen ? (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-amber-200">{t.splitTender}</p>
+                <button
+                  type="button"
+                  className="text-[10px] text-slate-400 hover:text-white"
+                  onClick={() => setSplitOpen(false)}
+                >
+                  {t.clear}
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="text-[11px] text-slate-400 space-y-1">
+                  <span>{t.splitCash}</span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={0.001}
+                    value={splitCashAmt}
+                    onChange={(e) => {
+                      const cash = Math.max(0, parseFloat(e.target.value) || 0);
+                      setSplitCashAmt(e.target.value);
+                      setSplitCardAmt(
+                        String(Number(Math.max(0, total - cash).toFixed(3))),
+                      );
+                    }}
+                    className="w-full h-9 px-2 rounded-md bg-black/30 border border-white/10 text-sm text-end text-white"
+                  />
+                </label>
+                <label className="text-[11px] text-slate-400 space-y-1">
+                  <span>{t.splitCard}</span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={0.001}
+                    value={splitCardAmt}
+                    onChange={(e) => {
+                      const card = Math.max(0, parseFloat(e.target.value) || 0);
+                      setSplitCardAmt(e.target.value);
+                      setSplitCashAmt(
+                        String(Number(Math.max(0, total - card).toFixed(3))),
+                      );
+                    }}
+                    className="w-full h-9 px-2 rounded-md bg-black/30 border border-white/10 text-sm text-end text-white"
+                  />
+                </label>
+              </div>
+              <button
+                type="button"
+                disabled={!cart.length || paying}
+                onClick={() => void completeSplitCheckout()}
+                className="w-full min-h-11 h-11 rounded-xl bg-amber-500 text-slate-950 font-bold disabled:opacity-40 hover:bg-amber-400 text-sm"
+              >
+                {paying && <Loader2 className="w-4 h-4 animate-spin inline me-2" />}
+                {t.splitCheckout}
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              disabled={!cart.length || paying}
+              onClick={openSplitTender}
+              className="w-full min-h-9 h-9 rounded-xl border border-white/10 text-xs font-semibold text-slate-300 hover:bg-white/5 disabled:opacity-40"
+            >
+              {t.splitTender}
+            </button>
+          )}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             <button
               type="button"
@@ -2169,12 +2446,17 @@ export default function PosCheckoutPage() {
         actorRole={user?.role}
         busy={checkoutBusy || paying}
         onCancel={() => {
-          if (!checkoutBusy && !paying) setPendingCheckout(null);
+          if (!checkoutBusy && !paying) {
+            setPendingCheckout(null);
+            setPendingSplitPayments(null);
+          }
         }}
         onConfirm={async (approval) => {
           if (!pendingCheckout) return;
           setCheckoutBusy(true);
-          await runCheckout(pendingCheckout, approval);
+          const split = pendingSplitPayments;
+          setPendingSplitPayments(null);
+          await runCheckout(pendingCheckout, approval, split || undefined);
         }}
       />
 

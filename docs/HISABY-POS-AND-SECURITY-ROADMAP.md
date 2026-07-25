@@ -78,13 +78,16 @@ Public flags: `asyncApprovals: true`, `nfcBadgesConfigured`, `shiftVarianceLimit
 - [x] Cash in / cash out on open shift (`pos_cash_movements`, `POST /pos/shifts/current/cash-movements`; expected cash = opening + cash sales − cash refunds + in − out)
 - [x] Customer recent purchases strip on checkout (`GET /pos/customers/:id/recent-sales`)
 - [x] Share X/Z report via WhatsApp + email (`pos-receipt-share` text summary from `/pos/shifts`)
+- [x] Split tender (multi-payment on one sale — `payments[]` sums to total; Cash+Card UI)
+- [x] Parked cart notes (`pos_drafts.notes`, park/edit/recall → sale notes prefix)
+- [x] Tip on sale (`tipAmount` → tax-free Tip / بقشيش line; presets 0 / 5% / 10% / custom)
 
 ### Planned
 - [ ] Partner NFC tap-to-pay (gateway / wallet partners — not badge dual-control)
 - [ ] Native wrapper (Capacitor) if PWA limits hit
 - [ ] Reliable multi-vendor Web Bluetooth thermal (current BLE path is best-effort)
-- [x] Contacts store-credit wallet UI + GL-backed adjust (POST /contacts/:id/store-credit-adjust → 2130)\n- [x] Full AR GL posting for store-credit (`PaymentMethod.STORE_CREDIT` → liability **2130** ائتمان عملاء; wallet `Contact.currentBalance` kept as operational balance)
-- [ ] Split tender (multi-payment on one sale)
+- [x] Contacts store-credit wallet UI + GL-backed adjust (`POST /contacts/:id/store-credit-adjust` → 2130)
+- [x] Full AR GL posting for store-credit (`PaymentMethod.STORE_CREDIT` → liability **2130** ائتمان عملاء; wallet `Contact.currentBalance` kept as operational balance)
 
 ### Done (Wave 6)
 - [x] Full catalog sync API `GET /pos/catalog/sync` + offline IDB per warehouse
@@ -119,3 +122,4 @@ Public flags: `asyncApprovals: true`, `nfcBadgesConfigured`, `shiftVarianceLimit
 20. Customer recent sales: `GET /pos/customers/:id/recent-sales` (last 5) under POS customer select; tap to reprint.
 21. Share X/Z: WhatsApp / email buttons on `/pos/shifts` using plain-text report summary (same pattern as receipt share).
 22. Alert → invoice deep-link (`/accounting?open=`), dashboard/notifications open-alert count, journal attachments.
+23. Deploy migration `20260725210000_pos_draft_notes`; split tender + tip on `POST /pos/sales`; Z-report aggregates payment amounts by method.

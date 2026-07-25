@@ -1335,6 +1335,8 @@ class ApiClient {
   createPosSale(data: {
     items: { productId: string; quantity: number; unitPrice?: number; discount?: number }[];
     paymentMethod?: string;
+    payments?: { method: string; amount: number }[];
+    tipAmount?: number;
     useStoreCredit?: boolean;
     taxRate?: number;
     notes?: string;
@@ -1501,6 +1503,7 @@ class ApiClient {
       {
         id: string;
         name: string;
+        notes?: string | null;
         warehouseId: string | null;
         contactId: string | null;
         linesJson: unknown;
@@ -1512,6 +1515,7 @@ class ApiClient {
 
   createPosDraft(data: {
     name?: string;
+    notes?: string;
     warehouseId?: string;
     contactId?: string;
     lines: {
@@ -1532,7 +1536,7 @@ class ApiClient {
     return this.delete(`/pos/drafts/${id}`);
   }
 
-  updatePosDraft(id: string, data: { name: string }) {
+  updatePosDraft(id: string, data: { name?: string; notes?: string }) {
     return this.patch(`/pos/drafts/${id}`, data);
   }
 }

@@ -106,13 +106,13 @@ export class PosController {
 
   @Patch('drafts/:id')
   @Roles(...POS_STAFF)
-  @ApiOperation({ summary: 'Rename a parked POS cart' })
+  @ApiOperation({ summary: 'Update parked POS cart name and/or notes' })
   updateDraft(
     @CurrentUser() user: TokenPayload,
     @Param('id') id: string,
     @Body() dto: UpdatePosDraftDto,
   ) {
-    return this.pos.updateDraftName(user.companyId, id, dto);
+    return this.pos.updateDraft(user.companyId, id, dto);
   }
 
   @Delete('drafts/:id')

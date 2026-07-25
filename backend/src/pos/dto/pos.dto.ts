@@ -39,6 +39,16 @@ export class PosSaleItemDto {
   discount?: number;
 }
 
+export class PosPaymentLineDto {
+  @IsEnum(PaymentMethod)
+  method: PaymentMethod;
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.001)
+  amount: number;
+}
+
 export class CreatePosSaleDto {
   @IsArray()
   @ArrayMinSize(1)
@@ -46,9 +56,18 @@ export class CreatePosSaleDto {
   @Type(() => PosSaleItemDto)
   items: PosSaleItemDto[];
 
+  /** Single-tender backward compat when `payments` is omitted */
   @IsOptional()
   @IsEnum(PaymentMethod)
   paymentMethod?: PaymentMethod;
+
+  /** Multi-method split tender — amounts must sum to invoice total (incl. tip) */
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => PosPaymentLineDto)
+  payments?: PosPaymentLineDto[];
 
   /** @deprecated Ignored — tax always comes from company ftaConfig */
   @IsOptional()
@@ -56,6 +75,12 @@ export class CreatePosSaleDto {
   @IsNumber()
   @Min(0)
   taxRate?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  tipAmount?: number;
 
   @IsOptional()
   @IsString()
@@ -227,6 +252,11 @@ export class CreatePosDraftDto {
   name?: string;
 
   @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  notes?: string;
+
+  @IsOptional()
   @IsUUID()
   warehouseId?: string;
 
@@ -242,8 +272,14 @@ export class CreatePosDraftDto {
 }
 
 export class UpdatePosDraftDto {
+  @IsOptional()
   @IsString()
   @MinLength(1)
   @MaxLength(120)
-  name: string;
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  notes?: string;
 }

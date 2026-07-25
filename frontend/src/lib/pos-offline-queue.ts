@@ -12,6 +12,7 @@ export type PendingPosSale = {
     paymentMethod?: string;
     warehouseId?: string;
     contactId?: string;
+    tipAmount?: number;
     notes?: string;
   };
   receipt: {
