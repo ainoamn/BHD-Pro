@@ -980,6 +980,58 @@ export default function PosShiftsPage() {
           await closeMut.mutateAsync({ closingCash: pendingCloseCash, approval });
         }}
       />
+
+      {aiFindings ? (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 p-4"
+          role="dialog"
+          onClick={() => setAiFindings(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-white/10 bg-[#111827] p-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div>
+                <h3 className="text-sm font-semibold text-white">{t.aiReviewTitle}</h3>
+                <p className="text-xs text-slate-400 mt-0.5">{aiFindings.summary}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAiFindings(null)}
+                className="text-xs text-slate-400 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+            {aiFindings.findings.length ? (
+              <ul className="space-y-2 max-h-64 overflow-y-auto">
+                {aiFindings.findings.map((f, i) => (
+                  <li
+                    key={`${aiFindings.shiftId}-${i}`}
+                    className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs"
+                  >
+                    <span
+                      className={
+                        f.severity === "high"
+                          ? "text-rose-300 font-semibold"
+                          : f.severity === "medium"
+                            ? "text-amber-200 font-semibold"
+                            : "text-sky-300 font-semibold"
+                      }
+                    >
+                      {f.severity}
+                    </span>
+                    <p className="text-slate-200 mt-1">{f.message}</p>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-emerald-300">{t.aiReviewOk}</p>
+            )}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -1458,36 +1458,31 @@ export class PosService {
     return { shift, zReport };
   }
 
-  /**
-   * Rule-based shift anomaly review (no external LLM required).
-   * Returns score 0–1 plus bilingual findings.
-   */
   async analyzeShiftAnomalies(companyId: string, shiftId: string) {
-    const { shift, zReport: raw } = await this.getZReport(companyId, shiftId);
-    const z = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<
-      string,
-      unknown
-    >;
+    const shift = await this.prisma.posShift.findFirst({
+      where: { id: shiftId, companyId },
+    });
+    if (!shift) throw new NotFoundException('Shift not found');
 
-    const num = (v: unknown) => Number(v ?? 0) || 0;
-    const variance = z.variance != null ? Number(z.variance) : null;
-    const cashSales = num(z.cashSales);
-    const cashOut = num(z.cashOut);
-    const salesTotal = num(z.salesTotal);
-    const voidsCount = num(z.voidsCount ?? z.voidCount);
-    const refundsCount = num(z.refundsCount ?? z.refundCount);
-    const refundsTotal = num(z.refundsTotal ?? z.refundTotal);
-    const salesCount = num(z.salesCount);
-    const commissionCashOut = num(z.commissionCashOut);
-    const varianceStatus =
-      (z.varianceStatus as string | null | undefined) ??
-      (variance == null
-        ? null
-        : Math.abs(variance) <= 0.005
-          ? 'BALANCED'
-          : variance < 0
-            ? 'SHORT'
-            : 'OVER');
+    const z = await this.buildZReport(
+      companyId,
+      shift.id,
+      shift.openedAt,
+      shift.closedAt || new Date(),
+      Number(shift.openingFloat),
+      shift.closingCash != null ? Number(shift.closingCash) : undefined,
+    );
+
+    const variance = z.variance;
+    const cashSales = z.cashSales;
+    const cashOut = z.cashOut;
+    const salesTotal = z.salesTotal;
+    const voidsCount = z.voidsCount;
+    const refundsCount = z.refundsCount;
+    const refundsTotal = z.refundsTotal;
+    const salesCount = z.salesCount;
+    const commissionCashOut = z.commissionCashOut;
+    const varianceStatus = z.varianceStatus;
 
     const limit = await this.dualControl.getShiftVarianceLimit(companyId);
 
@@ -1552,9 +1547,10 @@ export class PosService {
     ) {
       findings.push({
         id: 'many-refunds',
-        severity: refundsCount >= 8 || refundsTotal / Math.max(salesTotal, 1) > 0.25
-          ? 'medium'
-          : 'low',
+        severity:
+          refundsCount >= 8 || refundsTotal / Math.max(salesTotal, 1) > 0.25
+            ? 'medium'
+            : 'low',
         messageAr: `استردادات كثيرة: ${refundsCount} بقيمة ${refundsTotal.toFixed(3)}`,
         messageEn: `Many refunds: ${refundsCount} totaling ${refundsTotal.toFixed(3)}`,
       });
@@ -1897,23 +1893,6 @@ export class PosService {
     cashIn = Number(cashIn.toFixed(3));
     cashOut = Number(cashOut.toFixed(3));
     commissionCashOut = Number(commissionCashOut.toFixed(3));
-
-    // Fallback: PAYOUT ledger during shift window if drawer movements missed commission
-    if (commissionCashOut <= 0) {
-      const payouts = await this.prisma.cashierCommissionLedger.findMany({
-        where: {
-          companyId,
-          type: 'PAYOUT',
-          createdAt: { gte: from, lte: to },
-        },
-        select: { amount: true },
-      });
-      if (payouts.length) {
-        commissionCashOut = Number(
-          payouts.reduce((s, p) => s + Number(p.amount), 0).toFixed(3),
-        );
-      }
-    }
 
     const expectedCash = Number(
       (openingFloat + cashSales - cashRefundsTotal + cashIn - cashOut).toFixed(3),

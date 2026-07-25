@@ -140,3 +140,21 @@ Public flags: `asyncApprovals: true`, `nfcBadgesConfigured`, `shiftVarianceLimit
 28. Customer phone-first: dial default from `company.country`; CUSTOMER create requires E.164 phone; POS/accounting quick-add uses dial+local.
 29. Auto POS receipt WhatsApp (`CustomerNotifyService`) after sale + void/refund notify; dispute URL `/dispute/{publicVerifyCode}`; migration `20260725230000_customer_disputes`.
 30. Next: Twilio SMS optional. Email receipts via Resend/SMTP when configured. Deploy `20260725240000_pos_incentives` after pull.
+
+---
+
+## Anti-tamper controls (cash & inventory)
+
+Hardening already in product (keep these intact when changing POS):
+
+| Control | Where |
+|---------|--------|
+| Dual-control on shift close when `\|variance\| > shiftVarianceLimit` | `SHIFT_CLOSE_VARIANCE` |
+| Atomic stock decrement on sale / restore on void & refund | `PosService` + product movements |
+| Commission payout → drawer `PosCashMovement` OUT (default) + GL `postPosCashOut` | `PosIncentivesService.payout` |
+| Cash in/out movements post to GL and feed expected cash | `createCashMovement` + Z formula |
+| Customer notify on void / refund (best-effort WhatsApp) | `CustomerNotifyService` |
+| Audit-friendly ledgers (commission, cash movements, dual-control requests) | Prisma tables + security config |
+| Rule-based AI shift anomaly flags (variance, voids, cash-out %, commission mismatch, refunds) | `GET /ai/shifts/:shiftId/anomalies` |
+
+Z expected cash: `opening + cash sales − cash refunds + cash in − cash out` (commission drawer payouts are cash out).

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -85,6 +86,43 @@ export default function AiAnalyticsPage() {
       return res.data as AiAnalytics;
     },
   });
+
+  const { data: recentShifts = [] } = useQuery({
+    queryKey: ["ai-pos-shifts"],
+    queryFn: async () => {
+      const res = await api.listPosShifts();
+      return ((res.data || []) as { id: string; status: string; openedAt: string; closedAt?: string | null }[])
+        .filter((s) => s.status === "CLOSED")
+        .slice(0, 5);
+    },
+  });
+
+  const [shiftReviewBusy, setShiftReviewBusy] = useState<string | null>(null);
+  const [shiftReviewLines, setShiftReviewLines] = useState<string[]>([]);
+
+  const reviewShift = async (shiftId: string) => {
+    setShiftReviewBusy(shiftId);
+    try {
+      const res = await api.getPosShiftAnomalies(shiftId);
+      const body = res.data;
+      const lines = (body.findings || []).map(
+        (f) => `${f.severity}: ${isEn ? f.messageEn : f.messageAr}`,
+      );
+      setShiftReviewLines(
+        lines.length
+          ? lines
+          : [isEn ? body.summaryEn : body.summaryAr],
+      );
+      toast.success(isEn ? body.summaryEn : body.summaryAr);
+    } catch (err) {
+      toast.error(
+        (err as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message || t("proposeFail"),
+      );
+    } finally {
+      setShiftReviewBusy(null);
+    }
+  };
 
   const proposeMutation = useMutation({
     mutationFn: () => api.proposeAiSuggestions(),
@@ -268,6 +306,59 @@ export default function AiAnalyticsPage() {
               </div>
             )}
           </GlassCard>
+
+          {recentShifts.length > 0 ? (
+            <GlassCard className="p-6">
+              <h3 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
+                <Shield className="w-5 h-5 text-violet-400" />
+                {isEn ? "POS shift anomaly review" : "مراجعة شذوذ ورديات الصندوق"}
+              </h3>
+              <p className="text-xs text-slate-500 mb-4">
+                {isEn
+                  ? "Rule-based review of recent closed shifts (variance, voids, cash-out, commission)."
+                  : "مراجعة قواعدية للورديات المغلقة الأخيرة (فارق، إلغاءات، إخراج، عمولة)."}
+              </p>
+              <ul className="space-y-2">
+                {recentShifts.map((s) => (
+                  <li
+                    key={s.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm"
+                  >
+                    <span className="text-slate-300">
+                      {new Date(s.closedAt || s.openedAt).toLocaleString()}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={shiftReviewBusy === s.id}
+                      onClick={() => void reviewShift(s.id)}
+                      className="text-xs font-semibold text-violet-300 hover:underline disabled:opacity-50"
+                    >
+                      {shiftReviewBusy === s.id
+                        ? "…"
+                        : isEn
+                          ? "Smart review"
+                          : "مراجعة ذكية"}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {shiftReviewLines.length ? (
+                <ul className="mt-3 space-y-1 text-xs text-slate-300">
+                  {shiftReviewLines.map((line, i) => (
+                    <li key={i} className="rounded bg-black/30 px-2 py-1">
+                      {line}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              <Link
+                href="/pos/shifts"
+                className="inline-flex mt-3 text-sm text-emerald-400 underline underline-offset-2"
+              >
+                {isEn ? "Open POS shifts" : "فتح ورديات الصندوق"}
+              </Link>
+            </GlassCard>
+          ) : null}
         </>
       )}
     </div>
