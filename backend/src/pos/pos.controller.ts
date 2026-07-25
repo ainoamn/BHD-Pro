@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { UserRole } from '@prisma/client';
@@ -71,5 +71,13 @@ export class PosController {
   @ApiOperation({ summary: 'Complete POS cash sale (stock reserve then invoice)' })
   sale(@CurrentUser() user: TokenPayload, @Body() dto: CreatePosSaleDto) {
     return this.pos.createSale(user.companyId, user.sub, dto);
+  }
+
+  @Post('sales/:id/void')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  @ApiOperation({ summary: 'Void POS cash sale (reverse payment + restore stock)' })
+  voidSale(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
+    return this.pos.voidSale(user.companyId, user.sub, id);
   }
 }

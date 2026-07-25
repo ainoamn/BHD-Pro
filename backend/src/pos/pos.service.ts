@@ -4,7 +4,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { createHash, randomBytes } from 'crypto';
-import { ContactType, InvoiceType, MovementType, PaymentMethod } from '@prisma/client';
+import {
+  ContactType,
+  InvoiceStatus,
+  InvoiceType,
+  MovementType,
+  PaymentMethod,
+} from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { InvoicesService } from '../invoices/invoices.service';
 import { ProductsService } from '../products/products.service';
@@ -276,6 +282,7 @@ export class PosService {
     qty: number,
     warehouseId: string,
     reference: string,
+    notes = 'POS sale rollback',
   ) {
     await this.prisma.$transaction(async (tx) => {
       await tx.warehouseStock.upsert({
@@ -297,10 +304,109 @@ export class PosService {
           quantity: qty,
           unitCost: 0,
           reference,
-          notes: 'POS sale rollback',
+          notes,
         },
       });
     });
+  }
+
+  /** Void a POS cash sale: reverse payments, restore warehouse stock, cancel invoice */
+  async voidSale(companyId: string, userId: string, invoiceId: string) {
+    const invoice = await this.invoices.findOne(companyId, invoiceId);
+
+    if (invoice.status === InvoiceStatus.CANCELLED) {
+      throw new BadRequestException('Sale already voided');
+    }
+
+    const notes = String(invoice.notes || '');
+    if (!invoice.isCash || !notes.includes('Hisaby POS')) {
+      throw new BadRequestException('Only Hisaby POS cash sales can be voided here');
+    }
+
+    await this.periods.assertOpen(companyId, new Date());
+
+    const alreadyRestored = await this.prisma.stockMovement.findFirst({
+      where: {
+        reference: `${invoice.number}-VOID`,
+        type: MovementType.IN,
+        product: { companyId },
+      },
+      select: { id: true },
+    });
+
+    const hasPaid =
+      Number(invoice.paidAmount) > 0.0005 || (invoice.payments?.length ?? 0) > 0;
+    if (hasPaid) {
+      await this.invoices.reverseAllPayments(companyId, userId, invoiceId);
+    }
+
+    if (!alreadyRestored) {
+      const outMoves = await this.prisma.stockMovement.findMany({
+        where: {
+          reference: invoice.number,
+          type: MovementType.OUT,
+          product: { companyId, isTracked: true },
+        },
+        select: {
+          productId: true,
+          warehouseId: true,
+          quantity: true,
+        },
+      });
+
+      if (outMoves.length) {
+        for (const m of outMoves) {
+          await this.releaseStockIn(
+            companyId,
+            m.productId,
+            Number(m.quantity),
+            m.warehouseId,
+            `${invoice.number}-VOID`,
+            'POS sale void',
+          );
+        }
+      } else {
+        // Fallback if movement refs were not renamed after sale
+        for (const item of invoice.items) {
+          if (!item.productId) continue;
+          const product = await this.prisma.product.findFirst({
+            where: { id: item.productId, companyId },
+          });
+          if (!product?.isTracked) continue;
+
+          let whId = product.warehouseId;
+          if (!whId) {
+            const wh = await this.prisma.warehouse.findFirst({
+              where: { companyId, isActive: true },
+              orderBy: { createdAt: 'asc' },
+            });
+            if (!wh) continue;
+            whId = wh.id;
+          }
+
+          await this.releaseStockIn(
+            companyId,
+            product.id,
+            Number(item.quantity),
+            whId,
+            `${invoice.number}-VOID`,
+            'POS sale void',
+          );
+        }
+      }
+    }
+
+    const cancelled = await this.invoices.updateStatus(
+      companyId,
+      userId,
+      invoiceId,
+      InvoiceStatus.CANCELLED,
+    );
+
+    return {
+      voided: true,
+      invoice: cancelled,
+    };
   }
 
   async createSale(companyId: string, userId: string, dto: CreatePosSaleDto) {

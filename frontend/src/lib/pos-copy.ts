@@ -67,6 +67,10 @@ export const posCopy = {
     adminOnlyKeys: "إنشاء وتأكيد المفتاح التقني متاح للمدير فقط",
     forbidden: "ليس لديك صلاحية لهذا الإجراء",
     linkFail: "فشل الربط — تحقق من الصلاحية أو المفتاح",
+    voidSale: "إلغاء",
+    voidConfirm: "إلغاء هذا البيع واسترجاع المخزون؟",
+    voidOk: "تم إلغاء البيع",
+    voidFail: "فشل إلغاء البيع",
   },
   en: {
     brand: "Hisaby POS",
@@ -134,5 +138,9 @@ export const posCopy = {
     adminOnlyKeys: "Only admins can generate or confirm the technical key",
     forbidden: "You do not have permission for this action",
     linkFail: "Link failed — check permissions or the key",
+    voidSale: "Void",
+    voidConfirm: "Void this sale and restore stock?",
+    voidOk: "Sale voided",
+    voidFail: "Could not void sale",
   },
 } as const;

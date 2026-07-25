@@ -53,6 +53,7 @@ type RecentCashSale = {
   total: number | string;
   date?: string;
   notes?: string | null;
+  status?: string;
   items?: {
     description: string;
     quantity: number | string;
@@ -103,8 +104,10 @@ export default function PosCheckoutPage() {
   const loadRecentSales = useCallback(async () => {
     try {
       const res = await api.getInvoices({ isCash: true, type: "SALES" });
-      const rows = ((res.data as RecentCashSale[]) || []).filter((inv) =>
-        String(inv.notes || "").includes("Hisaby POS"),
+      const rows = ((res.data as RecentCashSale[]) || []).filter(
+        (inv) =>
+          String(inv.notes || "").includes("Hisaby POS") &&
+          String(inv.status || "").toUpperCase() !== "CANCELLED",
       );
       setRecentSales(rows.slice(0, 5));
     } catch {
@@ -309,6 +312,21 @@ export default function PosCheckoutPage() {
     });
   };
 
+  const voidSale = async (sale: RecentCashSale) => {
+    if (!window.confirm(t.voidConfirm)) return;
+    try {
+      await api.voidPosSale(sale.id);
+      toast.success(t.voidOk);
+      setLastInvoice((prev) => (prev?.number === sale.number ? null : prev));
+      await loadRecentSales();
+      await loadCatalog(search, warehouseId || undefined);
+      focusScan();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      toast.error(typeof msg === "string" ? msg : t.voidFail);
+    }
+  };
+
   const checkout = async (method: "CASH" | "CREDIT_CARD") => {
     if (!cart.length || paying) return;
     const snapshot = cart.map((l) => ({
@@ -424,22 +442,33 @@ export default function PosCheckoutPage() {
           {recentSales.length > 0 ? (
             <div className="flex gap-2 overflow-x-auto pb-0.5">
               {recentSales.map((sale) => (
-                <button
+                <div
                   key={sale.id}
-                  type="button"
-                  onClick={() => reprintSale(sale)}
-                  className="shrink-0 rounded-xl border border-white/10 bg-black/20 hover:border-sky-400/40 hover:bg-sky-500/10 px-3 py-2 text-start transition min-w-[9.5rem]"
-                  title={t.reprint}
+                  className="shrink-0 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-start min-w-[9.5rem] space-y-1.5"
                 >
-                  <p className="text-xs font-bold text-white truncate">{sale.number}</p>
-                  <p className="text-[11px] text-sky-300 font-semibold mt-0.5">
-                    {formatMoney(Number(sale.total), currency)}
-                  </p>
-                  <p className="text-[10px] text-slate-500 mt-1 inline-flex items-center gap-1">
-                    <Printer className="w-3 h-3" />
-                    {t.reprint}
-                  </p>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => reprintSale(sale)}
+                    className="w-full text-start hover:opacity-90 transition"
+                    title={t.reprint}
+                  >
+                    <p className="text-xs font-bold text-white truncate">{sale.number}</p>
+                    <p className="text-[11px] text-sky-300 font-semibold mt-0.5">
+                      {formatMoney(Number(sale.total), currency)}
+                    </p>
+                    <p className="text-[10px] text-slate-500 mt-1 inline-flex items-center gap-1">
+                      <Printer className="w-3 h-3" />
+                      {t.reprint}
+                    </p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => voidSale(sale)}
+                    className="w-full h-7 rounded-lg border border-rose-500/30 text-[10px] font-semibold text-rose-300 hover:bg-rose-500/15 transition"
+                  >
+                    {t.voidSale}
+                  </button>
+                </div>
               ))}
             </div>
           ) : null}

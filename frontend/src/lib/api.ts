@@ -1167,6 +1167,10 @@ class ApiClient {
   }) {
     return this.post('/pos/sales', data);
   }
+
+  voidPosSale(id: string) {
+    return this.post(`/pos/sales/${id}/void`);
+  }
 }
 
 export const api = new ApiClient();
