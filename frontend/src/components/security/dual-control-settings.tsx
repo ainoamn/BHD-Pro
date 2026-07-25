@@ -16,6 +16,7 @@ type SecurityPublic = {
   actions: {
     POS_VOID: boolean;
     POS_PRICE_OVERRIDE: boolean;
+    POS_REFUND: boolean;
     STOCK_ADJUST: boolean;
     STOCK_TRANSFER: boolean;
     INVOICE_CANCEL: boolean;
@@ -26,6 +27,7 @@ type SecurityPublic = {
 const ACTION_KEYS = [
   "POS_VOID",
   "POS_PRICE_OVERRIDE",
+  "POS_REFUND",
   "STOCK_ADJUST",
   "STOCK_TRANSFER",
   "INVOICE_CANCEL",
@@ -43,6 +45,7 @@ export function DualControlSettings() {
   const [actions, setActions] = useState<SecurityPublic["actions"]>({
     POS_VOID: true,
     POS_PRICE_OVERRIDE: true,
+    POS_REFUND: true,
     STOCK_ADJUST: true,
     STOCK_TRANSFER: true,
     INVOICE_CANCEL: true,

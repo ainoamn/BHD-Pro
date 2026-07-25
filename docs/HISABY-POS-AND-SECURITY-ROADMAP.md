@@ -50,15 +50,17 @@ Public flag: `asyncApprovals: true`.
 - [x] Thermal-friendly 80mm receipt CSS
 
 ### Planned
-- [ ] WhatsApp OTP approval delivery
 - [ ] NFC badge method
-- [ ] Dedicated `CASHIER` role enum + UX
-- [ ] Shifts / cash drawer / Z-report
-- [ ] Partial refunds
+- [x] Dedicated `CASHIER` role enum + UX
+- [x] Shifts / cash drawer / Z-report
+- [x] Partial refunds (credit note + stock restore)
+- [x] WhatsApp OTP approval delivery (env-gated)
 - [ ] Full offline queue + sync
 - [ ] Real ESC/POS / raw printer bridge
 - [ ] Partner NFC tap-to-pay
 - [ ] Native wrapper (Capacitor) if PWA limits hit
+- [ ] Multi-warehouse concurrent open shifts
+- [ ] Line-qty picker UI for partial refunds
 
 ---
 

@@ -58,6 +58,7 @@
     "action": {
       "POS_VOID": "إلغاء بيع الكاشير",
       "POS_PRICE_OVERRIDE": "تجاوز سعر الكاشير",
+      "POS_REFUND": "استرداد جزئي للكاشير",
       "STOCK_ADJUST": "تعديل المخزون",
       "STOCK_TRANSFER": "تحويل المخزون",
       "INVOICE_CANCEL": "إلغاء فاتورة",
@@ -832,6 +833,7 @@
     "role_ADMIN": "مدير",
     "role_ACCOUNTANT": "محاسب",
     "role_MANAGER": "مشرف",
+    "role_CASHIER": "كاشير",
     "role_VIEWER": "مشاهد"
   },
   "erp": {

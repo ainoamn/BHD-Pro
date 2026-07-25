@@ -17,6 +17,7 @@ export const DUAL_APPROVAL_METHODS = [
   'PASSWORD',
   'PIN',
   'APPROVAL_REQUEST',
+  'WHATSAPP_OTP',
 ] as const;
 export type DualApprovalMethod = (typeof DUAL_APPROVAL_METHODS)[number];
 
@@ -45,17 +46,23 @@ export class DualApprovalDto {
   @IsOptional()
   @IsString()
   approvalRequestId?: string;
+
+  /** 6-digit code when method is WHATSAPP_OTP */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  otp?: string;
 }
 
 export const DUAL_CONTROL_ACTIONS = [
   'POS_VOID',
   'POS_PRICE_OVERRIDE',
+  'POS_REFUND',
   'STOCK_ADJUST',
   'STOCK_TRANSFER',
   'INVOICE_CANCEL',
   'PAYMENT_REVERSE',
 ] as const;
-
 export type DualControlAction = (typeof DUAL_CONTROL_ACTIONS)[number];
 
 export class DualControlActionsDto {
@@ -66,6 +73,10 @@ export class DualControlActionsDto {
   @IsOptional()
   @IsBoolean()
   POS_PRICE_OVERRIDE?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  POS_REFUND?: boolean;
 
   @IsOptional()
   @IsBoolean()
@@ -110,6 +121,11 @@ export class UpdateSecurityConfigDto {
   @IsOptional()
   @IsBoolean()
   clearSupervisorPin?: boolean;
+
+  /** E.164-ish phone numbers that receive WhatsApp OTP (digits with country code) */
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  whatsappNotifyPhones?: string[];
 }
 
 export class CreateApprovalRequestDto {
@@ -139,4 +155,10 @@ export class DecideApprovalRequestDto {
   @IsString()
   @MaxLength(500)
   note?: string;
+}
+
+export class RequestWhatsappOtpDto {
+  @ApiProperty({ enum: DUAL_CONTROL_ACTIONS })
+  @IsIn(DUAL_CONTROL_ACTIONS)
+  action: DualControlAction;
 }

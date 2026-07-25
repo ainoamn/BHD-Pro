@@ -166,8 +166,15 @@ export class InvoicesService {
     if (!dto.items?.length) throw new BadRequestException('At least one line item required');
 
     if (dto.payImmediately) {
-      if (dto.type !== InvoiceType.SALES && dto.type !== InvoiceType.PURCHASE) {
-        throw new BadRequestException('Cash payment is only allowed for sales or purchase invoices');
+      const cashTypes: InvoiceType[] = [
+        InvoiceType.SALES,
+        InvoiceType.PURCHASE,
+        InvoiceType.CREDIT_NOTE,
+      ];
+      if (!cashTypes.includes(dto.type)) {
+        throw new BadRequestException(
+          'Cash payment is only allowed for sales, purchase, or credit note invoices',
+        );
       }
     }
 

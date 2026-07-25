@@ -21,7 +21,7 @@ import { PeriodsService } from '../periods/periods.service';
 import { DualControlService } from '../dual-control/dual-control.service';
 import { DualApprovalDto } from '../dual-control/dto/approval.dto';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
-import { CreatePosSaleDto, CreatePosDraftDto } from './dto/pos.dto';
+import { CreatePosSaleDto, CreatePosDraftDto, OpenPosShiftDto, ClosePosShiftDto, RefundPosSaleDto } from './dto/pos.dto';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 
 const WALK_IN_NAME = 'POS Walk-in / نقدي';
@@ -541,7 +541,12 @@ export class PosService {
         }
       }
 
-      // 2) Create paid cash invoice
+      // 2) Create paid cash invoice (attach to this user's open shift when present)
+      const openShift = await this.prisma.posShift.findFirst({
+        where: { companyId, openedById: userId, status: 'OPEN' },
+        orderBy: { openedAt: 'desc' },
+      });
+
       const invoice = await this.invoices.create(companyId, userId, {
         type: InvoiceType.SALES,
         contactId: contact.id,
@@ -554,6 +559,17 @@ export class PosService {
         items: lineItems,
       });
       invoiceCreated = true;
+
+      if (openShift) {
+        try {
+          await this.prisma.invoice.update({
+            where: { id: invoice.id },
+            data: { posShiftId: openShift.id },
+          });
+        } catch {
+          /* non-fatal */
+        }
+      }
 
       // Post-invoice bookkeeping is best-effort — never roll back stock after a paid sale
       try {
@@ -644,5 +660,418 @@ export class PosService {
     if (!existing) throw new NotFoundException('Parked cart not found');
     await this.prisma.posDraft.delete({ where: { id } });
     return { deleted: true, id };
+  }
+
+  async getCurrentShift(companyId: string, userId: string) {
+    const shift = await this.prisma.posShift.findFirst({
+      where: { companyId, openedById: userId, status: 'OPEN' },
+      orderBy: { openedAt: 'desc' },
+      include: {
+        openedBy: { select: { id: true, name: true, email: true } },
+        warehouse: { select: { id: true, name: true, code: true } },
+      },
+    });
+    if (!shift) return { shift: null };
+    const live = await this.buildZReport(
+      companyId,
+      shift.id,
+      shift.openedAt,
+      new Date(),
+      Number(shift.openingFloat),
+    );
+    return { shift, live };
+  }
+
+  async openShift(companyId: string, userId: string, dto: OpenPosShiftDto) {
+    const existing = await this.prisma.posShift.findFirst({
+      where: { companyId, openedById: userId, status: 'OPEN' },
+    });
+    if (existing) {
+      throw new BadRequestException('You already have an open shift — close it first');
+    }
+    if (dto.warehouseId) {
+      const wh = await this.prisma.warehouse.findFirst({
+        where: { id: dto.warehouseId, companyId, isActive: true },
+      });
+      if (!wh) throw new BadRequestException('Warehouse not found');
+    }
+    const openingFloat = Number(
+      dto.openingCash != null ? dto.openingCash : dto.openingFloat ?? 0,
+    );
+    const shift = await this.prisma.posShift.create({
+      data: {
+        companyId,
+        openedById: userId,
+        warehouseId: dto.warehouseId || null,
+        openingFloat,
+        notes: dto.notes?.trim() || null,
+        status: 'OPEN',
+      },
+      include: {
+        openedBy: { select: { id: true, name: true, email: true } },
+        warehouse: { select: { id: true, name: true, code: true } },
+      },
+    });
+    return { shift };
+  }
+
+  async closeShift(companyId: string, userId: string, dto: ClosePosShiftDto) {
+    const shift = await this.prisma.posShift.findFirst({
+      where: { companyId, openedById: userId, status: 'OPEN' },
+      orderBy: { openedAt: 'desc' },
+    });
+    if (!shift) throw new BadRequestException('No open shift to close');
+
+    const closedAt = new Date();
+    const closingCash = Number(dto.closingCash);
+    const notes = dto.notes?.trim()
+      ? [shift.notes, dto.notes.trim()].filter(Boolean).join('\n')
+      : shift.notes;
+
+    const zReport = await this.buildZReport(
+      companyId,
+      shift.id,
+      shift.openedAt,
+      closedAt,
+      Number(shift.openingFloat),
+      closingCash,
+    );
+
+    const updated = await this.prisma.posShift.update({
+      where: { id: shift.id },
+      data: {
+        status: 'CLOSED',
+        closedById: userId,
+        closedAt,
+        closingCash,
+        notes,
+        zReportJson: zReport as unknown as Prisma.InputJsonValue,
+      },
+      include: {
+        openedBy: { select: { id: true, name: true, email: true } },
+        closedBy: { select: { id: true, name: true, email: true } },
+        warehouse: { select: { id: true, name: true, code: true } },
+      },
+    });
+
+    return { shift: updated, zReport };
+  }
+
+  async getZReport(companyId: string, shiftId: string) {
+    const shift = await this.prisma.posShift.findFirst({
+      where: { id: shiftId, companyId },
+      include: {
+        openedBy: { select: { id: true, name: true, email: true } },
+        closedBy: { select: { id: true, name: true, email: true } },
+        warehouse: { select: { id: true, name: true, code: true } },
+      },
+    });
+    if (!shift) throw new NotFoundException('Shift not found');
+    if (shift.zReportJson && shift.status === 'CLOSED') {
+      return { shift, zReport: shift.zReportJson };
+    }
+    const zReport = await this.buildZReport(
+      companyId,
+      shift.id,
+      shift.openedAt,
+      shift.closedAt || new Date(),
+      Number(shift.openingFloat),
+      shift.closingCash != null ? Number(shift.closingCash) : undefined,
+    );
+    return { shift, zReport };
+  }
+
+  async listShifts(companyId: string) {
+    return this.prisma.posShift.findMany({
+      where: { companyId },
+      orderBy: { openedAt: 'desc' },
+      take: 30,
+      include: {
+        openedBy: { select: { id: true, name: true } },
+        closedBy: { select: { id: true, name: true } },
+      },
+    });
+  }
+
+  private async buildZReport(
+    companyId: string,
+    shiftId: string,
+    from: Date,
+    to: Date,
+    openingFloat: number,
+    closingCash?: number,
+  ) {
+    const sales = await this.prisma.invoice.findMany({
+      where: {
+        companyId,
+        OR: [
+          { posShiftId: shiftId },
+          {
+            posShiftId: null,
+            isCash: true,
+            notes: { contains: 'Hisaby POS' },
+            createdAt: { gte: from, lte: to },
+            type: InvoiceType.SALES,
+          },
+        ],
+      },
+      include: { payments: true },
+    });
+
+    const refunds = await this.prisma.invoice.findMany({
+      where: {
+        companyId,
+        type: InvoiceType.CREDIT_NOTE,
+        OR: [
+          { posShiftId: shiftId },
+          {
+            notes: { contains: 'Hisaby POS refund' },
+            createdAt: { gte: from, lte: to },
+          },
+        ],
+      },
+    });
+
+    let salesTotal = 0;
+    let voidsTotal = 0;
+    let salesCount = 0;
+    let voidsCount = 0;
+    const byPaymentMethod: Record<string, number> = {};
+
+    for (const inv of sales) {
+      const total = Number(inv.total);
+      if (inv.status === InvoiceStatus.CANCELLED) {
+        voidsTotal += total;
+        voidsCount += 1;
+        continue;
+      }
+      salesTotal += total;
+      salesCount += 1;
+      const method = String(inv.payments?.[0]?.method || PaymentMethod.CASH);
+      byPaymentMethod[method] = (byPaymentMethod[method] || 0) + total;
+    }
+
+    const refundsTotal = refunds.reduce((s, r) => s + Number(r.total), 0);
+    const cashSales = byPaymentMethod[PaymentMethod.CASH] || 0;
+    const expectedCash = Number((openingFloat + cashSales - refundsTotal).toFixed(3));
+    const variance =
+      closingCash != null ? Number((closingCash - expectedCash).toFixed(3)) : null;
+
+    return {
+      shiftId,
+      from,
+      to,
+      openingCash: openingFloat,
+      openingFloat,
+      salesCount,
+      salesTotal: Number(salesTotal.toFixed(3)),
+      voidsCount,
+      voidsTotal: Number(voidsTotal.toFixed(3)),
+      voidCount: voidsCount,
+      voidedTotal: Number(voidsTotal.toFixed(3)),
+      refundsCount: refunds.length,
+      refundsTotal: Number(refundsTotal.toFixed(3)),
+      refundCount: refunds.length,
+      refundTotal: Number(refundsTotal.toFixed(3)),
+      byPaymentMethod: Object.fromEntries(
+        Object.entries(byPaymentMethod).map(([k, v]) => [k, Number(v.toFixed(3))]),
+      ),
+      cashSales: Number(cashSales.toFixed(3)),
+      cardSales: Number((byPaymentMethod[PaymentMethod.CREDIT_CARD] || 0).toFixed(3)),
+      bankSales: Number((byPaymentMethod[PaymentMethod.BANK_TRANSFER] || 0).toFixed(3)),
+      expectedCash,
+      closingCash: closingCash ?? null,
+      variance,
+    };
+  }
+
+  /** Partial refund: credit note + stock restore (original sale stays). */
+  async refundSale(
+    companyId: string,
+    actor: TokenPayload,
+    invoiceId: string,
+    dto: RefundPosSaleDto,
+  ) {
+    await this.dualControl.assertApproved(companyId, actor, 'POS_REFUND', dto.approval);
+
+    if (!dto.items?.length) {
+      throw new BadRequestException('Refund items are required');
+    }
+
+    const invoice = await this.invoices.findOne(companyId, invoiceId);
+    if (invoice.status === InvoiceStatus.CANCELLED) {
+      throw new BadRequestException('Cannot refund a voided sale');
+    }
+    const notes = String(invoice.notes || '');
+    if (!invoice.isCash || !notes.includes('Hisaby POS')) {
+      throw new BadRequestException('Only Hisaby POS cash sales can be refunded here');
+    }
+    if (invoice.type !== InvoiceType.SALES) {
+      throw new BadRequestException('Only sales invoices can be refunded');
+    }
+
+    await this.periods.assertOpen(companyId, new Date());
+
+    const marker = `Hisaby POS refund of ${invoice.number}`;
+    const priorRefunds = await this.prisma.invoice.findMany({
+      where: {
+        companyId,
+        type: InvoiceType.CREDIT_NOTE,
+        notes: { contains: marker },
+        status: { not: InvoiceStatus.CANCELLED },
+      },
+      include: { items: true },
+    });
+    const alreadyByProduct = new Map<string, number>();
+    for (const cn of priorRefunds) {
+      for (const item of cn.items) {
+        if (!item.productId) continue;
+        alreadyByProduct.set(
+          item.productId,
+          (alreadyByProduct.get(item.productId) || 0) + Number(item.quantity),
+        );
+      }
+    }
+
+    const soldByProduct = new Map<
+      string,
+      { quantity: number; unitPrice: number; discount: number; description: string }
+    >();
+    for (const item of invoice.items) {
+      if (!item.productId) continue;
+      const prev = soldByProduct.get(item.productId);
+      if (prev) {
+        prev.quantity += Number(item.quantity);
+      } else {
+        soldByProduct.set(item.productId, {
+          quantity: Number(item.quantity),
+          unitPrice: Number(item.unitPrice),
+          discount: Number(item.discount || 0),
+          description: item.description,
+        });
+      }
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
+    const taxRate = Number(invoice.taxRate);
+    const cnItems: {
+      productId: string;
+      description: string;
+      quantity: number;
+      unitPrice: number;
+      discount: number;
+    }[] = [];
+
+    for (const req of dto.items) {
+      const sold = soldByProduct.get(req.productId);
+      if (!sold) {
+        throw new BadRequestException(`Product not on original sale: ${req.productId}`);
+      }
+      const qty = Number(req.quantity);
+      const remaining = sold.quantity - (alreadyByProduct.get(req.productId) || 0);
+      if (qty > remaining + 0.0005) {
+        throw new BadRequestException(
+          `Refund qty ${qty} exceeds remaining ${Number(remaining.toFixed(3))} for ${sold.description}`,
+        );
+      }
+      const perUnitDiscount = sold.quantity > 0 ? sold.discount / sold.quantity : 0;
+      cnItems.push({
+        productId: req.productId,
+        description: sold.description,
+        quantity: qty,
+        unitPrice: sold.unitPrice,
+        discount: Number((perUnitDiscount * qty).toFixed(3)),
+      });
+    }
+
+    const outMoves = await this.prisma.stockMovement.findMany({
+      where: {
+        reference: invoice.number,
+        type: MovementType.OUT,
+        product: { companyId, isTracked: true },
+      },
+      select: { productId: true, warehouseId: true },
+    });
+    const warehouseByProduct = new Map(
+      outMoves.map((m) => [m.productId, m.warehouseId]),
+    );
+
+    const refundRef = `${invoice.number}-REFUND-${Date.now()}`;
+    for (const item of cnItems) {
+      const product = await this.prisma.product.findFirst({
+        where: { id: item.productId, companyId },
+      });
+      if (!product?.isTracked) continue;
+      let whId = warehouseByProduct.get(item.productId) || product.warehouseId;
+      if (!whId) {
+        const wh = await this.prisma.warehouse.findFirst({
+          where: { companyId, isActive: true },
+          orderBy: { createdAt: 'asc' },
+        });
+        if (!wh) continue;
+        whId = wh.id;
+      }
+      await this.releaseStockIn(
+        companyId,
+        product.id,
+        item.quantity,
+        whId,
+        refundRef,
+        `POS refund of ${invoice.number}`,
+      );
+    }
+
+    const reason = dto.reason?.trim();
+    const creditNote = await this.invoices.create(companyId, actor.sub, {
+      type: InvoiceType.CREDIT_NOTE,
+      contactId: invoice.contactId,
+      date: today,
+      dueDate: today,
+      taxRate,
+      notes: `${marker}${reason ? `: ${reason}` : ''}`,
+      payImmediately: true,
+      paymentMethod: PaymentMethod.CASH,
+      items: cnItems,
+    });
+
+    const openShift = await this.prisma.posShift.findFirst({
+      where: { companyId, openedById: actor.sub, status: 'OPEN' },
+      orderBy: { openedAt: 'desc' },
+    });
+
+    try {
+      await this.prisma.invoice.update({
+        where: { id: creditNote.id },
+        data: {
+          ...(openShift || invoice.posShiftId
+            ? { posShiftId: openShift?.id || invoice.posShiftId }
+            : {}),
+          customFieldsJson: {
+            refundOfInvoiceId: invoice.id,
+            refundOfNumber: invoice.number,
+          },
+        },
+      });
+    } catch {
+      /* ignore */
+    }
+
+    try {
+      await this.prisma.invoice.update({
+        where: { id: invoice.id },
+        data: {
+          notes: `${notes}\n[Refunded ${creditNote.number}]`.slice(0, 4000),
+        },
+      });
+    } catch {
+      /* ignore */
+    }
+
+    return {
+      refunded: true,
+      creditNote,
+      originalInvoiceId: invoice.id,
+      originalNumber: invoice.number,
+    };
   }
 }

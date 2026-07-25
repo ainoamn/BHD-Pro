@@ -79,6 +79,68 @@ export class VoidPosSaleDto {
   approval?: DualApprovalDto;
 }
 
+export class PosRefundItemDto {
+  @IsUUID()
+  productId: string;
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.001)
+  quantity: number;
+}
+
+export class RefundPosSaleDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => PosRefundItemDto)
+  items: PosRefundItemDto[];
+
+  @IsOptional()
+  @IsString()
+  reason?: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DualApprovalDto)
+  approval?: DualApprovalDto;
+}
+
+export class OpenPosShiftDto {
+  /** Preferred API name — maps to PosShift.openingFloat */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  openingCash?: number;
+
+  /** @deprecated Prefer openingCash */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  openingFloat?: number;
+
+  @IsOptional()
+  @IsUUID()
+  warehouseId?: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+export class ClosePosShiftDto {
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  closingCash: number;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
 export class LinkPosDto {
   @IsString()
   key: string;

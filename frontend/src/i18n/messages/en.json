@@ -58,6 +58,7 @@
     "action": {
       "POS_VOID": "POS void sale",
       "POS_PRICE_OVERRIDE": "POS price override",
+      "POS_REFUND": "POS partial refund",
       "STOCK_ADJUST": "Stock adjustment",
       "STOCK_TRANSFER": "Stock transfer",
       "INVOICE_CANCEL": "Invoice cancel",
@@ -832,6 +833,7 @@
     "role_ADMIN": "Administrator",
     "role_ACCOUNTANT": "Accountant",
     "role_MANAGER": "Manager",
+    "role_CASHIER": "Cashier",
     "role_VIEWER": "Viewer"
   },
   "erp": {

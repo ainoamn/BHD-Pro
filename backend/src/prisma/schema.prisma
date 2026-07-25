@@ -79,6 +79,8 @@ model Company {
   exchangeRates ExchangeRate[]
   posDrafts     PosDraft[]
   approvalRequests ApprovalRequest[]
+  posShifts     PosShift[]
+  dualControlOtps DualControlOtp[]
 
   @@index([vatNumber])
   @@index([crNumber])
@@ -124,6 +126,9 @@ model User {
   posDraftsCreated PosDraft[] @relation("PosDraftsCreated")
   approvalRequestsRequested ApprovalRequest[] @relation("ApprovalRequestedBy")
   approvalRequestsDecided   ApprovalRequest[] @relation("ApprovalDecidedBy")
+  posShiftsOpened PosShift[] @relation("PosShiftOpenedBy")
+  posShiftsClosed PosShift[] @relation("PosShiftClosedBy")
+  dualControlOtpsRequested DualControlOtp[] @relation("DualControlOtpRequestedBy")
 
   @@index([companyId])
   @@index([email])
@@ -692,6 +697,10 @@ model Invoice {
   createdById String   @map("created_by_id")
   createdBy   User     @relation("CreatedBy", fields: [createdById], references: [id])
 
+  /// Optional POS cash-drawer shift this sale belongs to
+  posShiftId  String?   @map("pos_shift_id")
+  posShift    PosShift? @relation(fields: [posShiftId], references: [id], onDelete: SetNull)
+
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
@@ -709,6 +718,7 @@ model Invoice {
   @@index([projectId])
   @@index([vatUuid])
   @@index([isCash])
+  @@index([posShiftId])
   @@map("invoices")
 }
 
@@ -935,6 +945,7 @@ model Warehouse {
   deliveryNotes DeliveryNote[]
   stockCounts StockCount[]
   warehouseStocks WarehouseStock[]
+  posShifts PosShift[]
 
   @@unique([companyId, code])
   @@map("warehouses")
@@ -1153,6 +1164,7 @@ enum UserRole {
   ACCOUNTANT
   VIEWER
   MANAGER
+  CASHIER
 }
 
 enum AccountType {
@@ -1462,4 +1474,50 @@ model ApprovalRequest {
 
   @@index([companyId, status])
   @@map("approval_requests")
+}
+
+/// POS cash-drawer shift (open → sell → close + Z-report).
+model PosShift {
+  id            String    @id @default(uuid())
+  companyId     String    @map("company_id")
+  company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  warehouseId   String?   @map("warehouse_id")
+  warehouse     Warehouse? @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
+  openedById    String    @map("opened_by_id")
+  openedBy      User      @relation("PosShiftOpenedBy", fields: [openedById], references: [id])
+  closedById    String?   @map("closed_by_id")
+  closedBy      User?     @relation("PosShiftClosedBy", fields: [closedById], references: [id])
+  status        String    @default("OPEN") // OPEN | CLOSED
+  openingFloat  Decimal   @default(0) @map("opening_float") @db.Decimal(14, 3)
+  closingCash   Decimal?  @map("closing_cash") @db.Decimal(14, 3)
+  notes         String?
+  zReportJson   Json?     @map("z_report_json")
+  openedAt      DateTime  @default(now()) @map("opened_at")
+  closedAt      DateTime? @map("closed_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  invoices Invoice[]
+
+  @@index([companyId, status])
+  @@index([companyId, openedAt])
+  @@map("pos_shifts")
+}
+
+/// Short-lived WhatsApp OTP for dual-control approvals.
+model DualControlOtp {
+  id            String   @id @default(uuid())
+  companyId     String   @map("company_id")
+  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  action        String
+  requestedById String   @map("requested_by_id")
+  requestedBy   User     @relation("DualControlOtpRequestedBy", fields: [requestedById], references: [id])
+  codeHash      String   @map("code_hash")
+  sentTo        String?  @map("sent_to")
+  expiresAt     DateTime @map("expires_at")
+  usedAt        DateTime? @map("used_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([companyId, action, requestedById])
+  @@map("dual_control_otps")
 }

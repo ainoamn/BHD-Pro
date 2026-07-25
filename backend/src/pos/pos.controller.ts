@@ -9,11 +9,21 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
 import { PosService } from './pos.service';
 import {
+  ClosePosShiftDto,
   CreatePosDraftDto,
   CreatePosSaleDto,
   LinkPosDto,
+  OpenPosShiftDto,
+  RefundPosSaleDto,
   VoidPosSaleDto,
 } from './dto/pos.dto';
+
+const POS_STAFF = [
+  UserRole.ADMIN,
+  UserRole.MANAGER,
+  UserRole.ACCOUNTANT,
+  UserRole.CASHIER,
+] as const;
 
 @ApiTags('POS')
 @ApiBearerAuth()
@@ -49,7 +59,7 @@ export class PosController {
   }
 
   @Get('products/lookup')
-  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
+  @Roles(...POS_STAFF)
   @ApiOperation({ summary: 'Lookup product by barcode or SKU' })
   lookup(
     @CurrentUser() user: TokenPayload,
@@ -60,7 +70,7 @@ export class PosController {
   }
 
   @Get('products/search')
-  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
+  @Roles(...POS_STAFF)
   @ApiOperation({ summary: 'Search POS catalog' })
   search(
     @CurrentUser() user: TokenPayload,
@@ -71,14 +81,14 @@ export class PosController {
   }
 
   @Get('drafts')
-  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
+  @Roles(...POS_STAFF)
   @ApiOperation({ summary: 'List POS parked carts (newest 50)' })
   listDrafts(@CurrentUser() user: TokenPayload) {
     return this.pos.listDrafts(user.companyId);
   }
 
   @Post('drafts')
-  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
+  @Roles(...POS_STAFF)
   @Throttle({ default: { limit: 60, ttl: 60000 } })
   @ApiOperation({ summary: 'Park POS cart as server-backed draft' })
   createDraft(@CurrentUser() user: TokenPayload, @Body() dto: CreatePosDraftDto) {
@@ -86,14 +96,14 @@ export class PosController {
   }
 
   @Delete('drafts/:id')
-  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
+  @Roles(...POS_STAFF)
   @ApiOperation({ summary: 'Delete a parked POS cart' })
   deleteDraft(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.pos.deleteDraft(user.companyId, id);
   }
 
   @Post('sales')
-  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
+  @Roles(...POS_STAFF)
   @Throttle({ default: { limit: 60, ttl: 60000 } })
   @ApiOperation({ summary: 'Complete POS cash sale (stock reserve then invoice)' })
   sale(@CurrentUser() user: TokenPayload, @Body() dto: CreatePosSaleDto) {
@@ -101,7 +111,7 @@ export class PosController {
   }
 
   @Post('sales/:id/void')
-  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
+  @Roles(...POS_STAFF)
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Void POS cash sale (reverse payment + restore stock)' })
   voidSale(
@@ -110,5 +120,52 @@ export class PosController {
     @Body() dto: VoidPosSaleDto,
   ) {
     return this.pos.voidSale(user.companyId, user, id, dto?.approval);
+  }
+
+  @Post('sales/:id/refund')
+  @Roles(...POS_STAFF)
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  @ApiOperation({ summary: 'Partial POS refund (credit note + stock restore)' })
+  refundSale(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+    @Body() dto: RefundPosSaleDto,
+  ) {
+    return this.pos.refundSale(user.companyId, user, id, dto);
+  }
+
+  @Get('shifts/current')
+  @Roles(...POS_STAFF)
+  @ApiOperation({ summary: 'Get open POS shift + live Z totals' })
+  currentShift(@CurrentUser() user: TokenPayload) {
+    return this.pos.getCurrentShift(user.companyId, user.sub);
+  }
+
+  @Get('shifts')
+  @Roles(...POS_STAFF)
+  @ApiOperation({ summary: 'List recent POS shifts' })
+  listShifts(@CurrentUser() user: TokenPayload) {
+    return this.pos.listShifts(user.companyId);
+  }
+
+  @Post('shifts/open')
+  @Roles(...POS_STAFF)
+  @ApiOperation({ summary: 'Open a POS cash-drawer shift' })
+  openShift(@CurrentUser() user: TokenPayload, @Body() dto: OpenPosShiftDto) {
+    return this.pos.openShift(user.companyId, user.sub, dto);
+  }
+
+  @Post('shifts/close')
+  @Roles(...POS_STAFF)
+  @ApiOperation({ summary: 'Close open POS shift and save Z-report' })
+  closeShift(@CurrentUser() user: TokenPayload, @Body() dto: ClosePosShiftDto) {
+    return this.pos.closeShift(user.companyId, user.sub, dto);
+  }
+
+  @Get('shifts/:id/z-report')
+  @Roles(...POS_STAFF)
+  @ApiOperation({ summary: 'Z-report totals for a POS shift' })
+  zReport(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
+    return this.pos.getZReport(user.companyId, id);
   }
 }

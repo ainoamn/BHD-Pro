@@ -1255,6 +1255,60 @@ class ApiClient {
     return this.post(`/pos/sales/${id}/void`, body || {});
   }
 
+  refundPosSale(
+    id: string,
+    body: {
+      items: { productId: string; quantity: number }[];
+      reason?: string;
+      approval?: DualApprovalPayload;
+    },
+  ) {
+    return this.post(`/pos/sales/${id}/refund`, body);
+  }
+
+  getCurrentPosShift() {
+    return this.get<{
+      shift: {
+        id: string;
+        status: string;
+        openingFloat: number;
+        openedAt: string;
+        openedBy?: { name: string };
+      } | null;
+      live?: Record<string, number | string | null>;
+    }>('/pos/shifts/current');
+  }
+
+  listPosShifts() {
+    return this.get('/pos/shifts');
+  }
+
+  openPosShift(data?: {
+    openingCash?: number;
+    openingFloat?: number;
+    warehouseId?: string;
+    notes?: string;
+  }) {
+    return this.post('/pos/shifts/open', data || {});
+  }
+
+  closePosShift(data: { closingCash: number; notes?: string }) {
+    return this.post<{
+      shift: { id: string; closedAt?: string; closingCash?: number | string };
+      zReport: Record<string, unknown>;
+    }>('/pos/shifts/close', data);
+  }
+
+  getPosZReport(shiftId: string) {
+    return this.get<{ shift: unknown; zReport: Record<string, unknown> }>(
+      `/pos/shifts/${shiftId}/z-report`,
+    );
+  }
+
+  requestWhatsappOtp(action: string) {
+    return this.post('/dual-control/whatsapp-otp', { action });
+  }
+
   listPosDrafts() {
     return this.get<
       {

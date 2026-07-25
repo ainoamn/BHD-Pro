@@ -74,8 +74,10 @@ type RecentCashSale = {
   notes?: string | null;
   status?: string;
   items?: {
+    productId?: string | null;
     description: string;
     quantity: number | string;
+    unitPrice?: number | string;
     total: number | string;
   }[];
   payments?: { method?: string }[];
@@ -102,6 +104,11 @@ export default function PosCheckoutPage() {
   const [contactId, setContactId] = useState("");
   const [voidTarget, setVoidTarget] = useState<RecentCashSale | null>(null);
   const [voidBusy, setVoidBusy] = useState(false);
+  const [refundTarget, setRefundTarget] = useState<RecentCashSale | null>(null);
+  const [refundQtys, setRefundQtys] = useState<Record<string, string>>({});
+  const [refundReason, setRefundReason] = useState("");
+  const [refundAwaitingApproval, setRefundAwaitingApproval] = useState(false);
+  const [refundBusy, setRefundBusy] = useState(false);
   const [pendingCheckout, setPendingCheckout] = useState<CheckoutMethod | null>(null);
   const [checkoutBusy, setCheckoutBusy] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
@@ -522,6 +529,55 @@ export default function PosCheckoutPage() {
     setVoidTarget(sale);
   };
 
+  const openRefund = (sale: RecentCashSale) => {
+    const qtys: Record<string, string> = {};
+    for (const item of sale.items || []) {
+      if (item.productId) qtys[item.productId] = "";
+    }
+    setRefundQtys(qtys);
+    setRefundReason("");
+    setRefundAwaitingApproval(false);
+    setRefundTarget(sale);
+  };
+
+  const refundItemsPayload = () => {
+    if (!refundTarget) return [];
+    return Object.entries(refundQtys)
+      .map(([productId, raw]) => ({
+        productId,
+        quantity: Number(raw),
+      }))
+      .filter((row) => row.quantity > 0.0005);
+  };
+
+  const confirmRefundSale = async (approval: DualApprovalPayload) => {
+    if (!refundTarget) return;
+    const items = refundItemsPayload();
+    if (!items.length) {
+      toast.error(t.refundSelect);
+      return;
+    }
+    setRefundBusy(true);
+    try {
+      await api.refundPosSale(refundTarget.id, {
+        items,
+        reason: refundReason.trim() || undefined,
+        approval,
+      });
+      toast.success(t.refundOk);
+      setRefundTarget(null);
+      setRefundAwaitingApproval(false);
+      await loadRecentSales();
+      await loadCatalog(search, warehouseId || undefined);
+      focusScan();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      toast.error(typeof msg === "string" ? msg : t.refundFail);
+    } finally {
+      setRefundBusy(false);
+    }
+  };
+
   const confirmVoidSale = async (approval: DualApprovalPayload) => {
     if (!voidTarget) return;
     setVoidBusy(true);
@@ -731,6 +787,13 @@ export default function PosCheckoutPage() {
                     className="w-full h-7 rounded-lg border border-rose-500/30 text-[10px] font-semibold text-rose-300 hover:bg-rose-500/15 transition"
                   >
                     {t.voidSale}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openRefund(sale)}
+                    className="w-full h-7 rounded-lg border border-amber-500/30 text-[10px] font-semibold text-amber-200 hover:bg-amber-500/15 transition"
+                  >
+                    {t.refundSale}
                   </button>
                 </div>
               ))}
@@ -1016,6 +1079,93 @@ export default function PosCheckoutPage() {
         busy={voidBusy}
         onCancel={() => !voidBusy && setVoidTarget(null)}
         onConfirm={confirmVoidSale}
+      />
+
+      {refundTarget && !refundAwaitingApproval ? (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 p-3">
+          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#121a2b] p-4 space-y-3 shadow-xl">
+            <div className="flex items-center justify-between gap-2">
+              <p className="font-bold text-white">{t.refundTitle}</p>
+              <button
+                type="button"
+                className="text-slate-400 text-sm"
+                onClick={() => setRefundTarget(null)}
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-xs text-slate-400">
+              {refundTarget.number} · {t.refundSelect}
+            </p>
+            <div className="space-y-2 max-h-56 overflow-y-auto">
+              {(refundTarget.items || [])
+                .filter((item) => item.productId)
+                .map((item) => (
+                  <div
+                    key={item.productId!}
+                    className="flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm text-white truncate">{item.description}</p>
+                      <p className="text-[11px] text-slate-500">
+                        {t.qty}: {Number(item.quantity)}
+                      </p>
+                    </div>
+                    <input
+                      type="number"
+                      min={0}
+                      max={Number(item.quantity)}
+                      step="0.001"
+                      value={refundQtys[item.productId!] ?? ""}
+                      onChange={(e) =>
+                        setRefundQtys((prev) => ({
+                          ...prev,
+                          [item.productId!]: e.target.value,
+                        }))
+                      }
+                      placeholder={t.refundQty}
+                      className="h-9 w-24 rounded-lg bg-white/5 border border-white/10 px-2 text-sm text-white"
+                    />
+                  </div>
+                ))}
+            </div>
+            <input
+              value={refundReason}
+              onChange={(e) => setRefundReason(e.target.value)}
+              placeholder={t.refundReason}
+              className="w-full h-10 rounded-xl bg-white/5 border border-white/10 px-3 text-sm text-white placeholder:text-slate-500"
+            />
+            <button
+              type="button"
+              disabled={!refundItemsPayload().length}
+              onClick={() => setRefundAwaitingApproval(true)}
+              className="w-full h-11 rounded-xl bg-amber-500 text-slate-950 font-bold disabled:opacity-40"
+            >
+              {t.refundContinue}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      <DualApprovalModal
+        open={!!refundTarget && refundAwaitingApproval}
+        action="POS_REFUND"
+        actionLabel={t.refundTitle}
+        payload={
+          refundTarget
+            ? { invoiceId: refundTarget.id, items: refundItemsPayload() }
+            : undefined
+        }
+        summary={refundTarget ? `${t.refundSale}: ${refundTarget.number}` : undefined}
+        actorRole={user?.role}
+        busy={refundBusy}
+        onCancel={() => {
+          if (!refundBusy) {
+            setRefundAwaitingApproval(false);
+            setRefundTarget(null);
+          }
+        }}
+        onConfirm={confirmRefundSale}
       />
 
       <DualApprovalModal

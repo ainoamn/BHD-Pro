@@ -9,17 +9,19 @@ import { useLocaleStore } from "@/store/locale";
 export type DualControlAction =
   | "POS_VOID"
   | "POS_PRICE_OVERRIDE"
+  | "POS_REFUND"
   | "STOCK_ADJUST"
   | "STOCK_TRANSFER"
   | "INVOICE_CANCEL"
   | "PAYMENT_REVERSE";
 
 export type DualApprovalPayload = {
-  method: "SELF_CONFIRM" | "PASSWORD" | "PIN" | "APPROVAL_REQUEST";
+  method: "SELF_CONFIRM" | "PASSWORD" | "PIN" | "APPROVAL_REQUEST" | "WHATSAPP_OTP";
   email?: string;
   password?: string;
   pin?: string;
   approvalRequestId?: string;
+  otp?: string;
 };
 
 type ActorRole = string | undefined;
@@ -47,9 +49,14 @@ const copy = {
     tabPassword: "كلمة مرور المشرف",
     tabPin: "رمز PIN",
     tabOnline: "طلب موافقة أونلاين",
+    tabWhatsapp: "واتساب OTP",
     email: "بريد المشرف",
     password: "كلمة المرور",
     pin: "رمز المشرف (4–8 أرقام)",
+    otp: "رمز واتساب (6 أرقام)",
+    sendOtp: "إرسال الرمز",
+    otpSent: "تم إرسال الرمز عبر واتساب",
+    otpFail: "تعذر إرسال رمز واتساب",
     submit: "تأكيد الموافقة",
     waiting: "بانتظار موافقة المدير…",
     waitingHint: "اطلب من المدير فتح قائمة الموافقات والموافقة خلال 15 دقيقة",
@@ -67,9 +74,14 @@ const copy = {
     tabPassword: "Supervisor password",
     tabPin: "PIN",
     tabOnline: "Request online approval",
+    tabWhatsapp: "WhatsApp OTP",
     email: "Supervisor email",
     password: "Password",
     pin: "Supervisor PIN (4–8 digits)",
+    otp: "WhatsApp code (6 digits)",
+    sendOtp: "Send code",
+    otpSent: "Code sent via WhatsApp",
+    otpFail: "Could not send WhatsApp code",
     submit: "Confirm approval",
     waiting: "Waiting for manager approval…",
     waitingHint: "Ask a manager to open Approvals and decide within 15 minutes",
@@ -102,10 +114,12 @@ export function DualApprovalModal({
   const approver = isApprover(actorRole);
 
   const [checked, setChecked] = useState(false);
-  const [mode, setMode] = useState<"PASSWORD" | "PIN" | "ONLINE">("PASSWORD");
+  const [mode, setMode] = useState<"PASSWORD" | "PIN" | "ONLINE" | "WHATSAPP">("PASSWORD");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [pin, setPin] = useState("");
+  const [otp, setOtp] = useState("");
+  const [otpBusy, setOtpBusy] = useState(false);
   const [waitMode, setWaitMode] = useState<WaitMode>("idle");
   const [requestId, setRequestId] = useState<string | null>(null);
   const [requestBusy, setRequestBusy] = useState(false);
@@ -118,6 +132,8 @@ export function DualApprovalModal({
       setEmail("");
       setPassword("");
       setPin("");
+      setOtp("");
+      setOtpBusy(false);
       setWaitMode("idle");
       setRequestId(null);
       setRequestBusy(false);
@@ -208,7 +224,24 @@ export function DualApprovalModal({
       });
       return;
     }
+    if (mode === "WHATSAPP") {
+      await onConfirm({ method: "WHATSAPP_OTP", otp: otp.trim() });
+      return;
+    }
     await onConfirm({ method: "PIN", pin: pin.trim() });
+  };
+
+  const sendWhatsappOtp = async () => {
+    if (!action || otpBusy) return;
+    setOtpBusy(true);
+    try {
+      await api.requestWhatsappOtp(action);
+      toast.success(t.otpSent);
+    } catch {
+      toast.error(t.otpFail);
+    } finally {
+      setOtpBusy(false);
+    }
   };
 
   const showOnline = !!action;
@@ -353,6 +386,19 @@ export function DualApprovalModal({
                     {t.tabOnline}
                   </button>
                 ) : null}
+                {showOnline ? (
+                  <button
+                    type="button"
+                    onClick={() => setMode("WHATSAPP")}
+                    className={`flex-1 px-2 py-2 text-[11px] font-semibold ${
+                      mode === "WHATSAPP"
+                        ? "bg-sky-500/20 text-sky-200"
+                        : "text-slate-400 hover:bg-white/5"
+                    }`}
+                  >
+                    {t.tabWhatsapp}
+                  </button>
+                ) : null}
               </div>
 
               {mode === "PASSWORD" ? (
@@ -390,6 +436,28 @@ export function DualApprovalModal({
                     className="w-full h-10 px-3 rounded-lg bg-black/30 border border-white/10 text-sm text-white tracking-widest"
                   />
                 </div>
+              ) : mode === "WHATSAPP" ? (
+                <div className="space-y-3">
+                  <button
+                    type="button"
+                    disabled={otpBusy || !action}
+                    onClick={sendWhatsappOtp}
+                    className="w-full h-10 rounded-lg border border-emerald-500/30 text-sm text-emerald-200 hover:bg-emerald-500/10 disabled:opacity-50"
+                  >
+                    {otpBusy ? "…" : t.sendOtp}
+                  </button>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">{t.otp}</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={6}
+                      value={otp}
+                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      className="w-full h-10 px-3 rounded-lg bg-black/30 border border-white/10 text-sm text-white tracking-widest"
+                    />
+                  </div>
+                </div>
               ) : (
                 <p className="text-xs text-slate-400">{t.waitingHint}</p>
               )}
@@ -407,11 +475,14 @@ export function DualApprovalModal({
                   disabled={
                     busy ||
                     requestBusy ||
+                    otpBusy ||
                     (mode === "PASSWORD"
                       ? !email.trim() || !password
                       : mode === "PIN"
                         ? pin.length < 4
-                        : !action)
+                        : mode === "WHATSAPP"
+                          ? otp.length !== 6
+                          : !action)
                   }
                   onClick={submitOther}
                   className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-amber-500 text-slate-950 disabled:opacity-50"

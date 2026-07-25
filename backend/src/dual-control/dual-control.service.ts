@@ -14,11 +14,13 @@ import {
   DUAL_CONTROL_ACTIONS,
   UpdateSecurityConfigDto,
 } from './dto/approval.dto';
+import { WhatsappNotifyService } from './whatsapp-notify.service';
 
 export type CompanySecurityConfig = {
   dualControlEnabled?: boolean;
   supervisorPinHash?: string | null;
-  /** Enabled methods. OTP / NFC reserved for a later phase. */
+  /** Phones (E.164 digits) that receive WhatsApp OTP codes */
+  whatsappNotifyPhones?: string[];
   methods?: Array<'SELF_CONFIRM' | 'PASSWORD' | 'PIN' | 'WHATSAPP_OTP' | 'NFC' | 'APPROVAL_REQUEST'>;
   actions?: DualControlActionsDto;
 };
@@ -30,7 +32,8 @@ export type DualControlActor = {
 };
 
 const APPROVER_ROLES: UserRole[] = [UserRole.ADMIN, UserRole.MANAGER];
-const DEFAULT_METHODS = ['SELF_CONFIRM', 'PASSWORD', 'PIN'] as const;
+const DEFAULT_METHODS = ['SELF_CONFIRM', 'PASSWORD', 'PIN', 'APPROVAL_REQUEST'] as const;
+const OTP_TTL_MS = 10 * 60 * 1000;
 const APPROVAL_TTL_MS = 15 * 60 * 1000;
 const APPROVAL_STATUSES = {
   PENDING: 'PENDING',
@@ -42,7 +45,10 @@ const APPROVAL_STATUSES = {
 
 @Injectable()
 export class DualControlService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private whatsapp: WhatsappNotifyService,
+  ) {}
 
   private parseConfig(raw: Prisma.JsonValue | null | undefined): CompanySecurityConfig {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
@@ -72,17 +78,26 @@ export class DualControlService {
     const actions = {
       POS_VOID: config.actions?.POS_VOID !== false,
       POS_PRICE_OVERRIDE: config.actions?.POS_PRICE_OVERRIDE !== false,
+      POS_REFUND: config.actions?.POS_REFUND !== false,
       STOCK_ADJUST: config.actions?.STOCK_ADJUST !== false,
       STOCK_TRANSFER: config.actions?.STOCK_TRANSFER !== false,
       INVOICE_CANCEL: config.actions?.INVOICE_CANCEL !== false,
       PAYMENT_REVERSE: config.actions?.PAYMENT_REVERSE !== false,
     };
+    const whatsappReady = this.whatsapp.isConfigured();
     return {
       dualControlEnabled,
       hasSupervisorPin: !!config.supervisorPinHash,
-      methods: [...DEFAULT_METHODS, 'APPROVAL_REQUEST'] as const,
-      /** Future: WhatsApp OTP, NFC badge — not implemented in this MVP. */
-      futureMethods: ['WHATSAPP_OTP', 'NFC'] as const,
+      methods: whatsappReady
+        ? ([...DEFAULT_METHODS, 'WHATSAPP_OTP'] as const)
+        : ([...DEFAULT_METHODS] as const),
+      futureMethods: whatsappReady
+        ? (['NFC'] as const)
+        : (['WHATSAPP_OTP', 'NFC'] as const),
+      whatsappConfigured: whatsappReady,
+      whatsappNotifyPhones: (config.whatsappNotifyPhones || []).map((p) =>
+        String(p).replace(/\d(?=\d{4})/g, '*'),
+      ),
       actions,
       asyncApprovals: true,
     };
@@ -480,7 +495,106 @@ export class DualControlService {
       return { approverId: actor.sub, method: 'PIN' };
     }
 
+    if (approval.method === 'WHATSAPP_OTP') {
+      const otp = approval.otp?.trim();
+      if (!otp || !/^\d{6}$/.test(otp)) {
+        throw new BadRequestException('Valid 6-digit WhatsApp OTP is required');
+      }
+      const row = await this.prisma.dualControlOtp.findFirst({
+        where: {
+          companyId,
+          action,
+          requestedById: actor.sub,
+          usedAt: null,
+          expiresAt: { gt: new Date() },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (!row) {
+        throw new ForbiddenException('WhatsApp OTP expired or not requested');
+      }
+      const ok = await bcrypt.compare(otp, row.codeHash);
+      if (!ok) {
+        throw new ForbiddenException('Invalid WhatsApp OTP');
+      }
+      await this.prisma.dualControlOtp.update({
+        where: { id: row.id },
+        data: { usedAt: new Date() },
+      });
+      return { approverId: actor.sub, method: 'WHATSAPP_OTP' };
+    }
+
     throw new BadRequestException('Unsupported approval method');
+  }
+
+  /** Send a 6-digit OTP to configured manager WhatsApp numbers. */
+  async requestWhatsappOtp(
+    companyId: string,
+    actor: DualControlActor,
+    action: DualControlAction,
+  ) {
+    this.assertKnownAction(action);
+    if (!this.whatsapp.isConfigured()) {
+      throw new BadRequestException(
+        'WhatsApp OTP is not configured (set WHATSAPP_TOKEN and WHATSAPP_PHONE_NUMBER_ID)',
+      );
+    }
+
+    const config = await this.loadConfig(companyId);
+    const phones = (config.whatsappNotifyPhones || [])
+      .map((p) => String(p).replace(/[^\d]/g, ''))
+      .filter((p) => p.length >= 8);
+
+    let targets = phones;
+    if (!targets.length) {
+      const company = await this.prisma.company.findUnique({
+        where: { id: companyId },
+        select: { phone: true },
+      });
+      const fallback = company?.phone?.replace(/[^\d]/g, '') || '';
+      if (fallback.length >= 8) targets = [fallback];
+    }
+    if (!targets.length) {
+      throw new BadRequestException(
+        'No WhatsApp notify phones configured (security settings or company phone)',
+      );
+    }
+
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const codeHash = await bcrypt.hash(code, 10);
+    const expiresAt = new Date(Date.now() + OTP_TTL_MS);
+
+    await this.prisma.dualControlOtp.create({
+      data: {
+        companyId,
+        action,
+        requestedById: actor.sub,
+        codeHash,
+        sentTo: targets[0],
+        expiresAt,
+      },
+    });
+
+    const body = `Hisaby dual-control OTP: ${code}\nAction: ${action}\nValid 10 minutes.`;
+    const results = await Promise.all(targets.map((to) => this.whatsapp.sendText(to, body)));
+    const anyOk = results.some((r) => r.ok);
+    if (!anyOk) {
+      throw new BadRequestException(results[0]?.error || 'Failed to send WhatsApp OTP');
+    }
+
+    await this.writeAudit({
+      companyId,
+      userId: actor.sub,
+      action: 'WHATSAPP_OTP_SENT',
+      success: true,
+      details: { dualAction: action, targets: targets.length },
+    });
+
+    return {
+      sent: true,
+      expiresAt,
+      maskedTo: targets.map((p) => p.replace(/\d(?=\d{4})/g, '*')),
+    };
   }
 
   async setSupervisorPin(companyId: string, pin: string, actorAdminId: string) {
@@ -530,6 +644,11 @@ export class DualControlService {
     }
     if (dto.supervisorPin) {
       next.supervisorPinHash = await bcrypt.hash(dto.supervisorPin, 12);
+    }
+    if (dto.whatsappNotifyPhones !== undefined) {
+      next.whatsappNotifyPhones = dto.whatsappNotifyPhones
+        .map((p) => String(p).replace(/[^\d]/g, ''))
+        .filter((p) => p.length >= 8);
     }
 
     await this.prisma.company.update({

@@ -10,6 +10,7 @@ import { DualControlService } from './dual-control.service';
 import {
   CreateApprovalRequestDto,
   DecideApprovalRequestDto,
+  RequestWhatsappOtpDto,
 } from './dto/approval.dto';
 
 @ApiTags('Dual control')
@@ -18,6 +19,19 @@ import {
 @Controller('dual-control')
 export class DualControlController {
   constructor(private dualControl: DualControlService) {}
+
+  @Post('whatsapp-otp')
+  @ApiOperation({ summary: 'Send WhatsApp OTP for a dual-control action' })
+  requestWhatsappOtp(
+    @CurrentUser() user: TokenPayload,
+    @Body() dto: RequestWhatsappOtpDto,
+  ) {
+    return this.dualControl.requestWhatsappOtp(
+      user.companyId,
+      { sub: user.sub, role: user.role, email: user.email },
+      dto.action,
+    );
+  }
 
   @Post('requests')
   @ApiOperation({ summary: 'Create async approval request (any staff)' })

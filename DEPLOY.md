@@ -66,6 +66,9 @@ Migration الحماية المزدوجة (maker-checker): `20260725150000_compa
 Migration طلبات الموافقة الأونلاين: `20260725160000_approval_requests`  
 (تنشئ جدول `approval_requests` للموافقة غير المتزامنة من المدير خلال 15 دقيقة — consumable token عبر `APPROVAL_REQUEST`).
 
+Migration دور الكاشير + الورديات + OTP: `20260725170000_cashier_shifts_otp`  
+(تضيف `CASHIER` إلى `UserRole`، جدول `pos_shifts`، عمود `invoices.pos_shift_id`، وجدول `dual_control_otps`).
+
 **Dual control:** عند تفعيل الحماية (الافتراضي عند غياب الإعداد)، تتطلب إجراءات مثل إلغاء بيع الكاشير، تجاوز السعر، تعديل/تحويل المخزون، إلغاء فاتورة، وعكس الدفعات موافقة:
 - `SELF_CONFIRM` للمدير/ADMIN
 - أو `PASSWORD` لمشرف آخر في نفس الشركة

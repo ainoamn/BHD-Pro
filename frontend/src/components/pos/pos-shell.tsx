@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Calculator, Link2, Link2Off, LogOut, Package, Settings2, ShieldCheck } from "lucide-react";
+import { Calculator, Clock3, Link2, Link2Off, LogOut, Package, Settings2, ShieldCheck } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
@@ -112,6 +112,14 @@ export function PosShell({ children }: { children: React.ReactNode }) {
             >
               <Package className="w-4 h-4" />
               <span className="hidden sm:inline">{t.inventory}</span>
+            </Link>
+            <Link
+              href="/pos/shifts"
+              className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-sky-200/90 hover:bg-sky-500/10"
+              title={t.shifts}
+            >
+              <Clock3 className="w-4 h-4" />
+              <span className="hidden sm:inline">{t.shifts}</span>
             </Link>
             {canSeeApprovals ? (
               <Link
