@@ -328,11 +328,18 @@ export default function PosShiftsPage() {
       setClosingCash("");
       setApprovalOpen(false);
       setPendingCloseCash(null);
-      const payload = res.data as { zReport?: ZReport; shift?: { id?: string } };
+      const payload = res.data as {
+        zReport?: ZReport;
+        shift?: { id?: string };
+        zEmail?: { sent?: number; skipped?: boolean };
+      };
       const z = payload?.zReport || null;
       setLastZ(z);
       setLastClosedShiftId(payload?.shift?.id || null);
       if (z) printShiftReport(t, z, "Z", company?.name);
+      if (payload?.zEmail && !payload.zEmail.skipped && (payload.zEmail.sent || 0) > 0) {
+        toast.success(t.zEmailSent);
+      }
       qc.invalidateQueries({ queryKey: ["pos-shift-current"] });
       qc.invalidateQueries({ queryKey: ["pos-shifts"] });
     },

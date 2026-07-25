@@ -145,6 +145,7 @@ export function DualControlSettings() {
     cashOutApprovalLimit: Number(cashOutLimit) || 0,
     requireOpenShift,
     autoSendPosReceipts,
+    autoEmailZReportOnClose,
   });
 
   if (isLoading) {
@@ -256,6 +257,51 @@ export function DualControlSettings() {
               onChange={(e) => setAutoSendPosReceipts(e.target.checked)}
             />
           </label>
+
+          <label className="flex items-center justify-between gap-4 text-sm text-slate-200">
+            <span>
+              <span className="block">{t("autoEmailZReportOnClose")}</span>
+              <span className="block text-[11px] text-slate-500 mt-0.5 font-normal">
+                {t("autoEmailZReportOnCloseHint")}
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              checked={autoEmailZReportOnClose}
+              disabled={!isAdmin || saveMutation.isPending}
+              onChange={(e) => setAutoEmailZReportOnClose(e.target.checked)}
+            />
+          </label>
+
+          <div className="space-y-2">
+            <p className="text-sm text-slate-300">{t("zReportNotifyEmails")}</p>
+            <p className="text-[11px] text-slate-500">{t("zReportNotifyEmailsHint")}</p>
+            <textarea
+              value={zReportEmails}
+              onChange={(e) => setZReportEmails(e.target.value)}
+              placeholder={t("zReportNotifyEmailsPlaceholder")}
+              rows={2}
+              disabled={!isAdmin || saveMutation.isPending}
+              className="w-full px-3 py-2 rounded-lg bg-slate-900/60 border border-white/10 text-sm text-white disabled:opacity-50"
+            />
+            <button
+              type="button"
+              disabled={!isAdmin || saveMutation.isPending}
+              onClick={() => {
+                const emails = zReportEmails
+                  .split(/[\s,;]+/)
+                  .map((e) => e.trim().toLowerCase())
+                  .filter((e) => e.includes("@"));
+                saveMutation.mutate({
+                  ...baseBody(),
+                  zReportNotifyEmails: emails,
+                });
+              }}
+              className="h-10 px-4 rounded-lg bg-sky-700 text-white text-sm font-semibold disabled:opacity-50"
+            >
+              {t("saveZReportEmails")}
+            </button>
+          </div>
 
           <p className="text-sm text-slate-300">
             {data?.hasSupervisorPin ? t("pinSet") : t("pinUnset")}
