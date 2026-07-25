@@ -90,6 +90,25 @@ export class PosService {
     };
   }
 
+  /** Disconnect Accounting ↔ POS so each app can be tested independently */
+  async deactivateLink(companyId: string) {
+    const company = await this.prisma.company.update({
+      where: { id: companyId },
+      data: {
+        posLinkedAt: null,
+        posIntegrationKeyHash: null,
+        posIntegrationKeyPrefix: null,
+      },
+      select: { id: true, name: true, posLinkedAt: true },
+    });
+    return {
+      linked: false,
+      companyId: company.id,
+      companyName: company.name,
+      linkedAt: null,
+    };
+  }
+
   async generateIntegrationKey(companyId: string) {
     const secret = `hpos_${randomBytes(24).toString('hex')}`;
     const prefix = secret.slice(0, 12);
@@ -1070,15 +1089,6 @@ export class PosService {
         }
       } catch {
         /* keep TEMP */
-      }
-
-      try {
-        await this.prisma.company.updateMany({
-          where: { id: companyId, posLinkedAt: null },
-          data: { posLinkedAt: new Date() },
-        });
-      } catch {
-        /* ignore */
       }
 
       if (contact.name !== WALK_IN_NAME && contact.phone) {

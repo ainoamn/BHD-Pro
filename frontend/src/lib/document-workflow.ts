@@ -4,8 +4,8 @@ export function documentWorkflowActiveStep(
   status: string,
   paymentStatus?: string
 ): number {
+  if (status === "CANCELLED") return -1;
   if (docType === "QUOTATION") {
-    if (status === "CANCELLED") return -1;
     if (status === "DRAFT") return 0;
     if (["SENT", "VIEWED", "OVERDUE"].includes(status)) return 1;
     return 2;

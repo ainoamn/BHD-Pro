@@ -28,11 +28,6 @@ export default function PosLoginPage() {
       if (!isAuthenticated) await api.restoreSession();
       if (cancelled) return;
       if (useAuthStore.getState().isAuthenticated) {
-        try {
-          await api.activatePosLink();
-        } catch {
-          /* optional */
-        }
         router.replace("/pos");
         return;
       }
@@ -44,11 +39,6 @@ export default function PosLoginPage() {
   }, [isAuthenticated, router]);
 
   const finish = async () => {
-    try {
-      await api.activatePosLink();
-    } catch {
-      /* optional */
-    }
     toast.success(t.signIn);
     router.replace("/pos");
   };

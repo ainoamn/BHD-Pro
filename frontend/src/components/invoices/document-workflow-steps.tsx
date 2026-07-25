@@ -46,7 +46,22 @@ export function DocumentWorkflowSteps({
           ]
         : null;
 
-  if (!steps || current < 0) return null;
+  if (!steps) return null;
+
+  if (current < 0) {
+    return (
+      <div
+        className={cn(
+          onPaper
+            ? "mt-2.5 inline-flex items-center rounded-md border-2 border-rose-600 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-700"
+            : "inline-flex items-center rounded-full border border-rose-500/40 bg-rose-500/10 px-2.5 py-1 text-xs font-bold text-rose-300",
+          className,
+        )}
+      >
+        {t("cancelledBanner")}
+      </div>
+    );
+  }
 
   if (onPaper) {
     return (

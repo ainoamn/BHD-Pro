@@ -138,7 +138,11 @@ export class BankTransferDto {
 
 export class WarehouseDto {
   @ApiProperty() @IsString() code: string;
-  @ApiProperty() @IsString() name: string;
+  @ApiProperty({ description: 'Arabic / primary name' }) @IsString() name: string;
+  @ApiPropertyOptional({ description: 'English name' })
+  @IsOptional()
+  @IsString()
+  nameEn?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() address?: string;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
 }

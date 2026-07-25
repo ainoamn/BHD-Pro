@@ -1349,6 +1349,10 @@ class ApiClient {
     return this.post('/pos/link/activate');
   }
 
+  deactivatePosLink() {
+    return this.post('/pos/link/deactivate');
+  }
+
   generatePosLinkKey() {
     return this.post<{ key: string; prefix: string; linked: boolean; warning: string }>(
       '/pos/link/generate',

@@ -125,16 +125,6 @@ export function Topbar() {
         <Link
           href="/pos"
           title={locale === "en" ? "Switch to POS" : "التبديل إلى الكاشير"}
-          onClick={async () => {
-            try {
-              const res = await api.getPosLinkStatus();
-              if (!res.data.linked) {
-                await api.activatePosLink();
-              }
-            } catch {
-              /* POS shell will show link status */
-            }
-          }}
           className="inline-flex items-center gap-1.5 h-9 px-2.5 sm:px-3 rounded-lg bg-sky-500/10 border border-sky-500/20 text-sky-700 dark:text-sky-300 hover:bg-sky-500/20 text-xs font-bold transition-all shrink-0"
         >
           <Store className="w-4 h-4" />

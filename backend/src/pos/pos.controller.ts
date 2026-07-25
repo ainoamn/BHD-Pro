@@ -156,6 +156,13 @@ export class PosController {
     return this.pos.activateLink(user.companyId);
   }
 
+  @Post('link/deactivate')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @ApiOperation({ summary: 'Unlink POS from Accounting (test systems separately)' })
+  deactivate(@CurrentUser() user: TokenPayload) {
+    return this.pos.deactivateLink(user.companyId);
+  }
+
   @Post('link/generate')
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Generate technical integration key (ADMIN, shown once)' })

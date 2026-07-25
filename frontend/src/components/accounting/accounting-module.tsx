@@ -953,15 +953,18 @@ export function AccountingModule() {
     const isReceipt = variant === "receipt";
     const isQuotation = inv.type === "QUOTATION";
     const isCreditNote = inv.type === "CREDIT_NOTE";
-    const docTitle = isReceipt
-      ? t("receiptDoc")
-      : isQuotation
-        ? t("quotationDoc")
-        : isCreditNote
-          ? t("creditNoteDoc")
-          : inv.type === "SALES"
-            ? t("salesInvoice")
-            : t("purchaseInvoice");
+    const isCancelled = inv.status === "CANCELLED";
+    const docTitle = isCancelled
+      ? t("cancelledInvoice")
+      : isReceipt
+        ? t("receiptDoc")
+        : isQuotation
+          ? t("quotationDoc")
+          : isCreditNote
+            ? t("creditNoteDoc")
+            : inv.type === "SALES"
+              ? t("salesInvoice")
+              : t("purchaseInvoice");
     return {
       docTitle,
       number: t("number"),
@@ -996,6 +999,8 @@ export function AccountingModule() {
       signatureCustomer: t("signatureCustomer"),
       verifyQrTitle: t("verifyQrTitle"),
       verifyQrHint: t("verifyQrHint"),
+      cancelledBanner: t("cancelledBanner"),
+      cancelledNote: t("cancelledNote"),
     };
   };
 

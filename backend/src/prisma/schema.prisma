@@ -980,6 +980,7 @@ model Warehouse {
   company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   name        String
+  nameEn      String?  @map("name_en")
   code        String
   address     String?
   isActive    Boolean  @default(true) @map("is_active")

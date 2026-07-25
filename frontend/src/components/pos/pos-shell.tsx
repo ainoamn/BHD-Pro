@@ -99,10 +99,6 @@ export function PosShell({ children }: { children: React.ReactNode }) {
       try {
         const res = await api.getPosLinkStatus();
         if (!cancelled) setLinked(!!res.data.linked);
-        if (!res.data.linked) {
-          await api.activatePosLink();
-          if (!cancelled) setLinked(true);
-        }
       } catch {
         if (!cancelled) setLinked(false);
       }
@@ -134,9 +130,6 @@ export function PosShell({ children }: { children: React.ReactNode }) {
   };
 
   const goAccounting = () => {
-    if (linked === false) {
-      toast.error(t.unlinked);
-    }
     router.push("/dashboard");
   };
 

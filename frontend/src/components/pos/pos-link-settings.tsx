@@ -71,6 +71,21 @@ export function PosLinkSettings({
     }
   };
 
+  const deactivate = async () => {
+    if (!window.confirm(t.unlinkConfirm)) return;
+    setBusy(true);
+    try {
+      await api.deactivatePosLink();
+      setGeneratedKey(null);
+      toast.success(t.unlinkOk);
+      await refresh();
+    } catch (err) {
+      toast.error(errMessage(err, t.unlinkFail));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const generate = async () => {
     setBusy(true);
     try {
@@ -158,9 +173,24 @@ export function PosLinkSettings({
       </div>
 
       <div className={panel}>
-        <button type="button" disabled={busy} onClick={activate} className={btnPrimary}>
-          {t.activateLink}
-        </button>
+        {linked ? (
+          <button
+            type="button"
+            disabled={busy || (!isAdmin && user?.role !== "MANAGER")}
+            onClick={deactivate}
+            className={
+              isAccounting
+                ? "w-full h-10 rounded-lg border border-rose-500/40 bg-rose-500/10 font-semibold text-rose-200 hover:bg-rose-500/20 disabled:opacity-50"
+                : "w-full h-11 rounded-xl border border-rose-500/40 bg-rose-500/10 font-bold text-rose-200 hover:bg-rose-500/20 disabled:opacity-50"
+            }
+          >
+            {t.unlinkSystems}
+          </button>
+        ) : (
+          <button type="button" disabled={busy} onClick={activate} className={btnPrimary}>
+            {t.activateLink}
+          </button>
+        )}
 
         {isAdmin ? (
           <>

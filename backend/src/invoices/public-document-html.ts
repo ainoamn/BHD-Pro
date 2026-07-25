@@ -28,8 +28,8 @@ function workflowActiveStep(
   status: string,
   paymentStatus?: string,
 ): number {
+  if (status === 'CANCELLED') return -1;
   if (docType === 'QUOTATION') {
-    if (status === 'CANCELLED') return -1;
     if (status === 'DRAFT') return 0;
     if (['SENT', 'VIEWED', 'OVERDUE'].includes(status)) return 1;
     return 2;
@@ -137,16 +137,21 @@ export function renderPublicDocumentHtml(payload: PublicDocPayload): string {
   const color = (company.documentColor || '#059669').toUpperCase();
   const currency = (invoice.currency || company.currency || 'OMR').toUpperCase();
   const isSales = ['SALES', 'QUOTATION', 'CREDIT_NOTE'].includes(invoice.type);
-  const docTitle = isReceipt
-    ? 'إيصال سداد'
-    : invoice.type === 'QUOTATION'
-      ? 'عرض سعر'
-      : invoice.type === 'CREDIT_NOTE'
-        ? 'إشعار دائن'
-        : 'فاتورة';
+  const isCancelled = invoice.status === 'CANCELLED';
+  const docTitle = isCancelled
+    ? 'فاتورة ملغاة'
+    : isReceipt
+      ? 'إيصال سداد'
+      : invoice.type === 'QUOTATION'
+        ? 'عرض سعر'
+        : invoice.type === 'CREDIT_NOTE'
+          ? 'إشعار دائن'
+          : 'فاتورة';
 
   const workflowHtml =
-    !isReceipt && (invoice.type === 'SALES' || invoice.type === 'QUOTATION')
+    !isReceipt &&
+    !isCancelled &&
+    (invoice.type === 'SALES' || invoice.type === 'QUOTATION')
       ? buildWorkflowHtml(
           invoice.type,
           invoice.status,
@@ -154,6 +159,13 @@ export function renderPublicDocumentHtml(payload: PublicDocPayload): string {
           color,
         )
       : '';
+
+  const cancelledBanner = isCancelled
+    ? `<div style="margin-bottom:12px;padding:10px 12px;border:2px solid #dc2626;background:#fef2f2;border-radius:8px;text-align:center;">
+        <p style="font-size:16px;font-weight:800;color:#b91c1c;letter-spacing:0.02em;">ملغاة / CANCELLED</p>
+        <p style="font-size:11px;color:#991b1b;margin-top:4px;">هذه الفاتورة ملغاة وليست مستحقة للسداد</p>
+      </div>`
+    : '';
 
   const companyMeta = [
     [company.address, company.city].filter(Boolean).join('، '),
@@ -238,6 +250,7 @@ export function renderPublicDocumentHtml(payload: PublicDocPayload): string {
           </div>`
         : ''
     }
+    ${cancelledBanner}
     <div class="header">
       <div style="display:flex;gap:12px;align-items:flex-start;min-width:0;flex:1;">
         ${

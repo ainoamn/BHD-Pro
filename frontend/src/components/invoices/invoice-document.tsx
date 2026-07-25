@@ -190,6 +190,7 @@ export function InvoiceDocument({
   const isCustomerDoc = ["SALES", "QUOTATION", "CREDIT_NOTE"].includes(invoice.type);
 
   const documentTypeLabel = () => {
+    if (invoice.status === "CANCELLED") return t("cancelledInvoice");
     if (isReceipt) return t("receiptDoc");
     if (isQuotation) return t("quotationDoc");
     if (isCreditNote) return t("creditNoteDoc");
@@ -242,6 +243,8 @@ export function InvoiceDocument({
     workflowQuoteDraft: t("workflowQuoteDraft"),
     workflowQuoteSent: t("workflowQuoteSent"),
     workflowQuoteInvoice: t("workflowQuoteInvoice"),
+    cancelledBanner: t("cancelledBanner"),
+    cancelledNote: t("cancelledNote"),
   };
 
   const handlePrint = () => {
@@ -484,7 +487,14 @@ export function InvoiceDocument({
                 <div className="company text-base sm:text-lg font-bold leading-tight" style={{ color: docColorDark }}>
                   {company?.name || "BHD Pro"}
                 </div>
-                {!isReceipt && (invoice.type === "SALES" || invoice.type === "QUOTATION") && (
+                {!isReceipt && invoice.status === "CANCELLED" && (
+                  <div className="mt-2.5 inline-flex items-center rounded-md border-2 border-rose-600 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-700">
+                    {t("cancelledBanner")}
+                  </div>
+                )}
+                {!isReceipt &&
+                  invoice.status !== "CANCELLED" &&
+                  (invoice.type === "SALES" || invoice.type === "QUOTATION") && (
                   <DocumentWorkflowSteps
                     docType={invoice.type}
                     status={invoice.status}

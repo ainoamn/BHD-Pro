@@ -88,6 +88,7 @@ export class ErpService {
         companyId,
         code: dto.code.trim(),
         name: dto.name.trim(),
+        nameEn: dto.nameEn?.trim() || null,
         address: dto.address?.trim() || null,
         isActive: dto.isActive ?? true,
       },
@@ -101,6 +102,7 @@ export class ErpService {
       data: {
         ...(dto.code !== undefined && { code: dto.code.trim() }),
         ...(dto.name !== undefined && { name: dto.name.trim() }),
+        ...(dto.nameEn !== undefined && { nameEn: dto.nameEn?.trim() || null }),
         ...(dto.address !== undefined && { address: dto.address?.trim() || null }),
         ...(dto.isActive !== undefined && { isActive: dto.isActive }),
       },

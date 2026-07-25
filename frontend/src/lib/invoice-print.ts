@@ -69,6 +69,8 @@ interface PrintOptions {
     workflowQuoteDraft?: string;
     workflowQuoteSent?: string;
     workflowQuoteInvoice?: string;
+    cancelledBanner?: string;
+    cancelledNote?: string;
   };
 }
 
@@ -187,7 +189,7 @@ function buildBodyHtml(
   ].filter(Boolean);
 
   const workflowHtml =
-    isReceipt
+    isReceipt || invoice.status === "CANCELLED"
       ? ""
       : invoice.type === "SALES"
         ? buildWorkflowStepsHtml(
@@ -216,6 +218,14 @@ function buildBodyHtml(
             )
           : "";
 
+  const cancelledBanner =
+    invoice.status === "CANCELLED"
+      ? `<div style="margin-bottom:12px;padding:10px 12px;border:2px solid #dc2626;background:#fef2f2;border-radius:8px;text-align:center;">
+          <p style="font-size:16px;font-weight:800;color:#b91c1c;">${L.cancelledBanner || "ملغاة / CANCELLED"}</p>
+          <p style="font-size:11px;color:#991b1b;margin-top:4px;">${L.cancelledNote || "هذه الفاتورة ملغاة وليست مستحقة للسداد"}</p>
+        </div>`
+      : "";
+
   const logoSrc = (company?.logo || "").trim();
   const logoHtml = logoSrc
     ? `<img class="company-logo" src="${escapeAttr(logoSrc)}" alt="" crossorigin="anonymous" style="max-height:64px;max-width:160px;object-fit:contain;display:block;" />`
@@ -226,6 +236,7 @@ function buildBodyHtml(
       <p style="font-size:13px;font-weight:bold;color:${docDark};">${L.receiptDoc}</p>
       <p style="font-size:11px;color:${docColor};">${L.receiptPaidNote}</p>
     </div>` : ""}
+    ${cancelledBanner}
     <div class="header" style="border-bottom-color:${docColor};">
       <div style="display:flex;align-items:flex-start;gap:12px;min-width:0;flex:1;">
         ${logoHtml}
@@ -238,7 +249,7 @@ function buildBodyHtml(
         </div>
       </div>
       <div class="meta" style="font-size:12px;color:#334155;">
-        <p style="font-size:15px;font-weight:bold;color:#0f172a;margin-bottom:6px;">${L.docTitle}</p>
+        <p style="font-size:15px;font-weight:bold;color:${invoice.status === "CANCELLED" ? "#b91c1c" : "#0f172a"};margin-bottom:6px;">${L.docTitle}</p>
         <p><strong>${L.number}:</strong> ${invoice.number}</p>
         <p><strong>${L.date}:</strong> ${formatDate(invoice.date)}</p>
         ${!isReceipt ? `<p><strong>${L.dueDate}:</strong> ${formatDate(invoice.dueDate)}</p>` : ""}

@@ -18,7 +18,12 @@ export default function WarehousesPage() {
       remove={(id) => api.deleteWarehouse(id)}
       columns={[
         { key: "code", label: t("code") },
-        { key: "name", label: t("name") },
+        { key: "name", label: t("nameAr") },
+        {
+          key: "nameEn",
+          label: t("nameEn"),
+          render: (r) => (r as { nameEn?: string | null }).nameEn || "—",
+        },
         {
           key: "address",
           label: t("location"),
@@ -33,7 +38,8 @@ export default function WarehousesPage() {
       ]}
       fields={[
         { key: "code", label: t("code"), required: true },
-        { key: "name", label: t("name"), required: true },
+        { key: "name", label: t("nameAr"), required: true, placeholder: t("nameArPlaceholder") },
+        { key: "nameEn", label: t("nameEn"), required: true, placeholder: t("nameEnPlaceholder") },
         { key: "address", label: t("location") },
       ]}
     />
