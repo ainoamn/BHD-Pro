@@ -520,7 +520,12 @@
     "warehouse": "المستودع",
     "adjusted": "تم تعديل المخزون",
     "warehousesLink": "المستودعات",
-    "stockCountsLink": "عمليات الجرد"
+    "stockCountsLink": "عمليات الجرد",
+    "transfer": "تحويل",
+    "transferStock": "تحويل المخزون",
+    "fromWarehouse": "من المستودع",
+    "toWarehouse": "إلى المستودع",
+    "transferred": "تم تحويل المخزون"
   },
   "contacts": {
     "title": "دفتر العناوين",

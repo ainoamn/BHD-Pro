@@ -520,7 +520,12 @@
     "warehouse": "Warehouse",
     "adjusted": "Stock adjusted",
     "warehousesLink": "Warehouses",
-    "stockCountsLink": "Stock counts"
+    "stockCountsLink": "Stock counts",
+    "transfer": "Transfer",
+    "transferStock": "Transfer stock",
+    "fromWarehouse": "From warehouse",
+    "toWarehouse": "To warehouse",
+    "transferred": "Stock transferred"
   },
   "contacts": {
     "title": "Address Book",

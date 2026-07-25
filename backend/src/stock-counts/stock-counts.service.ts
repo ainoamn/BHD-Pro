@@ -106,6 +106,20 @@ export class StockCountsService {
         })
       : [];
 
+    const stockByProduct = new Map<string, number>();
+    if (products.length) {
+      const stocks = await this.prisma.warehouseStock.findMany({
+        where: {
+          warehouseId,
+          productId: { in: products.map((p) => p.id) },
+        },
+        select: { productId: true, quantity: true },
+      });
+      for (const row of stocks) {
+        stockByProduct.set(row.productId, Number(row.quantity));
+      }
+    }
+
     return this.prisma.stockCount.create({
       data: {
         companyId,
@@ -116,11 +130,14 @@ export class StockCountsService {
         status: StockCountStatus.DRAFT,
         createdById: userId,
         lines: {
-          create: products.map((p) => ({
-            productId: p.id,
-            systemQty: Number(p.quantity),
-            countedQty: Number(p.quantity),
-          })),
+          create: products.map((p) => {
+            const qty = stockByProduct.get(p.id) ?? 0;
+            return {
+              productId: p.id,
+              systemQty: qty,
+              countedQty: qty,
+            };
+          }),
         },
       },
       include: {
@@ -175,6 +192,34 @@ export class StockCountsService {
         });
         if (!product || !product.isTracked) continue;
 
+        await tx.warehouseStock.upsert({
+          where: {
+            productId_warehouseId: {
+              productId: product.id,
+              warehouseId,
+            },
+          },
+          create: {
+            productId: product.id,
+            warehouseId,
+            quantity: counted,
+          },
+          update: { quantity: counted },
+        });
+
+        const agg = await tx.warehouseStock.aggregate({
+          where: { productId: product.id },
+          _sum: { quantity: true },
+        });
+
+        await tx.product.update({
+          where: { id: product.id },
+          data: {
+            quantity: agg._sum.quantity ?? 0,
+            warehouseId: product.warehouseId || warehouseId,
+          },
+        });
+
         await tx.stockMovement.create({
           data: {
             productId: product.id,
@@ -184,14 +229,6 @@ export class StockCountsService {
             unitCost: Number(product.costPrice),
             reference: count.number,
             notes: `Stock count ${count.number}: ${system} → ${counted}`,
-          },
-        });
-
-        await tx.product.update({
-          where: { id: product.id },
-          data: {
-            quantity: counted,
-            warehouseId: product.warehouseId || warehouseId,
           },
         });
       }

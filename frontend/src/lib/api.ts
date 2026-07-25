@@ -588,6 +588,10 @@ class ApiClient {
     return this.post(`/products/${id}/adjust`, data);
   }
 
+  transferProductStock(id: string, data: unknown) {
+    return this.post(`/products/${id}/transfer`, data);
+  }
+
   getProductMovements(id: string) {
     return this.get(`/products/${id}/movements`);
   }

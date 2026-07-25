@@ -13,6 +13,7 @@ import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { AdjustStockDto } from './dto/adjust-stock.dto';
+import { TransferStockDto } from './dto/transfer-stock.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
@@ -58,6 +59,16 @@ export class ProductsController {
     @Body() dto: AdjustStockDto,
   ) {
     return this.productsService.adjustStock(user.companyId, id, dto);
+  }
+
+  @Post(':id/transfer')
+  @ApiOperation({ summary: 'Transfer product stock between warehouses' })
+  transfer(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+    @Body() dto: TransferStockDto,
+  ) {
+    return this.productsService.transferStock(user.companyId, id, dto);
   }
 
   @Put(':id')

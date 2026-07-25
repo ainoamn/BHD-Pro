@@ -28,6 +28,7 @@ type CartLine = {
   sku: string;
   unitPrice: number;
   quantity: number;
+  discount: number;
   stock: number;
   isTracked: boolean;
 };
@@ -208,6 +209,7 @@ export default function PosCheckoutPage() {
             sku: p.sku,
             unitPrice,
             quantity: qty,
+            discount: 0,
             stock,
             isTracked: p.isTracked,
           },
@@ -242,8 +244,11 @@ export default function PosCheckoutPage() {
     }
   };
 
+  const lineTotal = (l: CartLine) =>
+    Math.max(0, Number((l.unitPrice * l.quantity - (l.discount || 0)).toFixed(3)));
+
   const subtotal = useMemo(
-    () => cart.reduce((s, l) => s + l.unitPrice * l.quantity, 0),
+    () => cart.reduce((s, l) => s + lineTotal(l), 0),
     [cart],
   );
   const tax = useMemo(() => Number(((subtotal * taxRate) / 100).toFixed(3)), [subtotal]);
@@ -309,7 +314,7 @@ export default function PosCheckoutPage() {
     const snapshot = cart.map((l) => ({
       name: l.name,
       qty: l.quantity,
-      lineTotal: Number((l.unitPrice * l.quantity).toFixed(3)),
+      lineTotal: lineTotal(l),
     }));
     setPaying(true);
     try {
@@ -320,6 +325,7 @@ export default function PosCheckoutPage() {
           productId: l.productId,
           quantity: l.quantity,
           unitPrice: l.unitPrice,
+          discount: l.discount || 0,
         })),
       });
       const inv = res.data as { number?: string; total?: number | string };
@@ -510,7 +516,7 @@ export default function PosCheckoutPage() {
                   <p className="text-[11px] text-slate-500">{l.sku}</p>
                 </div>
                 <p className="text-sm font-bold text-sky-300 shrink-0">
-                  {formatMoney(l.unitPrice * l.quantity, currency)}
+                  {formatMoney(lineTotal(l), currency)}
                 </p>
               </div>
               <div className="mt-2 flex items-center justify-between">
@@ -556,6 +562,24 @@ export default function PosCheckoutPage() {
                 <span className="text-xs text-slate-500">
                   {t.price} {formatMoney(l.unitPrice, currency)}
                 </span>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-2">
+                <label className="text-[11px] text-slate-500 shrink-0">{t.discount}</label>
+                <input
+                  type="number"
+                  min={0}
+                  step={0.001}
+                  value={l.discount || 0}
+                  onChange={(e) => {
+                    const next = Math.max(0, parseFloat(e.target.value) || 0);
+                    setCart((prev) =>
+                      prev.map((x) =>
+                        x.productId === l.productId ? { ...x, discount: next } : x,
+                      ),
+                    );
+                  }}
+                  className="w-24 h-8 px-2 rounded-md bg-black/30 border border-white/10 text-sm text-end text-white"
+                />
               </div>
             </div>
           ))}

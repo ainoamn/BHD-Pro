@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { AdjustStockDto, StockAdjustMode } from './dto/adjust-stock.dto';
+import { TransferStockDto } from './dto/transfer-stock.dto';
 import { MovementType, Prisma } from '@prisma/client';
 import { PeriodsService } from '../periods/periods.service';
 
@@ -297,6 +298,119 @@ export class ProductsService {
       });
 
       return this.syncProductQuantity(tx, id, warehouseId!);
+    });
+  }
+
+  async transferStock(companyId: string, productId: string, dto: TransferStockDto) {
+    await this.periods.assertOpen(companyId, new Date());
+
+    const product = await this.findOne(companyId, productId);
+    if (!product.isTracked) {
+      throw new BadRequestException('Product is not stock-tracked');
+    }
+
+    if (dto.fromWarehouseId === dto.toWarehouseId) {
+      throw new BadRequestException('Source and destination warehouses must differ');
+    }
+
+    const qty = Number(dto.quantity);
+    const warehouses = await this.prisma.warehouse.findMany({
+      where: {
+        companyId,
+        id: { in: [dto.fromWarehouseId, dto.toWarehouseId] },
+      },
+    });
+    const fromWh = warehouses.find((w) => w.id === dto.fromWarehouseId);
+    const toWh = warehouses.find((w) => w.id === dto.toWarehouseId);
+    if (!fromWh || !toWh) {
+      throw new BadRequestException('Warehouse not found');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.warehouseStock.upsert({
+        where: {
+          productId_warehouseId: {
+            productId,
+            warehouseId: dto.fromWarehouseId,
+          },
+        },
+        create: {
+          productId,
+          warehouseId: dto.fromWarehouseId,
+          quantity: 0,
+        },
+        update: {},
+      });
+      await tx.warehouseStock.upsert({
+        where: {
+          productId_warehouseId: {
+            productId,
+            warehouseId: dto.toWarehouseId,
+          },
+        },
+        create: {
+          productId,
+          warehouseId: dto.toWarehouseId,
+          quantity: 0,
+        },
+        update: {},
+      });
+
+      const decremented = await tx.warehouseStock.updateMany({
+        where: {
+          productId,
+          warehouseId: dto.fromWarehouseId,
+          quantity: { gte: qty },
+        },
+        data: { quantity: { decrement: qty } },
+      });
+      if (decremented.count === 0) {
+        throw new BadRequestException('Insufficient stock');
+      }
+
+      await tx.warehouseStock.update({
+        where: {
+          productId_warehouseId: {
+            productId,
+            warehouseId: dto.toWarehouseId,
+          },
+        },
+        data: { quantity: { increment: qty } },
+      });
+
+      const userNotes = dto.notes?.trim();
+      await tx.stockMovement.create({
+        data: {
+          productId,
+          warehouseId: dto.fromWarehouseId,
+          type: MovementType.TRANSFER,
+          quantity: qty,
+          unitCost: Number(product.costPrice),
+          reference: dto.reference || null,
+          notes: userNotes
+            ? `Transfer → ${toWh.code}: ${userNotes}`
+            : `Transfer → ${toWh.code}`,
+        },
+      });
+      await tx.stockMovement.create({
+        data: {
+          productId,
+          warehouseId: dto.toWarehouseId,
+          type: MovementType.TRANSFER,
+          quantity: qty,
+          unitCost: Number(product.costPrice),
+          reference: dto.reference || null,
+          notes: userNotes
+            ? `Transfer ← ${fromWh.code}: ${userNotes}`
+            : `Transfer ← ${fromWh.code}`,
+        },
+      });
+
+      return tx.product.update({
+        where: { id: productId },
+        data: { warehouseId: dto.toWarehouseId },
+        include: warehouseStockInclude,
+      });
     });
   }
 

@@ -57,6 +57,8 @@ Migration ذات الصلة: `20260723183000_pos_link_and_product_uniques`
 Migration مخزون المستودعات: `20260723190000_warehouse_stocks`  
 (تنشئ `warehouse_stocks` وتملأ الكميات الحالية لكل منتج من `products.quantity`).
 
+عمليات الجرد أصبحت واعية بالمستودع (`WarehouseStock`) وواجهة التحويل بين المستودعات متاحة عبر `POST /products/:id/transfer` — لا حاجة لـ migration جديدة.
+
 **قبل النشر:** إن وُجدت صفوف مكررة لنفس `(company_id, sku)` أو `(company_id, barcode)` ستفشل الـ migration — أصلح التكرار أولاً.
 
 بدون هذه الأعمدة تفشل واجهات `/pos` وربط المفتاح في إعدادات الشركة.

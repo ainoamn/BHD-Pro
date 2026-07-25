@@ -35,7 +35,7 @@ interface ProductStats {
   lowStockItems: Product[];
 }
 
-type AdjustMode = "IN" | "OUT" | "SET";
+type AdjustMode = "IN" | "OUT" | "SET" | "TRANSFER";
 
 const emptyProduct = () => ({
   sku: "",
@@ -68,6 +68,7 @@ export default function InventoryPage() {
   const [adjustNotes, setAdjustNotes] = useState("");
   const [adjustRef, setAdjustRef] = useState("");
   const [adjustWarehouseId, setAdjustWarehouseId] = useState("");
+  const [transferToWarehouseId, setTransferToWarehouseId] = useState("");
 
   const { data: products = [], isLoading } = useQuery({
     queryKey: ["products"],
@@ -139,6 +140,7 @@ export default function InventoryPage() {
     setAdjustWarehouseId(
       (product as Product & { warehouseId?: string }).warehouseId || ""
     );
+    setTransferToWarehouseId("");
   };
 
   const saveMutation = useMutation({
@@ -174,18 +176,28 @@ export default function InventoryPage() {
   });
 
   const adjustMutation = useMutation({
-    mutationFn: () =>
-      api.adjustProductStock(adjustProduct!.id, {
+    mutationFn: () => {
+      if (adjustMode === "TRANSFER") {
+        return api.transferProductStock(adjustProduct!.id, {
+          fromWarehouseId: adjustWarehouseId,
+          toWarehouseId: transferToWarehouseId,
+          quantity: Number(adjustQty),
+          notes: adjustNotes.trim() || undefined,
+          reference: adjustRef.trim() || undefined,
+        });
+      }
+      return api.adjustProductStock(adjustProduct!.id, {
         mode: adjustMode,
         quantity: Number(adjustQty),
         warehouseId: adjustWarehouseId || undefined,
         notes: adjustNotes.trim() || undefined,
         reference: adjustRef.trim() || undefined,
-      }),
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["product-stats"] });
-      toast.success(t("adjusted"));
+      toast.success(adjustMode === "TRANSFER" ? t("transferred") : t("adjusted"));
       setAdjustProduct(null);
     },
     onError: (err: { response?: { data?: { message?: string } } }) => {
@@ -557,7 +569,7 @@ export default function InventoryPage() {
               <div>
                 <h2 className="text-lg font-semibold text-white flex items-center gap-2">
                   <ArrowLeftRight className="w-5 h-5 text-amber-400" />
-                  {t("adjustStock")}
+                  {adjustMode === "TRANSFER" ? t("transferStock") : t("adjustStock")}
                 </h2>
                 <p className="text-sm text-slate-400 mt-1">
                   {adjustProduct.name} — {t("currentQty")}: {Number(adjustProduct.quantity)}{" "}
@@ -579,6 +591,7 @@ export default function InventoryPage() {
                   <option value="IN">{t("modeIn")}</option>
                   <option value="OUT">{t("modeOut")}</option>
                   <option value="SET">{t("modeSet")}</option>
+                  <option value="TRANSFER">{t("transfer")}</option>
                 </select>
               </div>
               <div>
@@ -591,22 +604,59 @@ export default function InventoryPage() {
                   className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white"
                 />
               </div>
-              {warehouses.length > 0 && (
-                <div>
-                  <label className="block text-sm text-slate-400 mb-1">{t("warehouse")}</label>
-                  <select
-                    value={adjustWarehouseId}
-                    onChange={(e) => setAdjustWarehouseId(e.target.value)}
-                    className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white"
-                  >
-                    <option value="">—</option>
-                    {warehouses.map((w) => (
-                      <option key={w.id} value={w.id}>
-                        {w.code} — {w.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              {adjustMode === "TRANSFER" ? (
+                <>
+                  <div>
+                    <label className="block text-sm text-slate-400 mb-1">{t("fromWarehouse")}</label>
+                    <select
+                      value={adjustWarehouseId}
+                      onChange={(e) => setAdjustWarehouseId(e.target.value)}
+                      className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white"
+                    >
+                      <option value="">—</option>
+                      {warehouses.map((w) => (
+                        <option key={w.id} value={w.id}>
+                          {w.code} — {w.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm text-slate-400 mb-1">{t("toWarehouse")}</label>
+                    <select
+                      value={transferToWarehouseId}
+                      onChange={(e) => setTransferToWarehouseId(e.target.value)}
+                      className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white"
+                    >
+                      <option value="">—</option>
+                      {warehouses
+                        .filter((w) => w.id !== adjustWarehouseId)
+                        .map((w) => (
+                          <option key={w.id} value={w.id}>
+                            {w.code} — {w.name}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                </>
+              ) : (
+                warehouses.length > 0 && (
+                  <div>
+                    <label className="block text-sm text-slate-400 mb-1">{t("warehouse")}</label>
+                    <select
+                      value={adjustWarehouseId}
+                      onChange={(e) => setAdjustWarehouseId(e.target.value)}
+                      className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white"
+                    >
+                      <option value="">—</option>
+                      {warehouses.map((w) => (
+                        <option key={w.id} value={w.id}>
+                          {w.code} — {w.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )
               )}
               <div>
                 <label className="block text-sm text-slate-400 mb-1">{t("reference")}</label>
@@ -635,11 +685,18 @@ export default function InventoryPage() {
               </button>
               <button
                 onClick={() => adjustMutation.mutate()}
-                disabled={adjustMutation.isPending || (adjustMode !== "SET" && adjustQty <= 0)}
+                disabled={
+                  adjustMutation.isPending ||
+                  (adjustMode !== "SET" && adjustQty <= 0) ||
+                  (adjustMode === "TRANSFER" &&
+                    (!adjustWarehouseId ||
+                      !transferToWarehouseId ||
+                      adjustWarehouseId === transferToWarehouseId))
+                }
                 className="flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-500 disabled:opacity-50"
               >
                 {adjustMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-                {t("adjust")}
+                {adjustMode === "TRANSFER" ? t("transfer") : t("adjust")}
               </button>
             </div>
           </div>

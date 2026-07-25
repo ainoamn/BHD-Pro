@@ -27,6 +27,7 @@ export const posCopy = {
     payCard: "بطاقة",
     clear: "تفريغ",
     stock: "المخزون",
+    discount: "خصم",
     linked: "النظامان مربوطان",
     unlinked:
       "النظامان غير مربوطين — سجّل الدخول بنفس حساب المحاسبة أو فعّل الربط من الإعدادات",
@@ -93,6 +94,7 @@ export const posCopy = {
     payCard: "Card",
     clear: "Clear",
     stock: "Stock",
+    discount: "Discount",
     linked: "Apps are linked",
     unlinked:
       "Apps are not linked — sign in with the same accounting account or enable linking in settings",
