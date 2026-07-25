@@ -3,25 +3,45 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { FileText, Package, PieChart, Shield, Users, Wallet } from "lucide-react";
+import {
+  Building2,
+  FileText,
+  Package,
+  PieChart,
+  Shield,
+  ShoppingCart,
+} from "lucide-react";
 import { useLocaleStore } from "@/store/locale";
 import { useAuthStore } from "@/store/auth";
 import { landingCopy } from "@/lib/landing-copy";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useCountUp } from "@/hooks/use-count-up";
 
-const featureIcons = [FileText, Package, PieChart, Users, Wallet, Shield];
+const featureIcons = [FileText, ShoppingCart, Package, PieChart, Building2, Shield];
 
 type PlatformStats = {
   companies: number;
   users: number;
-  visits: { total: number; last30Days: number };
+  visits: {
+    total: number;
+    last30Days: number;
+    uniqueTotal: number;
+    uniqueLast30Days: number;
+  };
   finance: {
     sales: number;
     purchases: number;
     collected: number;
     receivables: number;
     volumeManaged: number;
+    currency: "OMR";
+  };
+  growth: {
+    companies: number | null;
+    users: number | null;
+    visits: number | null;
+    volume: number | null;
   };
 };
 
@@ -35,7 +55,57 @@ function formatCompact(n: number, locale: string) {
 
   if (abs >= 1_000_000) return `${fmt(n / 1_000_000, 1)}M`;
   if (abs >= 1_000) return `${fmt(n / 1_000, 1)}K`;
-  return fmt(n, 0);
+  return fmt(Math.round(n * 10) / 10, n % 1 === 0 ? 0 : 1);
+}
+
+function GrowthBadge({
+  value,
+  label,
+}: {
+  value: number | null | undefined;
+  label: string;
+}) {
+  if (value == null) return null;
+  const up = value >= 0;
+  return (
+    <p
+      className={cn(
+        "mt-1 text-[11px] font-semibold",
+        up ? "text-emerald-700" : "text-rose-600"
+      )}
+      title={label}
+    >
+      {up ? "↑" : "↓"} {Math.abs(value)}%
+    </p>
+  );
+}
+
+function AnimatedMetric({
+  value,
+  label,
+  hint,
+  growth,
+  growthLabel,
+  locale,
+}: {
+  value: number;
+  label: string;
+  hint?: string | null;
+  growth?: number | null;
+  growthLabel: string;
+  locale: string;
+}) {
+  const { ref, display } = useCountUp(value, true);
+  return (
+    <div ref={ref} className="min-w-0">
+      <p className="text-2xl font-extrabold tracking-tight text-emerald-950 sm:text-3xl tabular-nums">
+        {formatCompact(display, locale)}
+      </p>
+      <p className="mt-1.5 text-xs font-medium leading-snug text-slate-500">{label}</p>
+      <GrowthBadge value={growth} label={growthLabel} />
+      {hint && <p className="mt-1 text-[11px] text-slate-400">{hint}</p>}
+    </div>
+  );
 }
 
 export function LandingPage() {
@@ -57,7 +127,7 @@ export function LandingPage() {
     (async () => {
       try {
         const res = await api.getPublicPlatformStats();
-        if (!cancelled && res.data) setStats(res.data);
+        if (!cancelled && res.data) setStats(res.data as PlatformStats);
       } catch {
         // keep section hidden if API unavailable
       }
@@ -66,33 +136,6 @@ export function LandingPage() {
       cancelled = true;
     };
   }, []);
-
-  const metrics = stats
-    ? [
-        { label: t.statCompanies, value: formatCompact(stats.companies, locale), hint: null as string | null },
-        { label: t.statUsers, value: formatCompact(stats.users, locale), hint: null },
-        {
-          label: t.statVolume,
-          value: formatCompact(stats.finance.volumeManaged, locale),
-          hint: null,
-        },
-        {
-          label: t.statCollected,
-          value: formatCompact(stats.finance.collected, locale),
-          hint: null,
-        },
-        {
-          label: t.statReceivable,
-          value: formatCompact(stats.finance.receivables, locale),
-          hint: null,
-        },
-        {
-          label: t.statVisits,
-          value: formatCompact(stats.visits.total, locale),
-          hint: `${t.statVisits30}: ${formatCompact(stats.visits.last30Days, locale)}`,
-        },
-      ]
-    : null;
 
   return (
     <div className="min-h-screen bg-[#fafcfb] text-slate-900" dir={isAr ? "rtl" : "ltr"}>
@@ -160,7 +203,6 @@ export function LandingPage() {
         </div>
       </header>
 
-      {/* Hero — full-bleed Al Alam Palace with soft translucent wash */}
       <section className="relative min-h-[min(92vh,820px)] overflow-hidden">
         <Image
           src="/landing/oman-alam-palace.webp"
@@ -246,21 +288,60 @@ export function LandingPage() {
         </div>
       </section>
 
-      {metrics && (
+      {stats && (
         <section id="stats" className="border-y border-emerald-950/[0.04] bg-white py-16 md:py-20">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <p className="text-xs font-semibold tracking-[0.14em] text-emerald-800/70">{t.statsTitle}</p>
             <p className="mt-3 max-w-2xl text-[15px] text-slate-500">{t.statsSub}</p>
-            <div className="mt-10 grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-3 lg:grid-cols-6">
-              {metrics.map((m) => (
-                <div key={m.label} className="min-w-0">
-                  <p className="text-2xl font-extrabold tracking-tight text-emerald-950 sm:text-3xl">
-                    {m.value}
-                  </p>
-                  <p className="mt-1.5 text-xs font-medium leading-snug text-slate-500">{m.label}</p>
-                  {m.hint && <p className="mt-1 text-[11px] text-slate-400">{m.hint}</p>}
-                </div>
-              ))}
+            <div className="mt-10 grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-3 lg:grid-cols-4">
+              <AnimatedMetric
+                value={stats.companies}
+                label={t.statCompanies}
+                growth={stats.growth?.companies}
+                growthLabel={t.vsLastMonth}
+                locale={locale}
+              />
+              <AnimatedMetric
+                value={stats.users}
+                label={t.statUsers}
+                growth={stats.growth?.users}
+                growthLabel={t.vsLastMonth}
+                locale={locale}
+              />
+              <AnimatedMetric
+                value={stats.finance.volumeManaged}
+                label={t.statVolume}
+                growth={stats.growth?.volume}
+                growthLabel={t.vsLastMonth}
+                locale={locale}
+              />
+              <AnimatedMetric
+                value={stats.finance.collected}
+                label={t.statCollected}
+                locale={locale}
+                growthLabel={t.vsLastMonth}
+              />
+              <AnimatedMetric
+                value={stats.finance.receivables}
+                label={t.statReceivable}
+                locale={locale}
+                growthLabel={t.vsLastMonth}
+              />
+              <AnimatedMetric
+                value={stats.visits.total}
+                label={t.statVisits}
+                growth={stats.growth?.visits}
+                growthLabel={t.vsLastMonth}
+                hint={`${t.statVisits30}: ${formatCompact(stats.visits.last30Days, locale)}`}
+                locale={locale}
+              />
+              <AnimatedMetric
+                value={stats.visits.uniqueTotal}
+                label={t.statUnique}
+                hint={`${t.statVisits30}: ${formatCompact(stats.visits.uniqueLast30Days, locale)}`}
+                locale={locale}
+                growthLabel={t.vsLastMonth}
+              />
             </div>
           </div>
         </section>
@@ -333,7 +414,10 @@ export function LandingPage() {
             {t.features.map((f, i) => {
               const Icon = featureIcons[i] || FileText;
               return (
-                <div key={f.title} className="group rounded-2xl border border-white/70 bg-white/55 p-5 backdrop-blur-sm transition hover:bg-white/75">
+                <div
+                  key={f.title}
+                  className="group rounded-2xl border border-white/70 bg-white/55 p-5 backdrop-blur-sm transition hover:bg-white/75"
+                >
                   <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-950/[0.04] transition group-hover:bg-emerald-950/[0.07]">
                     <Icon className="h-5 w-5 text-emerald-800" strokeWidth={1.75} />
                   </div>
@@ -369,9 +453,19 @@ export function LandingPage() {
                   <h3 className={cn("mt-1.5 text-lg font-bold", featured ? "text-white" : "text-emerald-950")}>
                     {p.name}
                   </h3>
-                  <p className={cn("mt-6 text-4xl font-extrabold tracking-tight", featured ? "text-white" : "text-emerald-950")}>
+                  <p
+                    className={cn(
+                      "mt-6 text-4xl font-extrabold tracking-tight",
+                      featured ? "text-white" : "text-emerald-950"
+                    )}
+                  >
                     {p.price}
-                    <span className={cn("ms-2 text-sm font-medium", featured ? "text-emerald-200/60" : "text-slate-400")}>
+                    <span
+                      className={cn(
+                        "ms-2 text-sm font-medium",
+                        featured ? "text-emerald-200/60" : "text-slate-400"
+                      )}
+                    >
                       {p.unit}
                     </span>
                   </p>

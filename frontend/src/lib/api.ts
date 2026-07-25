@@ -501,13 +501,25 @@ class ApiClient {
     return this.client.get<{
       companies: number;
       users: number;
-      visits: { total: number; last30Days: number };
+      visits: {
+        total: number;
+        last30Days: number;
+        uniqueTotal: number;
+        uniqueLast30Days: number;
+      };
       finance: {
         sales: number;
         purchases: number;
         collected: number;
         receivables: number;
         volumeManaged: number;
+        currency: "OMR";
+      };
+      growth: {
+        companies: number | null;
+        users: number | null;
+        visits: number | null;
+        volume: number | null;
       };
       updatedAt: string;
     }>('/public/stats');

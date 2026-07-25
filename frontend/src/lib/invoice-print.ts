@@ -306,9 +306,13 @@ const DOCUMENT_STYLES = `
     table { min-width: 0; font-size: 10px; }
   }
   @media screen and (max-width: 640px) {
-    body { padding: 12px; }
-    .header { flex-direction: column; }
-    .meta { text-align: right; }
+    body { padding: 10px; font-size: 12px; }
+    .header { flex-direction: column; gap: 10px; }
+    .meta { text-align: right; width: 100%; }
+    .company-logo { max-height: 48px !important; max-width: 120px !important; }
+    table { font-size: 10px; min-width: 460px; }
+    th, td { padding: 5px 4px; }
+    .totals { width: 100%; }
   }
 `;
 

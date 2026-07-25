@@ -555,8 +555,8 @@ export function InvoiceDocument({
             </div>
           </div>
 
-          <div className="w-full overflow-x-auto -mx-1 px-1">
-            <table className="w-full text-xs sm:text-sm min-w-[520px]">
+          <div className="w-full overflow-x-auto -mx-1 px-1 touch-pan-x">
+            <table className="w-full text-[11px] sm:text-sm min-w-[480px] sm:min-w-[520px]">
               <thead>
                 <tr className="text-white" style={{ backgroundColor: docColor }}>
                   <th className="p-1.5 sm:p-2 text-right">{t("description")}</th>

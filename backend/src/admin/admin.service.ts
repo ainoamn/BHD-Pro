@@ -31,38 +31,125 @@ export class AdminService {
   }
 
   private async computePublicStats() {
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    const posted = {
-      status: { notIn: ['DRAFT', 'CANCELLED'] as const },
-    };
+    const now = new Date();
+    const startThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+
+    /** Convert company-base currency amounts → approximate OMR. */
+    const omrFactor = `
+      CASE UPPER(COALESCE(c.currency, 'OMR'))
+        WHEN 'OMR' THEN 1
+        WHEN 'SAR' THEN 0.100
+        WHEN 'AED' THEN 0.105
+        WHEN 'KWD' THEN 1.270
+        WHEN 'BHD' THEN 1.030
+        WHEN 'QAR' THEN 0.107
+        WHEN 'USD' THEN 0.385
+        WHEN 'EUR' THEN 0.420
+        WHEN 'GBP' THEN 0.490
+        ELSE 0.385
+      END
+    `;
 
     const [
       companies,
       users,
+      companiesThisMonth,
+      companiesLastMonth,
+      usersThisMonth,
+      usersLastMonth,
       visitsTotal,
       visits30d,
-      salesAgg,
-      purchaseAgg,
+      visitsPrev30d,
+      uniqueVisitsTotal,
+      uniqueVisits30d,
+      financeRows,
+      financeThisMonthRows,
+      financeLastMonthRows,
     ] = await Promise.all([
       this.prisma.company.count({ where: { deletedAt: null, isActive: true } }),
       this.prisma.user.count({ where: { isActive: true } }),
+      this.prisma.company.count({
+        where: { deletedAt: null, isActive: true, createdAt: { gte: startThisMonth } },
+      }),
+      this.prisma.company.count({
+        where: {
+          deletedAt: null,
+          isActive: true,
+          createdAt: { gte: startLastMonth, lt: startThisMonth },
+        },
+      }),
+      this.prisma.user.count({
+        where: { isActive: true, createdAt: { gte: startThisMonth } },
+      }),
+      this.prisma.user.count({
+        where: {
+          isActive: true,
+          createdAt: { gte: startLastMonth, lt: startThisMonth },
+        },
+      }),
       this.prisma.siteVisit.count(),
       this.prisma.siteVisit.count({ where: { createdAt: { gte: thirtyDaysAgo } } }),
-      this.prisma.invoice.aggregate({
-        where: { type: 'SALES', ...posted },
-        _sum: { total: true, paidAmount: true },
+      this.prisma.siteVisit.count({
+        where: { createdAt: { gte: sixtyDaysAgo, lt: thirtyDaysAgo } },
       }),
-      this.prisma.invoice.aggregate({
-        where: { type: 'PURCHASE', ...posted },
-        _sum: { total: true, paidAmount: true },
-      }),
+      this.prisma.$queryRawUnsafe<Array<{ c: bigint }>>(
+        `SELECT COUNT(DISTINCT ip_address)::bigint AS c FROM site_visits WHERE ip_address IS NOT NULL`,
+      ),
+      this.prisma.$queryRawUnsafe<Array<{ c: bigint }>>(
+        `SELECT COUNT(DISTINCT ip_address)::bigint AS c FROM site_visits WHERE created_at >= $1 AND ip_address IS NOT NULL`,
+        thirtyDaysAgo,
+      ),
+      this.prisma.$queryRawUnsafe<
+        Array<{ sales: unknown; purchases: unknown; collected: unknown }>
+      >(
+        `SELECT
+          COALESCE(SUM(CASE WHEN i.type = 'SALES' THEN i.total * (${omrFactor}) ELSE 0 END), 0) AS sales,
+          COALESCE(SUM(CASE WHEN i.type = 'PURCHASE' THEN i.total * (${omrFactor}) ELSE 0 END), 0) AS purchases,
+          COALESCE(SUM(CASE WHEN i.type = 'SALES' THEN i.paid_amount * (${omrFactor}) ELSE 0 END), 0) AS collected
+        FROM invoices i
+        INNER JOIN companies c ON c.id = i.company_id
+        WHERE i.status NOT IN ('DRAFT', 'CANCELLED')
+          AND c.deleted_at IS NULL`,
+      ),
+      this.prisma.$queryRawUnsafe<Array<{ volume: unknown }>>(
+        `SELECT
+          COALESCE(SUM(CASE WHEN i.type IN ('SALES', 'PURCHASE') THEN i.total * (${omrFactor}) ELSE 0 END), 0) AS volume
+        FROM invoices i
+        INNER JOIN companies c ON c.id = i.company_id
+        WHERE i.status NOT IN ('DRAFT', 'CANCELLED')
+          AND c.deleted_at IS NULL
+          AND i.created_at >= $1`,
+        startThisMonth,
+      ),
+      this.prisma.$queryRawUnsafe<Array<{ volume: unknown }>>(
+        `SELECT
+          COALESCE(SUM(CASE WHEN i.type IN ('SALES', 'PURCHASE') THEN i.total * (${omrFactor}) ELSE 0 END), 0) AS volume
+        FROM invoices i
+        INNER JOIN companies c ON c.id = i.company_id
+        WHERE i.status NOT IN ('DRAFT', 'CANCELLED')
+          AND c.deleted_at IS NULL
+          AND i.created_at >= $1
+          AND i.created_at < $2`,
+        startLastMonth,
+        startThisMonth,
+      ),
     ]);
 
-    const sales = Number(salesAgg._sum.total || 0);
-    const collected = Number(salesAgg._sum.paidAmount || 0);
-    const purchases = Number(purchaseAgg._sum.total || 0);
+    const sales = Number(financeRows[0]?.sales || 0);
+    const purchases = Number(financeRows[0]?.purchases || 0);
+    const collected = Number(financeRows[0]?.collected || 0);
     const receivables = Math.max(0, sales - collected);
     const volumeManaged = sales + purchases;
+    const volumeThisMonth = Number(financeThisMonthRows[0]?.volume || 0);
+    const volumeLastMonth = Number(financeLastMonthRows[0]?.volume || 0);
+
+    const growthPct = (current: number, previous: number): number | null => {
+      if (previous <= 0) return current > 0 ? 100 : null;
+      return Math.round(((current - previous) / previous) * 100);
+    };
 
     return {
       companies,
@@ -70,13 +157,22 @@ export class AdminService {
       visits: {
         total: visitsTotal,
         last30Days: visits30d,
+        uniqueTotal: Number(uniqueVisitsTotal[0]?.c || 0),
+        uniqueLast30Days: Number(uniqueVisits30d[0]?.c || 0),
       },
       finance: {
-        sales,
-        purchases,
-        collected,
-        receivables,
-        volumeManaged,
+        sales: Math.round(sales * 1000) / 1000,
+        purchases: Math.round(purchases * 1000) / 1000,
+        collected: Math.round(collected * 1000) / 1000,
+        receivables: Math.round(receivables * 1000) / 1000,
+        volumeManaged: Math.round(volumeManaged * 1000) / 1000,
+        currency: 'OMR' as const,
+      },
+      growth: {
+        companies: growthPct(companiesThisMonth, companiesLastMonth),
+        users: growthPct(usersThisMonth, usersLastMonth),
+        visits: growthPct(visits30d, visitsPrev30d),
+        volume: growthPct(volumeThisMonth, volumeLastMonth),
       },
       updatedAt: new Date().toISOString(),
     };
