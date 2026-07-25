@@ -1609,6 +1609,7 @@ model PosShift {
 }
 
 /// Paid-in / paid-out cash drawer movements during an open POS shift.
+/// type: IN | OUT | NO_SALE (amount 0 audited drawer open)
 model PosCashMovement {
   id          String   @id @default(uuid())
   companyId   String   @map("company_id")

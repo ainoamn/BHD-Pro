@@ -2351,6 +2351,7 @@ class ApiClient {
     clientSaleId?: string;
     loyaltyPointsToRedeem?: number;
     approval?: DualApprovalPayload;
+    allowNegativeStock?: boolean;
   }) {
     return this.post('/pos/sales', data);
   }

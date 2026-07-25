@@ -27,7 +27,7 @@ POS lives at **`/pos`**, optionally linked to Accounting via shared login or tec
 | **3 — Messaging** | WhatsApp OTP to manager + notify on `ApprovalRequest` create | Done (env-gated OTP + best-effort create alert) |
 | **4 — Badge** | NFC / proximity token (`NFC` + bcrypt `nfcBadgeHashes`) | Done (25 Jul 2026) — Web NFC on Android Chrome HTTPS; manual paste for desktop testing |
 
-Sensitive actions covered today: `POS_VOID`, `POS_PRICE_OVERRIDE`, `POS_LINE_DISCOUNT`, `POS_REFUND`, `STOCK_ADJUST`, `STOCK_TRANSFER`, `INVOICE_CANCEL`, `PAYMENT_REVERSE`, `SHIFT_CLOSE_VARIANCE`, `PAYROLL_PAY`, `CLAIM_PAY`, `BANK_INTERNAL_TRANSFER`.
+Sensitive actions covered today: `POS_VOID`, `POS_PRICE_OVERRIDE`, `POS_LINE_DISCOUNT`, `POS_STOCK_OVERRIDE`, `POS_NO_SALE`, `POS_REFUND`, `STOCK_ADJUST`, `STOCK_TRANSFER`, `INVOICE_CANCEL`, `PAYMENT_REVERSE`, `SHIFT_CLOSE_VARIANCE`, `SHIFT_CASH_OUT`, `PAYROLL_PAY`, `CLAIM_PAY`, `BANK_INTERNAL_TRANSFER`.
 
 Config: `companies.security_config` + `GET/PATCH /companies/me/security`.  
 Async API: `POST/GET /dual-control/requests`, `POST .../decide`.  
@@ -95,7 +95,7 @@ Public flags: `asyncApprovals: true`, `nfcBadgesConfigured`, `shiftVarianceLimit
 - [x] Partner gateway pay from POS (`PARTNER` + `POST /pos/sales/:id/partner-checkout`) — not badge dual-control
 - [ ] Native Capacitor build (scaffold in `mobile/`)
 - [ ] Reliable multi-vendor Web Bluetooth thermal (current BLE path is best-effort)
-- [ ] Optional dual-control for large cash-out (`SHIFT_CASH_OUT` above threshold)
+- [x] Optional dual-control for large cash-out (`SHIFT_CASH_OUT` above threshold)
 - [x] Contacts store-credit wallet UI + GL-backed adjust (`POST /contacts/:id/store-credit-adjust` → 2130)
 - [x] Full AR GL posting for store-credit (`PaymentMethod.STORE_CREDIT` → liability **2130** ائتمان عملاء; wallet `Contact.currentBalance` kept as operational balance)
 
@@ -145,6 +145,12 @@ Public flags: `asyncApprovals: true`, `nfcBadgesConfigured`, `shiftVarianceLimit
 - Cash tender touch keypad + Exact / round-up / denomination chips
 - Offline queue detail sheet (attempts, errors, quarantine, discard one)
 - Doc: [`UPGRADE-POS-WAVE13-2026-07.md`](./UPGRADE-POS-WAVE13-2026-07.md)
+
+### Done (Wave 14 — Drawer audit, price check, stock override)
+- Audited no-sale / open drawer (`POS_NO_SALE`, `NO_SALE` cash movement, F6)
+- Price-check mode (F3) — scan shows price/stock without cart add
+- Manager stock override (`POS_STOCK_OVERRIDE` + `allowNegativeStock`)
+- Doc: [`UPGRADE-POS-WAVE14-2026-07.md`](./UPGRADE-POS-WAVE14-2026-07.md)
 
 - [x] Full catalog sync API `GET /pos/catalog/sync` + offline IDB per warehouse
 - [x] Broader refunds + store-credit MVP (hardened debit / void restore / UI)

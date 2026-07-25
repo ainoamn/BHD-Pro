@@ -986,7 +986,7 @@ export default function PosCheckoutPage() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [cart.length, t.clearConfirm, t.stock, focusScan, shortcutsOpen, parkEdit, loadRecentSales]);
+  }, [cart.length, t.clearConfirm, t.stock, t.priceCheckOn, t.priceCheckOff, focusScan, shortcutsOpen, parkEdit, loadRecentSales]);
 
   const onWarehouseChange = (id: string) => {
     setWarehouseId(id);
@@ -2052,6 +2052,47 @@ export default function PosCheckoutPage() {
     await runCheckout("CASH");
   };
 
+  const confirmNoSale = async (approval?: DualApprovalPayload) => {
+    const reason = noSaleReason.trim();
+    if (!reason) {
+      toast.error(t.noSaleReason);
+      return;
+    }
+    if (!shiftOpen) {
+      toast.error(t.noSaleNeedShift);
+      return;
+    }
+    setNoSaleBusy(true);
+    try {
+      await api.createPosNoSale({
+        reason,
+        warehouseId: warehouseId || undefined,
+        approval,
+      });
+      try {
+        const { tryOpenCashDrawer } = await import("@/lib/pos-escpos");
+        await tryOpenCashDrawer();
+      } catch {
+        /* drawer optional */
+      }
+      toast.success(t.noSaleOk);
+      setNoSaleOpen(false);
+      setNoSaleAwaitingApproval(false);
+      setNoSaleReason("");
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response
+        ?.data?.message;
+      const text = typeof msg === "string" ? msg : t.saleFail;
+      if (/open shift|وردية/i.test(text)) {
+        toast.error(t.noSaleNeedShift);
+      } else {
+        toast.error(text);
+      }
+    } finally {
+      setNoSaleBusy(false);
+    }
+  };
+
   const appendCashDigit = (key: string) => {
     setCashTendered((prev) => {
       const cur = prev || "";
@@ -2246,6 +2287,36 @@ export default function PosCheckoutPage() {
             <div className="flex gap-2 shrink-0">
               <button
                 type="button"
+                onClick={() => {
+                  setPriceCheckMode((v) => {
+                    const next = !v;
+                    if (!next) setPriceCheckProduct(null);
+                    toast.success(next ? t.priceCheckOn : t.priceCheckOff);
+                    return next;
+                  });
+                  focusScan();
+                }}
+                className={`h-14 min-w-14 px-3 rounded-2xl border font-bold transition inline-flex items-center justify-center ${
+                  priceCheckMode
+                    ? "border-violet-400/50 bg-violet-500/20 text-violet-100"
+                    : "border-white/15 text-slate-300 hover:bg-white/5"
+                }`}
+                title={t.priceCheckMode}
+                aria-label={t.priceCheckMode}
+              >
+                <ScanSearch className="w-5 h-5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setNoSaleOpen(true)}
+                className="h-14 min-w-14 px-3 rounded-2xl border border-amber-400/30 text-amber-200 font-bold hover:bg-amber-500/15 transition inline-flex items-center justify-center"
+                title={t.noSale}
+                aria-label={t.noSale}
+              >
+                <Wallet className="w-5 h-5" />
+              </button>
+              <button
+                type="button"
                 onClick={() => setCameraOpen(true)}
                 className="h-14 min-w-14 px-4 rounded-2xl border border-sky-400/40 text-sky-200 font-bold hover:bg-sky-500/15 transition inline-flex items-center justify-center gap-2"
                 title={t.scanCamera}
@@ -2276,9 +2347,31 @@ export default function PosCheckoutPage() {
               <ScanBarcode className="w-3.5 h-3.5 shrink-0 text-slate-400" />
               {t.barcodeHint}
             </span>
-            <span className="text-slate-600">{t.escHint}</span>
+            {priceCheckMode ? (
+              <span className="text-violet-300 font-semibold">{t.priceCheckOn}</span>
+            ) : (
+              <span className="text-slate-600">{t.escHint}</span>
+            )}
           </p>
         </form>
+
+        {priceCheckProduct ? (
+          <div className="rounded-2xl border border-violet-400/30 bg-violet-500/10 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[11px] text-violet-300/90 font-semibold">{t.priceCheckTitle}</p>
+              <p className="text-base font-bold text-white truncate">{priceCheckProduct.name}</p>
+              <p className="text-[11px] text-slate-400">
+                {priceCheckProduct.barcode || priceCheckProduct.sku || ""}
+                {priceCheckProduct.stock != null
+                  ? ` · ${t.priceCheckStock}: ${priceCheckProduct.stock}`
+                  : ""}
+              </p>
+            </div>
+            <p className="text-2xl font-bold tabular-nums text-violet-100">
+              {formatMoney(priceCheckProduct.price, currency)}
+            </p>
+          </div>
+        ) : null}
 
         <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
           <input
@@ -3464,6 +3557,78 @@ export default function PosCheckoutPage() {
         </div>
       ) : null}
 
+      {noSaleOpen && !noSaleAwaitingApproval ? (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 p-3">
+          <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#121a2b] p-4 space-y-3 shadow-xl">
+            <div className="flex items-center justify-between gap-2">
+              <p className="font-bold text-white">{t.noSaleTitle}</p>
+              <button
+                type="button"
+                className="text-slate-400 text-sm"
+                onClick={() => !noSaleBusy && setNoSaleOpen(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-[11px] text-slate-400">{t.noSaleHint}</p>
+            <div className="flex flex-wrap gap-1.5">
+              {(
+                [
+                  [t.noSaleChange, t.noSaleChange],
+                  [t.noSaleFloat, t.noSaleFloat],
+                  [t.noSaleManager, t.noSaleManager],
+                  [t.noSaleOther, t.noSaleOther],
+                ] as const
+              ).map(([label]) => (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => setNoSaleReason(label)}
+                  className={`h-8 px-2.5 rounded-lg text-[11px] font-semibold border transition ${
+                    noSaleReason === label
+                      ? "border-amber-400/50 bg-amber-500/20 text-amber-100"
+                      : "border-white/10 text-slate-300 hover:bg-white/5"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <input
+              value={noSaleReason}
+              onChange={(e) => setNoSaleReason(e.target.value)}
+              placeholder={t.noSaleReason}
+              className="w-full h-10 rounded-xl bg-white/5 border border-white/10 px-3 text-sm text-white placeholder:text-slate-500"
+            />
+            <button
+              type="button"
+              disabled={!noSaleReason.trim() || noSaleBusy}
+              onClick={() => setNoSaleAwaitingApproval(true)}
+              className="w-full h-11 rounded-xl bg-amber-500 text-slate-950 font-bold disabled:opacity-40"
+            >
+              {t.noSaleConfirm}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      <DualApprovalModal
+        open={noSaleOpen && noSaleAwaitingApproval}
+        action="POS_NO_SALE"
+        actionLabel={t.noSaleTitle}
+        payload={{ reason: noSaleReason }}
+        summary={noSaleReason || t.noSaleTitle}
+        actorRole={user?.role}
+        busy={noSaleBusy}
+        onCancel={() => {
+          if (!noSaleBusy) {
+            setNoSaleAwaitingApproval(false);
+            setNoSaleOpen(false);
+          }
+        }}
+        onConfirm={confirmNoSale}
+      />
+
       <DualApprovalModal
         open={!!voidTarget}
         action="POS_VOID"
@@ -3799,7 +3964,9 @@ export default function PosCheckoutPage() {
               <li>{t.shortcutEsc}</li>
               <li>{t.shortcutScan}</li>
               <li>{t.shortcutF2}</li>
+              <li>{t.shortcutF3}</li>
               <li>{t.shortcutF4}</li>
+              <li>{t.shortcutF6}</li>
               <li>{t.shortcutF7}</li>
               <li>{t.shortcutF8}</li>
               <li>{t.shortcutF9}</li>
