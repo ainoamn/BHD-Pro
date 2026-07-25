@@ -29,6 +29,7 @@ export default function RestoSettingsPage() {
   const [name, setName] = useState("");
   const [nameEn, setNameEn] = useState("");
   const [busy, setBusy] = useState(false);
+  const [demoBusy, setDemoBusy] = useState(false);
 
   const loadStations = async () => {
     try {
@@ -42,6 +43,31 @@ export default function RestoSettingsPage() {
   useEffect(() => {
     void loadStations();
   }, []);
+
+  const runDemoSeed = async () => {
+    setDemoBusy(true);
+    try {
+      await api.seedRestoDemoCatalog();
+      toast.success(t.demoSeedOk);
+    } catch {
+      toast.error(t.actionFail);
+    } finally {
+      setDemoBusy(false);
+    }
+  };
+
+  const purgeDemo = async () => {
+    if (!window.confirm(t.demoPurgeConfirm)) return;
+    setDemoBusy(true);
+    try {
+      await api.purgeRestoDemoCatalog();
+      toast.success(t.demoPurgeOk);
+    } catch {
+      toast.error(t.actionFail);
+    } finally {
+      setDemoBusy(false);
+    }
+  };
 
   const onAdd = async (e: FormEvent) => {
     e.preventDefault();
@@ -72,6 +98,35 @@ export default function RestoSettingsPage() {
       </div>
       <HisabyAppsLinkHub tone="resto" />
       <RestoLinkSettings variant="resto" />
+
+      {canManage ? (
+        <div className="rounded-2xl border border-sky-500/25 bg-sky-500/5 p-4 space-y-3">
+          <div>
+            <h2 className="font-bold">{t.demoSeedTitle}</h2>
+            <p className="text-xs text-stone-400 mt-1">{t.demoSeedHint}</p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <button
+              type="button"
+              disabled={demoBusy}
+              onClick={() => void runDemoSeed()}
+              className="flex-1 rounded-xl bg-sky-500 py-2.5 text-sm font-bold text-[#0b1220] disabled:opacity-50"
+            >
+              {demoBusy ? "…" : t.demoSeedRun}
+            </button>
+            {user?.role === "ADMIN" ? (
+              <button
+                type="button"
+                disabled={demoBusy}
+                onClick={() => void purgeDemo()}
+                className="rounded-xl border border-rose-500/40 text-rose-200 px-4 py-2.5 text-sm font-semibold hover:bg-rose-500/10 disabled:opacity-50"
+              >
+                {t.demoPurge}
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
 
       <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-3">
         <div>
