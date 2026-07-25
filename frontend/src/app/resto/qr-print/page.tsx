@@ -119,16 +119,9 @@ export default function RestoQrPrintPage() {
         </div>
       )}
 
-      <style jsx global>{`
+      <style>{`
         @media print {
-          body {
-            background: white !important;
-          }
-          header,
-          nav,
-          .print\\:hidden {
-            display: none !important;
-          }
+          body { background: #fff !important; color: #14110f !important; }
         }
       `}</style>
     </div>

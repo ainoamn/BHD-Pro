@@ -37,6 +37,7 @@ export type RestoOrderPayload = {
     course?: number;
     isComp?: boolean;
     voidReason?: string | null;
+    source?: string;
     status: string;
   }>;
   subtotal: number;
@@ -1980,6 +1981,8 @@ class ApiClient {
         name: string;
         qty: number;
         notes: string | null;
+        course?: number;
+        source?: string;
         status: string;
         sentAt: string | null;
         stationId?: string | null;

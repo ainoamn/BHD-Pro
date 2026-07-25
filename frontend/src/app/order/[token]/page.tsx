@@ -149,8 +149,8 @@ export default function GuestOrderPage() {
       setCart([]);
       setOkMsg(
         locale === "en"
-          ? "Order sent — kitchen will prepare shortly."
-          : "أُرسل الطلب — سيجهّزه المطبخ قريباً.",
+          ? "Order sent to kitchen."
+          : "أُرسل الطلب مباشرة إلى المطبخ.",
       );
       await load();
     } catch {

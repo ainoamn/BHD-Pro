@@ -12,6 +12,7 @@ type KitchenItem = {
   qty: number;
   notes: string | null;
   course?: number;
+  source?: string;
   status: string;
   sentAt: string | null;
   stationId?: string | null;
@@ -339,6 +340,7 @@ export default function RestoKitchenPage() {
                           : it.course === 3
                             ? t.courseDessert
                             : t.courseStarter}
+                      {it.source === "GUEST" ? ` · ${t.fromGuest}` : ""}
                     </p>
                     <p className="text-lg font-extrabold mt-0.5">
                       {it.qty}× {it.name}
@@ -352,6 +354,27 @@ export default function RestoKitchenPage() {
                   </span>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const w = window.open("", "_blank", "width=360,height=480");
+                      if (!w) return;
+                      w.document.write(`<!doctype html><html><head><title>${t.kitchenTicket}</title>
+<style>body{font-family:system-ui;padding:16px}h1{font-size:18px;margin:0 0 8px}p{margin:4px 0;font-size:14px}</style>
+</head><body>
+<h1>${t.kitchenTicket}</h1>
+<p><b>${t.table}</b> ${it.table?.code || "—"} · ${it.orderNumber}</p>
+<p><b>${it.qty}× ${it.name}</b></p>
+${it.notes ? `<p>${it.notes}</p>` : ""}
+<p>${minutes}m · ${it.status}${it.source === "GUEST" ? ` · ${t.fromGuest}` : ""}</p>
+<script>window.print()</script>
+</body></html>`);
+                      w.document.close();
+                    }}
+                    className="rounded-lg border border-white/15 px-2.5 py-1.5 text-[11px] font-bold text-stone-300 hover:bg-white/5"
+                  >
+                    {t.kitchenTicket}
+                  </button>
                   {it.status === "SENT" ? (
                     <button
                       type="button"
