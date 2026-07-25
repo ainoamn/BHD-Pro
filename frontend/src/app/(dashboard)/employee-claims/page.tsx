@@ -21,6 +21,10 @@ import { useAuthStore } from "@/store/auth";
 import { PageHeader, LoadingSpinner, EmptyState, GlassCard } from "@/components/ui/page-shell";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { EntityAttachments } from "@/components/attachments/entity-attachments";
+import {
+  DualApprovalModal,
+  type DualApprovalPayload,
+} from "@/components/security/dual-approval-modal";
 
 interface LineForm {
   description: string;
@@ -57,7 +61,9 @@ const emptyLine = (): LineForm => ({
 export default function EmployeeClaimsPage() {
   const t = useTranslations("employeeClaims");
   const tCommon = useTranslations("common");
+  const tDual = useTranslations("dualControl");
   const queryClient = useQueryClient();
+  const user = useAuthStore((s) => s.user);
   const currency = useAuthStore((s) => s.user?.company?.currency) || "OMR";
 
   const [open, setOpen] = useState(false);
@@ -67,6 +73,7 @@ export default function EmployeeClaimsPage() {
   const [lines, setLines] = useState<LineForm[]>([emptyLine()]);
   const [payingId, setPayingId] = useState<string | null>(null);
   const [payBankId, setPayBankId] = useState("");
+  const [dualPayOpen, setDualPayOpen] = useState(false);
 
   const { data: employees = [] } = useQuery({
     queryKey: ["employees"],
@@ -140,11 +147,13 @@ export default function EmployeeClaimsPage() {
       action,
       reason,
       bankAccountId,
+      approval,
     }: {
       id: string;
       action: "submit" | "approve" | "reject" | "pay";
       reason?: string;
       bankAccountId?: string;
+      approval?: DualApprovalPayload;
     }) => {
       if (action === "submit") return api.submitEmployeeClaim(id);
       if (action === "approve") return api.approveEmployeeClaim(id);
@@ -152,12 +161,14 @@ export default function EmployeeClaimsPage() {
       return api.payEmployeeClaim(id, {
         bankAccountId,
         paymentMethod: bankAccountId ? "BANK_TRANSFER" : "CASH",
+        approval,
       });
     },
     onSuccess: (_res, vars) => {
       invalidate();
       setPayingId(null);
       setPayBankId("");
+      setDualPayOpen(false);
       toast.success(t(`action_${vars.action}` as "action_submit"));
     },
     onError: (err: { response?: { data?: { message?: string } } }) => {
@@ -239,13 +250,10 @@ export default function EmployeeClaimsPage() {
                   banks={banks}
                   onPayStart={() => setPayingId(row.id)}
                   onPayBankChange={setPayBankId}
-                  onPayConfirm={() =>
-                    actionMutation.mutate({
-                      id: row.id,
-                      action: "pay",
-                      bankAccountId: payBankId || undefined,
-                    })
-                  }
+                  onPayConfirm={() => {
+                    setPayingId(row.id);
+                    setDualPayOpen(true);
+                  }}
                   onAction={(action, reason) =>
                     actionMutation.mutate({ id: row.id, action, reason })
                   }
@@ -301,13 +309,10 @@ export default function EmployeeClaimsPage() {
                         banks={banks}
                         onPayStart={() => setPayingId(row.id)}
                         onPayBankChange={setPayBankId}
-                        onPayConfirm={() =>
-                          actionMutation.mutate({
-                            id: row.id,
-                            action: "pay",
-                            bankAccountId: payBankId || undefined,
-                          })
-                        }
+                        onPayConfirm={() => {
+                          setPayingId(row.id);
+                          setDualPayOpen(true);
+                        }}
                         onAction={(action, reason) =>
                           actionMutation.mutate({ id: row.id, action, reason })
                         }
@@ -458,6 +463,28 @@ export default function EmployeeClaimsPage() {
           </div>
         </div>
       )}
+
+      <DualApprovalModal
+        open={dualPayOpen && !!payingId}
+        action="CLAIM_PAY"
+        actionLabel={tDual("action.CLAIM_PAY")}
+        payload={payingId ? { claimId: payingId } : undefined}
+        summary={
+          payingId ? rows.find((r) => r.id === payingId)?.number : undefined
+        }
+        actorRole={user?.role}
+        busy={actionMutation.isPending}
+        onCancel={() => setDualPayOpen(false)}
+        onConfirm={async (approval) => {
+          if (!payingId) return;
+          await actionMutation.mutateAsync({
+            id: payingId,
+            action: "pay",
+            bankAccountId: payBankId || undefined,
+            approval,
+          });
+        }}
+      />
     </div>
   );
 }

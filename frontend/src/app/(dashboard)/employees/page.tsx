@@ -10,6 +10,10 @@ import api from "@/lib/api";
 import { ErpCrudPage, formatMoney } from "@/components/erp/erp-crud-page";
 import { useAuthStore } from "@/store/auth";
 import { PageHeader, GlassCard, LoadingSpinner } from "@/components/ui/page-shell";
+import {
+  DualApprovalModal,
+  type DualApprovalPayload,
+} from "@/components/security/dual-approval-modal";
 
 type Tab = "employees" | "payroll";
 
@@ -35,7 +39,8 @@ interface PayrollRun {
 export default function EmployeesPage() {
   const t = useTranslations("erp");
   const tCommon = useTranslations("common");
-  const { company } = useAuthStore();
+  const tDual = useTranslations("dualControl");
+  const { company, user } = useAuthStore();
   const currency = company?.currency || "OMR";
   const [tab, setTab] = useState<Tab>("employees");
   const queryClient = useQueryClient();
@@ -46,6 +51,7 @@ export default function EmployeesPage() {
 
   const [payBankId, setPayBankId] = useState("");
   const [payingId, setPayingId] = useState<string | null>(null);
+  const [dualPayOpen, setDualPayOpen] = useState(false);
 
   const { data: payroll = [], isLoading } = useQuery({
     queryKey: ["payroll"],
@@ -78,19 +84,27 @@ export default function EmployeesPage() {
       id,
       status,
       bankAccountId,
+      approval,
     }: {
       id: string;
       status: string;
       bankAccountId?: string;
+      approval?: DualApprovalPayload;
     }) =>
       api.updatePayrollStatus(id, status, {
         bankAccountId,
         paymentMethod: bankAccountId ? "BANK_TRANSFER" : "CASH",
+        approval,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["payroll"] });
       setPayingId(null);
       setPayBankId("");
+      setDualPayOpen(false);
+      toast.success(tCommon("saved"));
+    },
+    onError: (err: { response?: { data?: { message?: string } } }) => {
+      toast.error(err.response?.data?.message || tCommon("error"));
     },
   });
 
@@ -99,11 +113,8 @@ export default function EmployeesPage() {
   };
 
   const confirmPaid = (id: string) => {
-    statusMutation.mutate({
-      id,
-      status: "PAID",
-      bankAccountId: payBankId || undefined,
-    });
+    setPayingId(id);
+    setDualPayOpen(true);
   };
 
   const years = [now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1];
@@ -421,6 +432,30 @@ export default function EmployeesPage() {
           )}
         </div>
       )}
+
+      <DualApprovalModal
+        open={dualPayOpen && !!payingId}
+        action="PAYROLL_PAY"
+        actionLabel={tDual("action.PAYROLL_PAY")}
+        payload={payingId ? { payrollRunId: payingId } : undefined}
+        summary={
+          payingId
+            ? payroll.find((p) => p.id === payingId)?.number
+            : undefined
+        }
+        actorRole={user?.role}
+        busy={statusMutation.isPending}
+        onCancel={() => setDualPayOpen(false)}
+        onConfirm={async (approval) => {
+          if (!payingId) return;
+          await statusMutation.mutateAsync({
+            id: payingId,
+            status: "PAID",
+            bankAccountId: payBankId || undefined,
+            approval,
+          });
+        }}
+      />
     </div>
   );
 }

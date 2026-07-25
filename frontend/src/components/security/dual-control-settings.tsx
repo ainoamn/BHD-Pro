@@ -28,6 +28,8 @@ type SecurityPublic = {
     INVOICE_CANCEL: boolean;
     PAYMENT_REVERSE: boolean;
     SHIFT_CLOSE_VARIANCE: boolean;
+    PAYROLL_PAY: boolean;
+    CLAIM_PAY: boolean;
   };
 };
 
@@ -40,6 +42,8 @@ const ACTION_KEYS = [
   "INVOICE_CANCEL",
   "PAYMENT_REVERSE",
   "SHIFT_CLOSE_VARIANCE",
+  "PAYROLL_PAY",
+  "CLAIM_PAY",
 ] as const;
 
 export function DualControlSettings() {
@@ -59,6 +63,8 @@ export function DualControlSettings() {
     INVOICE_CANCEL: true,
     PAYMENT_REVERSE: true,
     SHIFT_CLOSE_VARIANCE: true,
+    PAYROLL_PAY: true,
+    CLAIM_PAY: true,
   });
   const [pin, setPin] = useState("");
   const [whatsappPhones, setWhatsappPhones] = useState("");
@@ -86,6 +92,8 @@ export function DualControlSettings() {
       INVOICE_CANCEL: true,
       PAYMENT_REVERSE: true,
       SHIFT_CLOSE_VARIANCE: true,
+      PAYROLL_PAY: true,
+      CLAIM_PAY: true,
     };
     setActions({ ...defaults, ...data.actions });
     setVarianceLimit(String(data.shiftVarianceLimit ?? 1));

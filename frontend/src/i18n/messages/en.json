@@ -63,7 +63,9 @@
       "STOCK_TRANSFER": "Stock transfer",
       "INVOICE_CANCEL": "Invoice cancel",
       "PAYMENT_REVERSE": "Reverse all payments",
-      "SHIFT_CLOSE_VARIANCE": "Shift close cash variance"
+      "SHIFT_CLOSE_VARIANCE": "Shift close cash variance",
+      "PAYROLL_PAY": "Payroll payout",
+      "CLAIM_PAY": "Employee claim payout"
     },
     "pinSet": "Supervisor PIN is set",
     "pinUnset": "No supervisor PIN yet",

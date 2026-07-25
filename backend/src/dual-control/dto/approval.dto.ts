@@ -74,6 +74,8 @@ export const DUAL_CONTROL_ACTIONS = [
   'INVOICE_CANCEL',
   'PAYMENT_REVERSE',
   'SHIFT_CLOSE_VARIANCE',
+  'PAYROLL_PAY',
+  'CLAIM_PAY',
 ] as const;
 export type DualControlAction = (typeof DUAL_CONTROL_ACTIONS)[number];
 
@@ -109,6 +111,14 @@ export class DualControlActionsDto {
   @IsOptional()
   @IsBoolean()
   SHIFT_CLOSE_VARIANCE?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  PAYROLL_PAY?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  CLAIM_PAY?: boolean;
 }
 
 export class UpdateSecurityConfigDto {

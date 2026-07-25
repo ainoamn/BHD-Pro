@@ -63,7 +63,9 @@
       "STOCK_TRANSFER": "تحويل المخزون",
       "INVOICE_CANCEL": "إلغاء فاتورة",
       "PAYMENT_REVERSE": "عكس جميع الدفعات",
-      "SHIFT_CLOSE_VARIANCE": "فارق نقد إغلاق الوردية"
+      "SHIFT_CLOSE_VARIANCE": "فارق نقد إغلاق الوردية",
+      "PAYROLL_PAY": "صرف مسير الرواتب",
+      "CLAIM_PAY": "صرف مطالبة موظف"
     },
     "pinSet": "رمز المشرف مضبوط",
     "pinUnset": "لا يوجد رمز مشرف بعد",

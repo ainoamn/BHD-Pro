@@ -15,7 +15,9 @@ export type DualControlAction =
   | "STOCK_TRANSFER"
   | "INVOICE_CANCEL"
   | "PAYMENT_REVERSE"
-  | "SHIFT_CLOSE_VARIANCE";
+  | "SHIFT_CLOSE_VARIANCE"
+  | "PAYROLL_PAY"
+  | "CLAIM_PAY";
 
 export type DualApprovalPayload = {
   method: "SELF_CONFIRM" | "PASSWORD" | "PIN" | "APPROVAL_REQUEST" | "WHATSAPP_OTP" | "NFC";

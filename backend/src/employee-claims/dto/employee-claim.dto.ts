@@ -13,6 +13,7 @@ import {
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PaymentMethod } from '@prisma/client';
+import { DualApprovalDto } from '../../dual-control/dto/approval.dto';
 
 export class EmployeeClaimLineDto {
   @ApiProperty()
@@ -95,4 +96,10 @@ export class MarkClaimPaidDto {
   @IsOptional()
   @IsString()
   bankAccountId?: string;
+
+  @ApiPropertyOptional({ type: DualApprovalDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DualApprovalDto)
+  approval?: DualApprovalDto;
 }

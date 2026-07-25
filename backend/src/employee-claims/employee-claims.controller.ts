@@ -19,13 +19,17 @@ import {
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
+import { DualControlService } from '../dual-control/dual-control.service';
 
 @ApiTags('Employee Claims')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('employee-claims')
 export class EmployeeClaimsController {
-  constructor(private service: EmployeeClaimsService) {}
+  constructor(
+    private service: EmployeeClaimsService,
+    private dualControl: DualControlService,
+  ) {}
 
   @Get()
   findAll(@CurrentUser() user: TokenPayload) {
@@ -73,11 +77,12 @@ export class EmployeeClaimsController {
 
   @Post(':id/pay')
   @ApiOperation({ summary: 'Mark approved claim as paid/reimbursed' })
-  markPaid(
+  async markPaid(
     @CurrentUser() user: TokenPayload,
     @Param('id') id: string,
     @Body() dto: MarkClaimPaidDto,
   ) {
+    await this.dualControl.assertApproved(user.companyId, user, 'CLAIM_PAY', dto?.approval);
     return this.service.markPaid(user.companyId, user.sub, id, dto);
   }
 

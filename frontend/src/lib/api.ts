@@ -783,7 +783,11 @@ class ApiClient {
   updatePayrollStatus(
     id: string,
     status: string,
-    opts?: { bankAccountId?: string; paymentMethod?: string },
+    opts?: {
+      bankAccountId?: string;
+      paymentMethod?: string;
+      approval?: DualApprovalPayload;
+    },
   ) {
     return this.patch(`/payroll/${id}/status`, { status, ...opts });
   }
@@ -884,7 +888,11 @@ class ApiClient {
 
   payEmployeeClaim(
     id: string,
-    data?: { paymentMethod?: string; bankAccountId?: string },
+    data?: {
+      paymentMethod?: string;
+      bankAccountId?: string;
+      approval?: DualApprovalPayload;
+    },
   ) {
     return this.post(`/employee-claims/${id}/pay`, data || {});
   }

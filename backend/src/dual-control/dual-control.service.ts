@@ -93,6 +93,8 @@ export class DualControlService {
       INVOICE_CANCEL: config.actions?.INVOICE_CANCEL !== false,
       PAYMENT_REVERSE: config.actions?.PAYMENT_REVERSE !== false,
       SHIFT_CLOSE_VARIANCE: config.actions?.SHIFT_CLOSE_VARIANCE !== false,
+      PAYROLL_PAY: config.actions?.PAYROLL_PAY !== false,
+      CLAIM_PAY: config.actions?.CLAIM_PAY !== false,
     };
     const whatsappReady = this.whatsapp.isConfigured();
     const nfcBadgesConfigured = (config.nfcBadgeHashes || []).length > 0;

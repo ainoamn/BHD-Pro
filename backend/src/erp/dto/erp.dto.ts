@@ -9,9 +9,12 @@ import {
   Min,
   Max,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ProjectStatus, AssetCategory, PayrollStatus, PaymentMethod } from '@prisma/client';
+import { DualApprovalDto } from '../../dual-control/dto/approval.dto';
 
 export class BranchDto {
   @ApiProperty() @IsString() @MinLength(1) code: string;
@@ -121,4 +124,9 @@ export class UpdatePayrollStatusDto {
   @IsOptional()
   @IsString()
   bankAccountId?: string;
+  @ApiPropertyOptional({ type: DualApprovalDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DualApprovalDto)
+  approval?: DualApprovalDto;
 }
