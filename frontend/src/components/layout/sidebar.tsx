@@ -88,6 +88,7 @@ export function Sidebar() {
   const { sidebarCollapsed, sidebarOpen, toggleSidebarCollapse, setSidebarOpen } = useUIStore();
   const { user } = useAuthStore();
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
+  const [openAlerts, setOpenAlerts] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -103,6 +104,26 @@ export function Sidebar() {
       cancelled = true;
     };
   }, [user?.email]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!user) {
+      setOpenAlerts(0);
+      return;
+    }
+    (async () => {
+      try {
+        const res = await api.getManagementAlerts("OPEN");
+        const rows = res.data as unknown[];
+        if (!cancelled) setOpenAlerts(Array.isArray(rows) ? rows.length : 0);
+      } catch {
+        if (!cancelled) setOpenAlerts(0);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, pathname]);
 
   const closeMobile = () => {
     if (typeof window !== "undefined" && window.innerWidth < 1024) {
@@ -150,7 +171,12 @@ export function Sidebar() {
               >
                 <Icon className={cn("w-5 h-5 flex-shrink-0", isActive && "text-emerald-400")} />
                 {!sidebarCollapsed && (
-                  <span className="text-sm font-medium">{t(item.label)}</span>
+                  <span className="text-sm font-medium flex-1">{t(item.label)}</span>
+                )}
+                {!sidebarCollapsed && item.href === "/management-alerts" && openAlerts > 0 && (
+                  <span className="text-[10px] min-w-[1.25rem] h-5 px-1.5 rounded-full bg-amber-500/20 text-amber-300 flex items-center justify-center">
+                    {openAlerts > 99 ? "99+" : openAlerts}
+                  </span>
                 )}
               </Link>
             );

@@ -12,17 +12,19 @@
 | **C** | مزامنة `BankAccount.currentBalance` مع قيود GL + ربط دفعة الفاتورة بحساب بنك | منجز |
 | **D** | مرفقات `attachments` + فهرس مرجع دفع فريد لكل فاتورة + تنبيهات إدارة `management-alerts` | منجز (MVP) |
 | **E** | Dual-control على صرف الرواتب (`PAYROLL_PAY`) ومطالبات الموظفين (`CLAIM_PAY`) | منجز |
+| **F** | تحويل داخلي بين حسابات البنك + اقتراحات مطابقة كشف الحساب من GL/الدفعات | منجز |
 
 ## ما لم يُطبّق بعد (مقصود / مؤجّل)
 - رفع ملفات إلى S3 (حالياً `storageKey` = data URL حتى 2MB من الواجهة)
-- مطابقة كشف بنكي ذكية كاملة من GL
 - Capacitor / NFC شريك / OTA e-invoice / AI احتيال حقيقي
+- Dual-control على التحويل البنكي الداخلي (اختياري لاحقاً)
 
 ## واجهة (متابعة)
 - نافذة التحصيل: اختيار حساب بنك + مرجع
 - مطالبات الموظفين: اختيار بنك عند الصرف + مرفقات
 - مستند الفاتورة: لوحة مرفقات أثناء المعاينة
-- **حماية مزدوجة** على `PAYROLL_PAY` و `CLAIM_PAY` (قابلة للتعطيل من إعدادات الأمان)
+- **حماية مزدوجة** على `PAYROLL_PAY` و `CLAIM_PAY`
+- تحويل بنكي داخلي + اقتراحات تسوية + شارة تنبيهات الإدارة في القائمة
 
 ## Migration
 `backend/src/prisma/migrations/20260725180000_payroll_claims_gl_posting`
@@ -38,4 +40,6 @@ npx prisma migrate deploy
 - `POST /employee-claims/:id/pay` + بنك
 - `CRUD /commitments`, `POST /commitments/run-due`
 - `GET|POST|DELETE /attachments`
-- `GET|PATCH /management-alerts` (OWNER/ADMIN/ACCOUNTANT)
+- `GET|PATCH /management-alerts` (ADMIN/MANAGER/ACCOUNTANT)
+- `POST /bank-accounts/transfer`
+- `GET /bank-accounts/:id/suggest-matches`

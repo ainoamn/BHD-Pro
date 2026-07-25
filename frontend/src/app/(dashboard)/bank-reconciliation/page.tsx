@@ -74,7 +74,24 @@ export default function BankReconciliationPage() {
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["bank-reconciliation", selectedId] });
+    queryClient.invalidateQueries({ queryKey: ["bank-suggest", selectedId] });
   };
+
+  const { data: suggestData } = useQuery({
+    queryKey: ["bank-suggest", selectedId],
+    enabled: !!selectedId,
+    queryFn: async () => {
+      const res = await api.suggestBankStatementMatches(selectedId, 5);
+      return res.data as {
+        suggestions: Array<{
+          lineId: string;
+          description: string;
+          amount: number;
+          candidates: Array<{ type: string; id: string; label: string; score: number }>;
+        }>;
+      };
+    },
+  });
 
   const addMutation = useMutation({
     mutationFn: () =>
@@ -160,6 +177,41 @@ export default function BankReconciliationPage() {
                   </GlassCard>
                 ))}
               </div>
+
+              <GlassCard className="p-4 space-y-3">
+                <h3 className="text-sm font-medium text-white">{t("suggestions")}</h3>
+                {!suggestData?.suggestions?.length ? (
+                  <p className="text-sm text-slate-500">{t("noSuggestions")}</p>
+                ) : (
+                  suggestData.suggestions.map((s) => (
+                    <div
+                      key={s.lineId}
+                      className="rounded-lg border border-slate-800 p-3 space-y-2"
+                    >
+                      <div className="flex justify-between gap-2 text-sm">
+                        <span className="text-white">{s.description}</span>
+                        <span className="text-emerald-400">
+                          {formatMoney(Number(s.amount), currency)}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {s.candidates.map((c) => (
+                          <button
+                            key={`${c.type}-${c.id}`}
+                            type="button"
+                            onClick={() => toggleMutation.mutate(s.lineId)}
+                            className="text-xs px-2 py-1 rounded bg-sky-600/20 text-sky-300 hover:bg-sky-600/30"
+                            title={c.label}
+                          >
+                            {t(`matchType_${c.type}` as "matchType_PAYMENT")}: {c.label} ·{" "}
+                            {t("acceptSuggestion")}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </GlassCard>
 
               <GlassCard className="p-4 space-y-3">
                 <h3 className="text-sm font-medium text-white">{t("addLine")}</h3>

@@ -1,20 +1,67 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { useQuery } from "@tanstack/react-query";
-import { ArrowLeftRight } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowLeftRight, Loader2 } from "lucide-react";
+import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { ErpCrudPage, formatMoney } from "@/components/erp/erp-crud-page";
 import { useAuthStore } from "@/store/auth";
+import { DecimalInput } from "@/components/ui/decimal-input";
+import { GlassCard } from "@/components/ui/page-shell";
+
+interface BankRow {
+  id: string;
+  name: string;
+  bankName: string;
+  accountNumber: string;
+  currentBalance: number;
+}
 
 export default function BankAccountsPage() {
   const t = useTranslations("erp");
   const tRecon = useTranslations("bankRecon");
+  const tCommon = useTranslations("common");
   const { company } = useAuthStore();
+  const currency = company?.currency || "OMR";
+  const queryClient = useQueryClient();
+
+  const [fromId, setFromId] = useState("");
+  const [toId, setToId] = useState("");
+  const [amount, setAmount] = useState(0);
+  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const [description, setDescription] = useState("");
+
   const { data: branches = [] } = useQuery({
     queryKey: ["branches"],
     queryFn: async () => (await api.getBranches()).data as { id: string; name: string }[],
+  });
+
+  const { data: banks = [] } = useQuery({
+    queryKey: ["bank-accounts"],
+    queryFn: async () => (await api.getBankAccounts()).data as BankRow[],
+  });
+
+  const transferMutation = useMutation({
+    mutationFn: () =>
+      api.transferBetweenBanks({
+        fromBankAccountId: fromId,
+        toBankAccountId: toId,
+        amount,
+        date,
+        description: description.trim() || undefined,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["bank-accounts"] });
+      toast.success(t("transferSuccess"));
+      setAmount(0);
+      setDescription("");
+    },
+    onError: (err: { response?: { data?: { message?: string } } }) => {
+      toast.error(err.response?.data?.message || tCommon("error"));
+    },
   });
 
   return (
@@ -28,6 +75,69 @@ export default function BankAccountsPage() {
           {tRecon("title")}
         </Link>
       </div>
+
+      {banks.length >= 2 && (
+        <GlassCard className="p-4 space-y-3">
+          <h3 className="text-sm font-medium text-white">{t("transferTitle")}</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <select
+              value={fromId}
+              onChange={(e) => setFromId(e.target.value)}
+              className="h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
+            >
+              <option value="">{t("transferFrom")}</option>
+              {banks.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name} — {formatMoney(Number(b.currentBalance), currency)}
+                </option>
+              ))}
+            </select>
+            <select
+              value={toId}
+              onChange={(e) => setToId(e.target.value)}
+              className="h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
+            >
+              <option value="">{t("transferTo")}</option>
+              {banks.map((b) => (
+                <option key={b.id} value={b.id} disabled={b.id === fromId}>
+                  {b.name} — {formatMoney(Number(b.currentBalance), currency)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <DecimalInput value={amount} onChange={setAmount} />
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
+            />
+            <input
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder={t("transferNote")}
+              className="h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
+            />
+          </div>
+          <button
+            type="button"
+            disabled={
+              !fromId || !toId || fromId === toId || amount <= 0 || transferMutation.isPending
+            }
+            onClick={() => transferMutation.mutate()}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm disabled:opacity-50"
+          >
+            {transferMutation.isPending ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <ArrowLeftRight className="w-4 h-4" />
+            )}
+            {t("transferSubmit")}
+          </button>
+        </GlassCard>
+      )}
+
       <ErpCrudPage
         title={t("bankTitle")}
         subtitle={t("bankSubtitle")}

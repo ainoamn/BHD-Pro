@@ -837,4 +837,46 @@ export class GlPostingService {
       ],
     );
   }
+
+  /** Internal transfer between two company bank accounts (Dr to / Cr from). */
+  async postBankTransfer(
+    companyId: string,
+    userId: string,
+    transfer: {
+      fromAccountId: string;
+      toAccountId: string;
+      amount: number;
+      date: Date;
+      description: string;
+      reference: string;
+    },
+  ) {
+    const amount = Number(transfer.amount);
+    if (amount <= 0) return null;
+    if (transfer.fromAccountId === transfer.toAccountId) return null;
+
+    return this.createEntry(
+      companyId,
+      userId,
+      {
+        date: transfer.date,
+        description: transfer.description,
+        reference: transfer.reference,
+      },
+      [
+        {
+          accountId: transfer.toAccountId,
+          description: transfer.description,
+          debit: amount,
+          credit: 0,
+        },
+        {
+          accountId: transfer.fromAccountId,
+          description: transfer.description,
+          debit: 0,
+          credit: amount,
+        },
+      ],
+    );
+  }
 }

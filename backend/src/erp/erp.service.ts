@@ -426,6 +426,59 @@ export class ErpService {
     return { message: 'Deleted' };
   }
 
+  async transferBetweenBanks(
+    companyId: string,
+    userId: string,
+    dto: {
+      fromBankAccountId: string;
+      toBankAccountId: string;
+      amount: number;
+      date?: string;
+      description?: string;
+      reference?: string;
+    },
+  ) {
+    if (dto.fromBankAccountId === dto.toBankAccountId) {
+      throw new BadRequestException('Cannot transfer to the same bank account');
+    }
+    const amount = Number(dto.amount);
+    if (!(amount > 0)) throw new BadRequestException('Amount must be greater than zero');
+
+    const [from, to] = await Promise.all([
+      this.ensureBankAccount(companyId, dto.fromBankAccountId),
+      this.ensureBankAccount(companyId, dto.toBankAccountId),
+    ]);
+    if (!from.accountId || !to.accountId) {
+      throw new BadRequestException('Both bank accounts must be linked to GL accounts');
+    }
+
+    const date = dto.date ? new Date(dto.date) : new Date();
+    const description =
+      dto.description?.trim() || `تحويل بنكي: ${from.name} ← ${to.name}`;
+    const reference = dto.reference?.trim() || `BANK-XFER:${from.id}:${to.id}:${Date.now()}`;
+
+    const journal = await this.glPosting.postBankTransfer(companyId, userId, {
+      fromAccountId: from.accountId,
+      toAccountId: to.accountId,
+      amount,
+      date,
+      description,
+      reference,
+    });
+    if (!journal) throw new BadRequestException('Failed to post bank transfer journal');
+
+    return {
+      journalId: journal.id,
+      journalNumber: journal.number,
+      fromBankAccountId: from.id,
+      toBankAccountId: to.id,
+      amount,
+      date,
+      description,
+      reference,
+    };
+  }
+
   private async ensureBankAccount(companyId: string, id: string) {
     const row = await this.prisma.bankAccount.findFirst({ where: { id, companyId } });
     if (!row) throw new NotFoundException('Bank account not found');
@@ -512,6 +565,113 @@ export class ErpService {
       unreconciledTotal: Number(unreconciledTotal.toFixed(3)),
       lines,
     };
+  }
+
+  async suggestStatementMatches(
+    companyId: string,
+    bankAccountId: string,
+    dateWindowDays = 5,
+  ) {
+    const bank = await this.ensureBankAccount(companyId, bankAccountId);
+    const lines = await this.prisma.bankStatementLine.findMany({
+      where: { companyId, bankAccountId, isReconciled: false },
+      orderBy: { date: 'desc' },
+      take: 50,
+    });
+    if (!lines.length) return { suggestions: [] };
+
+    const windowMs = Math.max(1, dateWindowDays) * 24 * 60 * 60 * 1000;
+    const minDate = new Date(
+      Math.min(...lines.map((l) => new Date(l.date).getTime())) - windowMs,
+    );
+    const maxDate = new Date(
+      Math.max(...lines.map((l) => new Date(l.date).getTime())) + windowMs,
+    );
+
+    const payments = await this.prisma.payment.findMany({
+      where: {
+        bankAccountId,
+        date: { gte: minDate, lte: maxDate },
+        invoice: { companyId },
+      },
+      include: { invoice: { select: { number: true } } },
+      take: 200,
+    });
+
+    const journalLines = bank.accountId
+      ? await this.prisma.journalLine.findMany({
+          where: {
+            accountId: bank.accountId,
+            journal: { companyId, date: { gte: minDate, lte: maxDate } },
+          },
+          include: {
+            journal: { select: { id: true, number: true, date: true, reference: true, description: true } },
+          },
+          take: 300,
+        })
+      : [];
+
+    const suggestions = lines.map((line) => {
+      const absAmt = Math.abs(Number(line.amount));
+      const lineDate = new Date(line.date).getTime();
+      const candidates: Array<{
+        type: 'PAYMENT' | 'JOURNAL';
+        id: string;
+        amount: number;
+        date: Date;
+        label: string;
+        score: number;
+      }> = [];
+
+      for (const pay of payments) {
+        const payAmt = Number(pay.amount);
+        if (Math.abs(payAmt - absAmt) > 0.005) continue;
+        const days = Math.abs(new Date(pay.date).getTime() - lineDate) / (24 * 60 * 60 * 1000);
+        if (days > dateWindowDays) continue;
+        let score = 100 - days * 10;
+        if (line.reference && pay.reference && line.reference === pay.reference) score += 25;
+        candidates.push({
+          type: 'PAYMENT',
+          id: pay.id,
+          amount: payAmt,
+          date: pay.date,
+          label: `${pay.invoice.number}${pay.reference ? ` · ${pay.reference}` : ''}`,
+          score,
+        });
+      }
+
+      for (const jl of journalLines) {
+        const move = Number(line.amount) >= 0 ? Number(jl.debit) : Number(jl.credit);
+        if (move <= 0.0005 || Math.abs(move - absAmt) > 0.005) continue;
+        const days =
+          Math.abs(new Date(jl.journal.date).getTime() - lineDate) / (24 * 60 * 60 * 1000);
+        if (days > dateWindowDays) continue;
+        let score = 90 - days * 10;
+        if (line.reference && jl.journal.reference && line.reference === jl.journal.reference) {
+          score += 25;
+        }
+        candidates.push({
+          type: 'JOURNAL',
+          id: jl.journal.id,
+          amount: move,
+          date: jl.journal.date,
+          label: `${jl.journal.number}${jl.journal.description ? ` · ${jl.journal.description}` : ''}`,
+          score,
+        });
+      }
+
+      candidates.sort((a, b) => b.score - a.score);
+      return {
+        lineId: line.id,
+        amount: Number(line.amount),
+        date: line.date,
+        description: line.description,
+        reference: line.reference,
+        candidates: candidates.slice(0, 5),
+      };
+    });
+
+    return { suggestions: suggestions.filter((s) => s.candidates.length > 0) };
   }
 
   // ─── Payroll ───

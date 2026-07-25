@@ -885,6 +885,12 @@
     "assetsSubtitle": "سجل الأصول والإهلاك",
     "bankTitle": "الحسابات البنكية",
     "bankSubtitle": "إدارة حسابات البنك وربطها بدفتر الأستاذ",
+    "transferTitle": "تحويل بين الحسابات البنكية",
+    "transferFrom": "من حساب",
+    "transferTo": "إلى حساب",
+    "transferNote": "وصف التحويل (اختياري)",
+    "transferSubmit": "تنفيذ التحويل",
+    "transferSuccess": "تم ترحيل التحويل البنكي",
     "warehousesTitle": "المستودعات",
     "warehousesSubtitle": "إدارة مواقع التخزين",
     "employeesTitle": "الموظفين والرواتب",
@@ -1336,7 +1342,13 @@
     "reconciled": "مسوّى",
     "pending": "معلّق",
     "reconcile": "تسوية",
-    "unreconcile": "إلغاء التسوية"
+    "unreconcile": "إلغاء التسوية",
+    "suggestMatches": "اقتراح مطابقة من الدفاتر",
+    "suggestions": "اقتراحات المطابقة",
+    "noSuggestions": "لا اقتراحات للمطابقة حالياً",
+    "acceptSuggestion": "قبول وتسوية",
+    "matchType_PAYMENT": "دفعة",
+    "matchType_JOURNAL": "قيد"
   },
   "reportsExport": {
     "csv": "تصدير CSV",

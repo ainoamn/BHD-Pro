@@ -100,6 +100,36 @@ export class BankStatementLineDto {
   amount: number;
 }
 
+export class BankTransferDto {
+  @ApiProperty()
+  @IsString()
+  fromBankAccountId: string;
+
+  @ApiProperty()
+  @IsString()
+  toBankAccountId: string;
+
+  @ApiProperty()
+  @IsNumber()
+  @Min(0.001)
+  amount: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  date?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  reference?: string;
+}
+
 export class WarehouseDto {
   @ApiProperty() @IsString() code: string;
   @ApiProperty() @IsString() name: string;

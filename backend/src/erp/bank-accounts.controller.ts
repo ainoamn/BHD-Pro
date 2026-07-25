@@ -6,11 +6,12 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { ErpService } from './erp.service';
-import { BankAccountDto, BankStatementLineDto } from './dto/erp.dto';
+import { BankAccountDto, BankStatementLineDto, BankTransferDto } from './dto/erp.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
@@ -28,6 +29,12 @@ export class BankAccountsController {
 
   @Post() create(@CurrentUser() u: TokenPayload, @Body() dto: BankAccountDto) {
     return this.erp.createBankAccount(u.companyId, dto);
+  }
+
+  @Post('transfer')
+  @ApiOperation({ summary: 'Internal transfer between two bank accounts (GL + balances)' })
+  transfer(@CurrentUser() u: TokenPayload, @Body() dto: BankTransferDto) {
+    return this.erp.transferBetweenBanks(u.companyId, u.sub, dto);
   }
 
   @Post('statement-lines/:lineId/toggle-reconciled')
@@ -62,6 +69,21 @@ export class BankAccountsController {
   @ApiOperation({ summary: 'Bank reconciliation summary report' })
   reconciliation(@CurrentUser() u: TokenPayload, @Param('id') id: string) {
     return this.erp.getReconciliationReport(u.companyId, id);
+  }
+
+  @Get(':id/suggest-matches')
+  @ApiOperation({ summary: 'Suggest GL/payment matches for unmatched statement lines' })
+  suggestMatches(
+    @CurrentUser() u: TokenPayload,
+    @Param('id') id: string,
+    @Query('days') days?: string,
+  ) {
+    const windowDays = days ? Number(days) : 5;
+    return this.erp.suggestStatementMatches(
+      u.companyId,
+      id,
+      Number.isFinite(windowDays) ? windowDays : 5,
+    );
   }
 
   @Put(':id') update(

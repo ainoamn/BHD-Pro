@@ -774,6 +774,23 @@ class ApiClient {
     return this.delete(`/bank-accounts/statement-lines/${lineId}`);
   }
 
+  transferBetweenBanks(data: {
+    fromBankAccountId: string;
+    toBankAccountId: string;
+    amount: number;
+    date?: string;
+    description?: string;
+    reference?: string;
+  }) {
+    return this.post('/bank-accounts/transfer', data);
+  }
+
+  suggestBankStatementMatches(bankAccountId: string, days?: number) {
+    return this.get(`/bank-accounts/${bankAccountId}/suggest-matches`, {
+      params: days ? { days } : {},
+    });
+  }
+
   getPayrollRuns() {
     return this.get('/payroll');
   }

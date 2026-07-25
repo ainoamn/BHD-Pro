@@ -885,6 +885,12 @@
     "assetsSubtitle": "Asset register and depreciation",
     "bankTitle": "Bank Accounts",
     "bankSubtitle": "Manage bank accounts linked to GL",
+    "transferTitle": "Transfer between bank accounts",
+    "transferFrom": "From account",
+    "transferTo": "To account",
+    "transferNote": "Transfer note (optional)",
+    "transferSubmit": "Post transfer",
+    "transferSuccess": "Bank transfer posted",
     "warehousesTitle": "Warehouses",
     "warehousesSubtitle": "Manage stock locations",
     "employeesTitle": "Employees & Payroll",
@@ -1336,7 +1342,13 @@
     "reconciled": "Reconciled",
     "pending": "Pending",
     "reconcile": "Reconcile",
-    "unreconcile": "Unreconcile"
+    "unreconcile": "Unreconcile",
+    "suggestMatches": "Suggest matches from books",
+    "suggestions": "Match suggestions",
+    "noSuggestions": "No match suggestions right now",
+    "acceptSuggestion": "Accept & reconcile",
+    "matchType_PAYMENT": "Payment",
+    "matchType_JOURNAL": "Journal"
   },
   "reportsExport": {
     "csv": "Export CSV",
