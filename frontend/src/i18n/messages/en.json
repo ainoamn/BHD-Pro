@@ -67,7 +67,8 @@
       "SHIFT_CASH_OUT": "Shift cash-out above limit",
       "PAYROLL_PAY": "Payroll payout",
       "CLAIM_PAY": "Employee claim payout",
-      "BANK_INTERNAL_TRANSFER": "Internal bank transfer"
+      "BANK_INTERNAL_TRANSFER": "Internal bank transfer",
+      "RESTO_VOID": "Restaurant void / comp"
     },
     "pinSet": "Supervisor PIN is set",
     "pinUnset": "No supervisor PIN yet",

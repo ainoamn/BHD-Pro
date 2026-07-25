@@ -8,6 +8,23 @@ const API =
   process.env.NEXT_PUBLIC_API_URL ||
   (typeof window !== "undefined" ? "/backend-api" : "http://localhost:3001/api");
 
+const ALLERGEN_CODES = [
+  "gluten",
+  "crustaceans",
+  "eggs",
+  "fish",
+  "peanuts",
+  "soy",
+  "milk",
+  "nuts",
+  "celery",
+  "mustard",
+  "sesame",
+  "sulphites",
+  "lupin",
+  "molluscs",
+] as const;
+
 type MenuItem = {
   id: string;
   name: string;
@@ -15,6 +32,7 @@ type MenuItem = {
   price: string | number;
   category: string;
   image?: string | null;
+  allergens?: string[];
 };
 
 type CartLine = {
@@ -55,6 +73,7 @@ export default function GuestOrderPage() {
   const [okMsg, setOkMsg] = useState("");
   const [locale, setLocale] = useState<"ar" | "en">("ar");
   const [q, setQ] = useState("");
+  const [hideAllergens, setHideAllergens] = useState<string[]>([]);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -89,14 +108,25 @@ export default function GuestOrderPage() {
   const filtered = useMemo(() => {
     const list = session?.menu || [];
     const needle = q.trim().toLowerCase();
-    if (!needle) return list;
-    return list.filter(
-      (m) =>
+    return list.filter((m) => {
+      if (hideAllergens.length) {
+        const itemAllergens = m.allergens || [];
+        if (hideAllergens.some((a) => itemAllergens.includes(a))) return false;
+      }
+      if (!needle) return true;
+      return (
         m.name.toLowerCase().includes(needle) ||
         (m.nameEn || "").toLowerCase().includes(needle) ||
-        (m.category || "").toLowerCase().includes(needle),
+        (m.category || "").toLowerCase().includes(needle)
+      );
+    });
+  }, [session?.menu, q, hideAllergens]);
+
+  const toggleHideAllergen = (code: string) => {
+    setHideAllergens((prev) =>
+      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code],
     );
-  }, [session?.menu, q]);
+  };
 
   const cartTotal = cart.reduce((s, l) => s + l.price * l.qty, 0);
 
@@ -309,10 +339,38 @@ export default function GuestOrderPage() {
           className="w-full h-11 rounded-xl bg-[#1a1614] border border-white/10 px-3 text-sm focus:outline-none focus:border-amber-500"
         />
 
+        <div className="space-y-1.5">
+          <p className="text-[11px] font-bold text-stone-400">
+            {locale === "en"
+              ? "Hide items containing"
+              : "أخفِ ما يحتوي"}
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {ALLERGEN_CODES.map((code) => {
+              const on = hideAllergens.includes(code);
+              return (
+                <button
+                  key={code}
+                  type="button"
+                  onClick={() => toggleHideAllergen(code)}
+                  className={`rounded-lg px-2 py-1 text-[10px] font-bold border ${
+                    on
+                      ? "border-rose-400/50 bg-rose-500/20 text-rose-100"
+                      : "border-white/10 text-stone-500 hover:border-white/25"
+                  }`}
+                >
+                  {code}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         <ul className="grid gap-3 sm:grid-cols-2">
           {filtered.map((m) => {
             const label = locale === "en" && m.nameEn ? m.nameEn : m.name;
             const price = typeof m.price === "number" ? m.price : Number(m.price);
+            const allergens = m.allergens || [];
             return (
               <li key={m.id}>
                 <button
@@ -341,6 +399,11 @@ export default function GuestOrderPage() {
                       <p className="text-[11px] text-stone-500 mt-0.5">
                         {m.category}
                       </p>
+                      {allergens.length > 0 ? (
+                        <p className="text-[10px] text-amber-200/70 mt-1 truncate">
+                          {allergens.join(", ")}
+                        </p>
+                      ) : null}
                     </div>
                     <p className="shrink-0 font-bold tabular-nums text-amber-200">
                       {fmt(price)}

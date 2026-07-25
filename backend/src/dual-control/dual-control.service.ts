@@ -103,6 +103,7 @@ export class DualControlService {
       PAYROLL_PAY: config.actions?.PAYROLL_PAY !== false,
       CLAIM_PAY: config.actions?.CLAIM_PAY !== false,
       BANK_INTERNAL_TRANSFER: config.actions?.BANK_INTERNAL_TRANSFER !== false,
+      RESTO_VOID: config.actions?.RESTO_VOID !== false,
     };
     const whatsappReady = this.whatsapp.isConfigured();
     const nfcBadgesConfigured = (config.nfcBadgeHashes || []).length > 0;

@@ -974,6 +974,8 @@ model Product {
   isTracked   Boolean  @default(true) @map("is_tracked")
 
   images      String[]
+  /// EU14-style allergen codes (gluten, milk, nuts, …)
+  allergens   String[] @default([])
 
   customFieldsJson Json @default("{}") @map("custom_fields_json")
 
@@ -2005,6 +2007,7 @@ model RestoOrderItem {
   isComp     Boolean              @default(false) @map("is_comp")
   voidReason String?              @map("void_reason")
   voidedAt   DateTime?            @map("voided_at")
+  voidedById String?              @map("voided_by_id")
   sentAt     DateTime?            @map("sent_at")
   readyAt    DateTime?            @map("ready_at")
   createdAt  DateTime             @default(now()) @map("created_at")

@@ -16,6 +16,8 @@ import { Observable, Subject, from, interval, merge, of } from 'rxjs';
 import { map, switchMap } from 'rxjs/operators';
 import { PrismaService } from '../prisma/prisma.service';
 import { PosService } from '../pos/pos.service';
+import { DualControlService } from '../dual-control/dual-control.service';
+import { DualApprovalDto } from '../dual-control/dto/approval.dto';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
 import {
   AddRestoOrderItemDto,
@@ -29,6 +31,8 @@ import {
   MergeRestoOrderDto,
   OpenRestoOrderDto,
   SetRestoMenu86Dto,
+  SetRestoProductAllergensDto,
+  RESTO_ALLERGEN_CODES,
   SplitRestoOrderDto,
   TransferRestoOrderDto,
   UpdateRestoOrderDto,
@@ -62,6 +66,7 @@ export class RestoService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly pos: PosService,
+    private readonly dualControl: DualControlService,
   ) {}
 
   private kitchenBus(companyId: string) {
@@ -309,6 +314,7 @@ export class RestoService {
         category: true,
         isTracked: true,
         images: true,
+        allergens: true,
       },
       orderBy: { name: 'asc' },
       take: 500,
@@ -354,6 +360,7 @@ export class RestoService {
           isTracked: p.isTracked,
           images: p.images || [],
           image: (p.images && p.images[0]) || null,
+          allergens: p.allergens || [],
           hasRecipe: withRecipe.has(p.id),
           defaultStationId: route?.stationId ?? null,
           defaultStationName: route?.station?.name ?? null,
@@ -1245,14 +1252,24 @@ export class RestoService {
   /**
    * Void or comp a line after it was sent to kitchen.
    * Comp: stays SERVED/READY at 0 price for audit. Void: CANCELLED with reason.
+   * Dual-control action: RESTO_VOID (same gate for void and comp).
    */
   async voidItem(
     companyId: string,
+    actor: TokenPayload,
     orderId: string,
     itemId: string,
     reason: string,
     comp = false,
+    approval?: DualApprovalDto,
   ) {
+    await this.dualControl.assertApproved(
+      companyId,
+      actor,
+      'RESTO_VOID',
+      approval,
+    );
+
     const item = await this.prisma.restoOrderItem.findFirst({
       where: { id: itemId, orderId, order: { companyId } },
     });
@@ -1276,6 +1293,7 @@ export class RestoService {
           unitPrice: this.decimal(0),
           voidReason: reasonText,
           voidedAt: new Date(),
+          voidedById: actor.sub,
           notes: [item.notes, `COMP: ${reasonText}`].filter(Boolean).join(' — '),
         },
       });
@@ -1286,6 +1304,7 @@ export class RestoService {
           status: RestoOrderItemStatus.CANCELLED,
           voidReason: reasonText,
           voidedAt: new Date(),
+          voidedById: actor.sub,
           notes: [item.notes, `VOID: ${reasonText}`].filter(Boolean).join(' — '),
         },
       });
@@ -1293,6 +1312,37 @@ export class RestoService {
     await this.refreshOrderStatus(companyId, orderId);
     this.notifyKitchen(companyId);
     return this.getOrder(companyId, orderId);
+  }
+
+  async setProductAllergens(
+    companyId: string,
+    productId: string,
+    dto: SetRestoProductAllergensDto,
+  ) {
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, companyId },
+      select: { id: true },
+    });
+    if (!product) throw new NotFoundException('Product not found');
+    const allowed = new Set<string>(RESTO_ALLERGEN_CODES);
+    const unique = [
+      ...new Set(
+        (dto.allergens || [])
+          .map((a) => a.trim().toLowerCase())
+          .filter(Boolean),
+      ),
+    ];
+    const invalid = unique.filter((c) => !allowed.has(c));
+    if (invalid.length) {
+      throw new BadRequestException(
+        `Invalid allergen code(s): ${invalid.join(', ')}`,
+      );
+    }
+    await this.prisma.product.update({
+      where: { id: productId },
+      data: { allergens: unique },
+    });
+    return { productId, allergens: unique };
   }
 
   /** Expo / runner pass — READY tickets awaiting SERVED */
@@ -2680,6 +2730,7 @@ export class RestoService {
         category: p.category,
         image: p.image,
         images: p.images,
+        allergens: p.allergens || [],
       })),
       modifiers: (await this.listModifiers(table.companyId)).modifiers,
       openOrder: open

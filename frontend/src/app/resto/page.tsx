@@ -15,6 +15,10 @@ import { useLocaleStore } from "@/store/locale";
 import { useAuthStore } from "@/store/auth";
 import { restoCopy } from "@/lib/resto-copy";
 import { printRestoGuestCheck } from "@/lib/resto-guest-check";
+import {
+  DualApprovalModal,
+  type DualApprovalPayload,
+} from "@/components/security/dual-approval-modal";
 
 type FloorTable = {
   id: string;
@@ -79,6 +83,7 @@ export default function RestoFloorPage() {
   const locale = useLocaleStore((s) => s.locale);
   const t = restoCopy[locale === "en" ? "en" : "ar"];
   const company = useAuthStore((s) => s.company);
+  const user = useAuthStore((s) => s.user);
   const [companyName, setCompanyName] = useState("");
   const [zones, setZones] = useState<FloorZone[]>([]);
   const [empty, setEmpty] = useState(false);
@@ -97,6 +102,12 @@ export default function RestoFloorPage() {
   const [serviceChargePct, setServiceChargePct] = useState("10");
   const [cashPart, setCashPart] = useState("");
   const [voidReason, setVoidReason] = useState("");
+  const [voidTarget, setVoidTarget] = useState<{
+    itemId: string;
+    comp: boolean;
+    reason: string;
+  } | null>(null);
+  const [voidBusy, setVoidBusy] = useState(false);
   const [modifiers, setModifiers] = useState<
     Array<{ id: string; name: string; nameEn: string | null; priceDelta: number }>
   >([]);
@@ -379,25 +390,34 @@ export default function RestoFloorPage() {
     }
   };
 
-  const voidOrComp = async (itemId: string, comp: boolean) => {
+  const voidOrComp = (itemId: string, comp: boolean) => {
     if (!order) return;
     const reason =
       voidReason.trim() ||
       window.prompt(t.voidReasonPh)?.trim() ||
       "";
     if (reason.length < 2) return;
+    setVoidTarget({ itemId, comp, reason });
+  };
+
+  const confirmVoidOrComp = async (approval: DualApprovalPayload) => {
+    if (!order || !voidTarget) return;
+    setVoidBusy(true);
     setBusy(true);
     try {
-      const res = await api.voidRestoOrderItem(order.id, itemId, {
-        reason,
-        comp,
+      const res = await api.voidRestoOrderItem(order.id, voidTarget.itemId, {
+        reason: voidTarget.reason,
+        comp: voidTarget.comp,
+        approval,
       });
       setOrder(res.data);
       setVoidReason("");
+      setVoidTarget(null);
       await loadFloor();
     } catch {
       setError(t.actionFail);
     } finally {
+      setVoidBusy(false);
       setBusy(false);
     }
   };
@@ -1247,6 +1267,32 @@ export default function RestoFloorPage() {
           </aside>
         </div>
       )}
+
+      <DualApprovalModal
+        open={!!voidTarget}
+        action="RESTO_VOID"
+        actionLabel={
+          voidTarget?.comp ? t.compItem : t.voidItem || t.voidReasonPh
+        }
+        payload={
+          voidTarget
+            ? {
+                orderId: order?.id,
+                itemId: voidTarget.itemId,
+                comp: voidTarget.comp,
+              }
+            : undefined
+        }
+        summary={
+          voidTarget
+            ? `${voidTarget.comp ? t.compItem : t.voidItem}: ${voidTarget.reason}`
+            : undefined
+        }
+        actorRole={user?.role}
+        busy={voidBusy}
+        onCancel={() => !voidBusy && setVoidTarget(null)}
+        onConfirm={confirmVoidOrComp}
+      />
     </div>
   );
 }

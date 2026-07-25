@@ -39,6 +39,7 @@ import {
   SeedRestoFloorDto,
   SetRestoMenu86Dto,
   SetRestoProductStationDto,
+  SetRestoProductAllergensDto,
   SetRestoWarehouseDto,
   SplitRestoOrderDto,
   TransferRestoOrderDto,
@@ -336,10 +337,12 @@ export class RestoController {
   ) {
     return this.resto.voidItem(
       user.companyId,
+      user,
       id,
       itemId,
       dto.reason,
       !!dto.comp,
+      dto.approval,
     );
   }
 
@@ -461,6 +464,17 @@ export class RestoController {
       productId,
       dto.stationId || null,
     );
+  }
+
+  @Patch('menu/:productId/allergens')
+  @Roles(...RESTO_FLOOR_MGR)
+  @ApiOperation({ summary: 'Set EU14 allergen codes for a menu product' })
+  setProductAllergens(
+    @CurrentUser() user: TokenPayload,
+    @Param('productId') productId: string,
+    @Body() dto: SetRestoProductAllergensDto,
+  ) {
+    return this.resto.setProductAllergens(user.companyId, productId, dto);
   }
 
   @Get('reservations')

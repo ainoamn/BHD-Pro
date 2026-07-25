@@ -20,6 +20,7 @@ type MenuItem = {
   category: string;
   image?: string | null;
   images?: string[];
+  allergens?: string[];
   defaultStationId?: string | null;
   defaultStationName?: string | null;
 };
@@ -29,6 +30,23 @@ type Station = {
   name: string;
   nameEn: string | null;
 };
+
+const ALLERGEN_CODES = [
+  "gluten",
+  "crustaceans",
+  "eggs",
+  "fish",
+  "peanuts",
+  "soy",
+  "milk",
+  "nuts",
+  "celery",
+  "mustard",
+  "sesame",
+  "sulphites",
+  "lupin",
+  "molluscs",
+] as const;
 
 export default function RestoMenuPage() {
   const locale = useLocaleStore((s) => s.locale);
@@ -114,6 +132,28 @@ export default function RestoMenuPage() {
         ),
       );
       toast.success(locale === "en" ? "Station saved" : "حُفظت المحطة");
+    } catch {
+      toast.error(t.actionFail);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const toggleAllergen = async (productId: string, code: string) => {
+    const item = items.find((i) => i.id === productId);
+    if (!item) return;
+    const current = item.allergens || [];
+    const next = current.includes(code)
+      ? current.filter((c) => c !== code)
+      : [...current, code];
+    setBusyId(productId);
+    try {
+      await api.setRestoProductAllergens(productId, next);
+      setItems((prev) =>
+        prev.map((it) =>
+          it.id === productId ? { ...it, allergens: next } : it,
+        ),
+      );
     } catch {
       toast.error(t.actionFail);
     } finally {
@@ -237,6 +277,35 @@ export default function RestoMenuPage() {
                   ) : item.defaultStationName ? (
                     <p className="text-[11px] text-stone-500">
                       {t.stations}: {item.defaultStationName}
+                    </p>
+                  ) : null}
+                  {canManage ? (
+                    <div className="space-y-1">
+                      <p className="text-[10px] text-stone-500">{t.allergens}</p>
+                      <div className="flex flex-wrap gap-1">
+                        {ALLERGEN_CODES.map((code) => {
+                          const on = (item.allergens || []).includes(code);
+                          return (
+                            <button
+                              key={code}
+                              type="button"
+                              disabled={busyId === item.id}
+                              onClick={() => void toggleAllergen(item.id, code)}
+                              className={`rounded-md px-1.5 py-0.5 text-[9px] font-bold border ${
+                                on
+                                  ? "border-amber-400/50 bg-amber-500/20 text-amber-100"
+                                  : "border-white/10 text-stone-500 hover:border-white/25"
+                              }`}
+                            >
+                              {code}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (item.allergens || []).length > 0 ? (
+                    <p className="text-[10px] text-amber-200/80">
+                      {t.allergens}: {(item.allergens || []).join(", ")}
                     </p>
                   ) : null}
                   {canManage ? (

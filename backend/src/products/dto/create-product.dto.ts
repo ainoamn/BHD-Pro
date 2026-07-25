@@ -66,6 +66,12 @@ export class CreateProductDto {
   @IsString({ each: true })
   images?: string[];
 
+  /** EU14 allergen codes */
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  allergens?: string[];
+
   /** Home / sector warehouse — scopes POS & resto catalogs */
   @IsOptional()
   @IsUUID()

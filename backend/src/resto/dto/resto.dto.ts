@@ -1,6 +1,25 @@
 import { IsArray, IsBoolean, IsEnum, IsIn, IsInt, IsNumber, IsOptional, IsString, IsUUID, Max, MaxLength, Min, MinLength, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { PaymentMethod, RestoOrderChannel } from '@prisma/client';
+import { DualApprovalDto } from '../../dual-control/dto/approval.dto';
+
+/** EU14-style allergen codes used on resto menu / guest filter */
+export const RESTO_ALLERGEN_CODES = [
+  'gluten',
+  'crustaceans',
+  'eggs',
+  'fish',
+  'peanuts',
+  'soy',
+  'milk',
+  'nuts',
+  'celery',
+  'mustard',
+  'sesame',
+  'sulphites',
+  'lupin',
+  'molluscs',
+] as const;
 
 export class LinkRestoDto {
   @IsString()
@@ -347,6 +366,17 @@ export class VoidRestoOrderItemDto {
   @Type(() => Boolean)
   @IsBoolean()
   comp?: boolean;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DualApprovalDto)
+  approval?: DualApprovalDto;
+}
+
+export class SetRestoProductAllergensDto {
+  @IsArray()
+  @IsIn([...RESTO_ALLERGEN_CODES], { each: true })
+  allergens: string[];
 }
 
 export class CloseRestoPaymentLineDto {

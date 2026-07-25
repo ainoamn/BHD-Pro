@@ -19,7 +19,8 @@ export type DualControlAction =
   | "SHIFT_CASH_OUT"
   | "PAYROLL_PAY"
   | "CLAIM_PAY"
-  | "BANK_INTERNAL_TRANSFER";
+  | "BANK_INTERNAL_TRANSFER"
+  | "RESTO_VOID";
 
 export type DualApprovalPayload = {
   method: "SELF_CONFIRM" | "PASSWORD" | "PIN" | "APPROVAL_REQUEST" | "WHATSAPP_OTP" | "NFC";

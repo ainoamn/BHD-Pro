@@ -34,6 +34,7 @@ type SecurityPublic = {
     PAYROLL_PAY: boolean;
     CLAIM_PAY: boolean;
     BANK_INTERNAL_TRANSFER: boolean;
+    RESTO_VOID: boolean;
   };
 };
 
@@ -50,6 +51,7 @@ const ACTION_KEYS = [
   "PAYROLL_PAY",
   "CLAIM_PAY",
   "BANK_INTERNAL_TRANSFER",
+  "RESTO_VOID",
 ] as const;
 
 export function DualControlSettings() {
@@ -73,6 +75,7 @@ export function DualControlSettings() {
     PAYROLL_PAY: true,
     CLAIM_PAY: true,
     BANK_INTERNAL_TRANSFER: true,
+    RESTO_VOID: true,
   });
   const [pin, setPin] = useState("");
   const [whatsappPhones, setWhatsappPhones] = useState("");
@@ -106,6 +109,7 @@ export function DualControlSettings() {
       PAYROLL_PAY: true,
       CLAIM_PAY: true,
       BANK_INTERNAL_TRANSFER: true,
+      RESTO_VOID: true,
     };
     setActions({ ...defaults, ...data.actions });
     setVarianceLimit(String(data.shiftVarianceLimit ?? 1));

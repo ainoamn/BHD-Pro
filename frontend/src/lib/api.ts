@@ -1490,6 +1490,7 @@ class ApiClient {
         category: string;
         images?: string[];
         image?: string | null;
+        allergens?: string[];
         isTracked?: boolean;
         hasRecipe?: boolean;
         defaultStationId?: string | null;
@@ -1522,6 +1523,13 @@ class ApiClient {
 
   setRestoProductStation(productId: string, stationId: string | null) {
     return this.patch(`/resto/menu/${productId}/station`, { stationId });
+  }
+
+  setRestoProductAllergens(productId: string, allergens: string[]) {
+    return this.patch<{ productId: string; allergens: string[] }>(
+      `/resto/menu/${productId}/allergens`,
+      { allergens },
+    );
   }
 
   getRestoReservations(days?: number) {
@@ -1782,7 +1790,11 @@ class ApiClient {
   voidRestoOrderItem(
     orderId: string,
     itemId: string,
-    data: { reason: string; comp?: boolean },
+    data: {
+      reason: string;
+      comp?: boolean;
+      approval?: DualApprovalPayload;
+    },
   ) {
     return this.post<RestoOrderPayload>(
       `/resto/orders/${orderId}/items/${itemId}/void`,
