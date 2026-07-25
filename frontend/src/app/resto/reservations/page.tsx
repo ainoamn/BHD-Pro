@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { CalendarDays, Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
@@ -26,6 +27,7 @@ type FloorTable = {
 };
 
 export default function RestoReservationsPage() {
+  const router = useRouter();
   const locale = useLocaleStore((s) => s.locale);
   const t = restoCopy[locale === "en" ? "en" : "ar"];
   const user = useAuthStore((s) => s.user);
@@ -109,8 +111,11 @@ export default function RestoReservationsPage() {
   ) => {
     setBusy(true);
     try {
-      await api.updateRestoReservationStatus(id, status);
+      const res = await api.updateRestoReservationStatus(id, status);
       await load();
+      if (status === "SEATED" && res.data.openedOrderId) {
+        router.push(`/resto/orders/${res.data.openedOrderId}`);
+      }
     } catch {
       toast.error(t.actionFail);
     } finally {

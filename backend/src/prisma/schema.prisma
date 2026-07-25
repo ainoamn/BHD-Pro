@@ -107,6 +107,7 @@ model Company {
   restoOrders RestoOrder[]
   restoProductStations RestoProductStation[]
   restoReservations RestoReservation[]
+  restoRecipes RestoRecipe[]
 
   @@index([vatNumber])
   @@index([crNumber])
@@ -983,6 +984,8 @@ model Product {
   deliveryNoteItems DeliveryNoteItem[]
   stockCountLines StockCountLine[]
   warehouseStocks WarehouseStock[]
+  restoRecipeAsDish RestoRecipe?
+  restoRecipeComponents RestoRecipeItem[] @relation("RestoRecipeComponent")
 
   @@unique([companyId, sku])
   @@unique([companyId, barcode])
@@ -1874,6 +1877,38 @@ model RestoProductStation {
   @@unique([companyId, productId])
   @@index([companyId, stationId])
   @@map("resto_product_stations")
+}
+
+/// Recipe (BOM) for a finished menu dish — components deducted on paid close when dish is not stock-tracked
+model RestoRecipe {
+  id        String   @id @default(uuid())
+  companyId String   @map("company_id")
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  productId String   @map("product_id")
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  notes     String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  items     RestoRecipeItem[]
+
+  @@unique([companyId, productId])
+  @@unique([productId])
+  @@index([companyId])
+  @@map("resto_recipes")
+}
+
+model RestoRecipeItem {
+  id                 String      @id @default(uuid())
+  recipeId           String      @map("recipe_id")
+  recipe             RestoRecipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  componentProductId String      @map("component_product_id")
+  component          Product     @relation("RestoRecipeComponent", fields: [componentProductId], references: [id], onDelete: Restrict)
+  qty                Decimal     @db.Decimal(14, 3)
+  createdAt          DateTime    @default(now()) @map("created_at")
+
+  @@unique([recipeId, componentProductId])
+  @@index([componentProductId])
+  @@map("resto_recipe_items")
 }
 
 enum RestoReservationStatus {

@@ -1,4 +1,14 @@
-import { IsString, IsNotEmpty, IsOptional, IsNumber, IsObject, Min, ValidateIf } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsNumber,
+  IsObject,
+  IsArray,
+  IsUUID,
+  Min,
+  ValidateIf,
+} from 'class-validator';
 
 export class CreateProductDto {
   /** Optional — auto-generated serial SKU when omitted */
@@ -49,6 +59,17 @@ export class CreateProductDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  /** Public image URLs (shown on restaurant menu / catalog) */
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  images?: string[];
+
+  /** Home / sector warehouse — scopes POS & resto catalogs */
+  @IsOptional()
+  @IsUUID()
+  warehouseId?: string;
 
   @IsOptional()
   @IsObject()

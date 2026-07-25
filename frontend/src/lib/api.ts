@@ -1458,11 +1458,36 @@ class ApiClient {
         price: string | number;
         unit: string;
         category: string;
+        images?: string[];
+        image?: string | null;
+        isTracked?: boolean;
+        hasRecipe?: boolean;
         defaultStationId?: string | null;
         defaultStationName?: string | null;
       }>;
       count: number;
+      warehouseId?: string | null;
+      needsWarehouse?: boolean;
     }>('/resto/menu', { params: q ? { q } : undefined });
+  }
+
+  seedRestoDemoCatalog() {
+    return this.post<{
+      ok: boolean;
+      branches: number;
+      warehouses: number;
+      products: number;
+      message: string;
+    }>('/resto/demo/seed', {});
+  }
+
+  purgeRestoDemoCatalog() {
+    return this.post<{
+      ok: boolean;
+      deletedProducts: number;
+      deletedWarehouses: number;
+      deletedBranches: number;
+    }>('/resto/demo/purge', {});
   }
 
   setRestoProductStation(productId: string, stationId: string | null) {
@@ -1505,7 +1530,58 @@ class ApiClient {
     id: string,
     status: 'PENDING' | 'CONFIRMED' | 'SEATED' | 'CANCELLED' | 'NO_SHOW',
   ) {
-    return this.patch(`/resto/reservations/${id}/status`, { status });
+    return this.patch<{
+      id: string;
+      status: string;
+      openedOrderId?: string | null;
+    }>(`/resto/reservations/${id}/status`, { status });
+  }
+
+  getRestoRecipes() {
+    return this.get<{
+      count: number;
+      recipes: Array<{
+        id: string;
+        productId: string;
+        notes: string | null;
+        deductsIngredients: boolean;
+        warningTracked: string | null;
+        product: {
+          id: string;
+          name: string;
+          nameEn: string | null;
+          sku: string;
+          isTracked: boolean;
+          price: string | number;
+        };
+        items: Array<{
+          id: string;
+          componentProductId: string;
+          qty: string | number;
+          component: {
+            id: string;
+            name: string;
+            nameEn: string | null;
+            sku: string;
+            unit: string;
+          };
+        }>;
+      }>;
+    }>('/resto/recipes');
+  }
+
+  upsertRestoRecipe(
+    productId: string,
+    data: {
+      notes?: string;
+      items: Array<{ componentProductId: string; qty: number }>;
+    },
+  ) {
+    return this.put(`/resto/recipes/${productId}`, data);
+  }
+
+  deleteRestoRecipe(productId: string) {
+    return this.delete(`/resto/recipes/${productId}`);
   }
 
   getRestoFloor() {

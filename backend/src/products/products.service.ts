@@ -211,9 +211,20 @@ export class ProductsService {
       await this.assertBarcodeAvailable(companyId, barcode);
     }
 
-    const warehouse = await this.ensureDefaultWarehouse(companyId);
-    const { customFieldsJson, barcode: _barcode, sku: _sku, ...rest } = dto;
+    const warehouse = dto.warehouseId
+      ? await this.prisma.warehouse.findFirst({
+          where: { id: dto.warehouseId, companyId, isActive: true },
+        })
+      : await this.ensureDefaultWarehouse(companyId);
+    if (!warehouse) throw new BadRequestException('Warehouse not found');
+
+    const { customFieldsJson, barcode: _barcode, sku: _sku, images, warehouseId: _wh, ...rest } =
+      dto;
     const qty = Number(dto.quantity ?? 0);
+    const imageList = (images || [])
+      .map((u) => String(u || '').trim())
+      .filter(Boolean)
+      .slice(0, 8);
 
     return this.prisma.$transaction(async (tx) => {
       const product = await tx.product.create({
@@ -222,7 +233,7 @@ export class ProductsService {
           sku,
           barcode,
           companyId,
-          images: [],
+          images: imageList,
           warehouseId: warehouse.id,
           ...(customFieldsJson !== undefined
             ? { customFieldsJson: customFieldsJson as object }
@@ -249,15 +260,32 @@ export class ProductsService {
 
   async update(companyId: string, id: string, dto: UpdateProductDto) {
     await this.findOne(companyId, id);
-    const { customFieldsJson, barcode: rawBarcode, ...rest } = dto;
+    const { customFieldsJson, barcode: rawBarcode, images, warehouseId, ...rest } = dto;
     const barcode = this.normalizeBarcode(rawBarcode);
     await this.assertBarcodeAvailable(companyId, barcode, id);
+
+    if (warehouseId) {
+      const wh = await this.prisma.warehouse.findFirst({
+        where: { id: warehouseId, companyId, isActive: true },
+      });
+      if (!wh) throw new BadRequestException('Warehouse not found');
+    }
+
+    const imageList =
+      images === undefined
+        ? undefined
+        : (images || [])
+            .map((u) => String(u || '').trim())
+            .filter(Boolean)
+            .slice(0, 8);
 
     return this.prisma.product.update({
       where: { id },
       data: {
         ...rest,
         ...(barcode !== undefined ? { barcode } : {}),
+        ...(imageList !== undefined ? { images: imageList } : {}),
+        ...(warehouseId !== undefined ? { warehouseId } : {}),
         ...(customFieldsJson !== undefined
           ? { customFieldsJson: customFieldsJson as object }
           : {}),

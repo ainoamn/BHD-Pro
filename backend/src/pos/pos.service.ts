@@ -428,6 +428,7 @@ export class PosService {
     qty: number,
     warehouseId: string | undefined,
     reference: string,
+    notes = 'POS sale (reserved)',
   ) {
     await this.periods.assertOpen(companyId, new Date());
 
@@ -503,12 +504,31 @@ export class PosService {
           quantity: qty,
           unitCost: product.costPrice,
           reference,
-          notes: 'POS sale (reserved)',
+          notes,
         },
       });
 
       return { productId, reserved: true as const, qty, warehouseId: whId! };
     });
+  }
+
+  /** Public stock OUT for restaurant recipe components (and similar) */
+  async consumeStock(
+    companyId: string,
+    productId: string,
+    qty: number,
+    warehouseId: string | undefined,
+    reference: string,
+    notes = 'Resto recipe component',
+  ) {
+    return this.reserveStockOut(
+      companyId,
+      productId,
+      qty,
+      warehouseId,
+      reference,
+      notes,
+    );
   }
 
   private async releaseStockIn(

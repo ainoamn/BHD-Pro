@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, Search, UtensilsCrossed } from "lucide-react";
+import Link from "next/link";
+import { Loader2, Search, UtensilsCrossed, Pencil } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
@@ -17,6 +18,8 @@ type MenuItem = {
   price: string | number;
   unit: string;
   category: string;
+  image?: string | null;
+  images?: string[];
   defaultStationId?: string | null;
   defaultStationName?: string | null;
 };
@@ -42,9 +45,12 @@ export default function RestoMenuPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
 
   useEffect(() => {
-    void api.getRestoStations().then((res) => {
-      setStations(res.data.stations || []);
-    }).catch(() => undefined);
+    void api
+      .getRestoStations()
+      .then((res) => {
+        setStations(res.data.stations || []);
+      })
+      .catch(() => undefined);
   }, []);
 
   useEffect(() => {
@@ -130,46 +136,73 @@ export default function RestoMenuPage() {
       ) : items.length === 0 ? (
         <p className="text-center text-sm text-stone-400 py-16">{t.menuEmpty}</p>
       ) : (
-        <ul className="grid gap-2 sm:grid-cols-2">
+        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {items.map((item) => {
             const label =
               locale === "en" && item.nameEn ? item.nameEn : item.name;
+            const img = item.image || item.images?.[0] || null;
             return (
               <li
                 key={item.id}
-                className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 space-y-2"
+                className="rounded-2xl border border-white/8 bg-white/[0.03] overflow-hidden flex flex-col"
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="font-semibold truncate">{label}</p>
-                    <p className="text-xs text-stone-500 mt-0.5 truncate">
-                      {item.category}
-                      {item.sku ? ` · ${item.sku}` : ""}
+                <div className="aspect-[4/3] bg-black/40 relative">
+                  {img ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={img}
+                      alt={label}
+                      className="absolute inset-0 w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center text-stone-600">
+                      <UtensilsCrossed className="w-10 h-10 opacity-40" />
+                    </div>
+                  )}
+                </div>
+                <div className="px-3 py-3 space-y-2 flex-1 flex flex-col">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-semibold truncate">{label}</p>
+                      <p className="text-xs text-stone-500 mt-0.5 truncate">
+                        {item.category}
+                        {item.sku ? ` · ${item.sku}` : ""}
+                      </p>
+                    </div>
+                    <p className="shrink-0 font-bold tabular-nums text-amber-200">
+                      {fmt(item.price)}
                     </p>
                   </div>
-                  <p className="shrink-0 font-bold tabular-nums text-amber-200">
-                    {fmt(item.price)}
-                  </p>
+                  {canManage && stations.length > 0 ? (
+                    <select
+                      value={item.defaultStationId || ""}
+                      disabled={busyId === item.id}
+                      onChange={(e) => void setStation(item.id, e.target.value)}
+                      className="w-full h-9 rounded-lg bg-black/30 border border-white/10 px-2 text-xs"
+                    >
+                      <option value="">{t.stationAuto}</option>
+                      {stations.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {locale === "en" && s.nameEn ? s.nameEn : s.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : item.defaultStationName ? (
+                    <p className="text-[11px] text-stone-500">
+                      {t.stations}: {item.defaultStationName}
+                    </p>
+                  ) : null}
+                  {canManage ? (
+                    <Link
+                      href="/inventory"
+                      className="inline-flex items-center gap-1 text-[11px] text-amber-300/90 hover:text-amber-200 mt-auto"
+                    >
+                      <Pencil className="w-3 h-3" />
+                      {t.editInInventory}
+                    </Link>
+                  ) : null}
                 </div>
-                {canManage && stations.length > 0 ? (
-                  <select
-                    value={item.defaultStationId || ""}
-                    disabled={busyId === item.id}
-                    onChange={(e) => void setStation(item.id, e.target.value)}
-                    className="w-full h-9 rounded-lg bg-black/30 border border-white/10 px-2 text-xs"
-                  >
-                    <option value="">{t.stationAuto}</option>
-                    {stations.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {locale === "en" && s.nameEn ? s.nameEn : s.name}
-                      </option>
-                    ))}
-                  </select>
-                ) : item.defaultStationName ? (
-                  <p className="text-[11px] text-stone-500">
-                    {t.stations}: {item.defaultStationName}
-                  </p>
-                ) : null}
               </li>
             );
           })}

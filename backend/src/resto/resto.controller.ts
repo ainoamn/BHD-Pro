@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -17,6 +18,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
 import { RestoService } from './resto.service';
+import { RestoDemoSeedService } from './resto-demo-seed.service';
 import {
   ActivateRestoLinkDto,
   AddRestoOrderItemDto,
@@ -31,6 +33,7 @@ import {
   SetRestoProductStationDto,
   SetRestoWarehouseDto,
   UpdateRestoOrderItemDto,
+  UpsertRestoRecipeDto,
   UpdateRestoReservationStatusDto,
 } from './dto/resto.dto';
 import { IsIn } from 'class-validator';
@@ -61,7 +64,10 @@ const RESTO_FLOOR_MGR = [
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('resto')
 export class RestoController {
-  constructor(private readonly resto: RestoService) {}
+  constructor(
+    private readonly resto: RestoService,
+    private readonly demoSeed: RestoDemoSeedService,
+  ) {}
 
   @Get('link-status')
   @ApiOperation({ summary: 'Restaurant ↔ company link status' })
@@ -134,6 +140,23 @@ export class RestoController {
     @Body() dto: SeedRestoFloorDto,
   ) {
     return this.resto.seedFloor(user.companyId, dto.tableCount ?? 8);
+  }
+
+  @Post('demo/seed')
+  @Roles(...RESTO_FLOOR_MGR)
+  @ApiOperation({
+    summary:
+      'Seed multi-branch demo: restaurants + cafe + grocery warehouses, meals with images, retail SKUs',
+  })
+  seedDemo(@CurrentUser() user: TokenPayload) {
+    return this.demoSeed.seed(user.companyId);
+  }
+
+  @Post('demo/purge')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Delete DEMO-* branches/warehouses/products only' })
+  purgeDemo(@CurrentUser() user: TokenPayload) {
+    return this.demoSeed.purge(user.companyId);
   }
 
   @Post('zones')
@@ -323,6 +346,45 @@ export class RestoController {
       user.companyId,
       id,
       dto.status,
+      user.sub,
     );
+  }
+
+  @Get('recipes')
+  @Roles(...RESTO_STAFF)
+  @ApiOperation({ summary: 'List restaurant recipes (BOM)' })
+  listRecipes(@CurrentUser() user: TokenPayload) {
+    return this.resto.listRecipes(user.companyId);
+  }
+
+  @Get('recipes/:productId')
+  @Roles(...RESTO_STAFF)
+  @ApiOperation({ summary: 'Get recipe for a menu product' })
+  getRecipe(
+    @CurrentUser() user: TokenPayload,
+    @Param('productId') productId: string,
+  ) {
+    return this.resto.getRecipe(user.companyId, productId);
+  }
+
+  @Put('recipes/:productId')
+  @Roles(...RESTO_FLOOR_MGR)
+  @ApiOperation({ summary: 'Create or replace recipe for a menu product' })
+  upsertRecipe(
+    @CurrentUser() user: TokenPayload,
+    @Param('productId') productId: string,
+    @Body() dto: UpsertRestoRecipeDto,
+  ) {
+    return this.resto.upsertRecipe(user.companyId, productId, dto);
+  }
+
+  @Delete('recipes/:productId')
+  @Roles(...RESTO_FLOOR_MGR)
+  @ApiOperation({ summary: 'Delete recipe for a menu product' })
+  deleteRecipe(
+    @CurrentUser() user: TokenPayload,
+    @Param('productId') productId: string,
+  ) {
+    return this.resto.deleteRecipe(user.companyId, productId);
   }
 }

@@ -15,6 +15,7 @@ import {
   Settings2,
   Store,
   UtensilsCrossed,
+  Soup,
 } from "lucide-react";
 import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
@@ -98,6 +99,12 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
       label: t.menu,
       icon: UtensilsCrossed,
       active: pathname?.startsWith("/resto/menu"),
+    },
+    {
+      href: "/resto/recipes",
+      label: t.recipes,
+      icon: Soup,
+      active: pathname?.startsWith("/resto/recipes"),
     },
     {
       href: "/resto/kitchen",

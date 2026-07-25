@@ -1,4 +1,4 @@
-import { IsBoolean, IsEnum, IsIn, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { IsArray, IsBoolean, IsEnum, IsIn, IsInt, IsNumber, IsOptional, IsString, IsUUID, Max, MaxLength, Min, MinLength, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { PaymentMethod, RestoOrderChannel } from '@prisma/client';
 
@@ -206,4 +206,26 @@ export class CreateRestoReservationDto {
 export class UpdateRestoReservationStatusDto {
   @IsIn(['PENDING', 'CONFIRMED', 'SEATED', 'CANCELLED', 'NO_SHOW'])
   status: 'PENDING' | 'CONFIRMED' | 'SEATED' | 'CANCELLED' | 'NO_SHOW';
+}
+
+export class RestoRecipeItemDto {
+  @IsUUID()
+  componentProductId: string;
+
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 3 })
+  @Min(0.001)
+  qty: number;
+}
+
+export class UpsertRestoRecipeDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  notes?: string;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => RestoRecipeItemDto)
+  items: RestoRecipeItemDto[];
 }

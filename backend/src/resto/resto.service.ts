@@ -18,11 +18,13 @@ import { TokenPayload } from '../auth/interfaces/token-payload.interface';
 import {
   AddRestoOrderItemDto,
   CloseRestoOrderDto,
+  CreateRestoReservationDto,
   CreateRestoStationDto,
   CreateRestoTableDto,
   CreateRestoZoneDto,
   OpenRestoOrderDto,
   UpdateRestoOrderItemDto,
+  UpsertRestoRecipeDto,
 } from './dto/resto.dto';
 import { productWhereForWarehouse } from '../common/warehouse-product-scope';
 
@@ -258,6 +260,8 @@ export class RestoService {
         salePrice: true,
         unit: true,
         category: true,
+        isTracked: true,
+        images: true,
       },
       orderBy: { name: 'asc' },
       take: 500,
@@ -271,7 +275,15 @@ export class RestoService {
         station: { select: { id: true, name: true, nameEn: true } },
       },
     });
+    const recipes = await this.prisma.restoRecipe.findMany({
+      where: {
+        companyId,
+        productId: { in: products.map((p) => p.id) },
+      },
+      select: { productId: true },
+    });
     const byProduct = new Map(routes.map((r) => [r.productId, r]));
+    const withRecipe = new Set(recipes.map((r) => r.productId));
     return {
       items: products.map((p) => {
         const route = byProduct.get(p.id);
@@ -284,6 +296,10 @@ export class RestoService {
           price: p.salePrice,
           unit: p.unit,
           category: p.category,
+          isTracked: p.isTracked,
+          images: p.images || [],
+          image: (p.images && p.images[0]) || null,
+          hasRecipe: withRecipe.has(p.id),
           defaultStationId: route?.stationId ?? null,
           defaultStationName: route?.station?.name ?? null,
         };
@@ -683,7 +699,7 @@ export class RestoService {
             number,
             guests: dto.guests ?? 1,
             notes: dto.notes?.trim() || null,
-            openedById: userId,
+            openedById: userId || null,
             status: RestoOrderStatus.OPEN,
             channel: RestoOrderChannel.DINE_IN,
           },
@@ -705,7 +721,7 @@ export class RestoService {
         number,
         guests: dto.guests ?? 1,
         notes: dto.notes?.trim() || null,
-        openedById: userId,
+        openedById: userId || null,
         status: RestoOrderStatus.OPEN,
         channel,
       },
@@ -1041,6 +1057,21 @@ export class RestoService {
         },
       });
 
+      const warehouseId =
+        dto.warehouseId ||
+        (await this.resolveWarehouseId(companyId)) ||
+        undefined;
+
+      await this.deductRecipeComponents(
+        companyId,
+        order.number,
+        lines.map((i) => ({
+          productId: i.productId as string,
+          qty: Number(i.qty),
+        })),
+        warehouseId,
+      );
+
       const invoice = await this.pos.createSale(companyId, actor, {
         items: lines.map((i) => ({
           productId: i.productId as string,
@@ -1048,7 +1079,7 @@ export class RestoService {
           unitPrice: Number(i.unitPrice),
         })),
         paymentMethod: dto.paymentMethod ?? PaymentMethod.CASH,
-        warehouseId: dto.warehouseId || (await this.resolveWarehouseId(companyId)) || undefined,
+        warehouseId,
         contactId: dto.contactId,
         tipAmount: dto.tipAmount,
         notes: `Hisaby Resto ${order.number} [${order.channel}]`,
@@ -1340,6 +1371,7 @@ export class RestoService {
     companyId: string,
     id: string,
     status: 'PENDING' | 'CONFIRMED' | 'SEATED' | 'CANCELLED' | 'NO_SHOW',
+    userId?: string,
   ) {
     const row = await this.prisma.restoReservation.findFirst({
       where: { id, companyId },
@@ -1382,6 +1414,277 @@ export class RestoService {
       }
     }
 
-    return this.mapReservation(updated);
+    let openedOrderId: string | null = null;
+    if (status === 'SEATED' && row.tableId) {
+      const existing = await this.prisma.restoOrder.findFirst({
+        where: {
+          companyId,
+          tableId: row.tableId,
+          status: { in: ACTIVE_ORDER },
+        },
+        select: { id: true },
+      });
+      if (existing) {
+        openedOrderId = existing.id;
+      } else {
+        const opened = await this.openOrder(companyId, userId || '', {
+          tableId: row.tableId,
+          guests: row.guests,
+          notes: `Reservation: ${row.guestName}`,
+          channel: RestoOrderChannel.DINE_IN,
+        });
+        openedOrderId = opened.id;
+      }
+    }
+
+    return {
+      ...this.mapReservation(updated),
+      openedOrderId,
+    };
+  }
+
+  /**
+   * Deduct recipe components for untracked menu dishes only.
+   * Tracked dishes keep POS finished-goods deduct — recipes are ignored to avoid double stock-out.
+   */
+  private async deductRecipeComponents(
+    companyId: string,
+    orderNumber: string,
+    lines: Array<{ productId: string; qty: number }>,
+    warehouseId?: string,
+  ) {
+    const productIds = [...new Set(lines.map((l) => l.productId))];
+    if (productIds.length === 0) return;
+
+    const products = await this.prisma.product.findMany({
+      where: { companyId, id: { in: productIds } },
+      select: { id: true, isTracked: true, name: true },
+    });
+    const byId = new Map(products.map((p) => [p.id, p]));
+
+    const recipes = await this.prisma.restoRecipe.findMany({
+      where: {
+        companyId,
+        productId: { in: productIds },
+      },
+      include: {
+        items: {
+          include: {
+            component: { select: { id: true, name: true, isTracked: true } },
+          },
+        },
+      },
+    });
+    const recipeByProduct = new Map(recipes.map((r) => [r.productId, r]));
+
+    for (const line of lines) {
+      const product = byId.get(line.productId);
+      if (!product) continue;
+      if (product.isTracked) continue; // POS will deduct finished good
+      const recipe = recipeByProduct.get(line.productId);
+      if (!recipe || recipe.items.length === 0) continue;
+
+      for (const item of recipe.items) {
+        const need = Number(item.qty) * line.qty;
+        if (!(need > 0)) continue;
+        await this.pos.consumeStock(
+          companyId,
+          item.componentProductId,
+          need,
+          warehouseId,
+          `resto-${orderNumber}`,
+          `Recipe for ${product.name}`,
+        );
+      }
+    }
+  }
+
+  async listRecipes(companyId: string) {
+    const rows = await this.prisma.restoRecipe.findMany({
+      where: { companyId },
+      include: {
+        product: {
+          select: {
+            id: true,
+            name: true,
+            nameEn: true,
+            sku: true,
+            isTracked: true,
+            salePrice: true,
+          },
+        },
+        items: {
+          include: {
+            component: {
+              select: {
+                id: true,
+                name: true,
+                nameEn: true,
+                sku: true,
+                unit: true,
+              },
+            },
+          },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+    return {
+      count: rows.length,
+      recipes: rows.map((r) => this.mapRecipe(r)),
+    };
+  }
+
+  async getRecipe(companyId: string, productId: string) {
+    const row = await this.prisma.restoRecipe.findFirst({
+      where: { companyId, productId },
+      include: {
+        product: {
+          select: {
+            id: true,
+            name: true,
+            nameEn: true,
+            sku: true,
+            isTracked: true,
+            salePrice: true,
+          },
+        },
+        items: {
+          include: {
+            component: {
+              select: {
+                id: true,
+                name: true,
+                nameEn: true,
+                sku: true,
+                unit: true,
+              },
+            },
+          },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+    if (!row) throw new NotFoundException('Recipe not found');
+    return this.mapRecipe(row);
+  }
+
+  async upsertRecipe(
+    companyId: string,
+    productId: string,
+    dto: UpsertRestoRecipeDto,
+  ) {
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, companyId },
+      select: { id: true, isTracked: true },
+    });
+    if (!product) throw new NotFoundException('Product not found');
+
+    const items = (dto.items || []).filter((i) => i.qty > 0);
+    if (items.length === 0) {
+      throw new BadRequestException('Recipe needs at least one component');
+    }
+
+    const componentIds = items.map((i) => i.componentProductId);
+    if (componentIds.includes(productId)) {
+      throw new BadRequestException('Dish cannot be its own ingredient');
+    }
+    if (new Set(componentIds).size !== componentIds.length) {
+      throw new BadRequestException('Duplicate components in recipe');
+    }
+
+    const components = await this.prisma.product.findMany({
+      where: { companyId, id: { in: componentIds } },
+      select: { id: true },
+    });
+    if (components.length !== componentIds.length) {
+      throw new BadRequestException('One or more components not found');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      const recipe = await tx.restoRecipe.upsert({
+        where: { productId },
+        create: {
+          companyId,
+          productId,
+          notes: dto.notes?.trim() || null,
+        },
+        update: {
+          notes: dto.notes?.trim() || null,
+        },
+      });
+      await tx.restoRecipeItem.deleteMany({ where: { recipeId: recipe.id } });
+      await tx.restoRecipeItem.createMany({
+        data: items.map((i) => ({
+          recipeId: recipe.id,
+          componentProductId: i.componentProductId,
+          qty: this.decimal(i.qty),
+        })),
+      });
+    });
+
+    return this.getRecipe(companyId, productId);
+  }
+
+  async deleteRecipe(companyId: string, productId: string) {
+    const row = await this.prisma.restoRecipe.findFirst({
+      where: { companyId, productId },
+      select: { id: true },
+    });
+    if (!row) throw new NotFoundException('Recipe not found');
+    await this.prisma.restoRecipe.delete({ where: { id: row.id } });
+    return { ok: true, productId };
+  }
+
+  private mapRecipe(r: {
+    id: string;
+    productId: string;
+    notes: string | null;
+    product: {
+      id: string;
+      name: string;
+      nameEn: string | null;
+      sku: string;
+      isTracked: boolean;
+      salePrice: Prisma.Decimal;
+    };
+    items: Array<{
+      id: string;
+      componentProductId: string;
+      qty: Prisma.Decimal;
+      component: {
+        id: string;
+        name: string;
+        nameEn: string | null;
+        sku: string;
+        unit: string;
+      };
+    }>;
+  }) {
+    return {
+      id: r.id,
+      productId: r.productId,
+      notes: r.notes,
+      deductsIngredients: !r.product.isTracked,
+      warningTracked:
+        r.product.isTracked
+          ? 'Dish is stock-tracked — POS deducts the dish itself; recipe is not used on close'
+          : null,
+      product: {
+        id: r.product.id,
+        name: r.product.name,
+        nameEn: r.product.nameEn,
+        sku: r.product.sku,
+        isTracked: r.product.isTracked,
+        price: r.product.salePrice,
+      },
+      items: r.items.map((i) => ({
+        id: i.id,
+        componentProductId: i.componentProductId,
+        qty: i.qty,
+        component: i.component,
+      })),
+    };
   }
 }
