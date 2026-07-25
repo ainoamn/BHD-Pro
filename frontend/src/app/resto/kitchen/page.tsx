@@ -379,7 +379,9 @@ export default function RestoKitchenPage() {
 <h1>${t.kitchenTicket}</h1>
 <p><b>${t.table}</b> ${it.table?.code || "—"} · ${it.orderNumber}</p>
 <p><b>${it.qty}× ${it.name}</b></p>
+${(it.allergens || []).length ? `<p><b>${t.kdsAllergens}:</b> ${(it.allergens || []).join(", ")}</p>` : ""}
 ${it.notes ? `<p>${it.notes}</p>` : ""}
+${it.orderNotes ? `<p>${it.orderNotes}</p>` : ""}
 <p>${minutes}m · ${it.status}${it.source === "GUEST" ? ` · ${t.fromGuest}` : ""}</p>
 <script>window.print()</script>
 </body></html>`);
