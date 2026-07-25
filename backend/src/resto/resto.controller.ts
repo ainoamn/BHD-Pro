@@ -47,6 +47,7 @@ import {
   SetRestoWarehouseDto,
   SplitRestoOrderDto,
   TransferRestoOrderDto,
+  UpdateRestoConfigDto,
   UpdateRestoOrderDto,
   UpdateRestoOrderItemDto,
   UpdateRestoDeliveryDto,
@@ -492,6 +493,23 @@ export class RestoController {
   })
   reportsLive(@CurrentUser() user: TokenPayload) {
     return this.resto.getLiveSectionBoard(user.companyId);
+  }
+
+  @Get('config')
+  @Roles(...RESTO_STAFF)
+  @ApiOperation({ summary: 'Restaurant ops config (day-part schedules)' })
+  getConfig(@CurrentUser() user: TokenPayload) {
+    return this.resto.getRestoConfig(user.companyId);
+  }
+
+  @Put('config')
+  @Roles(...RESTO_FLOOR_MGR)
+  @ApiOperation({ summary: 'Update restaurant day-part hour windows' })
+  updateConfig(
+    @CurrentUser() user: TokenPayload,
+    @Body() dto: UpdateRestoConfigDto,
+  ) {
+    return this.resto.updateRestoConfig(user.companyId, dto);
   }
 
   @Get('staff')

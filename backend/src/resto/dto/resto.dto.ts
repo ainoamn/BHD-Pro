@@ -657,3 +657,49 @@ export class AssignRestoSectionDto {
   userId: string;
 }
 
+export class RestoDayPartWindowDto {
+  /** Hour 0–23 inclusive start */
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(23)
+  start: number;
+
+  /** Hour 0–23 exclusive end (may wrap past midnight when start > end) */
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(23)
+  end: number;
+}
+
+export class RestoDayPartsScheduleDto {
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => RestoDayPartWindowDto)
+  breakfast?: RestoDayPartWindowDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => RestoDayPartWindowDto)
+  lunch?: RestoDayPartWindowDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => RestoDayPartWindowDto)
+  dinner?: RestoDayPartWindowDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => RestoDayPartWindowDto)
+  late?: RestoDayPartWindowDto;
+}
+
+export class UpdateRestoConfigDto {
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => RestoDayPartsScheduleDto)
+  dayParts?: RestoDayPartsScheduleDto;
+}
+
+

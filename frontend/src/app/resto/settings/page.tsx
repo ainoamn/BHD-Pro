@@ -47,6 +47,20 @@ export default function RestoSettingsPage() {
   const [sections, setSections] = useState<SectionRow[]>([]);
   const [staff, setStaff] = useState<StaffRow[]>([]);
   const [pickByZone, setPickByZone] = useState<Record<string, string>>({});
+  const [dayParts, setDayParts] = useState<
+    Record<string, { start: number; end: number }>
+  >({
+    breakfast: { start: 5, end: 11 },
+    lunch: { start: 11, end: 16 },
+    dinner: { start: 16, end: 22 },
+    late: { start: 22, end: 5 },
+  });
+  const [dayPartMeta, setDayPartMeta] = useState<{
+    timezone: string;
+    currentDayPart: string;
+    currentHour: number;
+  } | null>(null);
+  const [dayPartBusy, setDayPartBusy] = useState(false);
   const [qrTables, setQrTables] = useState<
     Array<{
       id: string;
@@ -57,6 +71,16 @@ export default function RestoSettingsPage() {
       path: string;
     }>
   >([]);
+
+  const DAY_PART_KEYS = ["breakfast", "lunch", "dinner", "late"] as const;
+
+  const dayPartLabel = (code: string) => {
+    if (code === "breakfast") return t.dayPartBreakfast;
+    if (code === "lunch") return t.dayPartLunch;
+    if (code === "dinner") return t.dayPartDinner;
+    if (code === "late") return t.dayPartLate;
+    return code;
+  };
 
   const loadStations = async () => {
     try {
@@ -85,10 +109,50 @@ export default function RestoSettingsPage() {
     }
   };
 
+  const loadDayParts = async () => {
+    try {
+      const res = await api.getRestoConfig();
+      setDayParts(res.data.dayParts || dayParts);
+      setDayPartMeta({
+        timezone: res.data.timezone,
+        currentDayPart: res.data.currentDayPart,
+        currentHour: res.data.currentHour,
+      });
+    } catch {
+      /* ignore */
+    }
+  };
+
   useEffect(() => {
     void loadStations();
     void loadSections();
+    void loadDayParts();
   }, []);
+
+  const saveDayParts = async () => {
+    setDayPartBusy(true);
+    try {
+      const res = await api.updateRestoConfig({
+        dayParts: {
+          breakfast: dayParts.breakfast,
+          lunch: dayParts.lunch,
+          dinner: dayParts.dinner,
+          late: dayParts.late,
+        },
+      });
+      setDayParts(res.data.dayParts);
+      setDayPartMeta({
+        timezone: res.data.timezone,
+        currentDayPart: res.data.currentDayPart,
+        currentHour: res.data.currentHour,
+      });
+      toast.success(t.dayPartSaved);
+    } catch {
+      toast.error(t.actionFail);
+    } finally {
+      setDayPartBusy(false);
+    }
+  };
 
   const runDemoSeed = async () => {
     setDemoBusy(true);
@@ -173,6 +237,82 @@ export default function RestoSettingsPage() {
       </div>
       <HisabyAppsLinkHub tone="resto" />
       <RestoLinkSettings variant="resto" />
+
+      {canManage ? (
+        <div className="rounded-2xl border border-indigo-500/25 bg-indigo-500/5 p-4 space-y-3">
+          <div>
+            <h2 className="font-bold">{t.dayPartSchedule}</h2>
+            <p className="text-xs text-stone-400 mt-1">{t.dayPartScheduleSub}</p>
+            {dayPartMeta ? (
+              <p className="text-[11px] text-indigo-200/80 mt-1 tabular-nums">
+                {t.dayPartTimezone}: {dayPartMeta.timezone} · {t.dayPartCurrent}:{" "}
+                {dayPartLabel(dayPartMeta.currentDayPart)} (
+                {dayPartMeta.currentHour}:00)
+              </p>
+            ) : null}
+          </div>
+          <ul className="space-y-2">
+            {DAY_PART_KEYS.map((key) => (
+              <li
+                key={key}
+                className="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2"
+              >
+                <span className="w-24 text-sm font-semibold shrink-0">
+                  {dayPartLabel(key)}
+                </span>
+                <label className="flex items-center gap-1 text-[11px] text-stone-400">
+                  {t.dayPartStart}
+                  <input
+                    type="number"
+                    min={0}
+                    max={23}
+                    value={dayParts[key]?.start ?? 0}
+                    disabled={dayPartBusy}
+                    onChange={(e) =>
+                      setDayParts((prev) => ({
+                        ...prev,
+                        [key]: {
+                          start: Number(e.target.value),
+                          end: prev[key]?.end ?? 0,
+                        },
+                      }))
+                    }
+                    className="w-14 h-8 rounded-lg bg-black/30 border border-white/10 px-1.5 text-sm tabular-nums text-stone-100"
+                  />
+                </label>
+                <label className="flex items-center gap-1 text-[11px] text-stone-400">
+                  {t.dayPartEnd}
+                  <input
+                    type="number"
+                    min={0}
+                    max={23}
+                    value={dayParts[key]?.end ?? 0}
+                    disabled={dayPartBusy}
+                    onChange={(e) =>
+                      setDayParts((prev) => ({
+                        ...prev,
+                        [key]: {
+                          start: prev[key]?.start ?? 0,
+                          end: Number(e.target.value),
+                        },
+                      }))
+                    }
+                    className="w-14 h-8 rounded-lg bg-black/30 border border-white/10 px-1.5 text-sm tabular-nums text-stone-100"
+                  />
+                </label>
+              </li>
+            ))}
+          </ul>
+          <button
+            type="button"
+            disabled={dayPartBusy}
+            onClick={() => void saveDayParts()}
+            className="w-full rounded-xl bg-indigo-500 py-2.5 text-sm font-bold text-white disabled:opacity-50"
+          >
+            {dayPartBusy ? "…" : t.dayPartSave}
+          </button>
+        </div>
+      ) : null}
 
       {canAssign && sections.length > 0 ? (
         <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/5 p-4 space-y-3">

@@ -49,6 +49,7 @@ import {
   PublicGuestOrderDto,
   PublicGuestCallDto,
   AssignRestoSectionDto,
+  UpdateRestoConfigDto,
 } from './dto/resto.dto';
 import { productWhereForWarehouse } from '../common/warehouse-product-scope';
 
@@ -303,12 +304,167 @@ export class RestoService {
     return company?.restoWarehouseId ?? null;
   }
 
-  /** Resolve breakfast|lunch|dinner|late from local hour (0–23). */
-  resolveDayPart(hour = new Date().getHours()): (typeof RESTO_DAY_PARTS)[number] {
-    if (hour >= 5 && hour < 11) return 'breakfast';
-    if (hour >= 11 && hour < 16) return 'lunch';
-    if (hour >= 16 && hour < 22) return 'dinner';
+  /** Default day-part windows (hour start inclusive, end exclusive; late wraps). */
+  private static readonly DEFAULT_DAY_PARTS: Record<
+    (typeof RESTO_DAY_PARTS)[number],
+    { start: number; end: number }
+  > = {
+    breakfast: { start: 5, end: 11 },
+    lunch: { start: 11, end: 16 },
+    dinner: { start: 16, end: 22 },
+    late: { start: 22, end: 5 },
+  };
+
+  private hourInZone(timeZone: string, now = new Date()): number {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      hour: 'numeric',
+      hourCycle: 'h23',
+      hour12: false,
+    }).formatToParts(now);
+    let hour = Number(parts.find((p) => p.type === 'hour')?.value || 0);
+    if (hour === 24) hour = 0;
+    return hour;
+  }
+
+  private hourInWindow(hour: number, start: number, end: number): boolean {
+    if (start === end) return false;
+    if (start < end) return hour >= start && hour < end;
+    return hour >= start || hour < end;
+  }
+
+  private normalizeDayPartWindow(
+    raw: unknown,
+    fallback: { start: number; end: number },
+  ): { start: number; end: number } {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return fallback;
+    const o = raw as Record<string, unknown>;
+    const start = Number(o.start);
+    const end = Number(o.end);
+    if (
+      !Number.isInteger(start) ||
+      !Number.isInteger(end) ||
+      start < 0 ||
+      start > 23 ||
+      end < 0 ||
+      end > 23
+    ) {
+      return fallback;
+    }
+    return { start, end };
+  }
+
+  private parseRestoConfig(raw: unknown): {
+    dayParts: Record<
+      (typeof RESTO_DAY_PARTS)[number],
+      { start: number; end: number }
+    >;
+  } {
+    const base = { ...RestoService.DEFAULT_DAY_PARTS };
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      return { dayParts: base };
+    }
+    const cfg = raw as Record<string, unknown>;
+    const dp =
+      cfg.dayParts && typeof cfg.dayParts === 'object' && !Array.isArray(cfg.dayParts)
+        ? (cfg.dayParts as Record<string, unknown>)
+        : {};
+    return {
+      dayParts: {
+        breakfast: this.normalizeDayPartWindow(
+          dp.breakfast,
+          base.breakfast,
+        ),
+        lunch: this.normalizeDayPartWindow(dp.lunch, base.lunch),
+        dinner: this.normalizeDayPartWindow(dp.dinner, base.dinner),
+        late: this.normalizeDayPartWindow(dp.late, base.late),
+      },
+    };
+  }
+
+  /** Resolve breakfast|lunch|dinner|late from local hour (0–23) using schedule. */
+  resolveDayPart(
+    hour = new Date().getHours(),
+    schedule?: Record<
+      (typeof RESTO_DAY_PARTS)[number],
+      { start: number; end: number }
+    >,
+  ): (typeof RESTO_DAY_PARTS)[number] {
+    const windows = schedule || RestoService.DEFAULT_DAY_PARTS;
+    for (const key of RESTO_DAY_PARTS) {
+      if (this.hourInWindow(hour, windows[key].start, windows[key].end)) {
+        return key;
+      }
+    }
     return 'late';
+  }
+
+  async resolveDayPartForCompany(companyId: string): Promise<{
+    dayPart: (typeof RESTO_DAY_PARTS)[number];
+    hour: number;
+    timezone: string;
+    dayParts: Record<
+      (typeof RESTO_DAY_PARTS)[number],
+      { start: number; end: number }
+    >;
+  }> {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { timezone: true, restoConfig: true },
+    });
+    const timezone = company?.timezone || 'Asia/Muscat';
+    const parsed = this.parseRestoConfig(company?.restoConfig);
+    const hour = this.hourInZone(timezone);
+    return {
+      dayPart: this.resolveDayPart(hour, parsed.dayParts),
+      hour,
+      timezone,
+      dayParts: parsed.dayParts,
+    };
+  }
+
+  async getRestoConfig(companyId: string) {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { timezone: true, restoConfig: true },
+    });
+    if (!company) throw new NotFoundException('Company not found');
+    const parsed = this.parseRestoConfig(company.restoConfig);
+    const hour = this.hourInZone(company.timezone || 'Asia/Muscat');
+    return {
+      timezone: company.timezone || 'Asia/Muscat',
+      dayParts: parsed.dayParts,
+      currentDayPart: this.resolveDayPart(hour, parsed.dayParts),
+      currentHour: hour,
+      defaults: RestoService.DEFAULT_DAY_PARTS,
+    };
+  }
+
+  async updateRestoConfig(companyId: string, dto: UpdateRestoConfigDto) {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { id: true, restoConfig: true },
+    });
+    if (!company) throw new NotFoundException('Company not found');
+    const current = this.parseRestoConfig(company.restoConfig);
+    const nextDayParts = { ...current.dayParts };
+    if (dto.dayParts) {
+      for (const key of RESTO_DAY_PARTS) {
+        const w = dto.dayParts[key];
+        if (w) {
+          nextDayParts[key] = {
+            start: Number(w.start),
+            end: Number(w.end),
+          };
+        }
+      }
+    }
+    const next = { dayParts: nextDayParts };
+    await this.prisma.company.update({
+      where: { id: companyId },
+      data: { restoConfig: next as Prisma.InputJsonValue },
+    });
+    return this.getRestoConfig(companyId);
   }
 
   private productAvailableInDayPart(
@@ -339,9 +495,10 @@ export class RestoService {
       };
     }
 
+    const resolved = await this.resolveDayPartForCompany(companyId);
     let dayPart: string | null = null;
     if (opts?.dayPart === 'now' || opts?.dayPart === 'auto') {
-      dayPart = this.resolveDayPart();
+      dayPart = resolved.dayPart;
     } else if (
       opts?.dayPart &&
       (RESTO_DAY_PARTS as readonly string[]).includes(opts.dayPart)
@@ -427,7 +584,9 @@ export class RestoService {
       warehouseId,
       needsWarehouse: false,
       dayPart,
-      currentDayPart: this.resolveDayPart(),
+      currentDayPart: resolved.dayPart,
+      timezone: resolved.timezone,
+      dayPartSchedule: resolved.dayParts,
     };
   }
 
@@ -4266,7 +4425,9 @@ export class RestoService {
         dietaryTags: p.dietaryTags || [],
         dayParts: p.dayParts || [],
       })),
-      dayPart: menu.dayPart ?? this.resolveDayPart(),
+      dayPart: menu.dayPart ?? (await this.resolveDayPartForCompany(table.companyId)).dayPart,
+      dayPartSchedule: menu.dayPartSchedule ?? undefined,
+      timezone: menu.timezone ?? undefined,
       modifiers: (await this.listModifiers(table.companyId)).modifiers,
       openOrder: open
         ? {

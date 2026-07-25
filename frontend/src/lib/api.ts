@@ -2313,6 +2313,33 @@ class ApiClient {
     }>(`/resto/sections/assignments/${zoneId}`);
   }
 
+  getRestoConfig() {
+    return this.get<{
+      timezone: string;
+      currentDayPart: string;
+      currentHour: number;
+      dayParts: Record<string, { start: number; end: number }>;
+      defaults: Record<string, { start: number; end: number }>;
+    }>('/resto/config');
+  }
+
+  updateRestoConfig(data: {
+    dayParts?: Partial<
+      Record<
+        'breakfast' | 'lunch' | 'dinner' | 'late',
+        { start: number; end: number }
+      >
+    >;
+  }) {
+    return this.put<{
+      timezone: string;
+      currentDayPart: string;
+      currentHour: number;
+      dayParts: Record<string, { start: number; end: number }>;
+      defaults: Record<string, { start: number; end: number }>;
+    }>('/resto/config', data);
+  }
+
   lookupPosProduct(code: string, warehouseId?: string) {
     return this.get(`/pos/products/lookup`, {
       params: { code, ...(warehouseId ? { warehouseId } : {}) },
@@ -2389,7 +2416,7 @@ class ApiClient {
   }
 
   createPosSale(data: {
-    items: { productId: string; quantity: number; unitPrice?: number; discount?: number }[];
+    items: { productId: string; quantity: number; unitPrice?: number; discount?: number; notes?: string }[];
     paymentMethod?: string;
     payments?: { method: string; amount: number }[];
     tipAmount?: number;
@@ -2435,9 +2462,11 @@ class ApiClient {
           quantity: number | string;
           unitPrice?: number | string;
           total: number | string;
+          notes?: string | null;
           product?: { barcode?: string | null; sku?: string | null } | null;
         }[];
         payments?: { method?: string; amount?: number | string }[];
+        reprintCount?: number;
       }[]
     >(`/pos/sales/recent${q ? `?${q}` : ''}`);
   }
@@ -2554,14 +2583,37 @@ class ApiClient {
   }
 
   getPosTodayStats(warehouseId?: string) {
-    const q = warehouseId ? `?warehouseId=${encodeURIComponent(warehouseId)}` : "";
+    const params = new URLSearchParams();
+    if (warehouseId) params.set('warehouseId', warehouseId);
+    params.set('cashierId', 'me');
+    const q = params.toString();
     return this.get<{
       salesCount: number;
       salesTotal: number;
       refundCount: number;
       voidCount: number;
       from?: string;
-    }>(`/pos/stats/today${q}`);
+      cashierId?: string | null;
+      mine?: {
+        salesCount: number;
+        salesTotal: number;
+        refundCount: number;
+        voidCount: number;
+      };
+      store?: {
+        salesCount: number;
+        salesTotal: number;
+        refundCount: number;
+        voidCount: number;
+      };
+    }>(`/pos/stats/today?${q}`);
+  }
+
+  recordPosSaleReprint(id: string) {
+    return this.post<{ id: string; number: string; reprintCount: number }>(
+      `/pos/sales/${encodeURIComponent(id)}/reprint`,
+      {},
+    );
   }
 
   getPosBooksSummary() {

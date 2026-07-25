@@ -41,6 +41,8 @@ model Company {
   securityConfig Json? @map("security_config")
   /// POS cashier commission + customer loyalty points (JSON).
   incentivesConfig Json? @map("incentives_config")
+  /// Restaurant ops config (day-part hour windows, etc.). Null = defaults.
+  restoConfig Json? @map("resto_config")
 
   /// Explicit bind between Hisaby Accounting and Hisaby POS
   posLinkedAt DateTime? @map("pos_linked_at")
@@ -804,7 +806,9 @@ model InvoiceItem {
   discount    Decimal  @default(0)
   taxRate     Decimal  @default(5) @map("tax_rate")
   taxAmount   Decimal  @map("tax_amount")
-  total       Decimal 
+  total       Decimal
+  /// Optional line note (POS cart note, kitchen, etc.)
+  notes       String?
 
   createdAt   DateTime @default(now()) @map("created_at")
 
