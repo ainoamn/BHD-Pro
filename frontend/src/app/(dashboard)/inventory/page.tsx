@@ -15,6 +15,7 @@ import {
   ArrowLeftRight,
   Warehouse,
   ClipboardList,
+  Printer,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
@@ -23,6 +24,7 @@ import { useAuthStore } from "@/store/auth";
 import { PageHeader, EmptyState, LoadingSpinner, GlassCard } from "@/components/ui/page-shell";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { Product } from "@/types";
+import { printProductLabel } from "@/lib/product-label";
 import {
   CustomFieldsInputs,
   type CustomFieldDef,
@@ -148,25 +150,56 @@ export default function InventoryPage() {
     setTransferToWarehouseId("");
   };
 
+  const openProductLabel = (product: Product) => {
+    const code = (product.barcode || product.sku || "").trim();
+    if (!code) {
+      toast.error(t("labelNoBarcode"));
+      return;
+    }
+    printProductLabel({
+      name: product.name,
+      sku: product.sku,
+      barcode: code,
+      salePrice: Number(product.salePrice),
+      currency,
+      companyName: company?.name,
+      vatNumber: company?.vatNumber || undefined,
+      phone: company?.phone || undefined,
+      logoUrl: company?.logo || "/brand/hisaby-mark.png",
+    });
+  };
+
   const saveMutation = useMutation({
     mutationFn: () => {
-      const { customFields, barcode, ...rest } = form;
+      const { customFields, barcode, sku, ...rest } = form;
       const payload = {
         ...rest,
-        ...(barcode.trim() ? { barcode: barcode.trim() } : { barcode: null }),
+        ...(sku.trim() ? { sku: sku.trim() } : {}),
+        ...(barcode.trim() ? { barcode: barcode.trim() } : {}),
         ...(Object.keys(customFields).length > 0
           ? { customFieldsJson: customFields }
           : { customFieldsJson: {} }),
       };
-      if (editingId) return api.updateProduct(editingId, payload);
+      if (editingId) {
+        return api.updateProduct(editingId, {
+          ...payload,
+          sku: sku.trim() || undefined,
+          ...(barcode.trim() ? { barcode: barcode.trim() } : { barcode: null }),
+        });
+      }
       return api.createProduct(payload);
     },
-    onSuccess: () => {
+    onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["product-stats"] });
       toast.success(t("saved"));
       setModalOpen(false);
+      const created = !editingId ? (res?.data as Product | undefined) : null;
       resetForm();
+      if (created?.id) {
+        toast.success(t("labelReady"));
+        openProductLabel(created);
+      }
     },
     onError: () => toast.error(t("saveError")),
   });
@@ -364,6 +397,14 @@ export default function InventoryPage() {
                         {t("adjust")}
                       </button>
                       <button
+                        type="button"
+                        title={t("printLabel")}
+                        onClick={() => openProductLabel(product)}
+                        className="p-1.5 rounded-lg hover:bg-slate-700 text-sky-400"
+                      >
+                        <Printer className="w-4 h-4" />
+                      </button>
+                      <button
                         onClick={() => openEdit(product)}
                         className="p-1.5 rounded-lg hover:bg-slate-700 text-slate-400"
                       >
@@ -444,6 +485,14 @@ export default function InventoryPage() {
                               {t("adjust")}
                             </button>
                             <button
+                              type="button"
+                              title={t("printLabel")}
+                              onClick={() => openProductLabel(product)}
+                              className="p-1.5 rounded-lg hover:bg-slate-700 text-sky-400"
+                            >
+                              <Printer className="w-4 h-4" />
+                            </button>
+                            <button
                               onClick={() => openEdit(product)}
                               className="p-1.5 rounded-lg hover:bg-slate-700 text-slate-400"
                             >
@@ -488,6 +537,7 @@ export default function InventoryPage() {
                     value={form.sku}
                     onChange={(e) => setForm({ ...form, sku: e.target.value })}
                     disabled={!!editingId}
+                    placeholder={editingId ? undefined : t("skuAutoHint")}
                     className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500 disabled:opacity-50"
                   />
                 </div>
@@ -496,7 +546,7 @@ export default function InventoryPage() {
                   <input
                     value={form.barcode}
                     onChange={(e) => setForm({ ...form, barcode: e.target.value })}
-                    placeholder="EAN / UPC"
+                    placeholder={t("barcodeAutoHint")}
                     className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500 font-mono text-sm"
                   />
                 </div>
@@ -584,7 +634,7 @@ export default function InventoryPage() {
               </button>
               <button
                 onClick={() => saveMutation.mutate()}
-                disabled={!form.sku || !form.name || !form.category || saveMutation.isPending}
+                disabled={!form.name || !form.category || saveMutation.isPending}
                 className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 disabled:opacity-50"
               >
                 {saveMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}

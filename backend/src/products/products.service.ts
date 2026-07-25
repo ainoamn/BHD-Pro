@@ -95,6 +95,49 @@ export class ProductsService {
     return trimmed.length ? trimmed : null;
   }
 
+  private ean13CheckDigit(digits12: string): string {
+    let sum = 0;
+    for (let i = 0; i < 12; i++) {
+      sum += Number(digits12[i]) * (i % 2 === 0 ? 1 : 3);
+    }
+    return String((10 - (sum % 10)) % 10);
+  }
+
+  /** In-store EAN-13 (prefix 2…) — works with hardware scanners and phone cameras. */
+  private async allocateBarcode(companyId: string): Promise<string> {
+    for (let attempt = 0; attempt < 12; attempt++) {
+      const count = await this.prisma.product.count({ where: { companyId } });
+      const companyHash = Array.from(companyId.replace(/-/g, ''))
+        .reduce((s, ch) => s + ch.charCodeAt(0), 0);
+      const companyPart = String(companyHash % 1000).padStart(3, '0');
+      const seq = String((count + 1 + attempt) % 100000000).padStart(8, '0');
+      // Leading 2 = in-store / private EAN range — scanners + phone cameras
+      const body = `2${companyPart}${seq}`.slice(0, 12);
+      const code = body + this.ean13CheckDigit(body);
+      const taken = await this.prisma.product.findFirst({
+        where: { companyId, barcode: code },
+        select: { id: true },
+      });
+      if (!taken) return code;
+    }
+    // Fallback CODE128-friendly alphanumeric
+    return `H${Date.now().toString().slice(-11)}`;
+  }
+
+  private async allocateSku(companyId: string): Promise<string> {
+    const day = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const count = await this.prisma.product.count({ where: { companyId } });
+      const sku = `P-${day}-${String(count + 1 + attempt).padStart(4, '0')}`;
+      const taken = await this.prisma.product.findFirst({
+        where: { companyId, sku },
+        select: { id: true },
+      });
+      if (!taken) return sku;
+    }
+    return `P-${day}-${Date.now().toString(36).toUpperCase()}`;
+  }
+
   private async assertBarcodeAvailable(
     companyId: string,
     barcode: string | null | undefined,
@@ -133,23 +176,33 @@ export class ProductsService {
   async create(companyId: string, dto: CreateProductDto) {
     await this.subscriptions.assertSubscriptionActive(companyId);
 
-    const existing = await this.prisma.product.findFirst({
-      where: { companyId, sku: dto.sku },
-    });
-    if (existing) throw new ConflictException('SKU already exists');
+    let sku = dto.sku?.trim() || '';
+    if (!sku) {
+      sku = await this.allocateSku(companyId);
+    } else {
+      const existing = await this.prisma.product.findFirst({
+        where: { companyId, sku },
+      });
+      if (existing) throw new ConflictException('SKU already exists');
+    }
 
-    const barcode = this.normalizeBarcode(dto.barcode);
-    await this.assertBarcodeAvailable(companyId, barcode);
+    let barcode = this.normalizeBarcode(dto.barcode);
+    if (barcode === null || barcode === undefined) {
+      barcode = await this.allocateBarcode(companyId);
+    } else {
+      await this.assertBarcodeAvailable(companyId, barcode);
+    }
 
     const warehouse = await this.ensureDefaultWarehouse(companyId);
-    const { customFieldsJson, barcode: _barcode, ...rest } = dto;
+    const { customFieldsJson, barcode: _barcode, sku: _sku, ...rest } = dto;
     const qty = Number(dto.quantity ?? 0);
 
     return this.prisma.$transaction(async (tx) => {
       const product = await tx.product.create({
         data: {
           ...rest,
-          ...(barcode !== undefined ? { barcode } : {}),
+          sku,
+          barcode,
           companyId,
           images: [],
           warehouseId: warehouse.id,

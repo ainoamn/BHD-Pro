@@ -1,9 +1,10 @@
 import { IsString, IsNotEmpty, IsOptional, IsNumber, IsObject, Min, ValidateIf } from 'class-validator';
 
 export class CreateProductDto {
+  /** Optional — auto-generated serial SKU when omitted */
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  sku: string;
+  sku?: string;
 
   @IsString()
   @IsNotEmpty()
