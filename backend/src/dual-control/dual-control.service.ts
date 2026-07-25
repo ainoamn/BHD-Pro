@@ -586,44 +586,112 @@ export class DualControlService {
     action: DualControlAction,
     approval?: DualApprovalDto,
   ): Promise<{ approverId: string; method: string }> {
-    const required = await this.isRequired(companyId, action);
-    if (!required) {
+    return this.assertApprovedForActions(companyId, actor, [action], approval);
+  }
+
+  /**
+   * One approval covers multiple required actions (e.g. price override + line discount
+   * on the same POS sale). APPROVAL_REQUEST / WhatsApp OTP are consumed once.
+   */
+  async assertApprovedForActions(
+    companyId: string,
+    actor: DualControlActor,
+    actions: DualControlAction[],
+    approval?: DualApprovalDto,
+  ): Promise<{ approverId: string; method: string }> {
+    const required: DualControlAction[] = [];
+    for (const action of actions) {
+      if (await this.isRequired(companyId, action)) required.push(action);
+    }
+    if (!required.length) {
       return { approverId: actor.sub, method: 'SKIP' };
     }
+
+    const primary = required[0];
 
     if (!approval?.method) {
       await this.writeAudit({
         companyId,
         userId: actor.sub,
-        action: `${action}_DENIED`,
+        action: `${primary}_DENIED`,
         success: false,
-        details: { reason: 'MISSING_APPROVAL', actorEmail: actor.email },
+        details: {
+          reason: 'MISSING_APPROVAL',
+          actorEmail: actor.email,
+          bundledActions: required,
+        },
       });
       throw new ForbiddenException('Dual control required');
     }
 
     try {
-      const result = await this.validateApproval(companyId, actor, action, approval);
-      await this.writeAudit({
-        companyId,
-        userId: actor.sub,
-        action: `${action}_APPROVED`,
-        success: true,
-        details: {
-          method: result.method,
-          approverId: result.approverId,
-          actorEmail: actor.email,
-          actorRole: actor.role,
-          approvalRequestId: approval.approvalRequestId || null,
-        },
-      });
+      let result: { approverId: string; method: string };
+
+      if (approval.method === 'APPROVAL_REQUEST') {
+        const id = approval.approvalRequestId?.trim();
+        if (!id) {
+          throw new BadRequestException('approvalRequestId is required');
+        }
+        result = await this.consumeApprovalTokenAny(
+          companyId,
+          actor,
+          required,
+          id,
+        );
+      } else if (approval.method === 'WHATSAPP_OTP') {
+        let lastErr: unknown;
+        let matched: { approverId: string; method: string } | null = null;
+        for (const action of required) {
+          try {
+            matched = await this.validateApproval(
+              companyId,
+              actor,
+              action,
+              approval,
+            );
+            break;
+          } catch (e) {
+            lastErr = e;
+          }
+        }
+        if (!matched) {
+          throw lastErr instanceof Error
+            ? lastErr
+            : new ForbiddenException('WhatsApp OTP expired or not requested');
+        }
+        result = matched;
+      } else {
+        result = await this.validateApproval(
+          companyId,
+          actor,
+          primary,
+          approval,
+        );
+      }
+
+      for (const action of required) {
+        await this.writeAudit({
+          companyId,
+          userId: actor.sub,
+          action: `${action}_APPROVED`,
+          success: true,
+          details: {
+            method: result.method,
+            approverId: result.approverId,
+            actorEmail: actor.email,
+            actorRole: actor.role,
+            approvalRequestId: approval.approvalRequestId || null,
+            bundledActions: required,
+          },
+        });
+      }
       return result;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'APPROVAL_FAILED';
       await this.writeAudit({
         companyId,
         userId: actor.sub,
-        action: `${action}_DENIED`,
+        action: `${primary}_DENIED`,
         success: false,
         details: {
           reason: message,
@@ -631,10 +699,65 @@ export class DualControlService {
           actorEmail: actor.email,
           actorRole: actor.role,
           approvalRequestId: approval.approvalRequestId || null,
+          bundledActions: required,
         },
       });
       throw err;
     }
+  }
+
+  /** Consume an approved request whose action is one of the allowed set. */
+  private async consumeApprovalTokenAny(
+    companyId: string,
+    actor: DualControlActor,
+    actions: DualControlAction[],
+    approvalRequestId: string,
+  ): Promise<{ approverId: string; method: string }> {
+    await this.expireStale(companyId, approvalRequestId);
+    const row = await this.prisma.approvalRequest.findFirst({
+      where: { id: approvalRequestId, companyId },
+    });
+    if (!row) throw new NotFoundException('Approval request not found');
+    if (row.requestedById !== actor.sub) {
+      throw new ForbiddenException('Approval request belongs to another user');
+    }
+    if (!(actions as readonly string[]).includes(row.action)) {
+      throw new ForbiddenException('Approval request action mismatch');
+    }
+    if (
+      row.status === APPROVAL_STATUSES.EXPIRED ||
+      row.expiresAt.getTime() <= Date.now()
+    ) {
+      if (
+        row.status === APPROVAL_STATUSES.PENDING ||
+        row.status === APPROVAL_STATUSES.APPROVED
+      ) {
+        await this.prisma.approvalRequest.update({
+          where: { id: approvalRequestId },
+          data: { status: APPROVAL_STATUSES.EXPIRED },
+        });
+      }
+      throw new ForbiddenException('Approval request expired');
+    }
+    if (row.status === APPROVAL_STATUSES.REJECTED) {
+      throw new ForbiddenException('Approval request was rejected');
+    }
+    if (row.status === APPROVAL_STATUSES.CONSUMED) {
+      throw new ForbiddenException('Approval request already used');
+    }
+    if (row.status !== APPROVAL_STATUSES.APPROVED) {
+      throw new ForbiddenException('Approval request is not approved yet');
+    }
+    if (!row.decidedById) {
+      throw new ForbiddenException('Approval request missing approver');
+    }
+
+    await this.prisma.approvalRequest.update({
+      where: { id: approvalRequestId },
+      data: { status: APPROVAL_STATUSES.CONSUMED },
+    });
+
+    return { approverId: row.decidedById, method: 'APPROVAL_REQUEST' };
   }
 
   private async validateApproval(

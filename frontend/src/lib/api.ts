@@ -26,10 +26,19 @@ export type RestoOrderPayload = {
   driverPhone?: string | null;
   deliveredAt?: string | null;
   invoiceId?: string | null;
+  openedById?: string | null;
+  tipAssigneeId?: string | null;
+  openedBy?: { id: string; name: string; email: string } | null;
+  tipAssignee?: { id: string; name: string; email: string } | null;
   sentAt: string | null;
   closedAt: string | null;
   createdAt: string;
-  table: { id: string; code: string; name: string | null } | null;
+  table: {
+    id: string;
+    code: string;
+    name: string | null;
+    zoneId?: string | null;
+  } | null;
   items: Array<{
     id: string;
     productId: string | null;
@@ -1632,6 +1641,11 @@ class ApiClient {
         id: string;
         name: string;
         nameEn: string | null;
+        sectionServer?: {
+          id: string;
+          name: string;
+          assignmentId: string;
+        } | null;
         tables: Array<{
           id: string;
           code: string;
@@ -1645,6 +1659,9 @@ class ApiClient {
             guests: number;
             itemCount: number;
             createdAt: string;
+            occupiedMinutes?: number;
+            guestItemCount?: number;
+            total?: number;
           } | null;
         }>;
       }>;
@@ -1782,6 +1799,7 @@ class ApiClient {
       guestName?: string;
       guestPhone?: string;
       deliveryAddress?: string;
+      tipAssigneeId?: string | null;
     },
   ) {
     return this.patch<RestoOrderPayload>(`/resto/orders/${orderId}`, data);
@@ -1966,6 +1984,7 @@ class ApiClient {
     orderId: string,
     data?: {
       tipAmount?: number;
+      tipAssigneeId?: string;
       serviceChargeAmount?: number;
       serviceChargePct?: number;
       warehouseId?: string;
@@ -1993,6 +2012,7 @@ class ApiClient {
       warehouseId?: string;
       contactId?: string;
       tipAmount?: number;
+      tipAssigneeId?: string;
       serviceChargeAmount?: number;
       serviceChargePct?: number;
     },

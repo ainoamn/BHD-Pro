@@ -226,11 +226,63 @@ export default function PosCheckoutPage() {
     queryKey: ["company-security"],
     queryFn: async () => {
       const res = await api.getCompanySecurity();
-      return res.data as { requireOpenShift?: boolean };
+      return res.data as {
+        requireOpenShift?: boolean;
+        maxLineDiscountAmount?: number;
+        maxLineDiscountPercent?: number;
+      };
     },
     staleTime: 60_000,
   });
   const requireOpenShift = securityConfig?.requireOpenShift === true;
+  const maxLineDiscountAmount =
+    typeof securityConfig?.maxLineDiscountAmount === "number" &&
+    securityConfig.maxLineDiscountAmount >= 0
+      ? securityConfig.maxLineDiscountAmount
+      : 5;
+  const maxLineDiscountPercent =
+    typeof securityConfig?.maxLineDiscountPercent === "number" &&
+    securityConfig.maxLineDiscountPercent >= 0
+      ? securityConfig.maxLineDiscountPercent
+      : 20;
+
+  const lineNeedsDiscountApproval = useCallback(
+    (l: { unitPrice: number; quantity: number; discount?: number }) => {
+      const discount = Number(l.discount || 0);
+      if (discount <= 0.0005) return false;
+      const lineGross = Number(l.unitPrice) * Number(l.quantity);
+      const pct = lineGross > 0.0005 ? (discount / lineGross) * 100 : 0;
+      return (
+        discount > maxLineDiscountAmount + 0.0005 ||
+        pct > maxLineDiscountPercent + 0.0005
+      );
+    },
+    [maxLineDiscountAmount, maxLineDiscountPercent],
+  );
+
+  const cartNeedsPriceApproval = useCallback(
+    () =>
+      cart.some(
+        (l) => Math.abs(l.unitPrice - (l.catalogPrice ?? l.unitPrice)) > 0.001,
+      ),
+    [cart],
+  );
+
+  const cartNeedsDiscountApproval = useCallback(
+    () => cart.some((l) => lineNeedsDiscountApproval(l)),
+    [cart, lineNeedsDiscountApproval],
+  );
+
+  const cartNeedsCheckoutApproval = useCallback(
+    () => cartNeedsPriceApproval() || cartNeedsDiscountApproval(),
+    [cartNeedsPriceApproval, cartNeedsDiscountApproval],
+  );
+
+  const checkoutApprovalAction = useCallback(():
+    | "POS_PRICE_OVERRIDE"
+    | "POS_LINE_DISCOUNT" => {
+    return cartNeedsPriceApproval() ? "POS_PRICE_OVERRIDE" : "POS_LINE_DISCOUNT";
+  }, [cartNeedsPriceApproval]);
 
   useEffect(() => {
     setFavoriteIds(loadPosFavorites(companyId));
@@ -1880,10 +1932,8 @@ export default function PosCheckoutPage() {
       toast.error(t.splitSumMismatch);
       return;
     }
-    const needsPriceApproval = cart.some(
-      (l) => Math.abs(l.unitPrice - (l.catalogPrice ?? l.unitPrice)) > 0.001,
-    );
-    if (needsPriceApproval) {
+    const needsApproval = cartNeedsCheckoutApproval();
+    if (needsApproval) {
       setPendingSplitPayments(payments);
       setPendingCheckout(payments[0].method);
       return;
@@ -1916,10 +1966,7 @@ export default function PosCheckoutPage() {
       setCashTenderOpen(true);
       return;
     }
-    const needsPriceApproval = cart.some(
-      (l) => Math.abs(l.unitPrice - (l.catalogPrice ?? l.unitPrice)) > 0.001,
-    );
-    if (needsPriceApproval) {
+    if (cartNeedsCheckoutApproval()) {
       setPendingCheckout(method);
       return;
     }
@@ -1933,14 +1980,48 @@ export default function PosCheckoutPage() {
       return;
     }
     setCashTenderOpen(false);
-    const needsPriceApproval = cart.some(
-      (l) => Math.abs(l.unitPrice - (l.catalogPrice ?? l.unitPrice)) > 0.001,
-    );
-    if (needsPriceApproval) {
+    if (cartNeedsCheckoutApproval()) {
       setPendingCheckout("CASH");
       return;
     }
     await runCheckout("CASH");
+  };
+
+  const appendCashDigit = (key: string) => {
+    setCashTendered((prev) => {
+      const cur = prev || "";
+      if (key === "back") {
+        return cur.slice(0, -1);
+      }
+      if (key === ".") {
+        if (cur.includes(".")) return cur;
+        return cur ? `${cur}.` : "0.";
+      }
+      if (key === "00") {
+        if (!cur || cur === "0") return "0";
+        const parts = cur.split(".");
+        if (parts[1] && parts[1].length >= 2) return cur;
+        return `${cur}00`;
+      }
+      if (!/^\d$/.test(key)) return cur;
+      if (cur.includes(".")) {
+        const [, dec = ""] = cur.split(".");
+        if (dec.length >= 3) return cur;
+      }
+      if (cur === "0") return key;
+      return `${cur}${key}`;
+    });
+  };
+
+  const setCashExact = () => setCashTendered(String(Number(total.toFixed(3))));
+  const addCashDenom = (n: number) => {
+    const base = parseFloat(cashTendered);
+    const start = Number.isFinite(base) ? base : 0;
+    setCashTendered(String(Number((start + n).toFixed(3))));
+  };
+  const setCashRoundUp = () => {
+    const ceil = Math.ceil(total - 0.0005);
+    setCashTendered(String(Math.max(ceil, Math.ceil(total))));
   };
 
   const findReceiptForRefund = async () => {
@@ -2568,9 +2649,16 @@ export default function PosCheckoutPage() {
                       ),
                     );
                   }}
-                  className="w-24 h-8 px-2 rounded-md bg-black/30 border border-white/10 text-sm text-end text-white"
+                  className={`w-24 h-8 px-2 rounded-md bg-black/30 border text-sm text-end text-white ${
+                    lineNeedsDiscountApproval(l)
+                      ? "border-amber-400/50 text-amber-100"
+                      : "border-white/10"
+                  }`}
                 />
               </div>
+              {lineNeedsDiscountApproval(l) ? (
+                <p className="mt-1 text-[10px] text-amber-300/90">{t.lineDiscountHint}</p>
+              ) : null}
             </div>
           ))}
         </div>
@@ -3235,24 +3323,52 @@ export default function PosCheckoutPage() {
               <span>{t.total}</span>
               <span className="font-semibold text-white">{formatMoney(total, currency)}</span>
             </div>
-            <label className="space-y-1.5 block">
+            <div className="space-y-1.5">
               <span className="text-[11px] text-slate-400">{t.amountTendered}</span>
-              <input
-                type="number"
-                min={0}
-                step={0.001}
-                autoFocus
-                value={cashTendered}
-                onChange={(e) => setCashTendered(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    void confirmCashTender();
-                  }
-                }}
-                className="w-full h-11 rounded-xl bg-white/5 border border-white/10 px-3 text-base text-white"
-              />
-            </label>
+              <div className="w-full h-12 rounded-xl bg-white/5 border border-white/10 px-3 flex items-center justify-end text-xl font-bold tabular-nums text-white">
+                {cashTendered || "0"}
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                onClick={setCashExact}
+                className="h-9 px-2.5 rounded-lg text-xs font-bold border border-emerald-400/40 bg-emerald-500/15 text-emerald-100"
+              >
+                {t.cashExact}
+              </button>
+              <button
+                type="button"
+                onClick={setCashRoundUp}
+                className="h-9 px-2.5 rounded-lg text-xs font-semibold border border-white/10 text-slate-200 hover:bg-white/5"
+              >
+                {t.cashRoundUp}
+              </button>
+              {[1, 5, 10, 20].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => addCashDenom(n)}
+                  className="h-9 px-2.5 rounded-lg text-xs font-semibold border border-white/10 text-slate-200 hover:bg-white/5"
+                >
+                  +{n}
+                </button>
+              ))}
+            </div>
+            <div className="grid grid-cols-3 gap-1.5">
+              {(["1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0", "back"] as const).map(
+                (key) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => appendCashDigit(key)}
+                    className="h-11 rounded-xl bg-white/5 border border-white/10 text-lg font-semibold text-white hover:bg-white/10 active:scale-[0.98]"
+                  >
+                    {key === "back" ? "⌫" : key}
+                  </button>
+                ),
+              )}
+            </div>
             {(() => {
               const tendered = parseFloat(cashTendered);
               const ok = Number.isFinite(tendered) && tendered + 0.0005 >= total;
@@ -3423,10 +3539,26 @@ export default function PosCheckoutPage() {
 
       <DualApprovalModal
         open={!!pendingCheckout}
-        action="POS_PRICE_OVERRIDE"
-        actionLabel={locale === "en" ? "Confirm price override" : "تأكيد تجاوز السعر"}
+        action={checkoutApprovalAction()}
+        actionLabel={
+          checkoutApprovalAction() === "POS_PRICE_OVERRIDE"
+            ? locale === "en"
+              ? "Confirm price override"
+              : "تأكيد تجاوز السعر"
+            : locale === "en"
+              ? "Confirm line discount"
+              : "تأكيد خصم السطر"
+        }
         payload={{ method: pendingCheckout || undefined }}
-        summary={locale === "en" ? "POS price override" : "تجاوز سعر الكاشير"}
+        summary={
+          checkoutApprovalAction() === "POS_PRICE_OVERRIDE"
+            ? locale === "en"
+              ? "POS price override"
+              : "تجاوز سعر الكاشير"
+            : locale === "en"
+              ? "POS line discount over limit"
+              : "خصم سطر يتجاوز الحد"
+        }
         actorRole={user?.role}
         busy={checkoutBusy || paying}
         onCancel={() => {

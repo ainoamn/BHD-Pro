@@ -93,6 +93,11 @@ export class CreatePosSaleDto {
   @Min(0)
   tipAmount?: number;
 
+  /** Tip recipient user id (resto tip pool attribution) */
+  @IsOptional()
+  @IsUUID()
+  tipAssigneeId?: string;
+
   /** Tax-free service charge line (separate from tip) */
   @IsOptional()
   @Type(() => Number)

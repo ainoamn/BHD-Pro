@@ -908,6 +908,7 @@ export class PosService {
     if (tipAmount < 0) {
       throw new BadRequestException('tipAmount must be >= 0');
     }
+    const tipAssigneeId = dto.tipAssigneeId?.trim() || null;
     const serviceChargeAmount =
       dto.serviceChargeAmount != null ? Number(dto.serviceChargeAmount) : 0;
     if (serviceChargeAmount < 0) {
@@ -1051,19 +1052,14 @@ export class PosService {
       }
     }
 
-    if (hasPriceOverride) {
-      await this.dualControl.assertApproved(
+    const dualActions: Array<'POS_PRICE_OVERRIDE' | 'POS_LINE_DISCOUNT'> = [];
+    if (hasPriceOverride) dualActions.push('POS_PRICE_OVERRIDE');
+    if (hasExcessiveDiscount) dualActions.push('POS_LINE_DISCOUNT');
+    if (dualActions.length) {
+      await this.dualControl.assertApprovedForActions(
         companyId,
         actor,
-        'POS_PRICE_OVERRIDE',
-        dto.approval,
-      );
-    }
-    if (hasExcessiveDiscount) {
-      await this.dualControl.assertApproved(
-        companyId,
-        actor,
-        'POS_LINE_DISCOUNT',
+        dualActions,
         dto.approval,
       );
     }
@@ -1307,13 +1303,18 @@ export class PosService {
                 ...(serviceChargeAmount > 0.0005
                   ? { serviceChargeAmount }
                   : {}),
+                ...(tipAssigneeId ? { tipAssigneeId } : {}),
               },
             },
           });
         } catch {
           /* non-fatal */
         }
-      } else if (tipAmount > 0.0005 || serviceChargeAmount > 0.0005) {
+      } else if (
+        tipAmount > 0.0005 ||
+        serviceChargeAmount > 0.0005 ||
+        tipAssigneeId
+      ) {
         try {
           const existingFields =
             ((invoice as { customFieldsJson?: Record<string, unknown> })
@@ -1327,6 +1328,7 @@ export class PosService {
                 ...(serviceChargeAmount > 0.0005
                   ? { serviceChargeAmount }
                   : {}),
+                ...(tipAssigneeId ? { tipAssigneeId } : {}),
               },
             },
           });

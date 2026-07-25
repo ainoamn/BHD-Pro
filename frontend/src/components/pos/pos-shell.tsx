@@ -9,6 +9,7 @@ import {
   CloudUpload,
   Link2,
   Link2Off,
+  Loader2,
   LogOut,
   Package,
   Settings2,
@@ -23,6 +24,14 @@ import { useAuthStore } from "@/store/auth";
 import { useLocaleStore } from "@/store/locale";
 import { posCopy } from "@/lib/pos-copy";
 import { flushPendingPosSales, pendingAllCount, quarantinedAllCount, discardAllQuarantined } from "@/lib/pos-offline-sync";
+import {
+  listPendingOps,
+  listPendingSales,
+  removePendingOp,
+  removePendingSale,
+  type PendingPosOp,
+  type PendingPosSale,
+} from "@/lib/pos-offline-queue";
 import { playPosAlertBeep } from "@/lib/pos-beep";
 import { PosCommissionChip } from "@/components/pos/pos-commission-chip";
 
@@ -41,6 +50,10 @@ export function PosShell({ children }: { children: React.ReactNode }) {
   const [pendingCount, setPendingCount] = useState(0);
   const [quarantineCount, setQuarantineCount] = useState(0);
   const [syncing, setSyncing] = useState(false);
+  const [queueOpen, setQueueOpen] = useState(false);
+  const [queueSales, setQueueSales] = useState<PendingPosSale[]>([]);
+  const [queueOps, setQueueOps] = useState<PendingPosOp[]>([]);
+  const [queueLoading, setQueueLoading] = useState(false);
   const isLogin = pathname?.startsWith("/pos/login");
   const canSeeApprovals = user?.role === "ADMIN" || user?.role === "MANAGER";
 
@@ -55,6 +68,25 @@ export function PosShell({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const loadQueueDetail = useCallback(async () => {
+    setQueueLoading(true);
+    try {
+      const [sales, ops] = await Promise.all([listPendingSales(), listPendingOps()]);
+      setQueueSales(sales);
+      setQueueOps(ops);
+    } catch {
+      setQueueSales([]);
+      setQueueOps([]);
+    } finally {
+      setQueueLoading(false);
+    }
+  }, []);
+
+  const openQueue = useCallback(() => {
+    setQueueOpen(true);
+    void loadQueueDetail();
+  }, [loadQueueDetail]);
+
   const runFlush = useCallback(
     async (silent = false) => {
       if (syncing) return;
@@ -62,6 +94,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
       try {
         const result = await flushPendingPosSales();
         await refreshPending();
+        if (queueOpen) await loadQueueDetail();
         if (result.synced > 0 && result.remaining === 0 && result.quarantined === 0) {
           toast.success(t.syncOk);
         } else if (result.synced > 0 && (result.remaining > 0 || result.quarantined > 0)) {
@@ -75,19 +108,33 @@ export function PosShell({ children }: { children: React.ReactNode }) {
         setSyncing(false);
       }
     },
-    [refreshPending, syncing, t.syncFail, t.syncOk, t.syncPartial],
+    [loadQueueDetail, queueOpen, refreshPending, syncing, t.syncFail, t.syncOk, t.syncPartial],
   );
 
   const discardQuarantine = useCallback(async () => {
     try {
       const n = await discardAllQuarantined();
       await refreshPending();
+      if (queueOpen) await loadQueueDetail();
       if (n > 0) toast.success(t.quarantineDiscardOk);
     } catch {
       toast.error(t.syncFail);
     }
-  }, [refreshPending, t.quarantineDiscardOk, t.syncFail]);
+  }, [loadQueueDetail, queueOpen, refreshPending, t.quarantineDiscardOk, t.syncFail]);
 
+  const discardOne = useCallback(
+    async (kind: "sale" | "op", id: string) => {
+      try {
+        if (kind === "sale") await removePendingSale(id);
+        else await removePendingOp(id);
+        await refreshPending();
+        await loadQueueDetail();
+      } catch {
+        toast.error(t.syncFail);
+      }
+    },
+    [loadQueueDetail, refreshPending, t.syncFail],
+  );
   useEffect(() => {
     setHydrated(true);
   }, []);
@@ -259,28 +306,27 @@ export function PosShell({ children }: { children: React.ReactNode }) {
             </Link>
             <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto max-w-[46vw] sm:max-w-none scrollbar-none">
               <PosCommissionChip />
-              {pendingCount > 0 ? (
+              {pendingCount > 0 || quarantineCount > 0 ? (
                 <button
                   type="button"
-                  onClick={() => void runFlush(false)}
-                  disabled={syncing}
+                  onClick={openQueue}
                   title={t.pendingOffline}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500/15 px-2.5 py-1.5 text-xs font-semibold text-amber-200 hover:bg-amber-500/25 disabled:opacity-50 shrink-0"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500/15 px-2.5 py-1.5 text-xs font-semibold text-amber-200 hover:bg-amber-500/25 shrink-0"
                 >
                   <CloudUpload className="w-4 h-4" />
-                  <span className="tabular-nums">{pendingCount}</span>
-                  <span className="hidden sm:inline">{t.syncNow}</span>
+                  <span className="tabular-nums">{pendingCount + quarantineCount}</span>
+                  <span className="hidden sm:inline">{t.offlineQueueTitle}</span>
                 </button>
               ) : null}
               {quarantineCount > 0 ? (
                 <button
                   type="button"
-                  onClick={() => void discardQuarantine()}
+                  onClick={openQueue}
                   title={t.quarantineHint}
                   className="inline-flex items-center gap-1.5 rounded-lg bg-rose-500/15 px-2.5 py-1.5 text-xs font-semibold text-rose-200 hover:bg-rose-500/25 shrink-0"
                 >
                   <span className="tabular-nums">{quarantineCount}</span>
-                  <span className="hidden sm:inline">{t.quarantineDiscard}</span>
+                  <span className="hidden sm:inline">{t.quarantineBadge}</span>
                   <span className="sm:hidden">{t.quarantineBadge}</span>
                 </button>
               ) : null}
@@ -383,6 +429,139 @@ export function PosShell({ children }: { children: React.ReactNode }) {
           </div>
         )}
       </header>
+      {queueOpen ? (
+        <div
+          className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center bg-black/60 p-3"
+          onClick={() => setQueueOpen(false)}
+        >
+          <div
+            className="w-full max-w-lg max-h-[80vh] overflow-hidden rounded-2xl border border-white/10 bg-[#121a2b] shadow-xl flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-white/10">
+              <div>
+                <p className="font-bold text-white">{t.offlineQueueTitle}</p>
+                <p className="text-[11px] text-slate-400">{t.offlineQueueHint}</p>
+              </div>
+              <button
+                type="button"
+                className="text-slate-400 text-sm"
+                onClick={() => setQueueOpen(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="px-3 py-2 flex flex-wrap gap-2 border-b border-white/5">
+              <button
+                type="button"
+                disabled={syncing}
+                onClick={() => void runFlush(false)}
+                className="h-9 px-3 rounded-lg text-xs font-bold bg-emerald-500 text-slate-950 disabled:opacity-40 inline-flex items-center gap-1.5"
+              >
+                {syncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CloudUpload className="w-3.5 h-3.5" />}
+                {t.offlineRetryFlush}
+              </button>
+              {quarantineCount > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => void discardQuarantine()}
+                  className="h-9 px-3 rounded-lg text-xs font-semibold border border-rose-400/40 text-rose-200 hover:bg-rose-500/10"
+                >
+                  {t.quarantineDiscard}
+                </button>
+              ) : null}
+            </div>
+            <div className="overflow-y-auto p-3 space-y-2">
+              {queueLoading ? (
+                <p className="text-sm text-slate-400 inline-flex items-center gap-2 py-6 justify-center w-full">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  …
+                </p>
+              ) : !queueSales.length && !queueOps.length ? (
+                <p className="text-sm text-slate-500 text-center py-8">{t.offlineQueueEmpty}</p>
+              ) : (
+                <>
+                  {queueSales.map((row) => (
+                    <div
+                      key={row.id}
+                      className={`rounded-xl border px-3 py-2.5 space-y-1 ${
+                        row.quarantined
+                          ? "border-rose-400/30 bg-rose-500/10"
+                          : "border-white/10 bg-black/20"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-white truncate">
+                            {t.offlineQueueSale}
+                            {row.receipt.number ? ` · ${row.receipt.number}` : ""}
+                          </p>
+                          <p className="text-[11px] text-slate-400 tabular-nums">
+                            {new Date(row.createdAt).toLocaleString()} · {row.receipt.total}
+                          </p>
+                          <p className="text-[11px] text-slate-500">
+                            {t.offlineAttempts}: {row.attempts ?? 0}
+                            {row.quarantined ? ` · ${t.quarantineBadge}` : ""}
+                          </p>
+                          {row.lastError ? (
+                            <p className="text-[11px] text-rose-300/90 break-words">
+                              {t.offlineLastError}: {row.lastError}
+                            </p>
+                          ) : null}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void discardOne("sale", row.id)}
+                          className="shrink-0 text-[11px] font-semibold text-rose-300 hover:underline"
+                        >
+                          {t.offlineDiscardOne}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  {queueOps.map((row) => (
+                    <div
+                      key={row.id}
+                      className={`rounded-xl border px-3 py-2.5 space-y-1 ${
+                        row.quarantined
+                          ? "border-rose-400/30 bg-rose-500/10"
+                          : "border-white/10 bg-black/20"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-white truncate">
+                            {t.offlineQueueOp} · {row.kind}
+                          </p>
+                          <p className="text-[11px] text-slate-400 tabular-nums">
+                            {new Date(row.createdAt).toLocaleString()}
+                          </p>
+                          <p className="text-[11px] text-slate-500">
+                            {t.offlineAttempts}: {row.attempts ?? 0}
+                            {row.quarantined ? ` · ${t.quarantineBadge}` : ""}
+                          </p>
+                          {row.lastError ? (
+                            <p className="text-[11px] text-rose-300/90 break-words">
+                              {t.offlineLastError}: {row.lastError}
+                            </p>
+                          ) : null}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void discardOne("op", row.id)}
+                          className="shrink-0 text-[11px] font-semibold text-rose-300 hover:underline"
+                        >
+                          {t.offlineDiscardOne}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
       <main className="mx-auto max-w-[1600px]">{children}</main>
     </div>
   );

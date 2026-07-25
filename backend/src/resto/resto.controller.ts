@@ -25,6 +25,7 @@ import { RestoDemoSeedService } from './resto-demo-seed.service';
 import {
   ActivateRestoLinkDto,
   AddRestoOrderItemDto,
+  AssignRestoSectionDto,
   CloseRestoOrderDto,
   CreateRestoModifierDto,
   CreateRestoPayLinkDto,
@@ -463,6 +464,49 @@ export class RestoController {
       user.companyId,
       Number.isFinite(n) ? n : 7,
     );
+  }
+
+  @Get('reports/flash')
+  @Roles(...RESTO_STAFF)
+  @ApiOperation({
+    summary: 'Business-day flash report for shift handover / print',
+  })
+  reportsFlash(@CurrentUser() user: TokenPayload) {
+    return this.resto.getFlashReport(user.companyId);
+  }
+
+  @Get('staff')
+  @Roles(...RESTO_STAFF)
+  @ApiOperation({ summary: 'List floor staff for tip assignee / sections' })
+  listStaff(@CurrentUser() user: TokenPayload) {
+    return this.resto.listRestoStaff(user.companyId);
+  }
+
+  @Get('sections/assignments')
+  @Roles(...RESTO_STAFF)
+  @ApiOperation({ summary: 'List active server ↔ zone section assignments' })
+  listSections(@CurrentUser() user: TokenPayload) {
+    return this.resto.listSectionAssignments(user.companyId);
+  }
+
+  @Put('sections/assignments')
+  @Roles(...RESTO_FLOOR_MGR, UserRole.WAITER)
+  @ApiOperation({ summary: 'Assign a server to a floor section (zone)' })
+  assignSection(
+    @CurrentUser() user: TokenPayload,
+    @Body() dto: AssignRestoSectionDto,
+  ) {
+    return this.resto.assignSection(user.companyId, dto);
+  }
+
+  @Delete('sections/assignments/:zoneId')
+  @Roles(...RESTO_FLOOR_MGR, UserRole.WAITER)
+  @ApiOperation({ summary: 'Release active server from a floor section' })
+  releaseSection(
+    @CurrentUser() user: TokenPayload,
+    @Param('zoneId') zoneId: string,
+  ) {
+    return this.resto.releaseSection(user.companyId, zoneId);
   }
 
   @Patch('menu/:productId/station')

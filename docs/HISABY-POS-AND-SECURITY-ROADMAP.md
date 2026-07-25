@@ -27,7 +27,7 @@ POS lives at **`/pos`**, optionally linked to Accounting via shared login or tec
 | **3 — Messaging** | WhatsApp OTP to manager + notify on `ApprovalRequest` create | Done (env-gated OTP + best-effort create alert) |
 | **4 — Badge** | NFC / proximity token (`NFC` + bcrypt `nfcBadgeHashes`) | Done (25 Jul 2026) — Web NFC on Android Chrome HTTPS; manual paste for desktop testing |
 
-Sensitive actions covered today: `POS_VOID`, `POS_PRICE_OVERRIDE`, `POS_REFUND`, `STOCK_ADJUST`, `STOCK_TRANSFER`, `INVOICE_CANCEL`, `PAYMENT_REVERSE`, `SHIFT_CLOSE_VARIANCE`, `PAYROLL_PAY`, `CLAIM_PAY`, `BANK_INTERNAL_TRANSFER`.
+Sensitive actions covered today: `POS_VOID`, `POS_PRICE_OVERRIDE`, `POS_LINE_DISCOUNT`, `POS_REFUND`, `STOCK_ADJUST`, `STOCK_TRANSFER`, `INVOICE_CANCEL`, `PAYMENT_REVERSE`, `SHIFT_CLOSE_VARIANCE`, `PAYROLL_PAY`, `CLAIM_PAY`, `BANK_INTERNAL_TRANSFER`.
 
 Config: `companies.security_config` + `GET/PATCH /companies/me/security`.  
 Async API: `POST/GET /dual-control/requests`, `POST .../decide`.  
@@ -138,6 +138,13 @@ Public flags: `asyncApprovals: true`, `nfcBadgesConfigured`, `shiftVarianceLimit
 - Recent receipts drawer (`GET /pos/sales/recent`, F7)
 - Live void-threshold alert on POS shell (managers)
 - Doc: [`UPGRADE-POS-WAVE12-2026-07.md`](./UPGRADE-POS-WAVE12-2026-07.md)
+
+### Done (Wave 13 — Discount governance & tender speed)
+- Line discount limits + `POS_LINE_DISCOUNT` dual-control (`maxLineDiscountAmount` / `maxLineDiscountPercent`)
+- Bundled dual-control for price+discount on one sale (`assertApprovedForActions`)
+- Cash tender touch keypad + Exact / round-up / denomination chips
+- Offline queue detail sheet (attempts, errors, quarantine, discard one)
+- Doc: [`UPGRADE-POS-WAVE13-2026-07.md`](./UPGRADE-POS-WAVE13-2026-07.md)
 
 - [x] Full catalog sync API `GET /pos/catalog/sync` + offline IDB per warehouse
 - [x] Broader refunds + store-credit MVP (hardened debit / void restore / UI)

@@ -44,6 +44,7 @@ import {
   UpsertRestoRecipeDto,
   PublicGuestOrderDto,
   PublicGuestCallDto,
+  AssignRestoSectionDto,
 } from './dto/resto.dto';
 import { productWhereForWarehouse } from '../common/warehouse-product-scope';
 
@@ -61,6 +62,14 @@ const KITCHEN_ITEM: RestoOrderItemStatus[] = [
 ];
 
 const ACTIVE_WAITLIST = ['WAITING', 'NOTIFIED'] as const;
+
+const RESTO_SERVER_ROLES: UserRole[] = [
+  UserRole.ADMIN,
+  UserRole.MANAGER,
+  UserRole.RESTO_MANAGER,
+  UserRole.WAITER,
+  UserRole.CASHIER,
+];
 
 @Injectable()
 export class RestoService {
@@ -550,80 +559,105 @@ export class RestoService {
     });
     if (!company) throw new NotFoundException('Company not found');
 
-    const zones = await this.prisma.restoZone.findMany({
-      where: { companyId },
-      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
-      include: {
-        tables: {
-          orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
-          include: {
-            orders: {
-              where: { status: { in: ACTIVE_ORDER } },
-              orderBy: { createdAt: 'desc' },
-              take: 1,
-              include: {
-                items: {
-                  where: { status: { not: RestoOrderItemStatus.CANCELLED } },
-                  select: {
-                    id: true,
-                    qty: true,
-                    unitPrice: true,
-                    status: true,
-                    source: true,
+    const [zones, activeAssignments] = await Promise.all([
+      this.prisma.restoZone.findMany({
+        where: { companyId },
+        orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+        include: {
+          tables: {
+            orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
+            include: {
+              orders: {
+                where: { status: { in: ACTIVE_ORDER } },
+                orderBy: { createdAt: 'desc' },
+                take: 1,
+                include: {
+                  items: {
+                    where: { status: { not: RestoOrderItemStatus.CANCELLED } },
+                    select: {
+                      id: true,
+                      qty: true,
+                      unitPrice: true,
+                      status: true,
+                      source: true,
+                    },
                   },
                 },
               },
             },
           },
         },
-      },
-    });
-
-    const mappedZones = zones.map((z) => ({
-      id: z.id,
-      name: z.name,
-      nameEn: z.nameEn,
-      tables: z.tables.map((t) => {
-        const open = t.orders[0] ?? null;
-        const items = open?.items ?? [];
-        const total = items.reduce(
-          (sum, it) => sum + Number(it.qty) * Number(it.unitPrice),
-          0,
-        );
-        const occupiedMinutes = open
-          ? Math.max(
-              0,
-              Math.floor(
-                (Date.now() - new Date(open.createdAt).getTime()) / 60000,
-              ),
-            )
-          : 0;
-        const guestItemCount = items.filter((it) => it.source === 'GUEST').length;
-        return {
-          id: t.id,
-          code: t.code,
-          name: t.name,
-          seats: t.seats,
-          status: open ? RestoTableStatus.OCCUPIED : t.status,
-          guestToken: t.guestToken,
-          guestCallAt: t.guestCallAt,
-          guestCallType: t.guestCallType,
-          openOrder: open
-            ? {
-                id: open.id,
-                number: open.number,
-                status: open.status,
-                guests: open.guests,
-                itemCount: items.length,
-                total,
-                createdAt: open.createdAt,
-                occupiedMinutes,
-                guestItemCount,
-              }
-            : null,
-        };
       }),
-    }));
+      this.prisma.restoServerSection.findMany({
+        where: { companyId, endsAt: null },
+        include: {
+          user: { select: { id: true, name: true, email: true } },
+        },
+      }),
+    ]);
+
+    const serverByZone = new Map(
+      activeAssignments.map((a) => [
+        a.zoneId,
+        {
+          id: a.user.id,
+          name: a.user.name || a.user.email,
+          assignmentId: a.id,
+        },
+      ]),
+    );
+
+    const mappedZones = zones.map((z) => {
+      const sectionServer = serverByZone.get(z.id) || null;
+      return {
+        id: z.id,
+        name: z.name,
+        nameEn: z.nameEn,
+        sectionServer,
+        tables: z.tables.map((t) => {
+          const open = t.orders[0] ?? null;
+          const items = open?.items ?? [];
+          const total = items.reduce(
+            (sum, it) => sum + Number(it.qty) * Number(it.unitPrice),
+            0,
+          );
+          const occupiedMinutes = open
+            ? Math.max(
+                0,
+                Math.floor(
+                  (Date.now() - new Date(open.createdAt).getTime()) / 60000,
+                ),
+              )
+            : 0;
+          const guestItemCount = items.filter(
+            (it) => it.source === 'GUEST',
+          ).length;
+          return {
+            id: t.id,
+            code: t.code,
+            name: t.name,
+            seats: t.seats,
+            status: open ? RestoTableStatus.OCCUPIED : t.status,
+            guestToken: t.guestToken,
+            guestCallAt: t.guestCallAt,
+            guestCallType: t.guestCallType,
+            openOrder: open
+              ? {
+                  id: open.id,
+                  number: open.number,
+                  status: open.status,
+                  guests: open.guests,
+                  itemCount: items.length,
+                  total,
+                  createdAt: open.createdAt,
+                  occupiedMinutes,
+                  guestItemCount,
+                }
+              : null,
+          };
+        }),
+      };
+    });
 
     const tables = mappedZones.flatMap((z) =>
       z.tables.map((t) => ({ ...t, zoneId: z.id, zoneName: z.name })),
@@ -676,10 +710,14 @@ export class RestoService {
     deliveredAt?: Date | null;
     tableId: string | null;
     invoiceId?: string | null;
+    openedById?: string | null;
+    tipAssigneeId?: string | null;
     sentAt: Date | null;
     closedAt: Date | null;
     createdAt: Date;
-    table?: { id: string; code: string; name: string | null } | null;
+    table?: { id: string; code: string; name: string | null; zoneId?: string } | null;
+    openedBy?: { id: string; name: string; email: string } | null;
+    tipAssignee?: { id: string; name: string; email: string } | null;
     items: Array<{
       id: string;
       productId: string | null;
@@ -721,6 +759,16 @@ export class RestoService {
     const subtotal = items
       .filter((it) => !it.isComp)
       .reduce((s, it) => s + it.lineTotal, 0);
+    const mapUser = (
+      u: { id: string; name: string; email: string } | null | undefined,
+    ) =>
+      u
+        ? {
+            id: u.id,
+            name: u.name || u.email,
+            email: u.email,
+          }
+        : null;
     return {
       id: order.id,
       number: order.number,
@@ -737,11 +785,16 @@ export class RestoService {
       deliveredAt: order.deliveredAt ?? null,
       tableId: order.tableId,
       invoiceId: order.invoiceId ?? null,
+      openedById: order.openedById ?? null,
+      tipAssigneeId: order.tipAssigneeId ?? null,
+      openedBy: mapUser(order.openedBy),
+      tipAssignee: mapUser(order.tipAssignee),
       table: order.table
         ? {
             id: order.table.id,
             code: order.table.code,
             name: order.table.name,
+            zoneId: order.table.zoneId ?? null,
           }
         : null,
       sentAt: order.sentAt,
@@ -758,7 +811,9 @@ export class RestoService {
     const order = await this.prisma.restoOrder.findFirst({
       where: { id: orderId, companyId },
       include: {
-        table: { select: { id: true, code: true, name: true } },
+        table: { select: { id: true, code: true, name: true, zoneId: true } },
+        openedBy: { select: { id: true, name: true, email: true } },
+        tipAssignee: { select: { id: true, name: true, email: true } },
         items: {
           orderBy: { createdAt: 'asc' },
           include: {
@@ -769,6 +824,55 @@ export class RestoService {
     });
     if (!order) throw new NotFoundException('Order not found');
     return order;
+  }
+
+  private async assertRestoServerUser(companyId: string, userId: string) {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id: userId,
+        companyId,
+        isActive: true,
+        role: { in: RESTO_SERVER_ROLES },
+      },
+      select: { id: true, name: true, email: true, role: true },
+    });
+    if (!user) {
+      throw new BadRequestException(
+        'Tip assignee must be an active floor staff user',
+      );
+    }
+    return user;
+  }
+
+  /** Section server for zone → order tipAssignee → opener → closer */
+  private async resolveTipAssigneeId(
+    companyId: string,
+    order: {
+      tipAssigneeId?: string | null;
+      openedById?: string | null;
+      tableId?: string | null;
+      table?: { zoneId?: string | null } | null;
+    },
+    preferredId: string | null | undefined,
+    fallbackUserId: string,
+  ): Promise<string> {
+    if (preferredId) {
+      await this.assertRestoServerUser(companyId, preferredId);
+      return preferredId;
+    }
+    if (order.tipAssigneeId) {
+      return order.tipAssigneeId;
+    }
+    const zoneId = order.table?.zoneId;
+    if (zoneId) {
+      const assignment = await this.prisma.restoServerSection.findFirst({
+        where: { companyId, zoneId, endsAt: null },
+        select: { userId: true },
+      });
+      if (assignment?.userId) return assignment.userId;
+    }
+    if (order.openedById) return order.openedById;
+    return fallbackUserId;
   }
 
   async getOrder(companyId: string, orderId: string) {
@@ -1232,6 +1336,15 @@ export class RestoService {
     ) {
       throw new BadRequestException('Order is closed');
     }
+    let tipAssigneeId: string | null | undefined = undefined;
+    if (dto.tipAssigneeId !== undefined) {
+      if (dto.tipAssigneeId === null || dto.tipAssigneeId === '') {
+        tipAssigneeId = null;
+      } else {
+        await this.assertRestoServerUser(companyId, dto.tipAssigneeId);
+        tipAssigneeId = dto.tipAssigneeId;
+      }
+    }
     await this.prisma.restoOrder.update({
       where: { id: orderId },
       data: {
@@ -1246,6 +1359,7 @@ export class RestoService {
         ...(dto.deliveryAddress !== undefined
           ? { deliveryAddress: dto.deliveryAddress?.trim() || null }
           : {}),
+        ...(tipAssigneeId !== undefined ? { tipAssigneeId } : {}),
       },
     });
     return this.getOrder(companyId, orderId);
@@ -1833,6 +1947,16 @@ export class RestoService {
         serviceCharge += (subtotal * Number(dto.serviceChargePct)) / 100;
       }
       const tip = Number(dto.tipAmount) || 0;
+      const tipAssigneeId = await this.resolveTipAssigneeId(
+        companyId,
+        order,
+        dto.tipAssigneeId,
+        actor.sub,
+      );
+      const tipUser = await this.prisma.user.findFirst({
+        where: { id: tipAssigneeId, companyId },
+        select: { name: true, email: true },
+      });
       const noteParts = [
         `Hisaby Resto ${order.number} [${order.channel}]`,
         order.guestName ? `Guest: ${order.guestName}` : '',
@@ -1842,6 +1966,9 @@ export class RestoService {
           ? `Service charge ${serviceCharge.toFixed(3)}`
           : '',
         tip > 0.0005 ? `Tip ${tip.toFixed(3)}` : '',
+        tipUser
+          ? `Tip → ${tipUser.name || tipUser.email}`
+          : '',
       ].filter(Boolean);
 
       const split =
@@ -1863,6 +1990,7 @@ export class RestoService {
         warehouseId,
         contactId: dto.contactId,
         tipAmount: tip > 0.0005 ? tip : undefined,
+        tipAssigneeId,
         serviceChargeAmount:
           serviceCharge > 0.0005 ? serviceCharge : undefined,
         notes: noteParts.join(' · '),
@@ -1874,6 +2002,11 @@ export class RestoService {
       } catch {
         /* non-fatal */
       }
+
+      await this.prisma.restoOrder.update({
+        where: { id: orderId },
+        data: { tipAssigneeId },
+      });
     }
 
     await this.prisma.$transaction(async (tx) => {
@@ -2066,6 +2199,16 @@ export class RestoService {
       serviceCharge += (subtotal * Number(dto.serviceChargePct)) / 100;
     }
     const tip = Number(dto.tipAmount) || 0;
+    const tipAssigneeId = await this.resolveTipAssigneeId(
+      companyId,
+      order,
+      dto.tipAssigneeId,
+      actor.sub,
+    );
+    const tipUser = await this.prisma.user.findFirst({
+      where: { id: tipAssigneeId, companyId },
+      select: { name: true, email: true },
+    });
     const noteParts = [
       `Hisaby Resto ${order.number} [${order.channel}]`,
       'PARTNER_PAY table QR',
@@ -2075,6 +2218,7 @@ export class RestoService {
         ? `Service charge ${serviceCharge.toFixed(3)}`
         : '',
       tip > 0.0005 ? `Tip ${tip.toFixed(3)}` : '',
+      tipUser ? `Tip → ${tipUser.name || tipUser.email}` : '',
     ].filter(Boolean);
 
     const invoice = await this.pos.createSale(companyId, actor, {
@@ -2087,6 +2231,7 @@ export class RestoService {
       warehouseId,
       contactId: dto.contactId,
       tipAmount: tip > 0.0005 ? tip : undefined,
+      tipAssigneeId,
       serviceChargeAmount:
         serviceCharge > 0.0005 ? serviceCharge : undefined,
       notes: noteParts.join(' · '),
@@ -2095,7 +2240,7 @@ export class RestoService {
 
     await this.prisma.restoOrder.update({
       where: { id: orderId },
-      data: { invoiceId: invoice.id },
+      data: { invoiceId: invoice.id, tipAssigneeId },
     });
 
     try {
@@ -2529,9 +2674,9 @@ export class RestoService {
       serviceChargesTotal += service;
       if (tip > 0.0005) tippedCloses += 1;
 
-      const key = order.openedById || 'none';
+      const key = order.tipAssigneeId || order.openedById || 'none';
       const row = byServerTips.get(key) || {
-        userId: order.openedById || null,
+        userId: order.tipAssigneeId || order.openedById || null,
         tips: 0,
         orders: 0,
       };
@@ -2647,6 +2792,118 @@ export class RestoService {
         .sort((a, b) => b.qty - a.qty)
         .slice(0, 15),
     };
+  }
+
+  /** Business-day flash sheet for shift handover / print */
+  async getFlashReport(companyId: string) {
+    const summary = await this.getReportsSummary(companyId, 1);
+    const assignments = await this.listSectionAssignments(companyId);
+    return {
+      ...summary,
+      flash: true,
+      printedAt: new Date().toISOString(),
+      sectionAssignments: assignments.assignments,
+    };
+  }
+
+  async listRestoStaff(companyId: string) {
+    const users = await this.prisma.user.findMany({
+      where: {
+        companyId,
+        isActive: true,
+        role: { in: RESTO_SERVER_ROLES },
+      },
+      select: { id: true, name: true, email: true, role: true },
+      orderBy: [{ name: 'asc' }, { email: 'asc' }],
+      take: 200,
+    });
+    return {
+      staff: users.map((u) => ({
+        id: u.id,
+        name: u.name || u.email,
+        email: u.email,
+        role: u.role,
+      })),
+    };
+  }
+
+  async listSectionAssignments(companyId: string) {
+    const [zones, active] = await Promise.all([
+      this.prisma.restoZone.findMany({
+        where: { companyId },
+        orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+        select: { id: true, name: true, nameEn: true },
+      }),
+      this.prisma.restoServerSection.findMany({
+        where: { companyId, endsAt: null },
+        include: {
+          user: { select: { id: true, name: true, email: true, role: true } },
+          zone: { select: { id: true, name: true, nameEn: true } },
+        },
+        orderBy: { startsAt: 'asc' },
+      }),
+    ]);
+    const byZone = new Map(active.map((a) => [a.zoneId, a]));
+    return {
+      zones,
+      assignments: zones.map((z) => {
+        const a = byZone.get(z.id);
+        return {
+          zoneId: z.id,
+          zoneName: z.name,
+          zoneNameEn: z.nameEn,
+          assignmentId: a?.id ?? null,
+          userId: a?.userId ?? null,
+          user: a?.user
+            ? {
+                id: a.user.id,
+                name: a.user.name || a.user.email,
+                email: a.user.email,
+                role: a.user.role,
+              }
+            : null,
+          startsAt: a?.startsAt ?? null,
+        };
+      }),
+    };
+  }
+
+  async assignSection(companyId: string, dto: AssignRestoSectionDto) {
+    const zone = await this.prisma.restoZone.findFirst({
+      where: { id: dto.zoneId, companyId },
+      select: { id: true },
+    });
+    if (!zone) throw new NotFoundException('Zone not found');
+    await this.assertRestoServerUser(companyId, dto.userId);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.restoServerSection.updateMany({
+        where: { companyId, zoneId: dto.zoneId, endsAt: null },
+        data: { endsAt: new Date() },
+      });
+      await tx.restoServerSection.create({
+        data: {
+          companyId,
+          zoneId: dto.zoneId,
+          userId: dto.userId,
+        },
+      });
+    });
+
+    return this.listSectionAssignments(companyId);
+  }
+
+  async releaseSection(companyId: string, zoneId: string) {
+    const zone = await this.prisma.restoZone.findFirst({
+      where: { id: zoneId, companyId },
+      select: { id: true },
+    });
+    if (!zone) throw new NotFoundException('Zone not found');
+    await this.prisma.restoServerSection.updateMany({
+      where: { companyId, zoneId, endsAt: null },
+      data: { endsAt: new Date() },
+    });
+    return this.listSectionAssignments(companyId);
   }
 
   private mapReservation(r: {

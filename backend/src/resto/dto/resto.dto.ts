@@ -353,6 +353,11 @@ export class UpdateRestoOrderDto {
   @IsString()
   @MaxLength(300)
   deliveryAddress?: string;
+
+  /** Tip pool assignee while order is open */
+  @IsOptional()
+  @IsUUID()
+  tipAssigneeId?: string | null;
 }
 
 export class VoidRestoOrderItemDto {
@@ -422,6 +427,11 @@ export class CloseRestoOrderDto {
   @Min(0)
   tipAmount?: number;
 
+  /** Who receives tip attribution (defaults to section server → opener) */
+  @IsOptional()
+  @IsUUID()
+  tipAssigneeId?: string;
+
   /** Absolute service charge amount (added with tip on POS close) */
   @IsOptional()
   @Type(() => Number)
@@ -442,6 +452,10 @@ export class CreateRestoPayLinkDto {
   @Type(() => Number)
   @Min(0)
   tipAmount?: number;
+
+  @IsOptional()
+  @IsUUID()
+  tipAssigneeId?: string;
 
   @IsOptional()
   @Type(() => Number)
@@ -600,3 +614,12 @@ export class PublicGuestCallDto {
   @IsIn(['WAITER', 'CHECK', 'WATER'])
   type: 'WAITER' | 'CHECK' | 'WATER';
 }
+
+export class AssignRestoSectionDto {
+  @IsUUID()
+  zoneId: string;
+
+  @IsUUID()
+  userId: string;
+}
+
