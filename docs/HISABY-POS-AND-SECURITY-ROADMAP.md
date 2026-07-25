@@ -83,7 +83,7 @@ Public flags: `asyncApprovals: true`, `nfcBadgesConfigured`, `shiftVarianceLimit
 - [ ] Partner NFC tap-to-pay (gateway / wallet partners — not badge dual-control)
 - [ ] Native wrapper (Capacitor) if PWA limits hit
 - [ ] Reliable multi-vendor Web Bluetooth thermal (current BLE path is best-effort)
-- [x] Full AR GL posting for store-credit (`PaymentMethod.STORE_CREDIT` → liability **2130** ائتمان عملاء; wallet `Contact.currentBalance` kept as operational balance)
+- [x] Contacts store-credit wallet UI + GL-backed adjust (POST /contacts/:id/store-credit-adjust → 2130)\n- [x] Full AR GL posting for store-credit (`PaymentMethod.STORE_CREDIT` → liability **2130** ائتمان عملاء; wallet `Contact.currentBalance` kept as operational balance)
 - [ ] Split tender (multi-payment on one sale)
 
 ### Done (Wave 6)
