@@ -230,7 +230,13 @@ export class CustomerNotifyService {
     let waOk = false;
     let waError: string | undefined;
     if (isValidMobileE164(digits) && this.whatsapp.isConfigured()) {
-      const result = await this.whatsapp.sendText(digits, body);
+      const caption = body.slice(0, 900);
+      const result = await this.whatsapp.sendDocumentLink(
+        digits,
+        viewUrl,
+        caption,
+        `${invoice.number || 'receipt'}.pdf`,
+      );
       waOk = result.ok;
       waError = result.error;
     } else {

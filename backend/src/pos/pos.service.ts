@@ -1344,7 +1344,11 @@ export class PosService {
       orderBy: { createdAt: 'desc' },
       take: 5,
       include: {
-        items: true,
+        items: {
+          include: {
+            product: { select: { id: true, sku: true, barcode: true } },
+          },
+        },
         payments: { select: { method: true } },
       },
     });

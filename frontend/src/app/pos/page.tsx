@@ -32,7 +32,13 @@ import {
 import { BarcodeCameraScanner } from "@/components/pos/barcode-camera-scanner";
 import { QtyKeypadModal } from "@/components/pos/qty-keypad-modal";
 import { playPosScanBeep } from "@/lib/pos-beep";
-import { openPosReceiptEmail, openPosReceiptWhatsApp } from "@/lib/pos-receipt-share";
+import { openPosReceiptEmail, sharePosReceiptWhatsAppWithPdf } from "@/lib/pos-receipt-share";
+import {
+  printPosReceiptBrowser,
+  type PosReceiptPrintData,
+} from "@/lib/pos-receipt-print";
+import { formatCompanyAddressCompact } from "@/lib/contact-address";
+import { toAppAbsoluteUrl } from "@/lib/app-url";
 import { loadPosFavorites, togglePosFavorite } from "@/lib/pos-favorites";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -59,6 +65,7 @@ type CartLine = {
   productId: string;
   name: string;
   sku: string;
+  barcode?: string | null;
   unitPrice: number;
   catalogPrice: number;
   quantity: number;
@@ -90,7 +97,7 @@ type ReceiptSnapshot = {
   id?: string;
   number?: string;
   total?: number;
-  lines?: { name: string; qty: number; lineTotal: number }[];
+  lines?: { name: string; qty: number; lineTotal: number; barcode?: string | null; sku?: string | null }[];
   paymentMethod?: string;
   warehouseLabel?: string;
 };
@@ -109,6 +116,7 @@ type RecentCashSale = {
     quantity: number | string;
     unitPrice?: number | string;
     total: number | string;
+    product?: { barcode?: string | null; sku?: string | null } | null;
   }[];
   payments?: { method?: string; amount?: number | string }[];
 };
@@ -790,6 +798,7 @@ export default function PosCheckoutPage() {
             productId: p.id,
             name: p.name,
             sku: p.sku,
+            barcode: p.barcode || null,
             unitPrice,
             catalogPrice: unitPrice,
             quantity: qty,
@@ -895,17 +904,63 @@ export default function PosCheckoutPage() {
 
   const printReceiptSnapshot = useCallback(
     async (receipt: ReceiptSnapshot) => {
+      const receiptLines = (receipt.lines || []).map((l) => ({
+        name: l.name,
+        qty: l.qty,
+        lineTotal: l.lineTotal,
+        barcode: l.barcode || null,
+        sku: l.sku || null,
+      }));
+      const printData: PosReceiptPrintData = {
+        brand: t.brand,
+        company: {
+          name: company?.name,
+          address: company?.address,
+          city: company?.city,
+          country: company?.country,
+          phone: company?.phone,
+          email: company?.email,
+          vatNumber: company?.vatNumber,
+          crNumber: company?.crNumber,
+          logo: company?.logo || "/brand/hisaby-mark.png",
+        },
+        number: receipt.number,
+        paymentMethod: receipt.paymentMethod,
+        warehouseLabel: receipt.warehouseLabel,
+        total: receipt.total || 0,
+        currency,
+        lines: receiptLines,
+        locale: locale === "en" ? "en" : "ar",
+        labels: {
+          vat: locale === "en" ? "VAT" : "الرقم الضريبي",
+          cr: locale === "en" ? "CR" : "السجل التجاري",
+          phone: locale === "en" ? "Phone" : "الهاتف",
+          email: locale === "en" ? "Email" : "البريد",
+          warehouse: t.warehouse,
+          payment: t.payment,
+          total: t.total,
+          barcode: locale === "en" ? "Scan barcode for returns" : "امسح الباركود للإرجاع",
+          printBtn: locale === "en" ? "Print receipt" : "طباعة الإيصال",
+        },
+      };
+
       const escPosPayload = {
         brand: t.brand,
         companyName: company?.name || "",
         vatNumber: company?.vatNumber || undefined,
+        crNumber: company?.crNumber || undefined,
+        phone: company?.phone || undefined,
+        address: formatCompanyAddressCompact({
+          address: company?.address,
+          city: company?.city,
+        }) || undefined,
         warehouseLabel: receipt.warehouseLabel,
         number: receipt.number,
         paymentMethod: receipt.paymentMethod,
         totalLabel: t.total,
         total: receipt.total || 0,
         currency,
-        lines: receipt.lines || [],
+        lines: receiptLines,
       };
       try {
         const { tryPrintEscPosSmart, getPreferThermalPrinter } = await import("@/lib/pos-escpos");
@@ -917,58 +972,18 @@ export default function PosCheckoutPage() {
         /* fall through to browser print */
       }
 
-      const w = window.open("", "_blank", "width=360,height=640");
-      if (!w) return;
-      const linesHtml = (receipt.lines || [])
-        .map(
-          (l) =>
-            `<tr><td>${l.name}</td><td style="text-align:center">${l.qty}</td><td style="text-align:end">${formatMoney(l.lineTotal, currency)}</td></tr>`,
-        )
-        .join("");
-      const dir = locale === "en" ? "ltr" : "rtl";
-      const companyName = company?.name || "";
-      const vatLine = company?.vatNumber
-        ? `<p style="font-size:11px;color:#444">${locale === "en" ? "VAT" : "الرقم الضريبي"}: ${company.vatNumber}</p>`
-        : "";
-      const whLine = receipt.warehouseLabel
-        ? `<p style="font-size:12px">${t.warehouse}: ${receipt.warehouseLabel}</p>`
-        : "";
-      const payLine = receipt.paymentMethod
-        ? `<p style="font-size:12px">${t.payment}: ${receipt.paymentMethod}</p>`
-        : "";
-      w.document.write(`<!doctype html><html dir="${dir}"><head><title>Receipt</title>
-      <style>
-        @page { size: 80mm auto; margin: 4mm; }
-        body{
-          font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-          padding: 0; width: 72mm; max-width: 100%; margin: 0 auto; color:#111;
-          font-size: 12px; line-height: 1.35;
-        }
-        h1{font-size:14px;margin:0 0 4px} h2{font-size:15px;margin:6px 0 2px;font-weight:800}
-        p{margin:4px 0;font-size:12px}
-        table{width:100%;border-collapse:collapse;font-size:11px;margin:8px 0;table-layout:fixed}
-        td{padding:3px 0;vertical-align:top;word-wrap:break-word}
-        td:nth-child(2){width:2.5em;text-align:center}
-        td:nth-child(3){width:5.5em;text-align:end;white-space:nowrap}
-        hr{border:none;border-top:1px dashed #999;margin:10px 0}
-      </style></head><body>
-      <h1>${t.brand}</h1>
-      <h2>${companyName}</h2>
-      ${vatLine}
-      ${whLine}
-      <hr/>
-      <p>${receipt.number || ""}</p>
-      ${payLine}
-      <table><tbody>${linesHtml}</tbody></table>
-      <hr/>
-      <p><strong>${t.total}: ${formatMoney(receipt.total || 0, currency)}</strong></p>
-      <hr/><p style="text-align:center">Hisaby POS</p>
-      <script>window.print()</script></body></html>`);
-      w.document.close();
+      printPosReceiptBrowser(printData);
     },
     [
       company?.name,
       company?.vatNumber,
+      company?.crNumber,
+      company?.phone,
+      company?.email,
+      company?.address,
+      company?.city,
+      company?.country,
+      company?.logo,
       currency,
       locale,
       t.brand,
@@ -995,17 +1010,31 @@ export default function PosCheckoutPage() {
       .map((p) => paymentLabel(p.method))
       .filter(Boolean);
     printReceiptSnapshot({
+      id: sale.id,
       number: sale.number,
       total: Number(sale.total),
       paymentMethod: payMethods.length
         ? payMethods.join(" + ")
         : paymentLabel(sale.payments?.[0]?.method),
       warehouseLabel: warehouseLabel || undefined,
-      lines: (sale.items || []).map((item) => ({
-        name: item.description,
-        qty: Number(item.quantity),
-        lineTotal: Number(item.total),
-      })),
+      lines: (sale.items || []).map((item) => {
+        const fromCatalog = item.productId
+          ? catalog.find((c) => c.id === item.productId)
+          : undefined;
+        const barcode =
+          item.product?.barcode ||
+          fromCatalog?.barcode ||
+          item.product?.sku ||
+          fromCatalog?.sku ||
+          null;
+        return {
+          name: item.description,
+          qty: Number(item.quantity),
+          lineTotal: Number(item.total),
+          barcode,
+          sku: item.product?.sku || fromCatalog?.sku || null,
+        };
+      }),
     });
   };
 
@@ -1309,12 +1338,16 @@ export default function PosCheckoutPage() {
       return;
     }
     const tipLine =
-      tipValue > 0.0005 ? [{ name: t.tip, qty: 1, lineTotal: tipValue }] : [];
+      tipValue > 0.0005
+        ? [{ name: t.tip, qty: 1, lineTotal: tipValue, barcode: null as string | null, sku: null as string | null }]
+        : [];
     const snapshot = [
       ...workingCart.map((l) => ({
         name: l.name,
         qty: l.quantity,
         lineTotal: lineTotal(l),
+        barcode: l.barcode || null,
+        sku: l.sku || null,
       })),
       ...tipLine,
     ];
@@ -2440,17 +2473,99 @@ export default function PosCheckoutPage() {
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  onClick={() =>
-                    openPosReceiptWhatsApp({
-                      companyName: company?.name,
-                      number: lastInvoice.number,
-                      warehouseLabel: lastInvoice.warehouseLabel,
-                      paymentMethod: lastInvoice.paymentMethod,
-                      total: lastInvoice.total,
-                      currency,
-                      lines: lastInvoice.lines,
-                    })
-                  }
+                  onClick={async () => {
+                    const toastId = toast.loading(t.shareWhatsAppPdfPreparing);
+                    try {
+                      let viewUrl: string | undefined;
+                      if (lastInvoice.id) {
+                        try {
+                          const res = await api.createDocumentShareLink(
+                            lastInvoice.id,
+                            "receipt",
+                          );
+                          const data = res.data as {
+                            shareUrl?: string;
+                            sharePath?: string;
+                          };
+                          viewUrl = data.sharePath
+                            ? toAppAbsoluteUrl(data.sharePath)
+                            : data.shareUrl
+                              ? toAppAbsoluteUrl(data.shareUrl)
+                              : undefined;
+                        } catch {
+                          /* optional link */
+                        }
+                      }
+                      const cust = customers.find((c) => c.id === contactId);
+                      const receiptLines = (lastInvoice.lines || []).map((l) => ({
+                        name: l.name,
+                        qty: l.qty,
+                        lineTotal: l.lineTotal,
+                        barcode: l.barcode || null,
+                        sku: l.sku || null,
+                      }));
+                      const printData: PosReceiptPrintData = {
+                        brand: t.brand,
+                        company: {
+                          name: company?.name,
+                          address: company?.address,
+                          city: company?.city,
+                          country: company?.country,
+                          phone: company?.phone,
+                          email: company?.email,
+                          vatNumber: company?.vatNumber,
+                          crNumber: company?.crNumber,
+                          logo: company?.logo || "/brand/hisaby-mark.png",
+                        },
+                        number: lastInvoice.number,
+                        paymentMethod: lastInvoice.paymentMethod,
+                        warehouseLabel: lastInvoice.warehouseLabel,
+                        total: lastInvoice.total || 0,
+                        currency,
+                        lines: receiptLines,
+                        locale: locale === "en" ? "en" : "ar",
+                        labels: {
+                          vat: locale === "en" ? "VAT" : "الرقم الضريبي",
+                          cr: locale === "en" ? "CR" : "السجل التجاري",
+                          phone: locale === "en" ? "Phone" : "الهاتف",
+                          email: locale === "en" ? "Email" : "البريد",
+                          warehouse: t.warehouse,
+                          payment: t.payment,
+                          total: t.total,
+                          barcode:
+                            locale === "en"
+                              ? "Scan barcode for returns"
+                              : "امسح الباركود للإرجاع",
+                          printBtn:
+                            locale === "en" ? "Print receipt" : "طباعة الإيصال",
+                        },
+                      };
+                      const result = await sharePosReceiptWhatsAppWithPdf({
+                        share: {
+                          companyName: company?.name,
+                          number: lastInvoice.number,
+                          warehouseLabel: lastInvoice.warehouseLabel,
+                          paymentMethod: lastInvoice.paymentMethod,
+                          total: lastInvoice.total,
+                          currency,
+                          lines: receiptLines,
+                          customerPhone: cust?.phone,
+                          viewUrl,
+                        },
+                        printData,
+                        locale: locale === "en" ? "en" : "ar",
+                      });
+                      toast.dismiss(toastId);
+                      if (result.sharedNative) {
+                        toast.success(t.shareWhatsAppPdfOk);
+                      } else {
+                        toast.success(t.shareWhatsAppPdfDownloaded);
+                      }
+                    } catch {
+                      toast.dismiss(toastId);
+                      toast.error(t.shareWhatsAppPdfFail);
+                    }
+                  }}
                   className="min-h-10 h-10 rounded-xl border border-emerald-500/30 text-sm text-emerald-200 hover:bg-emerald-500/10"
                 >
                   {t.shareWhatsApp}

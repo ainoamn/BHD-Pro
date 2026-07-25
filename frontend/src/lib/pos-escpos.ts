@@ -1,11 +1,19 @@
 /** Minimal ESC/POS builder + Web Serial / Bluetooth printer for Hisaby POS receipts. */
 
-export type EscPosReceiptLine = { name: string; qty: number; lineTotal: number };
+export type EscPosReceiptLine = {
+  name: string;
+  qty: number;
+  lineTotal: number;
+  barcode?: string | null;
+};
 
 export type EscPosReceipt = {
   brand: string;
   companyName: string;
   vatNumber?: string;
+  crNumber?: string;
+  phone?: string;
+  address?: string;
   warehouseLabel?: string;
   number?: string;
   paymentMethod?: string;
@@ -20,9 +28,10 @@ const PREFER_CASH_DRAWER_KEY = "hisaby-pos-prefer-cash-drawer";
 
 export function getPreferThermalPrinter(): boolean {
   try {
-    return localStorage.getItem(PREFER_THERMAL_KEY) !== "0";
+    // Default OFF — browser print is reliable; Web Serial prompts confuse shops without a USB printer.
+    return localStorage.getItem(PREFER_THERMAL_KEY) === "1";
   } catch {
-    return true;
+    return false;
   }
 }
 
@@ -90,6 +99,9 @@ export function buildEscPosReceipt(r: EscPosReceipt): Uint8Array {
   const CUT = new Uint8Array([0x1d, 0x56, 0x00]);
   const parts: Uint8Array[] = [INIT, CENTER, BOLD_ON, line(r.brand), BOLD_OFF, line(r.companyName)];
   if (r.vatNumber) parts.push(line(`VAT: ${r.vatNumber}`));
+  if (r.crNumber) parts.push(line(`CR: ${r.crNumber}`));
+  if (r.phone) parts.push(line(`Tel: ${r.phone}`));
+  if (r.address) parts.push(line(r.address.slice(0, 42)));
   if (r.warehouseLabel) parts.push(line(r.warehouseLabel));
   parts.push(LEFT, line("--------------------------------"));
   if (r.number) parts.push(line(r.number));
@@ -98,6 +110,8 @@ export function buildEscPosReceipt(r: EscPosReceipt): Uint8Array {
     const name = l.name.slice(0, 24);
     parts.push(line(`${name}`));
     parts.push(line(`  x${l.qty}  ${l.lineTotal.toFixed(3)} ${r.currency}`));
+    const bc = (l.barcode || "").trim();
+    if (bc) parts.push(line(`  BC: ${bc.slice(0, 28)}`));
   }
   parts.push(line("--------------------------------"), BOLD_ON, line(`${r.totalLabel}: ${r.total.toFixed(3)} ${r.currency}`), BOLD_OFF);
   parts.push(CENTER, line("Hisaby POS"), line(""), line(""), CUT);
@@ -112,14 +126,30 @@ export function isWebBluetoothSupported(): boolean {
   return typeof navigator !== "undefined" && "bluetooth" in navigator;
 }
 
-/** Request a serial port and print ESC/POS bytes. */
-export async function printViaWebSerial(bytes: Uint8Array): Promise<void> {
+/**
+ * Print ESC/POS via Web Serial.
+ * Uses a previously authorized port when available (no picker).
+ * Set `allowPrompt` to show the browser port picker only when the user
+ * explicitly wants thermal print and no port is remembered yet.
+ */
+export async function printViaWebSerial(
+  bytes: Uint8Array,
+  opts?: { allowPrompt?: boolean },
+): Promise<void> {
   if (!isWebSerialSupported()) {
     throw new Error("Web Serial is not supported in this browser");
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const nav = navigator as any;
-  const port = await nav.serial.requestPort();
+  const existing: any[] = (await nav.serial.getPorts?.()) || [];
+  let port = existing[0];
+  if (!port) {
+    if (!opts?.allowPrompt) {
+      throw new Error("No authorized serial printer");
+    }
+    port = await nav.serial.requestPort();
+  }
+  if (!port) throw new Error("No serial port selected");
   await port.open({ baudRate: 9600 });
   const writer = port.writable.getWriter();
   try {
@@ -133,8 +163,12 @@ export async function printViaWebSerial(bytes: Uint8Array): Promise<void> {
 /** Best-effort drawer kick via Web Serial (same path as thermal print). */
 export async function tryOpenCashDrawer(): Promise<boolean> {
   if (!isWebSerialSupported()) return false;
-  await printViaWebSerial(openCashDrawer());
-  return true;
+  try {
+    await printViaWebSerial(openCashDrawer(), { allowPrompt: getPreferCashDrawer() });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -188,7 +222,7 @@ export async function printViaBluetoothSerial(bytes: Uint8Array): Promise<boolea
 export async function tryPrintEscPos(r: EscPosReceipt): Promise<boolean> {
   if (!isWebSerialSupported()) return false;
   const bytes = buildEscPosReceipt(r);
-  await printViaWebSerial(bytes);
+  await printViaWebSerial(bytes, { allowPrompt: true });
   return true;
 }
 
@@ -217,7 +251,8 @@ export async function tryPrintEscPosSmart(r: EscPosReceipt): Promise<boolean> {
 
   if (isWebSerialSupported()) {
     try {
-      await printViaWebSerial(bytes);
+      // Prefer remembered port; only prompt when user opted into thermal printing.
+      await printViaWebSerial(bytes, { allowPrompt: getPreferThermalPrinter() });
       return true;
     } catch {
       /* try Bluetooth */

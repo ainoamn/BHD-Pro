@@ -113,6 +113,7 @@ type PublicDocPayload = {
       discount: unknown;
       taxAmount: unknown;
       total: unknown;
+      product?: { barcode?: string | null; sku?: string | null } | null;
     }>;
   };
   company: {
@@ -120,6 +121,7 @@ type PublicDocPayload = {
     address?: string | null;
     city?: string | null;
     phone?: string | null;
+    email?: string | null;
     vatNumber?: string | null;
     crNumber?: string | null;
     currency?: string | null;
@@ -156,6 +158,7 @@ export function renderPublicDocumentHtml(payload: PublicDocPayload): string {
   const companyMeta = [
     [company.address, company.city].filter(Boolean).join('، '),
     company.phone,
+    company.email,
     company.vatNumber ? `الرقم الضريبي: ${company.vatNumber}` : '',
     company.crNumber ? `السجل التجاري: ${company.crNumber}` : '',
   ]
@@ -164,17 +167,21 @@ export function renderPublicDocumentHtml(payload: PublicDocPayload): string {
     .join('');
 
   const itemsHtml = invoice.items
-    .map(
-      (item) => `
+    .map((item) => {
+      const code = (item.product?.barcode || item.product?.sku || '').trim();
+      const barcodeLine = code
+        ? `<div style="font-size:10px;font-family:ui-monospace,monospace;color:#334155;margin-top:3px;">باركود: ${esc(code)}</div>`
+        : '';
+      return `
       <tr>
-        <td>${esc(item.description)}</td>
+        <td>${esc(item.description)}${barcodeLine}</td>
         <td>${esc(Number(item.quantity))}</td>
         <td>${money(Number(item.unitPrice), currency)}</td>
         <td>${money(Number(item.discount), currency)}</td>
         <td>${money(Number(item.taxAmount), currency)}</td>
         <td>${money(Number(item.total), currency)}</td>
-      </tr>`,
-    )
+      </tr>`;
+    })
     .join('');
 
   const contactBits = [

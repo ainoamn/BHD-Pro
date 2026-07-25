@@ -1,5 +1,11 @@
 import { openExternalUrl } from "@/lib/open-external-url";
 import { formatMoney } from "@/lib/utils";
+import {
+  buildPosReceiptPdfBlob,
+  downloadBlob,
+  type PosReceiptPrintData,
+} from "@/lib/pos-receipt-print";
+import { buildContactWhatsAppLink } from "@/lib/phone";
 
 export type PosReceiptShareData = {
   companyName?: string;
@@ -8,7 +14,10 @@ export type PosReceiptShareData = {
   paymentMethod?: string;
   total?: number;
   currency?: string;
-  lines?: { name: string; qty: number; lineTotal: number }[];
+  lines?: { name: string; qty: number; lineTotal: number; barcode?: string | null }[];
+  customerPhone?: string | null;
+  /** Public / share URL to include in the WhatsApp message */
+  viewUrl?: string | null;
 };
 
 export type PosShiftReportShareData = {
@@ -38,19 +47,78 @@ export function buildPosReceiptPlainText(receipt: PosReceiptShareData): string {
     receipt.warehouseLabel ? `Warehouse: ${receipt.warehouseLabel}` : "",
     receipt.paymentMethod ? `Payment: ${receipt.paymentMethod}` : "",
     "",
-    ...(receipt.lines || []).map(
-      (l) => `${l.name} × ${l.qty} = ${formatMoney(l.lineTotal, currency)}`,
-    ),
+    ...(receipt.lines || []).map((l) => {
+      const bc = (l.barcode || "").trim();
+      return `${l.name} × ${l.qty} = ${formatMoney(l.lineTotal, currency)}${bc ? ` [${bc}]` : ""}`;
+    }),
     "",
     `Total: ${formatMoney(receipt.total || 0, currency)}`,
+    receipt.viewUrl ? `\nView / PDF: ${receipt.viewUrl}` : "",
   ].filter((line, i, arr) => !(line === "" && arr[i - 1] === ""));
   return lines.join("\n");
 }
 
+/** Open WhatsApp with receipt text (no PDF). */
 export function openPosReceiptWhatsApp(receipt: PosReceiptShareData): boolean {
   const text = buildPosReceiptPlainText(receipt);
-  const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+  const url = receipt.customerPhone
+    ? buildContactWhatsAppLink(receipt.customerPhone, "", text)
+    : `https://wa.me/?text=${encodeURIComponent(text)}`;
   return openExternalUrl(url);
+}
+
+/**
+ * Generate PDF, try native share (mobile → WhatsApp with attachment),
+ * always download PDF, then open WhatsApp with caption + optional view link.
+ */
+export async function sharePosReceiptWhatsAppWithPdf(opts: {
+  share: PosReceiptShareData;
+  printData: PosReceiptPrintData;
+  /** Hint shown in toast when PDF was downloaded for manual attach */
+  attachHintAr?: string;
+  attachHintEn?: string;
+  locale?: "ar" | "en";
+}): Promise<{ sharedNative: boolean; downloaded: boolean; openedWa: boolean }> {
+  const { blob, filename } = await buildPosReceiptPdfBlob(opts.printData);
+  const file = new File([blob], filename, { type: "application/pdf" });
+
+  let sharedNative = false;
+  try {
+    const nav = navigator as Navigator & {
+      canShare?: (data: ShareData) => boolean;
+      share?: (data: ShareData) => Promise<void>;
+    };
+    const data: ShareData = {
+      files: [file],
+      title: opts.share.number || "Receipt",
+      text: buildPosReceiptPlainText(opts.share),
+    };
+    if (nav.share && (!nav.canShare || nav.canShare(data))) {
+      await nav.share(data);
+      sharedNative = true;
+    }
+  } catch {
+    /* user cancelled or unsupported */
+  }
+
+  downloadBlob(blob, filename);
+
+  let openedWa = false;
+  if (!sharedNative) {
+    const hint =
+      opts.locale === "en"
+        ? opts.attachHintEn ||
+          "PDF downloaded — attach the file in WhatsApp."
+        : opts.attachHintAr ||
+          "تم تنزيل ملف PDF — أرفقه في واتساب.";
+    const text = `${buildPosReceiptPlainText(opts.share)}\n\n${hint}`;
+    const url = opts.share.customerPhone
+      ? buildContactWhatsAppLink(opts.share.customerPhone, "", text)
+      : `https://wa.me/?text=${encodeURIComponent(text)}`;
+    openedWa = openExternalUrl(url);
+  }
+
+  return { sharedNative, downloaded: true, openedWa: sharedNative ? true : openedWa };
 }
 
 export function openPosReceiptEmail(receipt: PosReceiptShareData): void {

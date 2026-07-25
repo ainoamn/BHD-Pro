@@ -18,7 +18,7 @@ import { getPosBeepMuted, setPosBeepMuted } from "@/lib/pos-beep";
 export default function PosSettingsPage() {
   const locale = useLocaleStore((s) => s.locale);
   const t = posCopy[locale === "en" ? "en" : "ar"];
-  const [preferThermal, setPreferThermal] = useState(true);
+  const [preferThermal, setPreferThermal] = useState(false);
   const [preferDrawer, setPreferDrawer] = useState(true);
   const [muteBeep, setMuteBeep] = useState(false);
 

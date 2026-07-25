@@ -220,7 +220,11 @@ export class DocumentShareService {
       where: { id: invoiceId, companyId },
       include: {
         contact: true,
-        items: true,
+        items: {
+          include: {
+            product: { select: { id: true, sku: true, barcode: true } },
+          },
+        },
         company: {
           select: {
             name: true,

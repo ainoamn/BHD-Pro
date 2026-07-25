@@ -108,7 +108,11 @@ export class InvoicesService {
             crNumber: true,
           },
         },
-        items: true,
+        items: {
+          include: {
+            product: { select: { id: true, sku: true, barcode: true } },
+          },
+        },
         payments: true,
         createdBy: { select: { id: true, name: true } },
       },
