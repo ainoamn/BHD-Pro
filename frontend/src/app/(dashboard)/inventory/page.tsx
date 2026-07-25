@@ -72,6 +72,8 @@ const emptyProduct = () => ({
   minQuantity: 5,
   unit: "pcs",
   description: "",
+  imageUrl: "",
+  warehouseId: "",
   customFields: {} as Record<string, string | number>,
 });
 
@@ -104,6 +106,16 @@ export default function InventoryPage() {
     },
   });
 
+  const { data: warehouses = [] } = useQuery({
+    queryKey: ["warehouses"],
+    queryFn: async () => {
+      const res = await api.getWarehouses();
+      return (res.data as { id: string; code: string; name: string; sector?: string; isActive?: boolean }[]).filter(
+        (w) => w.isActive !== false,
+      );
+    },
+  });
+
   const { data: productFields = [] } = useQuery({
     queryKey: ["custom-fields", "PRODUCT"],
     queryFn: async () => {
@@ -117,14 +129,6 @@ export default function InventoryPage() {
     queryFn: async () => {
       const res = await api.getProductStats();
       return res.data as ProductStats;
-    },
-  });
-
-  const { data: warehouses = [] } = useQuery({
-    queryKey: ["warehouses"],
-    queryFn: async () => {
-      const res = await api.getWarehouses();
-      return res.data as { id: string; code: string; name: string }[];
     },
   });
 
@@ -182,6 +186,8 @@ export default function InventoryPage() {
       minQuantity: Number(product.minQuantity),
       unit: product.unit,
       description: product.description || "",
+      imageUrl: (product.images && product.images[0]) || "",
+      warehouseId: (product as Product & { warehouseId?: string }).warehouseId || "",
       customFields: product.customFieldsJson || {},
     });
     setModalOpen(true);
@@ -223,11 +229,13 @@ export default function InventoryPage() {
 
   const saveMutation = useMutation({
     mutationFn: () => {
-      const { customFields, barcode, sku, ...rest } = form;
+      const { customFields, barcode, sku, imageUrl, warehouseId, ...rest } = form;
       const payload = {
         ...rest,
         ...(sku.trim() ? { sku: sku.trim() } : {}),
         ...(barcode.trim() ? { barcode: barcode.trim() } : {}),
+        images: imageUrl.trim() ? [imageUrl.trim()] : [],
+        ...(warehouseId ? { warehouseId } : {}),
         ...(Object.keys(customFields).length > 0
           ? { customFieldsJson: customFields }
           : { customFieldsJson: {} }),
@@ -676,6 +684,42 @@ export default function InventoryPage() {
                   placeholder={t("namePlaceholder")}
                   className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500"
                 />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm text-slate-400 mb-1 block">رابط صورة الصنف</label>
+                  <input
+                    value={form.imageUrl}
+                    onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
+                    placeholder="https://…"
+                    className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500 text-sm"
+                    dir="ltr"
+                  />
+                  {form.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={form.imageUrl}
+                      alt=""
+                      className="mt-2 h-20 w-28 rounded-lg object-cover border border-white/10"
+                    />
+                  ) : null}
+                </div>
+                <div>
+                  <label className="text-sm text-slate-400 mb-1 block">المخزن / القطاع</label>
+                  <select
+                    value={form.warehouseId}
+                    onChange={(e) => setForm({ ...form, warehouseId: e.target.value })}
+                    className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500 text-sm"
+                  >
+                    <option value="">المخزن الافتراضي</option>
+                    {warehouses.map((w) => (
+                      <option key={w.id} value={w.id}>
+                        {w.code} — {w.name}
+                        {w.sector ? ` (${w.sector})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
