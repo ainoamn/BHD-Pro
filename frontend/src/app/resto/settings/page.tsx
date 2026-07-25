@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import Link from "next/link";
 import { useLocaleStore } from "@/store/locale";
 import { restoCopy } from "@/lib/resto-copy";
 import { RestoLinkSettings } from "@/components/resto/resto-link-settings";
@@ -137,7 +138,7 @@ export default function RestoSettingsPage() {
           >
             {qrBusy ? "…" : t.guestQrEnsure}
           </button>
-          {qrTables.length > 0 ? (
+            {qrTables.length > 0 ? (
             <ul className="max-h-56 overflow-y-auto space-y-1.5 text-sm">
               {qrTables.map((tb) => (
                 <li
@@ -163,6 +164,12 @@ export default function RestoSettingsPage() {
               ))}
             </ul>
           ) : null}
+          <Link
+            href="/resto/qr-print"
+            className="block text-center rounded-xl border border-violet-400/40 py-2.5 text-sm font-bold text-violet-100 hover:bg-violet-500/10"
+          >
+            {t.qrPrintOpen}
+          </Link>
         </div>
       ) : null}
 

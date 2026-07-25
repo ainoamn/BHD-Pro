@@ -33,6 +33,8 @@ type FloorTable = {
     itemCount: number;
     total?: number;
     createdAt?: string;
+    occupiedMinutes?: number;
+    guestItemCount?: number;
   } | null;
 };
 
@@ -629,7 +631,16 @@ export default function RestoFloorPage() {
                                 <p className="text-[11px] opacity-80">
                                   {table.openOrder.itemCount} ·{" "}
                                   {itemStatusLabel(table.openOrder.status)}
+                                  {typeof table.openOrder.occupiedMinutes ===
+                                  "number"
+                                    ? ` · ${table.openOrder.occupiedMinutes} ${t.occupiedMin}`
+                                    : ""}
                                 </p>
+                                {(table.openOrder.guestItemCount ?? 0) > 0 ? (
+                                  <p className="text-[10px] font-bold text-violet-200">
+                                    {t.guestOrderBadge}
+                                  </p>
+                                ) : null}
                               </div>
                             ) : (
                               <p className="mt-2 text-xs font-semibold opacity-80">

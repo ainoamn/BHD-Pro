@@ -1544,6 +1544,7 @@ export class RestoService {
         qty: Number(it.qty),
         notes: it.notes,
         course: it.course ?? 1,
+        source: it.source === 'GUEST' ? 'GUEST' : 'STAFF',
         status: it.status,
         sentAt: it.sentAt,
         stationId: it.stationId,
