@@ -37,6 +37,8 @@ model Company {
 
   zatcaConfig Json?   @map("ota_config")
   ftaConfig   Json?   @map("tax_config")
+  /// Dual-control / maker-checker settings (PIN hash, action toggles). Null = secure defaults.
+  securityConfig Json? @map("security_config")
 
   /// Explicit bind between Hisaby Accounting and Hisaby POS
   posLinkedAt DateTime? @map("pos_linked_at")

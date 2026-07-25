@@ -1,5 +1,7 @@
-import { IsString, IsNumber, IsOptional, IsEnum, Min } from 'class-validator';
+import { IsString, IsNumber, IsOptional, IsEnum, Min, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { DualApprovalDto } from '../../dual-control/dto/approval.dto';
 
 export enum StockAdjustMode {
   IN = 'IN',
@@ -31,4 +33,10 @@ export class AdjustStockDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @ApiPropertyOptional({ type: DualApprovalDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DualApprovalDto)
+  approval?: DualApprovalDto;
 }

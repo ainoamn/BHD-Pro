@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useLocaleStore } from "@/store/locale";
 import { posCopy } from "@/lib/pos-copy";
 import { PosLinkSettings } from "@/components/pos/pos-link-settings";
+import { DualControlSettings } from "@/components/security/dual-control-settings";
 
 export default function PosSettingsPage() {
   const locale = useLocaleStore((s) => s.locale);
@@ -17,6 +18,8 @@ export default function PosSettingsPage() {
       </div>
 
       <PosLinkSettings variant="pos" />
+
+      <DualControlSettings />
 
       <div className="flex flex-col sm:flex-row gap-2 sm:justify-between text-sm">
         <Link href="/pos" className="text-center text-sky-300 hover:underline">

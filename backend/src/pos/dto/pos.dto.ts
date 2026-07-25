@@ -12,6 +12,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { PaymentMethod } from '@prisma/client';
+import { DualApprovalDto } from '../../dual-control/dto/approval.dto';
 
 export class PosSaleItemDto {
   @IsUUID()
@@ -64,6 +65,18 @@ export class CreatePosSaleDto {
   @IsOptional()
   @IsUUID()
   contactId?: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DualApprovalDto)
+  approval?: DualApprovalDto;
+}
+
+export class VoidPosSaleDto {
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DualApprovalDto)
+  approval?: DualApprovalDto;
 }
 
 export class LinkPosDto {

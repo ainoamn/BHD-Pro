@@ -60,6 +60,16 @@ Migration مخزون المستودعات: `20260723190000_warehouse_stocks`
 Migration السلات المعلّقة متعددة الأجهزة: `20260725140000_pos_drafts`  
 (تنشئ جدول `pos_drafts` لمزامنة السلات المعلّقة عبر الأجهزة بدل localStorage).
 
+Migration الحماية المزدوجة (maker-checker): `20260725150000_company_security_config`  
+(تضيف عمود `security_config` JSONB على `companies` لإعدادات dual-control: تفعيل عام، تبديل لكل إجراء حساس، وتجزئة PIN المشرف).
+
+**Dual control MVP:** عند تفعيل الحماية (الافتراضي عند غياب الإعداد)، تتطلب إجراءات مثل إلغاء بيع الكاشير، تجاوز السعر، تعديل/تحويل المخزون، إلغاء فاتورة، وعكس الدفعات موافقة:
+- `SELF_CONFIRM` للمدير/ADMIN
+- أو `PASSWORD` لمشرف آخر في نفس الشركة
+- أو `PIN` إن وُجد
+
+مرحلة لاحقة (غير منفّذة): WhatsApp OTP / NFC، ونموذج `ApprovalRequest` غير المتزامن للموافقة عن بُعد.
+
 عمليات الجرد أصبحت واعية بالمستودع (`WarehouseStock`) وواجهة التحويل بين المستودعات متاحة عبر `POST /products/:id/transfer` — لا حاجة لـ migration جديدة.
 
 **قبل النشر:** إن وُجدت صفوف مكررة لنفس `(company_id, sku)` أو `(company_id, barcode)` ستفشل الـ migration — أصلح التكرار أولاً.

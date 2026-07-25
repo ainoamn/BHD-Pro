@@ -33,6 +33,10 @@ import { SendDocumentModal } from "@/components/invoices/send-document-modal";
 import { openInvoicePrintDialog, downloadInvoicePdf } from "@/lib/invoice-print";
 import { RecordPaymentModal } from "@/components/invoices/record-payment-modal";
 import { ReversePaymentModal } from "@/components/invoices/reverse-payment-modal";
+import {
+  DualApprovalModal,
+  type DualApprovalPayload,
+} from "@/components/security/dual-approval-modal";
 import { downloadCsv } from "@/lib/export-csv";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import {
@@ -154,7 +158,7 @@ export function AccountingModule() {
   const tErp = useTranslations("erp");
   const tStatus = useTranslations("status");
   const tCommon = useTranslations("common");
-  const { company } = useAuthStore();
+  const { company, user } = useAuthStore();
   const queryClient = useQueryClient();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -202,6 +206,7 @@ export function AccountingModule() {
   const [collectOpen, setCollectOpen] = useState(false);
   const [collectInvoiceId, setCollectInvoiceId] = useState<string | undefined>();
   const [reversePaymentInvoice, setReversePaymentInvoice] = useState<Invoice | null>(null);
+  const [cancelPendingId, setCancelPendingId] = useState<string | null>(null);
   const [shareDocument, setShareDocument] = useState<{
     invoice: InvoiceDocumentData;
     variant: "invoice" | "receipt";
@@ -550,9 +555,7 @@ export function AccountingModule() {
   };
 
   const handleCancel = (id: string) => {
-    if (confirm(t("cancelConfirm"))) {
-      statusMutation.mutate({ id, status: "CANCELLED" });
-    }
+    setCancelPendingId(id);
   };
 
   const handleMarkSent = (id: string) => {
@@ -650,10 +653,18 @@ export function AccountingModule() {
   });
 
   const statusMutation = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: string }) =>
-      api.updateInvoiceStatus(id, status),
+    mutationFn: ({
+      id,
+      status,
+      approval,
+    }: {
+      id: string;
+      status: string;
+      approval?: DualApprovalPayload;
+    }) => api.updateInvoiceStatus(id, status, approval),
     onSuccess: (_data, { id, status }) => {
       invalidateInvoiceQueries();
+      setCancelPendingId(null);
       if (status === "PAID") {
         toast.success(t("paidSuccess"));
         if (printInvoice?.id === id) setDocumentVariant("receipt");
@@ -1420,6 +1431,22 @@ export function AccountingModule() {
           }}
         />
       )}
+
+      <DualApprovalModal
+        open={!!cancelPendingId}
+        actionLabel={t("cancelConfirm")}
+        actorRole={user?.role}
+        busy={statusMutation.isPending}
+        onCancel={() => !statusMutation.isPending && setCancelPendingId(null)}
+        onConfirm={async (approval) => {
+          if (!cancelPendingId) return;
+          await statusMutation.mutateAsync({
+            id: cancelPendingId,
+            status: "CANCELLED",
+            approval,
+          });
+        }}
+      />
 
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-start justify-center pt-10 bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">

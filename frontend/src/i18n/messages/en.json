@@ -49,6 +49,28 @@
     "enabled": "Two-factor authentication enabled",
     "disabled": "Two-factor authentication disabled"
   },
+  "dualControl": {
+    "title": "Dual control (maker-checker)",
+    "desc": "Require manager self-confirm or supervisor password/PIN before sensitive actions",
+    "futureNote": "WhatsApp OTP and NFC badge approvals are planned for a later phase.",
+    "enabled": "Enable dual control",
+    "actions": "Protected actions",
+    "action": {
+      "POS_VOID": "POS void sale",
+      "POS_PRICE_OVERRIDE": "POS price override",
+      "STOCK_ADJUST": "Stock adjustment",
+      "STOCK_TRANSFER": "Stock transfer",
+      "INVOICE_CANCEL": "Invoice cancel",
+      "PAYMENT_REVERSE": "Reverse all payments"
+    },
+    "pinSet": "Supervisor PIN is set",
+    "pinUnset": "No supervisor PIN yet",
+    "pinPlaceholder": "New PIN (4–8 digits)",
+    "setPin": "Set PIN",
+    "clearPin": "Clear PIN",
+    "saved": "Security settings saved",
+    "adminOnly": "Only company ADMIN can change these settings"
+  },
   "nav": {
     "dashboard": "Dashboard",
     "sales": "Sales Center",

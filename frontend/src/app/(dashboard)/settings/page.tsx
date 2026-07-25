@@ -14,6 +14,7 @@ import { Company } from "@/types";
 import { cn } from "@/lib/utils";
 import { PaymentGatewaysSettings } from "@/components/payments/payment-gateways-settings";
 import { TwoFactorSettings } from "@/components/auth/two-factor-settings";
+import { DualControlSettings } from "@/components/security/dual-control-settings";
 import { CompanyLogoUpload } from "@/components/company/company-logo-upload";
 import { PosLinkSettings } from "@/components/pos/pos-link-settings";
 import {
@@ -557,6 +558,8 @@ export default function SettingsPage() {
       </GlassCard>
 
       <TwoFactorSettings />
+
+      <DualControlSettings />
 
       <GlassCard>
         <PaymentGatewaysSettings />

@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { Prisma } from '@prisma/client';
+import { DualControlService } from '../dual-control/dual-control.service';
 
 type TaxConfig = {
   applyVat?: boolean;
@@ -26,20 +27,26 @@ function normalizeDocumentColor(color?: string | null): string {
 
 @Injectable()
 export class CompaniesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private dualControl: DualControlService,
+  ) {}
 
   private withTaxSettings(company: {
     ftaConfig: Prisma.JsonValue | null;
+    securityConfig?: Prisma.JsonValue | null;
     [key: string]: unknown;
   }) {
     const tax = (company.ftaConfig as TaxConfig) || {};
+    const { securityConfig, ...rest } = company;
     return {
-      ...company,
+      ...rest,
       applyVat: tax.applyVat !== false,
       pricesIncludeTax: !!tax.pricesIncludeTax,
       vatRate: typeof tax.vatRate === 'number' ? tax.vatRate : 5,
       signatureMode: tax.signatureMode === 'ELECTRONIC' ? 'ELECTRONIC' : 'MANUAL',
       documentColor: normalizeDocumentColor(tax.documentColor),
+      security: this.dualControl.getPublicConfigFromRaw(securityConfig ?? null),
     };
   }
 
@@ -50,7 +57,9 @@ export class CompaniesService {
   }
 
   async updateCompany(companyId: string, dto: UpdateCompanyDto) {
-    const existing = await this.getCompany(companyId);
+    const existingRow = await this.prisma.company.findUnique({ where: { id: companyId } });
+    if (!existingRow) throw new NotFoundException('Company not found');
+
     const {
       applyVat,
       pricesIncludeTax,
@@ -67,7 +76,7 @@ export class CompaniesService {
       data.logo = this.normalizeLogo(logo);
     }
 
-    const prevTax = (existing.ftaConfig as TaxConfig) || {};
+    const prevTax = (existingRow.ftaConfig as TaxConfig) || {};
     const ftaConfig: TaxConfig = {
       ...prevTax,
       ...(applyVat !== undefined ? { applyVat } : {}),

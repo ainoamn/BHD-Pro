@@ -58,7 +58,7 @@ export class ProductsController {
     @Param('id') id: string,
     @Body() dto: AdjustStockDto,
   ) {
-    return this.productsService.adjustStock(user.companyId, id, dto);
+    return this.productsService.adjustStock(user.companyId, id, dto, user);
   }
 
   @Post(':id/transfer')
@@ -68,7 +68,7 @@ export class ProductsController {
     @Param('id') id: string,
     @Body() dto: TransferStockDto,
   ) {
-    return this.productsService.transferStock(user.companyId, id, dto);
+    return this.productsService.transferStock(user.companyId, id, dto, user);
   }
 
   @Put(':id')

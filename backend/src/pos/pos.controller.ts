@@ -8,7 +8,12 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
 import { PosService } from './pos.service';
-import { CreatePosDraftDto, CreatePosSaleDto, LinkPosDto } from './dto/pos.dto';
+import {
+  CreatePosDraftDto,
+  CreatePosSaleDto,
+  LinkPosDto,
+  VoidPosSaleDto,
+} from './dto/pos.dto';
 
 @ApiTags('POS')
 @ApiBearerAuth()
@@ -92,14 +97,18 @@ export class PosController {
   @Throttle({ default: { limit: 60, ttl: 60000 } })
   @ApiOperation({ summary: 'Complete POS cash sale (stock reserve then invoice)' })
   sale(@CurrentUser() user: TokenPayload, @Body() dto: CreatePosSaleDto) {
-    return this.pos.createSale(user.companyId, user.sub, dto, user.role);
+    return this.pos.createSale(user.companyId, user, dto);
   }
 
   @Post('sales/:id/void')
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Void POS cash sale (reverse payment + restore stock)' })
-  voidSale(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
-    return this.pos.voidSale(user.companyId, user.sub, id, user.role);
+  voidSale(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+    @Body() dto: VoidPosSaleDto,
+  ) {
+    return this.pos.voidSale(user.companyId, user, id, dto?.approval);
   }
 }

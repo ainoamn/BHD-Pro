@@ -1,11 +1,17 @@
 "use client";
 
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { X, Loader2, Undo2, AlertTriangle } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { formatMoney, formatDate } from "@/lib/utils";
+import { useAuthStore } from "@/store/auth";
+import {
+  DualApprovalModal,
+  type DualApprovalPayload,
+} from "@/components/security/dual-approval-modal";
 
 interface PaymentRow {
   id: string;
@@ -36,6 +42,8 @@ export function ReversePaymentModal({
   const t = useTranslations("invoices");
   const tCommon = useTranslations("common");
   const queryClient = useQueryClient();
+  const user = useAuthStore((s) => s.user);
+  const [approvalOpen, setApprovalOpen] = useState(false);
 
   const { data: invoice, isLoading } = useQuery({
     queryKey: ["invoice", invoiceId],
@@ -74,10 +82,12 @@ export function ReversePaymentModal({
   });
 
   const reverseAll = useMutation({
-    mutationFn: () => api.reverseAllInvoicePayments(invoiceId),
+    mutationFn: (approval: DualApprovalPayload) =>
+      api.reverseAllInvoicePayments(invoiceId, approval),
     onSuccess: () => {
       invalidate();
       toast.success(t("allPaymentsReversed"));
+      setApprovalOpen(false);
       onSuccess?.();
       onClose();
     },
@@ -142,9 +152,7 @@ export function ReversePaymentModal({
               <button
                 type="button"
                 disabled={busy}
-                onClick={() => {
-                  if (confirm(t("reverseAllConfirm"))) reverseAll.mutate();
-                }}
+                onClick={() => setApprovalOpen(true)}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-600 text-white hover:bg-amber-500 disabled:opacity-50"
               >
                 {reverseAll.isPending ? (
@@ -204,9 +212,7 @@ export function ReversePaymentModal({
               <button
                 type="button"
                 disabled={busy || (payments.length === 0 && !canForceReverse)}
-                onClick={() => {
-                  if (confirm(t("reverseAllConfirm"))) reverseAll.mutate();
-                }}
+                onClick={() => setApprovalOpen(true)}
                 className="flex-1 h-10 rounded-lg bg-amber-600 text-white hover:bg-amber-500 disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {reverseAll.isPending ? (
@@ -222,6 +228,17 @@ export function ReversePaymentModal({
           </div>
         </div>
       </div>
+
+      <DualApprovalModal
+        open={approvalOpen}
+        actionLabel={t("reverseAllConfirm")}
+        actorRole={user?.role}
+        busy={reverseAll.isPending}
+        onCancel={() => !reverseAll.isPending && setApprovalOpen(false)}
+        onConfirm={async (approval) => {
+          await reverseAll.mutateAsync(approval);
+        }}
+      />
     </div>
   );
 }

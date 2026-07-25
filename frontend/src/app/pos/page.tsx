@@ -10,6 +10,10 @@ import { useAuthStore } from "@/store/auth";
 import { posCopy } from "@/lib/pos-copy";
 import { formatMoney } from "@/lib/utils";
 import type { Contact } from "@/types";
+import {
+  DualApprovalModal,
+  type DualApprovalPayload,
+} from "@/components/security/dual-approval-modal";
 
 const POS_WAREHOUSE_KEY = "hisaby-pos-warehouse-id";
 
@@ -28,6 +32,7 @@ type CartLine = {
   name: string;
   sku: string;
   unitPrice: number;
+  catalogPrice: number;
   quantity: number;
   discount: number;
   stock: number;
@@ -94,6 +99,10 @@ export default function PosCheckoutPage() {
   const [parkedCarts, setParkedCarts] = useState<ParkedCart[]>([]);
   const [customers, setCustomers] = useState<Contact[]>([]);
   const [contactId, setContactId] = useState("");
+  const [voidTarget, setVoidTarget] = useState<RecentCashSale | null>(null);
+  const [voidBusy, setVoidBusy] = useState(false);
+  const [pendingCheckout, setPendingCheckout] = useState<CheckoutMethod | null>(null);
+  const [checkoutBusy, setCheckoutBusy] = useState(false);
 
   const currency = company?.currency || "OMR";
   const companyId = company?.id;
@@ -156,7 +165,12 @@ export default function PosCheckoutPage() {
       createdAt: d.createdAt,
       warehouseId: d.warehouseId || "",
       contactId: d.contactId || undefined,
-      lines: Array.isArray(d.linesJson) ? (d.linesJson as CartLine[]) : [],
+      lines: Array.isArray(d.linesJson)
+        ? (d.linesJson as CartLine[]).map((l) => ({
+            ...l,
+            catalogPrice: l.catalogPrice ?? l.unitPrice,
+          }))
+        : [],
     }),
     [],
   );
@@ -362,6 +376,7 @@ export default function PosCheckoutPage() {
             name: p.name,
             sku: p.sku,
             unitPrice,
+            catalogPrice: unitPrice,
             quantity: qty,
             discount: 0,
             stock,
@@ -487,22 +502,30 @@ export default function PosCheckoutPage() {
     });
   };
 
-  const voidSale = async (sale: RecentCashSale) => {
-    if (!window.confirm(t.voidConfirm)) return;
+  const voidSale = (sale: RecentCashSale) => {
+    setVoidTarget(sale);
+  };
+
+  const confirmVoidSale = async (approval: DualApprovalPayload) => {
+    if (!voidTarget) return;
+    setVoidBusy(true);
     try {
-      await api.voidPosSale(sale.id);
+      await api.voidPosSale(voidTarget.id, { approval });
       toast.success(t.voidOk);
-      setLastInvoice((prev) => (prev?.number === sale.number ? null : prev));
+      setLastInvoice((prev) => (prev?.number === voidTarget.number ? null : prev));
+      setVoidTarget(null);
       await loadRecentSales();
       await loadCatalog(search, warehouseId || undefined);
       focusScan();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       toast.error(typeof msg === "string" ? msg : t.voidFail);
+    } finally {
+      setVoidBusy(false);
     }
   };
 
-  const checkout = async (method: CheckoutMethod) => {
+  const runCheckout = async (method: CheckoutMethod, approval?: DualApprovalPayload) => {
     if (!cart.length || paying) return;
     const snapshot = cart.map((l) => ({
       name: l.name,
@@ -515,6 +538,7 @@ export default function PosCheckoutPage() {
         paymentMethod: method,
         warehouseId: warehouseId || undefined,
         contactId: contactId || undefined,
+        approval,
         items: cart.map((l) => ({
           productId: l.productId,
           quantity: l.quantity,
@@ -531,6 +555,7 @@ export default function PosCheckoutPage() {
         warehouseLabel: warehouseLabel || undefined,
       });
       setCart([]);
+      setPendingCheckout(null);
       toast.success(t.saleOk);
       loadCatalog(search);
       loadRecentSales();
@@ -540,7 +565,20 @@ export default function PosCheckoutPage() {
       toast.error(typeof msg === "string" ? msg : t.saleFail);
     } finally {
       setPaying(false);
+      setCheckoutBusy(false);
     }
+  };
+
+  const checkout = async (method: CheckoutMethod) => {
+    if (!cart.length || paying) return;
+    const needsPriceApproval = cart.some(
+      (l) => Math.abs(l.unitPrice - (l.catalogPrice ?? l.unitPrice)) > 0.001,
+    );
+    if (needsPriceApproval) {
+      setPendingCheckout(method);
+      return;
+    }
+    await runCheckout(method);
   };
 
   const showEmptyCatalog = catalogLoaded && catalog.length === 0 && !search.trim();
@@ -933,6 +971,30 @@ export default function PosCheckoutPage() {
           )}
         </div>
       </aside>
+
+      <DualApprovalModal
+        open={!!voidTarget}
+        actionLabel={t.voidConfirm}
+        actorRole={user?.role}
+        busy={voidBusy}
+        onCancel={() => !voidBusy && setVoidTarget(null)}
+        onConfirm={confirmVoidSale}
+      />
+
+      <DualApprovalModal
+        open={!!pendingCheckout}
+        actionLabel={locale === "en" ? "Confirm price override" : "تأكيد تجاوز السعر"}
+        actorRole={user?.role}
+        busy={checkoutBusy || paying}
+        onCancel={() => {
+          if (!checkoutBusy && !paying) setPendingCheckout(null);
+        }}
+        onConfirm={async (approval) => {
+          if (!pendingCheckout) return;
+          setCheckoutBusy(true);
+          await runCheckout(pendingCheckout, approval);
+        }}
+      />
     </div>
   );
 }

@@ -1,6 +1,13 @@
 import axios, { AxiosInstance, AxiosError, AxiosRequestConfig } from 'axios';
 import { useAuthStore } from '@/store/auth';
 
+export type DualApprovalPayload = {
+  method: 'SELF_CONFIRM' | 'PASSWORD' | 'PIN';
+  email?: string;
+  password?: string;
+  pin?: string;
+};
+
 /** Prefer same-origin Next rewrite so httpOnly cookies work on localhost + production */
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
@@ -351,8 +358,11 @@ class ApiClient {
     return this.delete(`/invoices/${id}`);
   }
 
-  updateInvoiceStatus(id: string, status: string) {
-    return this.patch(`/invoices/${id}/status`, { status });
+  updateInvoiceStatus(id: string, status: string, approval?: DualApprovalPayload) {
+    return this.patch(`/invoices/${id}/status`, {
+      status,
+      ...(approval ? { approval } : {}),
+    });
   }
 
   sendInvoice(id: string, email?: string) {
@@ -381,8 +391,11 @@ class ApiClient {
     return this.delete(`/invoices/${invoiceId}/payments/${paymentId}`);
   }
 
-  reverseAllInvoicePayments(invoiceId: string) {
-    return this.post(`/invoices/${invoiceId}/payments/reverse-all`);
+  reverseAllInvoicePayments(invoiceId: string, approval?: DualApprovalPayload) {
+    return this.post(
+      `/invoices/${invoiceId}/payments/reverse-all`,
+      approval ? { approval } : {},
+    );
   }
 
   // Contacts
@@ -1083,6 +1096,14 @@ class ApiClient {
     return this.put('/companies/me', data);
   }
 
+  getCompanySecurity() {
+    return this.get('/companies/me/security');
+  }
+
+  updateCompanySecurity(data: unknown) {
+    return this.patch('/companies/me/security', data);
+  }
+
   getPeriods(year?: number) {
     return this.get('/periods', { params: year ? { year } : {} });
   }
@@ -1177,12 +1198,13 @@ class ApiClient {
     notes?: string;
     warehouseId?: string;
     contactId?: string;
+    approval?: DualApprovalPayload;
   }) {
     return this.post('/pos/sales', data);
   }
 
-  voidPosSale(id: string) {
-    return this.post(`/pos/sales/${id}/void`);
+  voidPosSale(id: string, body?: { approval?: DualApprovalPayload }) {
+    return this.post(`/pos/sales/${id}/void`, body || {});
   }
 
   listPosDrafts() {

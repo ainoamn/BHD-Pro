@@ -4,9 +4,10 @@ import { PosService } from './pos.service';
 import { InvoicesModule } from '../invoices/invoices.module';
 import { ProductsModule } from '../products/products.module';
 import { PeriodsModule } from '../periods/periods.module';
+import { DualControlModule } from '../dual-control/dual-control.module';
 
 @Module({
-  imports: [InvoicesModule, ProductsModule, PeriodsModule],
+  imports: [InvoicesModule, ProductsModule, PeriodsModule, DualControlModule],
   controllers: [PosController],
   providers: [PosService],
   exports: [PosService],

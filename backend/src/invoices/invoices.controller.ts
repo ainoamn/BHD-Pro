@@ -21,6 +21,11 @@ import { TokenPayload } from '../auth/interfaces/token-payload.interface';
 import { InvoiceStatus, InvoiceType, PaymentStatus } from '@prisma/client';
 import { RecordPaymentDto } from './dto/record-payment.dto';
 import { BatchRecordPaymentDto } from './dto/batch-record-payment.dto';
+import {
+  ReverseAllPaymentsDto,
+  UpdateInvoiceStatusDto,
+} from './dto/update-status.dto';
+import { DualControlService } from '../dual-control/dual-control.service';
 
 @ApiTags('Invoices')
 @ApiBearerAuth()
@@ -30,6 +35,7 @@ export class InvoicesController {
   constructor(
     private invoicesService: InvoicesService,
     private documentShare: DocumentShareService,
+    private dualControl: DualControlService,
   ) {}
 
   @Get()
@@ -123,12 +129,25 @@ export class InvoicesController {
 
   @Patch(':id/status')
   @ApiOperation({ summary: 'Update invoice status' })
-  updateStatus(
+  async updateStatus(
     @CurrentUser() user: TokenPayload,
     @Param('id') id: string,
-    @Body('status') status: InvoiceStatus,
+    @Body() dto: UpdateInvoiceStatusDto,
   ) {
-    return this.invoicesService.updateStatus(user.companyId, user.sub, id, status);
+    if (dto.status === InvoiceStatus.CANCELLED) {
+      await this.dualControl.assertApproved(
+        user.companyId,
+        user,
+        'INVOICE_CANCEL',
+        dto.approval,
+      );
+    }
+    return this.invoicesService.updateStatus(
+      user.companyId,
+      user.sub,
+      id,
+      dto.status,
+    );
   }
 
   @Post('payments/batch')
@@ -177,7 +196,17 @@ export class InvoicesController {
 
   @Post(':id/payments/reverse-all')
   @ApiOperation({ summary: 'Reverse all payment receipts on an invoice' })
-  reverseAllPayments(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
+  async reverseAllPayments(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+    @Body() dto: ReverseAllPaymentsDto,
+  ) {
+    await this.dualControl.assertApproved(
+      user.companyId,
+      user,
+      'PAYMENT_REVERSE',
+      dto?.approval,
+    );
     return this.invoicesService.reverseAllPayments(user.companyId, user.sub, id);
   }
 

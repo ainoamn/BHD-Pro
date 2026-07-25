@@ -13,12 +13,14 @@ import { PublicDocumentsController } from './public-documents.controller';
 import { JournalModule } from '../journal/journal.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { PeriodsModule } from '../periods/periods.module';
+import { DualControlModule } from '../dual-control/dual-control.module';
 
 @Module({
   imports: [
     JournalModule,
     SubscriptionsModule,
     PeriodsModule,
+    DualControlModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: (config: ConfigService) => ({

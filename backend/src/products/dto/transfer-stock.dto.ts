@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
-import { IsString, IsNumber, IsOptional, IsUUID, Min } from 'class-validator';
+import { IsString, IsNumber, IsOptional, IsUUID, Min, ValidateNested } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { DualApprovalDto } from '../../dual-control/dto/approval.dto';
 
 export class TransferStockDto {
   @ApiProperty({ description: 'Source warehouse UUID' })
@@ -26,4 +27,10 @@ export class TransferStockDto {
   @IsOptional()
   @IsString()
   reference?: string;
+
+  @ApiPropertyOptional({ type: DualApprovalDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DualApprovalDto)
+  approval?: DualApprovalDto;
 }

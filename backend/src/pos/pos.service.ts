@@ -18,6 +18,9 @@ import { PrismaService } from '../prisma/prisma.service';
 import { InvoicesService } from '../invoices/invoices.service';
 import { ProductsService } from '../products/products.service';
 import { PeriodsService } from '../periods/periods.service';
+import { DualControlService } from '../dual-control/dual-control.service';
+import { DualApprovalDto } from '../dual-control/dto/approval.dto';
+import { TokenPayload } from '../auth/interfaces/token-payload.interface';
 import { CreatePosSaleDto, CreatePosDraftDto } from './dto/pos.dto';
 
 const WALK_IN_NAME = 'POS Walk-in / نقدي';
@@ -29,6 +32,7 @@ export class PosService {
     private invoices: InvoicesService,
     private products: ProductsService,
     private periods: PeriodsService,
+    private dualControl: DualControlService,
   ) {}
 
   private hashKey(secret: string) {
@@ -316,10 +320,13 @@ export class PosService {
   /** Void a POS cash sale: reverse payments, restore warehouse stock, cancel invoice */
   async voidSale(
     companyId: string,
-    userId: string,
+    actor: TokenPayload,
     invoiceId: string,
-    _userRole?: string,
+    approval?: DualApprovalDto,
   ) {
+    const userId = actor.sub;
+    await this.dualControl.assertApproved(companyId, actor, 'POS_VOID', approval);
+
     const invoice = await this.invoices.findOne(companyId, invoiceId);
 
     if (invoice.status === InvoiceStatus.CANCELLED) {
@@ -440,12 +447,12 @@ export class PosService {
 
   async createSale(
     companyId: string,
-    userId: string,
+    actor: TokenPayload,
     dto: CreatePosSaleDto,
-    userRole?: string,
   ) {
+    const userId = actor.sub;
     const contact = await this.resolveSaleContact(companyId, dto.contactId);
-    const role = await this.resolveUserRole(userId, userRole);
+    const role = await this.resolveUserRole(userId, actor.role);
     const canOverridePrice =
       role === UserRole.ADMIN || role === UserRole.MANAGER;
     const today = new Date().toISOString().slice(0, 10);
@@ -459,6 +466,7 @@ export class PosService {
       discount: number;
     }[] = [];
 
+    let hasPriceOverride = false;
     for (const item of dto.items) {
       const product = await this.products.findOne(companyId, item.productId);
       if (!product.isActive) {
@@ -467,14 +475,15 @@ export class PosService {
       const catalogPrice = Number(product.salePrice);
       const unitPrice =
         item.unitPrice != null ? Number(item.unitPrice) : catalogPrice;
-      if (
-        item.unitPrice != null &&
-        Math.abs(unitPrice - catalogPrice) > 0.001 &&
-        !canOverridePrice
-      ) {
-        throw new ForbiddenException(
-          'Only ADMIN or MANAGER can override unit price',
-        );
+      const overridden =
+        item.unitPrice != null && Math.abs(unitPrice - catalogPrice) > 0.001;
+      if (overridden) {
+        if (!canOverridePrice) {
+          throw new ForbiddenException(
+            'Only ADMIN or MANAGER can override unit price',
+          );
+        }
+        hasPriceOverride = true;
       }
       const qty = Number(item.quantity);
       lineItems.push({
@@ -484,6 +493,15 @@ export class PosService {
         unitPrice,
         discount: item.discount || 0,
       });
+    }
+
+    if (hasPriceOverride) {
+      await this.dualControl.assertApproved(
+        companyId,
+        actor,
+        'POS_PRICE_OVERRIDE',
+        dto.approval,
+      );
     }
 
     const company = await this.prisma.company.findUnique({

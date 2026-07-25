@@ -27,6 +27,10 @@ import {
   CustomFieldsInputs,
   type CustomFieldDef,
 } from "@/components/custom-fields/custom-fields-inputs";
+import {
+  DualApprovalModal,
+  type DualApprovalPayload,
+} from "@/components/security/dual-approval-modal";
 
 interface ProductStats {
   total: number;
@@ -55,7 +59,7 @@ const emptyProduct = () => ({
 export default function InventoryPage() {
   const t = useTranslations("inventory");
   const tCommon = useTranslations("common");
-  const { company } = useAuthStore();
+  const { company, user } = useAuthStore();
   const currency = company?.currency || "OMR";
   const queryClient = useQueryClient();
 
@@ -69,6 +73,7 @@ export default function InventoryPage() {
   const [adjustRef, setAdjustRef] = useState("");
   const [adjustWarehouseId, setAdjustWarehouseId] = useState("");
   const [transferToWarehouseId, setTransferToWarehouseId] = useState("");
+  const [stockApprovalOpen, setStockApprovalOpen] = useState(false);
 
   const { data: products = [], isLoading } = useQuery({
     queryKey: ["products"],
@@ -176,7 +181,7 @@ export default function InventoryPage() {
   });
 
   const adjustMutation = useMutation({
-    mutationFn: () => {
+    mutationFn: (approval: DualApprovalPayload) => {
       if (adjustMode === "TRANSFER") {
         return api.transferProductStock(adjustProduct!.id, {
           fromWarehouseId: adjustWarehouseId,
@@ -184,6 +189,7 @@ export default function InventoryPage() {
           quantity: Number(adjustQty),
           notes: adjustNotes.trim() || undefined,
           reference: adjustRef.trim() || undefined,
+          approval,
         });
       }
       return api.adjustProductStock(adjustProduct!.id, {
@@ -192,12 +198,14 @@ export default function InventoryPage() {
         warehouseId: adjustWarehouseId || undefined,
         notes: adjustNotes.trim() || undefined,
         reference: adjustRef.trim() || undefined,
+        approval,
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["product-stats"] });
       toast.success(adjustMode === "TRANSFER" ? t("transferred") : t("adjusted"));
+      setStockApprovalOpen(false);
       setAdjustProduct(null);
     },
     onError: (err: { response?: { data?: { message?: string } } }) => {
@@ -709,7 +717,7 @@ export default function InventoryPage() {
                 {tCommon("cancel")}
               </button>
               <button
-                onClick={() => adjustMutation.mutate()}
+                onClick={() => setStockApprovalOpen(true)}
                 disabled={
                   adjustMutation.isPending ||
                   (adjustMode !== "SET" && adjustQty <= 0) ||
@@ -727,6 +735,17 @@ export default function InventoryPage() {
           </div>
         </div>
       )}
+
+      <DualApprovalModal
+        open={stockApprovalOpen}
+        actionLabel={adjustMode === "TRANSFER" ? t("transferStock") : t("adjustStock")}
+        actorRole={user?.role}
+        busy={adjustMutation.isPending}
+        onCancel={() => !adjustMutation.isPending && setStockApprovalOpen(false)}
+        onConfirm={async (approval) => {
+          await adjustMutation.mutateAsync(approval);
+        }}
+      />
     </div>
   );
 }

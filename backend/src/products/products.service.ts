@@ -11,6 +11,8 @@ import { AdjustStockDto, StockAdjustMode } from './dto/adjust-stock.dto';
 import { TransferStockDto } from './dto/transfer-stock.dto';
 import { MovementType, Prisma } from '@prisma/client';
 import { PeriodsService } from '../periods/periods.service';
+import { DualControlService } from '../dual-control/dual-control.service';
+import { TokenPayload } from '../auth/interfaces/token-payload.interface';
 
 const warehouseStockInclude = {
   warehouseStocks: {
@@ -24,6 +26,7 @@ export class ProductsService {
   constructor(
     private prisma: PrismaService,
     private periods: PeriodsService,
+    private dualControl: DualControlService,
   ) {}
 
   async findAll(companyId: string) {
@@ -202,7 +205,18 @@ export class ProductsService {
     return this.prisma.product.update({ where: { id }, data: { isActive: false } });
   }
 
-  async adjustStock(companyId: string, id: string, dto: AdjustStockDto) {
+  async adjustStock(
+    companyId: string,
+    id: string,
+    dto: AdjustStockDto,
+    actor: TokenPayload,
+  ) {
+    await this.dualControl.assertApproved(
+      companyId,
+      actor,
+      'STOCK_ADJUST',
+      dto.approval,
+    );
     await this.periods.assertOpen(companyId, new Date());
 
     const product = await this.findOne(companyId, id);
@@ -301,7 +315,18 @@ export class ProductsService {
     });
   }
 
-  async transferStock(companyId: string, productId: string, dto: TransferStockDto) {
+  async transferStock(
+    companyId: string,
+    productId: string,
+    dto: TransferStockDto,
+    actor: TokenPayload,
+  ) {
+    await this.dualControl.assertApproved(
+      companyId,
+      actor,
+      'STOCK_TRANSFER',
+      dto.approval,
+    );
     await this.periods.assertOpen(companyId, new Date());
 
     const product = await this.findOne(companyId, productId);
