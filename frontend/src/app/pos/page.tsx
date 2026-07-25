@@ -1976,7 +1976,7 @@ export default function PosCheckoutPage() {
             <p className="text-base font-bold text-white">{t.emptyCatalog}</p>
             <p className="text-sm text-slate-400 max-w-md mx-auto">{t.emptyCatalogHint}</p>
             <Link
-              href="/inventory"
+              href="/pos/inventory"
               className="inline-flex items-center justify-center h-11 px-5 rounded-xl bg-emerald-500 text-white font-bold hover:bg-emerald-400"
             >
               {t.goInventory}

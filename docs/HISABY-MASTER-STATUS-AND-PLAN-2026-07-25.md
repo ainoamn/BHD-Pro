@@ -110,6 +110,8 @@ npx prisma migrate deploy
 | OTA / S3 / AI HITL / دفع شريك / أوفلاين مخزون | منجز **config-ready** |
 | Capacitor/BLE | هيكل + stubs |
 | عمولة كاشير + ولاء | منجز |
+| شعارات عملاء مدفوعين في الرئيسية | منجز |
+| نظام مطاعم ومطبخ كامل مربوط بالمحاسبة/POS | **خطة فقط** — [`HISABY-RESTAURANT-KITCHEN-PLAN.md`](./HISABY-RESTAURANT-KITCHEN-PLAN.md) — لم يبدأ التنفيذ |
 | غير قابل للاختراق | طبقات قوية — **لا ضمان مطلق** |
 
 ---

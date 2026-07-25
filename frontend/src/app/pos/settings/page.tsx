@@ -84,7 +84,7 @@ export default function PosSettingsPage() {
         <Link href="/pos" className="text-center text-sky-300 hover:underline">
           ← {t.openPos}
         </Link>
-        <Link href="/inventory" className="text-center text-emerald-300 hover:underline">
+        <Link href="/pos/inventory" className="text-center text-emerald-300 hover:underline">
           {t.goInventory} →
         </Link>
       </div>

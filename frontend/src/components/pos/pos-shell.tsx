@@ -13,6 +13,7 @@ import {
   Package,
   Settings2,
   ShieldCheck,
+  Wallet,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
@@ -130,7 +131,12 @@ export function PosShell({ children }: { children: React.ReactNode }) {
   };
 
   const goAccounting = () => {
-    router.push("/dashboard");
+    // Unlinked: stay inside POS simple books. Linked: full accounting suite.
+    if (linked === true) {
+      router.push("/dashboard");
+      return;
+    }
+    router.push("/pos/books");
   };
 
   if (isLogin) {
@@ -166,10 +172,10 @@ export function PosShell({ children }: { children: React.ReactNode }) {
               type="button"
               onClick={goAccounting}
               className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/15 px-2.5 py-1.5 text-xs font-bold text-emerald-300 hover:bg-emerald-500/25 shrink-0"
-              title={t.toAccounting}
+              title={linked === true ? t.toAccounting : t.posBooksTitle}
             >
-              <Calculator className="w-4 h-4" />
-              <span>{t.toAccounting}</span>
+              {linked === true ? <Calculator className="w-4 h-4" /> : <Wallet className="w-4 h-4" />}
+              <span>{linked === true ? t.toAccounting : t.posBooksNav}</span>
             </button>
             <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto max-w-[46vw] sm:max-w-none scrollbar-none">
               <PosCommissionChip />
@@ -194,12 +200,20 @@ export function PosShell({ children }: { children: React.ReactNode }) {
                 {locale === "en" ? "ع" : "EN"}
               </button>
               <Link
-                href="/inventory"
+                href="/pos/inventory"
                 className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-300 hover:bg-white/5 shrink-0"
                 title={t.inventory}
               >
                 <Package className="w-4 h-4" />
                 <span className="hidden sm:inline">{t.inventory}</span>
+              </Link>
+              <Link
+                href="/pos/books"
+                className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-300 hover:bg-white/5 shrink-0"
+                title={t.posBooksTitle}
+              >
+                <Wallet className="w-4 h-4" />
+                <span className="hidden sm:inline">{t.posBooksNav}</span>
               </Link>
               <Link
                 href="/pos/shifts"
@@ -241,9 +255,17 @@ export function PosShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
         {linked === false && (
-          <div className="border-t border-amber-500/20 bg-amber-500/10 px-4 py-2 text-center text-xs text-amber-100 flex items-center justify-center gap-2">
+          <div className="border-t border-amber-500/20 bg-amber-500/10 px-4 py-2 text-center text-xs text-amber-100 flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
             <Link2Off className="w-3.5 h-3.5 shrink-0" />
             <span>{t.unlinked}</span>
+            <Link href="/pos/inventory" className="font-bold underline underline-offset-2">
+              {t.inventory}
+            </Link>
+            <span>·</span>
+            <Link href="/pos/books" className="font-bold underline underline-offset-2">
+              {t.posBooksNav}
+            </Link>
+            <span>·</span>
             <Link href="/pos/settings" className="font-bold underline underline-offset-2">
               {t.settings}
             </Link>

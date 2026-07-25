@@ -301,6 +301,16 @@ export class PosController {
     return this.pos.getTodayStats(user.companyId, warehouseId || undefined);
   }
 
+  @Get('books/summary')
+  @Roles(...POS_STAFF)
+  @ApiOperation({
+    summary:
+      'Simple POS books for standalone mode: month revenue, cash-out expenses, net',
+  })
+  booksSummary(@CurrentUser() user: TokenPayload) {
+    return this.pos.getBooksSummary(user.companyId);
+  }
+
   @Get('stats/shifts-today')
   @Roles(...POS_STAFF)
   @ApiOperation({

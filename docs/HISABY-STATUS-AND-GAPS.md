@@ -15,6 +15,7 @@
 |--------|--------|--------|
 | **حسابي للمحاسبة** | `/dashboard` وما يتفرع منه | جاهز للبيتا — فواتير، مخزون، GL، تقارير، ضريبة |
 | **حسابي للكاشير (POS)** | `/pos` | جاهز للبيتا — بيع سريع، مخزون مستودع، حماية مزدوجة، كاميرا باركود، موافقات أونلاين |
+| **حسابي للمطاعم** (مخطط) | `/resto` مقترح | خطة تنفيذ جاهزة — لم يبدأ التنفيذ بعد: [`HISABY-RESTAURANT-KITCHEN-PLAN.md`](./HISABY-RESTAURANT-KITCHEN-PLAN.md) |
 | لوحة المنصة | `/admin` | تعمل لمشغّلي المنصة |
 
 فجوات واضحة المتبقي: اعتماد جهة OTA الرسمي (live HTTP جاهز للربط)، SoftPOS جهاز طرفي بقالب deep-link مورّد، بناء متجر Capacitor محلياً (`mobile/`), BLE حسب طابعة البائع. التقرير: [`HISABY-MASTER-STATUS-AND-PLAN-2026-07-25.md`](./HISABY-MASTER-STATUS-AND-PLAN-2026-07-25.md) + [`INTEGRATIONS-MESSAGING-OTA.md`](./INTEGRATIONS-MESSAGING-OTA.md).

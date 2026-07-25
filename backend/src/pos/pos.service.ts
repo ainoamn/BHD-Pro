@@ -1282,6 +1282,124 @@ export class PosService {
     };
   }
 
+  /**
+   * Lightweight POS books (standalone mode): month revenues from cash sales,
+   * expenses from cash-out movements, net = revenue − expenses − refunds.
+   */
+  async getBooksSummary(companyId: string) {
+    const from = this.startOfDayMuscat();
+    const monthStart = new Date(from);
+    monthStart.setDate(1);
+
+    const [monthSales, monthVoids, monthRefunds, monthCashOut, monthCashIn, today] =
+      await Promise.all([
+        this.prisma.invoice.findMany({
+          where: {
+            companyId,
+            type: InvoiceType.SALES,
+            isCash: true,
+            notes: { contains: 'Hisaby POS' },
+            status: { not: InvoiceStatus.CANCELLED },
+            createdAt: { gte: monthStart },
+          },
+          select: { id: true, number: true, total: true, createdAt: true, status: true },
+          orderBy: { createdAt: 'desc' },
+          take: 50,
+        }),
+        this.prisma.invoice.aggregate({
+          where: {
+            companyId,
+            type: InvoiceType.SALES,
+            isCash: true,
+            notes: { contains: 'Hisaby POS' },
+            status: InvoiceStatus.CANCELLED,
+            createdAt: { gte: monthStart },
+          },
+          _sum: { total: true },
+          _count: true,
+        }),
+        this.prisma.invoice.aggregate({
+          where: {
+            companyId,
+            type: InvoiceType.CREDIT_NOTE,
+            notes: { contains: 'Hisaby POS refund' },
+            status: { not: InvoiceStatus.CANCELLED },
+            createdAt: { gte: monthStart },
+          },
+          _sum: { total: true },
+          _count: true,
+        }),
+        this.prisma.posCashMovement.findMany({
+          where: {
+            type: 'OUT',
+            createdAt: { gte: monthStart },
+            shift: { companyId },
+          },
+          select: {
+            id: true,
+            amount: true,
+            reason: true,
+            createdAt: true,
+            createdBy: { select: { name: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 50,
+        }),
+        this.prisma.posCashMovement.aggregate({
+          where: {
+            type: 'IN',
+            createdAt: { gte: monthStart },
+            shift: { companyId },
+          },
+          _sum: { amount: true },
+          _count: true,
+        }),
+        this.getTodayStats(companyId),
+      ]);
+
+    const revenue = monthSales.reduce((s, inv) => s + Number(inv.total), 0);
+    const expenses = monthCashOut.reduce((s, m) => s + Number(m.amount), 0);
+    const refunds = Number(monthRefunds._sum.total || 0);
+    const net = revenue - expenses - refunds;
+
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { posLinkedAt: true, currency: true, plan: true },
+    });
+
+    return {
+      linked: !!company?.posLinkedAt,
+      currency: company?.currency || 'OMR',
+      plan: company?.plan || 'STARTER',
+      monthFrom: monthStart.toISOString(),
+      today,
+      revenue: Number(revenue.toFixed(3)),
+      salesCount: monthSales.length,
+      expenses: Number(expenses.toFixed(3)),
+      expenseCount: monthCashOut.length,
+      refunds: Number(refunds.toFixed(3)),
+      refundCount: monthRefunds._count || 0,
+      voidedTotal: Number(monthVoids._sum.total || 0),
+      voidCount: monthVoids._count || 0,
+      cashIn: Number(monthCashIn._sum.amount || 0),
+      cashInCount: monthCashIn._count || 0,
+      net: Number(net.toFixed(3)),
+      recentSales: monthSales.slice(0, 12).map((s) => ({
+        id: s.id,
+        number: s.number,
+        total: Number(s.total),
+        createdAt: s.createdAt,
+      })),
+      recentExpenses: monthCashOut.slice(0, 12).map((m) => ({
+        id: m.id,
+        amount: Number(m.amount),
+        reason: m.reason,
+        createdAt: m.createdAt,
+        createdBy: m.createdBy?.name || null,
+      })),
+    };
+  }
+
   /** One OPEN shift per company+warehouse (null warehouse = company default drawer). */
   private async findOpenShift(companyId: string, warehouseId?: string | null) {
     return this.prisma.posShift.findFirst({

@@ -1557,6 +1557,40 @@ class ApiClient {
     }>(`/pos/stats/today${q}`);
   }
 
+  getPosBooksSummary() {
+    return this.get<{
+      linked: boolean;
+      currency: string;
+      plan: string;
+      monthFrom: string;
+      today: {
+        salesCount: number;
+        salesTotal: number;
+        refundCount: number;
+        voidCount: number;
+      };
+      revenue: number;
+      salesCount: number;
+      expenses: number;
+      expenseCount: number;
+      refunds: number;
+      refundCount: number;
+      voidedTotal: number;
+      voidCount: number;
+      cashIn: number;
+      cashInCount: number;
+      net: number;
+      recentSales: { id: string; number: string; total: number; createdAt: string }[];
+      recentExpenses: {
+        id: string;
+        amount: number;
+        reason?: string | null;
+        createdAt: string;
+        createdBy?: string | null;
+      }[];
+    }>("/pos/books/summary");
+  }
+
   getPosShiftsToday() {
     return this.get<{
       date: string;
