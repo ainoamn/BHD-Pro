@@ -1369,7 +1369,14 @@ export class PosService {
     }
   }
 
+  /** Parked carts older than this are purged on list (housekeeping). */
+  private static readonly DRAFT_TTL_MS = 24 * 60 * 60 * 1000;
+
   async listDrafts(companyId: string) {
+    const cutoff = new Date(Date.now() - PosService.DRAFT_TTL_MS);
+    await this.prisma.posDraft.deleteMany({
+      where: { companyId, createdAt: { lt: cutoff } },
+    });
     return this.prisma.posDraft.findMany({
       where: { companyId },
       orderBy: { createdAt: 'desc' },

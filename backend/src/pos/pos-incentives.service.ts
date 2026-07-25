@@ -23,6 +23,8 @@ export type IncentivesConfig = {
   redeemEnabled?: boolean;
   /** Custom POS receipt footer line */
   receiptFooter?: string;
+  /** Shared POS favorite product IDs (cross-terminal) */
+  favoriteProductIds?: string[];
 };
 
 @Injectable()
@@ -74,6 +76,15 @@ export class PosIncentivesService {
         typeof c.receiptFooter === 'string'
           ? c.receiptFooter.trim().slice(0, 200)
           : '',
+      favoriteProductIds: Array.isArray(c.favoriteProductIds)
+        ? [
+            ...new Set(
+              c.favoriteProductIds
+                .map((id) => String(id || '').trim())
+                .filter(Boolean),
+            ),
+          ].slice(0, 200)
+        : [],
     };
   }
 
@@ -122,12 +133,44 @@ export class PosIncentivesService {
           ? this.normalizeConfig({ cashierBonusTiers: dto.cashierBonusTiers })
               .cashierBonusTiers
           : current.cashierBonusTiers,
+      // Preserve favorites — updated via dedicated favorites endpoints
+      favoriteProductIds: current.favoriteProductIds || [],
     };
     await this.prisma.company.update({
       where: { id: companyId },
       data: { incentivesConfig: next as unknown as Prisma.InputJsonValue },
     });
     return next;
+  }
+
+  async getFavoriteProductIds(companyId: string): Promise<string[]> {
+    const config = await this.getConfig(companyId);
+    return config.favoriteProductIds || [];
+  }
+
+  async setFavoriteProductIds(
+    companyId: string,
+    productIds: string[],
+  ): Promise<string[]> {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { incentivesConfig: true },
+    });
+    if (!company) throw new NotFoundException('Company not found');
+    const current = this.normalizeConfig(company.incentivesConfig);
+    const favoriteProductIds = [
+      ...new Set(
+        (productIds || [])
+          .map((id) => String(id || '').trim())
+          .filter(Boolean),
+      ),
+    ].slice(0, 200);
+    const next: IncentivesConfig = { ...current, favoriteProductIds };
+    await this.prisma.company.update({
+      where: { id: companyId },
+      data: { incentivesConfig: next as unknown as Prisma.InputJsonValue },
+    });
+    return favoriteProductIds;
   }
 
   /**

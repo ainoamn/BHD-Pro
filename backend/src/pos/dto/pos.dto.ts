@@ -1,6 +1,7 @@
 import { Transform, Type } from 'class-transformer';
 import {
   ArrayMinSize,
+  ArrayMaxSize,
   IsArray,
   IsBoolean,
   IsEnum,
@@ -415,4 +416,11 @@ export class PayoutCommissionDto {
   @IsOptional()
   @IsUUID()
   warehouseId?: string;
+}
+
+export class UpdatePosFavoritesDto {
+  @IsArray()
+  @ArrayMaxSize(200)
+  @IsUUID('4', { each: true })
+  productIds: string[];
 }

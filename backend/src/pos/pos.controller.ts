@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards, BadRequestException } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, UseGuards, BadRequestException } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { UserRole, PaymentGatewaySlug } from '@prisma/client';
@@ -22,6 +22,7 @@ import {
   SetPosWarehouseDto,
   UpdateIncentivesConfigDto,
   UpdatePosDraftDto,
+  UpdatePosFavoritesDto,
   VoidPosSaleDto,
 } from './dto/pos.dto';
 import { PaymentsService } from '../payments/payments.service';
@@ -81,6 +82,31 @@ export class PosController {
   @ApiOperation({ summary: 'POS incentives config (commission + loyalty)' })
   incentivesConfig(@CurrentUser() user: TokenPayload) {
     return this.incentives.getConfig(user.companyId);
+  }
+
+  @Get('favorites')
+  @Roles(...POS_STAFF)
+  @ApiOperation({ summary: 'Shared POS favorite product IDs (company-wide)' })
+  async getFavorites(@CurrentUser() user: TokenPayload) {
+    const productIds = await this.incentives.getFavoriteProductIds(
+      user.companyId,
+    );
+    return { productIds };
+  }
+
+  @Put('favorites')
+  @Roles(...POS_STAFF)
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @ApiOperation({ summary: 'Replace shared POS favorites (cross-terminal)' })
+  async putFavorites(
+    @CurrentUser() user: TokenPayload,
+    @Body() dto: UpdatePosFavoritesDto,
+  ) {
+    const productIds = await this.incentives.setFavoriteProductIds(
+      user.companyId,
+      dto.productIds || [],
+    );
+    return { productIds };
   }
 
   @Patch('incentives/config')
