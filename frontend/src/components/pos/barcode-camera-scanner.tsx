@@ -129,13 +129,10 @@ export function BarcodeCameraScanner({ open, onClose, onDetected }: Props) {
         try {
           const { BrowserMultiFormatReader } = await import("@zxing/browser");
           const reader = new BrowserMultiFormatReader();
-          const controls = await reader.decodeFromVideoDevice(
-            undefined,
+          const controls = await reader.decodeFromStream(
+            stream,
             video,
-            (result, _err, ctrl) => {
-              if (ctrl && !zxingControlsRef.current) {
-                zxingControlsRef.current = ctrl;
-              }
+            (result) => {
               if (result) emitCode(result.getText());
             },
           );
