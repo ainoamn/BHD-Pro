@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { UserRole } from '@prisma/client';
@@ -8,7 +8,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
 import { PosService } from './pos.service';
-import { CreatePosSaleDto, LinkPosDto } from './dto/pos.dto';
+import { CreatePosDraftDto, CreatePosSaleDto, LinkPosDto } from './dto/pos.dto';
 
 @ApiTags('POS')
 @ApiBearerAuth()
@@ -63,6 +63,28 @@ export class PosController {
     @Query('warehouseId') warehouseId?: string,
   ) {
     return this.pos.searchProducts(user.companyId, q || '', warehouseId);
+  }
+
+  @Get('drafts')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
+  @ApiOperation({ summary: 'List POS parked carts (newest 50)' })
+  listDrafts(@CurrentUser() user: TokenPayload) {
+    return this.pos.listDrafts(user.companyId);
+  }
+
+  @Post('drafts')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @ApiOperation({ summary: 'Park POS cart as server-backed draft' })
+  createDraft(@CurrentUser() user: TokenPayload, @Body() dto: CreatePosDraftDto) {
+    return this.pos.createDraft(user.companyId, user.sub, dto);
+  }
+
+  @Delete('drafts/:id')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
+  @ApiOperation({ summary: 'Delete a parked POS cart' })
+  deleteDraft(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
+    return this.pos.deleteDraft(user.companyId, id);
   }
 
   @Post('sales')

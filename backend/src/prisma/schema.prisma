@@ -75,6 +75,7 @@ model Company {
   documentTemplates DocumentTemplate[]
   customFieldDefinitions CustomFieldDefinition[]
   exchangeRates ExchangeRate[]
+  posDrafts     PosDraft[]
 
   @@index([vatNumber])
   @@index([crNumber])
@@ -117,6 +118,7 @@ model User {
   sessions    Session[]
   apiKeysCreated CompanyApiKey[] @relation("ApiKeysCreated")
   employeeClaimsCreated EmployeeClaim[] @relation("EmployeeClaimsCreated")
+  posDraftsCreated PosDraft[] @relation("PosDraftsCreated")
 
   @@index([companyId])
   @@index([email])
@@ -1415,4 +1417,22 @@ model PlatformSetting {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("platform_settings")
+}
+
+model PosDraft {
+  id          String   @id @default(uuid())
+  companyId   String   @map("company_id")
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdById String   @map("created_by_id")
+  createdBy   User     @relation("PosDraftsCreated", fields: [createdById], references: [id])
+  name        String
+  warehouseId String?  @map("warehouse_id")
+  contactId   String?  @map("contact_id")
+  linesJson   Json     @map("lines_json") // CartLine[]
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([companyId])
+  @@index([companyId, createdAt])
+  @@map("pos_drafts")
 }

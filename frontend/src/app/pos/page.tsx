@@ -39,14 +39,11 @@ type ParkedCart = {
   name: string;
   createdAt: string;
   warehouseId: string;
+  contactId?: string;
   lines: CartLine[];
 };
 
 type CheckoutMethod = "CASH" | "CREDIT_CARD" | "BANK_TRANSFER";
-
-function parkedStorageKey(companyId?: string | null) {
-  return `hisaby-pos-parked:${companyId || "default"}`;
-}
 
 type PosWarehouse = {
   id: string;
@@ -145,6 +142,39 @@ export default function PosCheckoutPage() {
     }
   }, []);
 
+  const mapDraftToParked = useCallback(
+    (d: {
+      id: string;
+      name: string;
+      warehouseId: string | null;
+      contactId?: string | null;
+      linesJson: unknown;
+      createdAt: string;
+    }): ParkedCart => ({
+      id: d.id,
+      name: d.name,
+      createdAt: d.createdAt,
+      warehouseId: d.warehouseId || "",
+      contactId: d.contactId || undefined,
+      lines: Array.isArray(d.linesJson) ? (d.linesJson as CartLine[]) : [],
+    }),
+    [],
+  );
+
+  const loadParkedCarts = useCallback(async () => {
+    if (!companyId) {
+      setParkedCarts([]);
+      return;
+    }
+    try {
+      const res = await api.listPosDrafts();
+      const rows = (res.data || []).map(mapDraftToParked);
+      setParkedCarts(rows);
+    } catch {
+      /* ignore */
+    }
+  }, [companyId, mapDraftToParked]);
+
   useEffect(() => {
     loadRecentSales();
     focusScan();
@@ -152,15 +182,13 @@ export default function PosCheckoutPage() {
     try {
       saved = localStorage.getItem(POS_WAREHOUSE_KEY) || "";
       if (saved) setWarehouseId(saved);
-      const raw = localStorage.getItem(parkedStorageKey(companyId));
-      if (raw) {
-        const parsed = JSON.parse(raw) as ParkedCart[];
-        if (Array.isArray(parsed)) setParkedCarts(parsed);
-      } else {
-        setParkedCarts([]);
-      }
     } catch {
       /* ignore */
+    }
+    if (companyId) {
+      void loadParkedCarts();
+    } else {
+      setParkedCarts([]);
     }
     (async () => {
       try {
@@ -193,45 +221,41 @@ export default function PosCheckoutPage() {
         /* ignore */
       }
     })();
-  }, [loadRecentSales, focusScan, companyId]);
+  }, [loadRecentSales, loadParkedCarts, focusScan, companyId]);
 
   useEffect(() => {
     const id = window.setTimeout(() => loadCatalog(search), 220);
     return () => window.clearTimeout(id);
   }, [search, warehouseId, loadCatalog]);
 
-  const persistParked = useCallback(
-    (next: ParkedCart[]) => {
-      setParkedCarts(next);
-      try {
-        localStorage.setItem(parkedStorageKey(companyId), JSON.stringify(next));
-      } catch {
-        /* ignore */
-      }
-    },
-    [companyId],
-  );
-
-  const parkCart = () => {
+  const parkCart = async () => {
     if (!cart.length) {
       toast.error(t.parkEmpty);
       return;
     }
-    const id =
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? crypto.randomUUID()
-        : `park-${Date.now()}`;
-    const entry: ParkedCart = {
-      id,
-      name: `${t.parkName} ${parkedCarts.length + 1}`,
-      createdAt: new Date().toISOString(),
-      warehouseId,
-      lines: cart.map((l) => ({ ...l })),
-    };
-    persistParked([entry, ...parkedCarts]);
-    setCart([]);
-    toast.success(t.parkOk);
-    focusScan();
+    try {
+      await api.createPosDraft({
+        name: `${t.parkName} ${parkedCarts.length + 1}`,
+        warehouseId: warehouseId || undefined,
+        contactId: contactId || undefined,
+        lines: cart.map((l) => ({
+          productId: l.productId,
+          name: l.name,
+          sku: l.sku,
+          unitPrice: l.unitPrice,
+          quantity: l.quantity,
+          stock: l.stock,
+          isTracked: l.isTracked,
+          discount: l.discount,
+        })),
+      });
+      setCart([]);
+      await loadParkedCarts();
+      toast.success(t.parkOk);
+      focusScan();
+    } catch {
+      toast.error(t.parkFail);
+    }
   };
 
   const recallParked = async (parked: ParkedCart) => {
@@ -264,12 +288,23 @@ export default function PosCheckoutPage() {
     }
     setCart(lines);
     if (parked.warehouseId) onWarehouseChange(parked.warehouseId);
-    persistParked(parkedCarts.filter((p) => p.id !== parked.id));
+    if (parked.contactId) setContactId(parked.contactId);
+    try {
+      await api.deletePosDraft(parked.id);
+    } catch {
+      /* still ok — cart recalled locally */
+    }
+    await loadParkedCarts();
     focusScan();
   };
 
-  const deleteParked = (id: string) => {
-    persistParked(parkedCarts.filter((p) => p.id !== id));
+  const deleteParked = async (id: string) => {
+    try {
+      await api.deletePosDraft(id);
+      await loadParkedCarts();
+    } catch {
+      toast.error(t.parkFail);
+    }
   };
 
   useEffect(() => {

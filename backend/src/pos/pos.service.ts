@@ -11,13 +11,14 @@ import {
   InvoiceType,
   MovementType,
   PaymentMethod,
+  Prisma,
   UserRole,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { InvoicesService } from '../invoices/invoices.service';
 import { ProductsService } from '../products/products.service';
 import { PeriodsService } from '../periods/periods.service';
-import { CreatePosSaleDto } from './dto/pos.dto';
+import { CreatePosSaleDto, CreatePosDraftDto } from './dto/pos.dto';
 
 const WALK_IN_NAME = 'POS Walk-in / نقدي';
 
@@ -580,5 +581,47 @@ export class PosService {
       }
       throw err;
     }
+  }
+
+  async listDrafts(companyId: string) {
+    return this.prisma.posDraft.findMany({
+      where: { companyId },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+  }
+
+  async createDraft(companyId: string, userId: string, dto: CreatePosDraftDto) {
+    if (!dto.lines?.length) {
+      throw new BadRequestException('Draft lines are required');
+    }
+
+    const trimmedName = dto.name?.trim();
+    let name = trimmedName;
+    if (!name) {
+      const count = await this.prisma.posDraft.count({ where: { companyId } });
+      name = `Parked ${count + 1}`;
+    }
+
+    return this.prisma.posDraft.create({
+      data: {
+        companyId,
+        createdById: userId,
+        name,
+        warehouseId: dto.warehouseId || null,
+        contactId: dto.contactId || null,
+        linesJson: dto.lines as unknown as Prisma.InputJsonValue,
+      },
+    });
+  }
+
+  async deleteDraft(companyId: string, id: string) {
+    const existing = await this.prisma.posDraft.findFirst({
+      where: { id, companyId },
+      select: { id: true },
+    });
+    if (!existing) throw new NotFoundException('Parked cart not found');
+    await this.prisma.posDraft.delete({ where: { id } });
+    return { deleted: true, id };
   }
 }

@@ -1184,6 +1184,42 @@ class ApiClient {
   voidPosSale(id: string) {
     return this.post(`/pos/sales/${id}/void`);
   }
+
+  listPosDrafts() {
+    return this.get<
+      {
+        id: string;
+        name: string;
+        warehouseId: string | null;
+        contactId: string | null;
+        linesJson: unknown;
+        createdAt: string;
+        updatedAt: string;
+      }[]
+    >('/pos/drafts');
+  }
+
+  createPosDraft(data: {
+    name?: string;
+    warehouseId?: string;
+    contactId?: string;
+    lines: {
+      productId: string;
+      name: string;
+      sku: string;
+      unitPrice: number;
+      quantity: number;
+      stock?: number;
+      isTracked?: boolean;
+      discount?: number;
+    }[];
+  }) {
+    return this.post('/pos/drafts', data);
+  }
+
+  deletePosDraft(id: string) {
+    return this.delete(`/pos/drafts/${id}`);
+  }
 }
 
 export const api = new ApiClient();

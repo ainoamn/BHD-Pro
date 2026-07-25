@@ -57,6 +57,9 @@ Migration ذات الصلة: `20260723183000_pos_link_and_product_uniques`
 Migration مخزون المستودعات: `20260723190000_warehouse_stocks`  
 (تنشئ `warehouse_stocks` وتملأ الكميات الحالية لكل منتج من `products.quantity`).
 
+Migration السلات المعلّقة متعددة الأجهزة: `20260725140000_pos_drafts`  
+(تنشئ جدول `pos_drafts` لمزامنة السلات المعلّقة عبر الأجهزة بدل localStorage).
+
 عمليات الجرد أصبحت واعية بالمستودع (`WarehouseStock`) وواجهة التحويل بين المستودعات متاحة عبر `POST /products/:id/transfer` — لا حاجة لـ migration جديدة.
 
 **قبل النشر:** إن وُجدت صفوف مكررة لنفس `(company_id, sku)` أو `(company_id, barcode)` ستفشل الـ migration — أصلح التكرار أولاً.
@@ -76,8 +79,9 @@ Migration مخزون المستودعات: `20260723190000_warehouse_stocks`
 | بند | الحالة |
 |-----|--------|
 | المحاسبة / الفواتير / الإيصالات | جاهز للبيتا على الدومين |
-| Hisaby POS (كاشير منفصل + ربط) | جاهز للبيتا — طبّق `migrate deploy` لحقول `pos_*` |
+| Hisaby POS (كاشير منفصل + ربط) | جاهز للبيتا — طبّق `migrate deploy` لحقول `pos_*` و`pos_drafts` |
 | مخزون لكل مستودع (`warehouse_stocks`) | جاهز — طبّق `20260723190000_warehouse_stocks` |
+| سلات معلّقة متعددة الأجهزة (`pos_drafts`) | جاهز — طبّق `20260725140000_pos_drafts` |
 | الفوترة الإلكترونية OTA | غير مكتملة |
 | الشات الذكي | ردود ثابتة |
 
