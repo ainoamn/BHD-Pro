@@ -1,4 +1,6 @@
 import {
+  IsBoolean,
+  IsEnum,
   IsInt,
   IsOptional,
   IsString,
@@ -9,6 +11,7 @@ import {
   MinLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { PaymentMethod, RestoOrderChannel } from '@prisma/client';
 
 export class LinkRestoDto {
   @IsString()
@@ -59,8 +62,14 @@ export class SeedRestoFloorDto {
 }
 
 export class OpenRestoOrderDto {
+  /** Required for DINE_IN; omit for TAKEAWAY / DELIVERY */
+  @IsOptional()
   @IsUUID()
-  tableId: string;
+  tableId?: string;
+
+  @IsOptional()
+  @IsEnum(RestoOrderChannel)
+  channel?: RestoOrderChannel;
 
   @IsOptional()
   @Type(() => Number)
@@ -102,4 +111,31 @@ export class UpdateRestoOrderItemDto {
   @IsString()
   @MaxLength(300)
   notes?: string;
+}
+
+export class CloseRestoOrderDto {
+  /**
+   * When true: free table only (no invoice). Default false = paid close via POS.
+   */
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  soft?: boolean;
+
+  @IsOptional()
+  @IsEnum(PaymentMethod)
+  paymentMethod?: PaymentMethod;
+
+  @IsOptional()
+  @IsUUID()
+  warehouseId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  contactId?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @Min(0)
+  tipAmount?: number;
 }

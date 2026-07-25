@@ -5,14 +5,19 @@ import {
 } from '@nestjs/common';
 import { createHash, randomBytes } from 'crypto';
 import {
+  PaymentMethod,
   Prisma,
+  RestoOrderChannel,
   RestoOrderItemStatus,
   RestoOrderStatus,
   RestoTableStatus,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { PosService } from '../pos/pos.service';
+import { TokenPayload } from '../auth/interfaces/token-payload.interface';
 import {
   AddRestoOrderItemDto,
+  CloseRestoOrderDto,
   CreateRestoTableDto,
   CreateRestoZoneDto,
   OpenRestoOrderDto,
@@ -34,7 +39,10 @@ const KITCHEN_ITEM: RestoOrderItemStatus[] = [
 
 @Injectable()
 export class RestoService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly pos: PosService,
+  ) {}
 
   private hashKey(secret: string) {
     return createHash('sha256').update(secret).digest('hex');
@@ -384,6 +392,7 @@ export class RestoService {
     guests: number;
     notes: string | null;
     tableId: string | null;
+    invoiceId?: string | null;
     sentAt: Date | null;
     closedAt: Date | null;
     createdAt: Date;
@@ -402,7 +411,9 @@ export class RestoService {
       station?: { id: string; name: string; nameEn: string | null } | null;
     }>;
   }) {
-    const items = order.items.map((it) => ({
+    const items = order.items
+      .filter((it) => it.status !== RestoOrderItemStatus.CANCELLED)
+      .map((it) => ({
       id: it.id,
       productId: it.productId,
       stationId: it.stationId,
@@ -425,6 +436,7 @@ export class RestoService {
       guests: order.guests,
       notes: order.notes,
       tableId: order.tableId,
+      invoiceId: order.invoiceId ?? null,
       table: order.table
         ? {
             id: order.table.id,
@@ -464,41 +476,63 @@ export class RestoService {
   }
 
   async openOrder(companyId: string, userId: string, dto: OpenRestoOrderDto) {
-    const table = await this.prisma.restoTable.findFirst({
-      where: { id: dto.tableId, companyId },
-    });
-    if (!table) throw new NotFoundException('Table not found');
+    const channel = dto.channel ?? RestoOrderChannel.DINE_IN;
 
-    const existing = await this.prisma.restoOrder.findFirst({
-      where: {
-        companyId,
-        tableId: table.id,
-        status: { in: ACTIVE_ORDER },
-      },
-    });
-    if (existing) {
-      return this.getOrder(companyId, existing.id);
+    if (channel === RestoOrderChannel.DINE_IN) {
+      if (!dto.tableId) {
+        throw new BadRequestException('tableId is required for dine-in orders');
+      }
+      const table = await this.prisma.restoTable.findFirst({
+        where: { id: dto.tableId, companyId },
+      });
+      if (!table) throw new NotFoundException('Table not found');
+
+      const existing = await this.prisma.restoOrder.findFirst({
+        where: {
+          companyId,
+          tableId: table.id,
+          status: { in: ACTIVE_ORDER },
+        },
+      });
+      if (existing) {
+        return this.getOrder(companyId, existing.id);
+      }
+
+      const number = await this.nextOrderNumber(companyId);
+      const order = await this.prisma.$transaction(async (tx) => {
+        const created = await tx.restoOrder.create({
+          data: {
+            companyId,
+            tableId: table.id,
+            number,
+            guests: dto.guests ?? 1,
+            notes: dto.notes?.trim() || null,
+            openedById: userId,
+            status: RestoOrderStatus.OPEN,
+            channel: RestoOrderChannel.DINE_IN,
+          },
+        });
+        await tx.restoTable.update({
+          where: { id: table.id },
+          data: { status: RestoTableStatus.OCCUPIED },
+        });
+        return created;
+      });
+      return this.getOrder(companyId, order.id);
     }
 
     const number = await this.nextOrderNumber(companyId);
-    const order = await this.prisma.$transaction(async (tx) => {
-      const created = await tx.restoOrder.create({
-        data: {
-          companyId,
-          tableId: table.id,
-          number,
-          guests: dto.guests ?? 1,
-          notes: dto.notes?.trim() || null,
-          openedById: userId,
-          status: RestoOrderStatus.OPEN,
-          channel: 'DINE_IN',
-        },
-      });
-      await tx.restoTable.update({
-        where: { id: table.id },
-        data: { status: RestoTableStatus.OCCUPIED },
-      });
-      return created;
+    const order = await this.prisma.restoOrder.create({
+      data: {
+        companyId,
+        tableId: null,
+        number,
+        guests: dto.guests ?? 1,
+        notes: dto.notes?.trim() || null,
+        openedById: userId,
+        status: RestoOrderStatus.OPEN,
+        channel,
+      },
     });
     return this.getOrder(companyId, order.id);
   }
@@ -745,12 +779,27 @@ export class RestoService {
     return this.getOrder(companyId, item.orderId);
   }
 
-  /** Soft close — frees table. POS invoice close arrives in R4. */
-  async closeOrder(companyId: string, orderId: string) {
+  /**
+   * Close order. Default: POS sale (invoice + stock + GL) then free table.
+   * Pass `{ soft: true }` for operational close without accounting.
+   */
+  async closeOrder(
+    companyId: string,
+    actor: TokenPayload,
+    orderId: string,
+    dto: CloseRestoOrderDto = {},
+  ) {
     const order = await this.loadOrder(companyId, orderId);
     if (order.status === RestoOrderStatus.CLOSED) {
-      return this.mapOrder(order);
+      return {
+        ...this.mapOrder(order),
+        invoice: order.invoiceId ? { id: order.invoiceId } : null,
+      };
     }
+    if (order.status === RestoOrderStatus.CANCELLED) {
+      throw new BadRequestException('Order is cancelled');
+    }
+
     const pendingKitchen = order.items.some(
       (i) =>
         i.status === RestoOrderItemStatus.SENT ||
@@ -762,12 +811,55 @@ export class RestoService {
       );
     }
 
+    let invoiceId: string | null = order.invoiceId ?? null;
+
+    if (!dto.soft) {
+      const billable = order.items.filter(
+        (i) =>
+          i.status !== RestoOrderItemStatus.CANCELLED &&
+          i.status !== RestoOrderItemStatus.PENDING &&
+          !!i.productId,
+      );
+      const fallback = order.items.filter(
+        (i) => i.status !== RestoOrderItemStatus.CANCELLED && !!i.productId,
+      );
+      const lines = billable.length > 0 ? billable : fallback;
+      if (lines.length === 0) {
+        throw new BadRequestException(
+          'No billable items — add products or use soft close',
+        );
+      }
+
+      await this.prisma.restoOrderItem.updateMany({
+        where: { orderId, status: RestoOrderItemStatus.PENDING },
+        data: {
+          status: RestoOrderItemStatus.SERVED,
+          readyAt: new Date(),
+        },
+      });
+
+      const invoice = await this.pos.createSale(companyId, actor, {
+        items: lines.map((i) => ({
+          productId: i.productId as string,
+          quantity: Number(i.qty),
+        })),
+        paymentMethod: dto.paymentMethod ?? PaymentMethod.CASH,
+        warehouseId: dto.warehouseId,
+        contactId: dto.contactId,
+        tipAmount: dto.tipAmount,
+        notes: `Hisaby Resto ${order.number} [${order.channel}]`,
+        clientSaleId: `resto-${order.id}`,
+      });
+      invoiceId = invoice.id;
+    }
+
     await this.prisma.$transaction(async (tx) => {
       await tx.restoOrder.update({
         where: { id: orderId },
         data: {
           status: RestoOrderStatus.CLOSED,
           closedAt: new Date(),
+          ...(invoiceId ? { invoiceId } : {}),
         },
       });
       if (order.tableId) {
@@ -777,7 +869,12 @@ export class RestoService {
         });
       }
     });
-    return this.getOrder(companyId, orderId);
+
+    const mapped = await this.getOrder(companyId, orderId);
+    return {
+      ...mapped,
+      invoice: invoiceId ? { id: invoiceId } : null,
+    };
   }
 
   async cancelOrder(companyId: string, orderId: string) {

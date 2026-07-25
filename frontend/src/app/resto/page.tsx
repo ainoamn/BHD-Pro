@@ -207,13 +207,35 @@ export default function RestoFloorPage() {
     }
   };
 
-  const closeOrder = async () => {
+  const closeOrder = async (
+    method: "CASH" | "CREDIT_CARD" | "soft" = "CASH",
+  ) => {
     if (!order) return;
     setBusy(true);
     try {
-      await api.closeRestoOrder(order.id);
+      if (method === "soft") {
+        await api.closeRestoOrder(order.id, { soft: true });
+      } else {
+        await api.closeRestoOrder(order.id, { paymentMethod: method });
+      }
       setOrder(null);
       await loadFloor();
+    } catch {
+      setError(t.actionFail);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const openTakeaway = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const res = await api.openRestoOrder({
+        channel: "TAKEAWAY",
+        guests: 1,
+      });
+      setOrder(res.data);
     } catch {
       setError(t.actionFail);
     } finally {
@@ -249,6 +271,14 @@ export default function RestoFloorPage() {
               className="w-14 h-9 rounded-lg bg-[#1a1614] border border-white/10 px-2 text-sm tabular-nums"
             />
           </label>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void openTakeaway()}
+            className="h-9 rounded-lg bg-amber-500/20 border border-amber-500/30 px-3 text-xs font-bold text-amber-100 hover:bg-amber-500/30 disabled:opacity-50"
+          >
+            {t.takeaway}
+          </button>
           <button
             type="button"
             onClick={() => void loadFloor()}
@@ -410,28 +440,46 @@ export default function RestoFloorPage() {
                   </span>
                 </div>
 
-                <div className="flex flex-wrap gap-2">
+                <div className="space-y-2">
                   <button
                     type="button"
                     disabled={busy || pendingCount === 0}
                     onClick={() => void sendKitchen()}
-                    className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-amber-500 px-3 py-2.5 text-xs font-bold text-[#14110f] disabled:opacity-50"
+                    className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-amber-500 px-3 py-2.5 text-xs font-bold text-[#14110f] disabled:opacity-50"
                   >
                     <Send className="w-3.5 h-3.5" />
                     {t.sendKitchen}
                   </button>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      disabled={busy || (order?.itemCount ?? 0) === 0}
+                      onClick={() => void closeOrder("CASH")}
+                      className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
+                    >
+                      {t.payCash}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy || (order?.itemCount ?? 0) === 0}
+                      onClick={() => void closeOrder("CREDIT_CARD")}
+                      className="rounded-xl bg-sky-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
+                    >
+                      {t.payCard}
+                    </button>
+                  </div>
                   <button
                     type="button"
                     disabled={busy}
-                    onClick={() => void closeOrder()}
-                    className="rounded-xl border border-white/15 px-3 py-2.5 text-xs font-semibold text-stone-200 hover:bg-white/5 disabled:opacity-50"
+                    onClick={() => void closeOrder("soft")}
+                    className="w-full rounded-xl border border-white/15 px-3 py-2 text-[11px] font-semibold text-stone-300 hover:bg-white/5 disabled:opacity-50"
                   >
-                    {t.closeOrder}
+                    {t.softClose}
                   </button>
+                  <p className="text-[11px] text-stone-500 leading-relaxed">
+                    {t.closePaidHint}
+                  </p>
                 </div>
-                <p className="text-[11px] text-stone-500 leading-relaxed">
-                  {t.closeHint}
-                </p>
 
                 <div className="border-t border-white/10 pt-3 space-y-2">
                   <p className="text-xs font-bold text-stone-300">{t.addItems}</p>

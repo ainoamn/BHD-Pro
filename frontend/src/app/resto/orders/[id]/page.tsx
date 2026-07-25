@@ -129,13 +129,18 @@ export default function RestoOrderPage() {
     }
   };
 
-  const close = async () => {
-    if (!window.confirm(t.closeConfirm)) return;
+  const close = async (method: "CASH" | "CREDIT_CARD" | "soft" = "CASH") => {
+    if (method === "soft") {
+      if (!window.confirm(t.closeConfirm)) return;
+    }
     setBusy(true);
     try {
-      const res = await api.closeRestoOrder(orderId);
-      setOrder(res.data);
-      toast.success(t.closeOk);
+      if (method === "soft") {
+        await api.closeRestoOrder(orderId, { soft: true });
+      } else {
+        await api.closeRestoOrder(orderId, { paymentMethod: method });
+        toast.success(t.closePaidOk);
+      }
       router.push("/resto");
     } catch (err) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response
@@ -206,12 +211,28 @@ export default function RestoOrderPage() {
               </button>
               <button
                 type="button"
+                disabled={busy || order.itemCount === 0}
+                onClick={() => void close("CASH")}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-40"
+              >
+                {t.payCash}
+              </button>
+              <button
+                type="button"
+                disabled={busy || order.itemCount === 0}
+                onClick={() => void close("CREDIT_CARD")}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-sky-600 px-3 py-2 text-xs font-bold text-white hover:bg-sky-500 disabled:opacity-40"
+              >
+                {t.payCard}
+              </button>
+              <button
+                type="button"
                 disabled={busy}
-                onClick={() => void close()}
+                onClick={() => void close("soft")}
                 className="inline-flex items-center gap-1.5 rounded-xl border border-white/15 px-3 py-2 text-xs font-bold hover:bg-white/5"
               >
                 <XCircle className="w-4 h-4" />
-                {t.closeOrder}
+                {t.softClose}
               </button>
             </>
           ) : null}

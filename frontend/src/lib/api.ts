@@ -15,8 +15,10 @@ export type RestoOrderPayload = {
   id: string;
   number: string;
   status: string;
+  channel?: string;
   guests: number;
   notes: string | null;
+  invoiceId?: string | null;
   sentAt: string | null;
   closedAt: string | null;
   createdAt: string;
@@ -33,6 +35,7 @@ export type RestoOrderPayload = {
   }>;
   subtotal: number;
   itemCount: number;
+  invoice?: { id: string } | null;
 };
 
 /** Prefer same-origin Next rewrite so httpOnly cookies work on localhost + production */
@@ -1495,7 +1498,12 @@ class ApiClient {
     return this.post('/resto/tables', data);
   }
 
-  openRestoOrder(data: { tableId: string; guests?: number; notes?: string }) {
+  openRestoOrder(data: {
+    tableId?: string;
+    channel?: 'DINE_IN' | 'TAKEAWAY' | 'DELIVERY';
+    guests?: number;
+    notes?: string;
+  }) {
     return this.post<RestoOrderPayload>('/resto/orders', data);
   }
 
@@ -1520,8 +1528,24 @@ class ApiClient {
     return this.post<RestoOrderPayload>(`/resto/orders/${orderId}/send`, {});
   }
 
-  closeRestoOrder(orderId: string) {
-    return this.post<RestoOrderPayload>(`/resto/orders/${orderId}/close`, {});
+  closeRestoOrder(
+    orderId: string,
+    data?: {
+      soft?: boolean;
+      paymentMethod?: 'CASH' | 'CREDIT_CARD' | 'BANK_TRANSFER' | 'OTHER';
+      warehouseId?: string;
+      contactId?: string;
+      tipAmount?: number;
+    },
+  ) {
+    return this.post<RestoOrderPayload & { invoice?: { id: string } | null }>(
+      `/resto/orders/${orderId}/close`,
+      data || {},
+    );
+  }
+
+  cancelRestoOrder(orderId: string) {
+    return this.post<RestoOrderPayload>(`/resto/orders/${orderId}/cancel`, {});
   }
 
   getRestoKitchen() {

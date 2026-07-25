@@ -19,6 +19,7 @@ import { TokenPayload } from '../auth/interfaces/token-payload.interface';
 import { RestoService } from './resto.service';
 import {
   AddRestoOrderItemDto,
+  CloseRestoOrderDto,
   CreateRestoTableDto,
   CreateRestoZoneDto,
   LinkRestoDto,
@@ -185,8 +186,18 @@ export class RestoController {
 
   @Post('orders/:id/close')
   @Roles(...RESTO_STAFF)
-  close(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
-    return this.resto.closeOrder(user.companyId, id);
+  close(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+    @Body() dto: CloseRestoOrderDto,
+  ) {
+    return this.resto.closeOrder(user.companyId, user, id, dto || {});
+  }
+
+  @Post('orders/:id/cancel')
+  @Roles(...RESTO_STAFF)
+  cancel(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
+    return this.resto.cancelOrder(user.companyId, id);
   }
 
   @Get('kitchen')
