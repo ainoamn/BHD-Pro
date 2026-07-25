@@ -150,6 +150,10 @@ export class AddRestoOrderItemDto {
   @Min(0)
   @Max(3)
   course?: number;
+
+  @IsOptional()
+  @IsIn(['STAFF', 'GUEST'])
+  source?: 'STAFF' | 'GUEST';
 }
 
 export class FireRestoCourseDto {

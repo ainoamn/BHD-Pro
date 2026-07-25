@@ -1993,6 +1993,8 @@ model RestoOrderItem {
   notes      String?
   /// 0=drinks · 1=starter · 2=main · 3=dessert — fire by course to KDS
   course     Int                  @default(1)
+  /// STAFF | GUEST — guest QR lines auto-fire to kitchen
+  source     String               @default("STAFF")
   status     RestoOrderItemStatus @default(PENDING)
   /// Comp = complimentary (zero bill); void = cancelled after send with reason
   isComp     Boolean              @default(false) @map("is_comp")

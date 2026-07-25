@@ -558,6 +558,7 @@ export class RestoService {
                     qty: true,
                     unitPrice: true,
                     status: true,
+                    source: true,
                   },
                 },
               },
@@ -578,6 +579,15 @@ export class RestoService {
           (sum, it) => sum + Number(it.qty) * Number(it.unitPrice),
           0,
         );
+        const occupiedMinutes = open
+          ? Math.max(
+              0,
+              Math.floor(
+                (Date.now() - new Date(open.createdAt).getTime()) / 60000,
+              ),
+            )
+          : 0;
+        const guestItemCount = items.filter((it) => it.source === 'GUEST').length;
         return {
           id: t.id,
           code: t.code,
@@ -596,6 +606,8 @@ export class RestoService {
                 itemCount: items.length,
                 total,
                 createdAt: open.createdAt,
+                occupiedMinutes,
+                guestItemCount,
               }
             : null,
         };
@@ -664,6 +676,7 @@ export class RestoService {
       course?: number;
       isComp?: boolean;
       voidReason?: string | null;
+      source?: string | null;
       status: RestoOrderItemStatus;
       sentAt: Date | null;
       readyAt: Date | null;
@@ -685,6 +698,7 @@ export class RestoService {
       course: it.course ?? 1,
       isComp: !!it.isComp,
       voidReason: it.voidReason ?? null,
+      source: it.source === 'GUEST' ? 'GUEST' : 'STAFF',
       status: it.status,
       sentAt: it.sentAt,
       readyAt: it.readyAt,
@@ -871,6 +885,7 @@ export class RestoService {
         unitPrice: this.decimal(Number(product.salePrice) + priceDelta),
         notes: noteParts.join(' — ') || null,
         course: dto.course ?? 1,
+        source: dto.source === 'GUEST' ? 'GUEST' : 'STAFF',
         status: RestoOrderItemStatus.PENDING,
       },
     });
@@ -2633,6 +2648,7 @@ export class RestoService {
         notes: line.notes,
         course: line.course ?? 1,
         modifiers: line.modifiers,
+        source: 'GUEST',
       });
     }
     if (dto.guestNote?.trim()) {
@@ -2645,6 +2661,12 @@ export class RestoService {
         },
       });
     }
+    // World-class: guest lines fire to KDS immediately
+    try {
+      await this.sendToKitchen(table.companyId, order.id);
+    } catch {
+      /* no pending left / race — still return order */
+    }
     this.notifyKitchen(table.companyId);
     const mapped = await this.getOrder(table.companyId, order.id);
     return {
@@ -2656,7 +2678,8 @@ export class RestoService {
         items: mapped.items,
         subtotal: mapped.subtotal,
       },
-      message: 'Items added — staff will send to kitchen',
+      message: 'Sent to kitchen',
+      firedToKitchen: true,
     };
   }
 
