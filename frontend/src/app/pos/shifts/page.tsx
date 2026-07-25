@@ -396,6 +396,56 @@ export default function PosShiftsPage() {
   });
   const live = data?.live as ZReport | undefined;
   const expectedCash = Number(live?.expectedCash ?? 0);
+
+  const { data: parkedDrafts = [] } = useQuery({
+    queryKey: ["pos-drafts-eod"],
+    queryFn: async () => {
+      const res = await api.listPosDrafts();
+      return (res.data as { id: string }[]) || [];
+    },
+    refetchInterval: 20000,
+  });
+  const parkedCount = parkedDrafts.length;
+
+  const [quarantineCount, setQuarantineCount] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { quarantinedAllCount } = await import("@/lib/pos-offline-sync");
+        const n = await quarantinedAllCount();
+        if (!cancelled) setQuarantineCount(n);
+      } catch {
+        if (!cancelled) setQuarantineCount(0);
+      }
+    })();
+    const id = window.setInterval(() => {
+      void import("@/lib/pos-offline-sync").then(({ quarantinedAllCount }) =>
+        quarantinedAllCount().then((n) => {
+          if (!cancelled) setQuarantineCount(n);
+        }),
+      );
+    }, 20000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, []);
+
+  const shiftIdForEod = (data?.shift as { id?: string } | undefined)?.id;
+  const { data: eodAnomalies } = useQuery({
+    queryKey: ["pos-eod-anomalies", shiftIdForEod],
+    enabled: !!shiftIdForEod,
+    queryFn: async () => {
+      const res = await api.getPosShiftAnomalies(shiftIdForEod!);
+      return res.data as {
+        findings?: { severity: string; messageAr?: string; messageEn?: string }[];
+      };
+    },
+    staleTime: 60_000,
+  });
+  const anomalyCount = eodAnomalies?.findings?.length || 0;
+
   const cashMovements = (data?.cashMovements ||
     live?.cashMovements ||
     []) as CashMovement[];
@@ -445,6 +495,9 @@ export default function PosShiftsPage() {
     const cash = Number(closingCash);
     if (Number.isNaN(cash) || cash < 0) return;
     const variance = Math.abs(cash - expectedCash);
+    if ((parkedCount || 0) > 0) {
+      if (!window.confirm(t.eodConfirmParked)) return;
+    }
     setPendingCloseCash(cash);
     if (variance > varianceLimit) {
       setApprovalOpen(true);
