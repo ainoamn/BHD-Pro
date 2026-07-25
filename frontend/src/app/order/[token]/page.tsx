@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import { Bell, CheckCircle2, Loader2, Minus, Plus, ShoppingBag } from "lucide-react";
+import { Bell, CheckCircle2, Loader2, Minus, Plus, ShoppingBag, X } from "lucide-react";
 
 const API =
   process.env.NEXT_PUBLIC_API_URL ||
@@ -35,18 +35,29 @@ type MenuItem = {
   allergens?: string[];
 };
 
+type Modifier = {
+  id: string;
+  name: string;
+  nameEn: string | null;
+  priceDelta: number;
+};
+
 type CartLine = {
+  key: string;
   productId: string;
   name: string;
   price: number;
   qty: number;
   notes: string;
+  course: number;
+  modifiers: Array<{ name: string; priceDelta: number }>;
 };
 
 type Session = {
   company: { id: string; name: string; logo: string | null; currency: string };
   table: { id: string; code: string; name: string | null; seats: number; zoneName: string };
   menu: MenuItem[];
+  modifiers?: Modifier[];
   openOrder: {
     id: string;
     number: string;
@@ -57,6 +68,7 @@ type Session = {
       qty: number;
       lineTotal: number;
       status: string;
+      course?: number;
     }>;
     subtotal: number;
   } | null;
@@ -74,6 +86,10 @@ export default function GuestOrderPage() {
   const [locale, setLocale] = useState<"ar" | "en">("ar");
   const [q, setQ] = useState("");
   const [hideAllergens, setHideAllergens] = useState<string[]>([]);
+  const [course, setCourse] = useState(1);
+  const [pickedMods, setPickedMods] = useState<string[]>([]);
+  const [lineNote, setLineNote] = useState("");
+  const [composeFor, setComposeFor] = useState<MenuItem | null>(null);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -104,14 +120,24 @@ export default function GuestOrderPage() {
 
   const fmt = (n: number) => n.toFixed(3);
   const currency = session?.company.currency || "OMR";
+  const modifiers = session?.modifiers || [];
+
+  const courseLabel = (c: number) => {
+    if (locale === "en") {
+      return ["Drinks", "Starters", "Mains", "Dessert"][c] || String(c);
+    }
+    return ["مشروبات", "مقبلات", "رئيسية", "حلويات"][c] || String(c);
+  };
 
   const filtered = useMemo(() => {
     const list = session?.menu || [];
     const needle = q.trim().toLowerCase();
     return list.filter((m) => {
-      if (hideAllergens.length) {
-        const itemAllergens = m.allergens || [];
-        if (hideAllergens.some((a) => itemAllergens.includes(a))) return false;
+      if (
+        hideAllergens.length > 0 &&
+        (m.allergens || []).some((a) => hideAllergens.includes(a))
+      ) {
+        return false;
       }
       if (!needle) return true;
       return (
@@ -122,34 +148,58 @@ export default function GuestOrderPage() {
     });
   }, [session?.menu, q, hideAllergens]);
 
-  const toggleHideAllergen = (code: string) => {
-    setHideAllergens((prev) =>
-      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code],
-    );
-  };
-
   const cartTotal = cart.reduce((s, l) => s + l.price * l.qty, 0);
 
-  const addToCart = (m: MenuItem) => {
-    const price = typeof m.price === "number" ? m.price : Number(m.price);
+  const openCompose = (m: MenuItem) => {
+    setComposeFor(m);
+    setPickedMods([]);
+    setLineNote("");
+  };
+
+  const confirmCompose = () => {
+    if (!composeFor) return;
+    const base =
+      typeof composeFor.price === "number"
+        ? composeFor.price
+        : Number(composeFor.price);
+    const mods = modifiers
+      .filter((m) => pickedMods.includes(m.id))
+      .map((m) => ({
+        name: locale === "en" && m.nameEn ? m.nameEn : m.name,
+        priceDelta: Number(m.priceDelta) || 0,
+      }));
+    const delta = mods.reduce((s, m) => s + m.priceDelta, 0);
+    const name =
+      locale === "en" && composeFor.nameEn ? composeFor.nameEn : composeFor.name;
+    const key = `${composeFor.id}|${course}|${mods.map((m) => m.name).join(",")}|${lineNote}`;
     setCart((prev) => {
-      const i = prev.findIndex((x) => x.productId === m.id);
+      const i = prev.findIndex((x) => x.key === key);
       if (i >= 0) {
         const next = [...prev];
         next[i] = { ...next[i], qty: next[i].qty + 1 };
         return next;
       }
-      const name = locale === "en" && m.nameEn ? m.nameEn : m.name;
-      return [...prev, { productId: m.id, name, price, qty: 1, notes: "" }];
+      return [
+        ...prev,
+        {
+          key,
+          productId: composeFor.id,
+          name: mods.length ? `${name} (+)` : name,
+          price: base + delta,
+          qty: 1,
+          notes: lineNote.trim(),
+          course,
+          modifiers: mods,
+        },
+      ];
     });
+    setComposeFor(null);
   };
 
-  const bump = (productId: string, delta: number) => {
+  const bump = (key: string, delta: number) => {
     setCart((prev) =>
       prev
-        .map((l) =>
-          l.productId === productId ? { ...l, qty: l.qty + delta } : l,
-        )
+        .map((l) => (l.key === key ? { ...l, qty: l.qty + delta } : l))
         .filter((l) => l.qty > 0),
     );
   };
@@ -171,6 +221,8 @@ export default function GuestOrderPage() {
               productId: l.productId,
               qty: l.qty,
               notes: l.notes || undefined,
+              course: l.course,
+              modifiers: l.modifiers.length ? l.modifiers : undefined,
             })),
           }),
         },
@@ -221,6 +273,12 @@ export default function GuestOrderPage() {
     }
   };
 
+  const toggleHide = (code: string) => {
+    setHideAllergens((prev) =>
+      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code],
+    );
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#14110f] text-stone-100 flex items-center justify-center">
@@ -268,7 +326,7 @@ export default function GuestOrderPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-3xl px-4 py-4 space-y-4 pb-36">
+      <main className="mx-auto max-w-3xl px-4 py-4 space-y-4 pb-40">
         <div className="flex flex-wrap gap-2">
           {(
             [
@@ -310,12 +368,14 @@ export default function GuestOrderPage() {
             </p>
             <ul className="space-y-1">
               {session.openOrder.items.map((it) => (
-                <li
-                  key={it.id}
-                  className="flex justify-between gap-2 text-sm"
-                >
+                <li key={it.id} className="flex justify-between gap-2 text-sm">
                   <span>
                     {it.qty}× {it.name}
+                    {it.course != null ? (
+                      <span className="text-[10px] text-stone-500 ms-1">
+                        ({courseLabel(it.course)})
+                      </span>
+                    ) : null}
                   </span>
                   <span className="tabular-nums text-amber-200">
                     {fmt(it.lineTotal)}
@@ -332,31 +392,22 @@ export default function GuestOrderPage() {
           </section>
         ) : null}
 
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder={locale === "en" ? "Search menu…" : "ابحث في القائمة…"}
-          className="w-full h-11 rounded-xl bg-[#1a1614] border border-white/10 px-3 text-sm focus:outline-none focus:border-amber-500"
-        />
-
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <p className="text-[11px] font-bold text-stone-400">
-            {locale === "en"
-              ? "Hide items containing"
-              : "أخفِ ما يحتوي"}
+            {locale === "en" ? "Hide items containing" : "أخفِ ما يحتوي"}
           </p>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-1">
             {ALLERGEN_CODES.map((code) => {
               const on = hideAllergens.includes(code);
               return (
                 <button
                   key={code}
                   type="button"
-                  onClick={() => toggleHideAllergen(code)}
-                  className={`rounded-lg px-2 py-1 text-[10px] font-bold border ${
+                  onClick={() => toggleHide(code)}
+                  className={`rounded-md px-1.5 py-0.5 text-[9px] font-bold border ${
                     on
                       ? "border-rose-400/50 bg-rose-500/20 text-rose-100"
-                      : "border-white/10 text-stone-500 hover:border-white/25"
+                      : "border-white/10 text-stone-500"
                   }`}
                 >
                   {code}
@@ -366,16 +417,39 @@ export default function GuestOrderPage() {
           </div>
         </div>
 
+        <div className="flex flex-wrap gap-1.5">
+          {([0, 1, 2, 3] as const).map((c) => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => setCourse(c)}
+              className={`rounded-lg px-2.5 py-1.5 text-[11px] font-bold border ${
+                course === c
+                  ? "border-amber-400/50 bg-amber-500/20 text-amber-100"
+                  : "border-white/10 text-stone-400"
+              }`}
+            >
+              {courseLabel(c)}
+            </button>
+          ))}
+        </div>
+
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder={locale === "en" ? "Search menu…" : "ابحث في القائمة…"}
+          className="w-full h-11 rounded-xl bg-[#1a1614] border border-white/10 px-3 text-sm focus:outline-none focus:border-amber-500"
+        />
+
         <ul className="grid gap-3 sm:grid-cols-2">
           {filtered.map((m) => {
             const label = locale === "en" && m.nameEn ? m.nameEn : m.name;
             const price = typeof m.price === "number" ? m.price : Number(m.price);
-            const allergens = m.allergens || [];
             return (
               <li key={m.id}>
                 <button
                   type="button"
-                  onClick={() => addToCart(m)}
+                  onClick={() => openCompose(m)}
                   className="w-full text-start rounded-2xl border border-white/10 bg-white/[0.03] overflow-hidden hover:border-amber-500/35"
                 >
                   <div className="aspect-[16/10] bg-black/40 relative">
@@ -398,12 +472,10 @@ export default function GuestOrderPage() {
                       <p className="font-semibold truncate">{label}</p>
                       <p className="text-[11px] text-stone-500 mt-0.5">
                         {m.category}
+                        {(m.allergens || []).length > 0
+                          ? ` · ${(m.allergens || []).slice(0, 3).join(", ")}`
+                          : ""}
                       </p>
-                      {allergens.length > 0 ? (
-                        <p className="text-[10px] text-amber-200/70 mt-1 truncate">
-                          {allergens.join(", ")}
-                        </p>
-                      ) : null}
                     </div>
                     <p className="shrink-0 font-bold tabular-nums text-amber-200">
                       {fmt(price)}
@@ -416,20 +488,100 @@ export default function GuestOrderPage() {
         </ul>
       </main>
 
+      {composeFor ? (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 p-3">
+          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#1a1614] p-4 space-y-3">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="font-bold">
+                  {locale === "en" && composeFor.nameEn
+                    ? composeFor.nameEn
+                    : composeFor.name}
+                </p>
+                <p className="text-xs text-stone-500 mt-0.5">{courseLabel(course)}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setComposeFor(null)}
+                className="text-stone-400"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            {modifiers.length > 0 ? (
+              <div className="space-y-1.5">
+                <p className="text-[11px] font-bold text-stone-400">
+                  {locale === "en" ? "Modifiers" : "إضافات"}
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {modifiers.map((m) => {
+                    const on = pickedMods.includes(m.id);
+                    const label = locale === "en" && m.nameEn ? m.nameEn : m.name;
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() =>
+                          setPickedMods((prev) =>
+                            on
+                              ? prev.filter((id) => id !== m.id)
+                              : [...prev, m.id],
+                          )
+                        }
+                        className={`rounded-lg px-2 py-1 text-[11px] font-bold border ${
+                          on
+                            ? "border-amber-400/50 bg-amber-500/20 text-amber-100"
+                            : "border-white/10 text-stone-400"
+                        }`}
+                      >
+                        {label}
+                        {Number(m.priceDelta) > 0
+                          ? ` +${fmt(Number(m.priceDelta))}`
+                          : ""}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+            <input
+              value={lineNote}
+              onChange={(e) => setLineNote(e.target.value)}
+              placeholder={
+                locale === "en" ? "Kitchen note…" : "ملاحظة للمطبخ…"
+              }
+              className="w-full h-10 rounded-xl bg-black/30 border border-white/10 px-3 text-sm"
+            />
+            <button
+              type="button"
+              onClick={confirmCompose}
+              className="w-full rounded-xl bg-amber-500 py-2.5 text-sm font-extrabold text-[#14110f]"
+            >
+              {locale === "en" ? "Add to cart" : "أضف للسلة"}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       {cart.length > 0 ? (
         <div className="fixed bottom-0 inset-x-0 z-40 border-t border-amber-500/25 bg-[#1a1614]/98 backdrop-blur-xl">
           <div className="mx-auto max-w-3xl px-4 py-3 space-y-2">
             <ul className="max-h-28 overflow-y-auto space-y-1">
               {cart.map((l) => (
                 <li
-                  key={l.productId}
+                  key={l.key}
                   className="flex items-center justify-between gap-2 text-sm"
                 >
-                  <span className="truncate">{l.name}</span>
+                  <span className="truncate">
+                    {l.name}
+                    <span className="text-[10px] text-stone-500 ms-1">
+                      ({courseLabel(l.course)})
+                    </span>
+                  </span>
                   <div className="flex items-center gap-1.5 shrink-0">
                     <button
                       type="button"
-                      onClick={() => bump(l.productId, -1)}
+                      onClick={() => bump(l.key, -1)}
                       className="w-7 h-7 rounded-md border border-white/15 grid place-items-center"
                     >
                       <Minus className="w-3.5 h-3.5" />
@@ -437,7 +589,7 @@ export default function GuestOrderPage() {
                     <span className="w-5 text-center tabular-nums">{l.qty}</span>
                     <button
                       type="button"
-                      onClick={() => bump(l.productId, 1)}
+                      onClick={() => bump(l.key, 1)}
                       className="w-7 h-7 rounded-md border border-white/15 grid place-items-center"
                     >
                       <Plus className="w-3.5 h-3.5" />
