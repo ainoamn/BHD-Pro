@@ -18,6 +18,12 @@ type MenuItem = {
   category: string;
 };
 
+type Station = {
+  id: string;
+  name: string;
+  nameEn: string | null;
+};
+
 export default function RestoOrderPage() {
   const params = useParams();
   const orderId = String(params?.id || "");
@@ -26,6 +32,8 @@ export default function RestoOrderPage() {
   const t = restoCopy[locale === "en" ? "en" : "ar"];
   const [order, setOrder] = useState<RestoOrderPayload | null>(null);
   const [menu, setMenu] = useState<MenuItem[]>([]);
+  const [stations, setStations] = useState<Station[]>([]);
+  const [stationId, setStationId] = useState("");
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -55,6 +63,17 @@ export default function RestoOrderPage() {
   useEffect(() => {
     if (!showMenu) return;
     let cancelled = false;
+    void api
+      .getRestoStations()
+      .then((res) => {
+        if (cancelled) return;
+        const list = res.data.stations || [];
+        setStations(list);
+        setStationId((prev) => prev || list[0]?.id || "");
+      })
+      .catch(() => {
+        if (!cancelled) setStations([]);
+      });
     const timer = window.setTimeout(() => {
       void (async () => {
         try {
@@ -89,7 +108,11 @@ export default function RestoOrderPage() {
   const addProduct = async (productId: string) => {
     setBusy(true);
     try {
-      const res = await api.addRestoOrderItem(orderId, { productId, qty: 1 });
+      const res = await api.addRestoOrderItem(orderId, {
+        productId,
+        qty: 1,
+        stationId: stationId || undefined,
+      });
       setOrder(res.data);
     } catch (err) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response
@@ -265,6 +288,22 @@ export default function RestoOrderPage() {
 
       {showMenu && !closed ? (
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 space-y-3">
+          {stations.length > 0 ? (
+            <label className="block space-y-1">
+              <span className="text-[11px] text-stone-400">{t.toStation}</span>
+              <select
+                value={stationId}
+                onChange={(e) => setStationId(e.target.value)}
+                className="w-full h-10 rounded-xl bg-[#1a1614] border border-white/10 px-3 text-sm"
+              >
+                {stations.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {locale === "en" && s.nameEn ? s.nameEn : s.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}

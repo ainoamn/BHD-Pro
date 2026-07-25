@@ -55,7 +55,7 @@ export default function RestoSettingsPage() {
       });
       setName("");
       setNameEn("");
-      toast.success(locale === "en" ? "Station added" : "أُضيفت المحطة");
+      toast.success(t.stationAdded);
       await loadStations();
     } catch {
       toast.error(t.actionFail);

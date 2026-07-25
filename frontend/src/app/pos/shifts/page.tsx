@@ -611,7 +611,18 @@ export default function PosShiftsPage() {
                   !(Number(cashAmount) > 0) ||
                   (cashType === "OUT" && !cashReason.trim())
                 }
-                onClick={() => cashMut.mutate(undefined)}
+                onClick={() => {
+                  const amt = Number(cashAmount);
+                  if (
+                    cashType === "OUT" &&
+                    amt >= cashOutLimit &&
+                    cashOutLimit >= 0
+                  ) {
+                    setCashApprovalOpen(true);
+                    return;
+                  }
+                  cashMut.mutate(undefined);
+                }}
                 className="h-10 px-4 rounded-lg bg-sky-500/90 text-white text-sm font-semibold disabled:opacity-50"
               >
                 {cashMut.isPending ? "…" : cashType === "IN" ? t.cashIn : t.cashOut}
