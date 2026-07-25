@@ -938,6 +938,57 @@ export class PosService {
       });
     }
 
+    let loyaltyRedeemPoints = 0;
+    let loyaltyRedeemValue = 0;
+    const requestedRedeem = Number(dto.loyaltyPointsToRedeem || 0);
+    if (requestedRedeem > 0.0005) {
+      if (contact.name === WALK_IN_NAME) {
+        throw new BadRequestException('Loyalty redeem requires a customer');
+      }
+      const incentivesCfg = await this.incentives.getConfig(companyId);
+      if (
+        !incentivesCfg.customerEnabled ||
+        !incentivesCfg.redeemEnabled ||
+        !(incentivesCfg.redeemPointsPerUnit! > 0)
+      ) {
+        throw new BadRequestException('Loyalty redeem is not enabled');
+      }
+      const bal = await this.prisma.contact.findFirst({
+        where: { id: contact.id, companyId },
+        select: { loyaltyPoints: true },
+      });
+      const available = Number(bal?.loyaltyPoints || 0);
+      loyaltyRedeemPoints = Math.min(requestedRedeem, available);
+      if (!(loyaltyRedeemPoints > 0.0005)) {
+        throw new BadRequestException('Insufficient loyalty points');
+      }
+      loyaltyRedeemValue = Number(
+        (loyaltyRedeemPoints * incentivesCfg.redeemPointsPerUnit!).toFixed(3),
+      );
+      // Apply as merchandise discounts (skip tip line)
+      let remaining = loyaltyRedeemValue;
+      for (const item of lineItems) {
+        if (!item.productId || remaining <= 0.0005) continue;
+        const lineNet = item.unitPrice * item.quantity - (item.discount || 0);
+        if (lineNet <= 0.0005) continue;
+        const take = Math.min(remaining, lineNet);
+        item.discount = Number(((item.discount || 0) + take).toFixed(3));
+        remaining = Number((remaining - take).toFixed(3));
+      }
+      loyaltyRedeemValue = Number(
+        (loyaltyRedeemValue - remaining).toFixed(3),
+      );
+      if (loyaltyRedeemValue <= 0.0005) {
+        loyaltyRedeemPoints = 0;
+        loyaltyRedeemValue = 0;
+      } else if (remaining > 0.0005 && incentivesCfg.redeemPointsPerUnit! > 0) {
+        // Scale points to value actually applied
+        loyaltyRedeemPoints = Number(
+          (loyaltyRedeemValue / incentivesCfg.redeemPointsPerUnit!).toFixed(3),
+        );
+      }
+    }
+
     if (hasPriceOverride) {
       await this.dualControl.assertApproved(
         companyId,
@@ -1025,7 +1076,17 @@ export class PosService {
 
     const reserved: { productId: string; qty: number; warehouseId: string }[] = [];
     let invoiceCreated = false;
+    let loyaltyPointsDebited = false;
     try {
+      if (loyaltyRedeemPoints > 0.0005) {
+        await this.incentives.debitLoyaltyPoints(
+          companyId,
+          contact.id,
+          loyaltyRedeemPoints,
+        );
+        loyaltyPointsDebited = true;
+      }
+
       for (const item of lineItems) {
         if (!item.productId) continue;
         const result = await this.reserveStockOut(
@@ -1231,6 +1292,41 @@ export class PosService {
       }
 
       try {
+        if (loyaltyRedeemPoints > 0.0005) {
+          await this.incentives.recordRedeemLedger(
+            companyId,
+            contact.id,
+            invoice.id,
+            loyaltyRedeemPoints,
+            `Redeem ${loyaltyRedeemValue.toFixed(3)}`,
+          );
+          try {
+            const existingFields =
+              ((invoice as { customFieldsJson?: Record<string, unknown> })
+                .customFieldsJson || {}) as Record<string, unknown>;
+            await this.prisma.invoice.update({
+              where: { id: invoice.id },
+              data: {
+                customFieldsJson: {
+                  ...existingFields,
+                  loyaltyRedeemPoints,
+                  loyaltyRedeemValue,
+                },
+              },
+            });
+          } catch {
+            /* non-fatal */
+          }
+        }
+      } catch (err) {
+        throw err instanceof BadRequestException
+          ? err
+          : new BadRequestException(
+              err instanceof Error ? err.message : 'Loyalty redeem failed',
+            );
+      }
+
+      try {
         await this.incentives.accrueOnSale(
           companyId,
           userId,
@@ -1243,6 +1339,17 @@ export class PosService {
 
       return invoice;
     } catch (err) {
+      if (loyaltyPointsDebited && !invoiceCreated) {
+        try {
+          await this.incentives.restoreLoyaltyPoints(
+            companyId,
+            contact.id,
+            loyaltyRedeemPoints,
+          );
+        } catch {
+          /* best effort */
+        }
+      }
       if (!invoiceCreated) {
         for (const row of reserved.reverse()) {
           try {

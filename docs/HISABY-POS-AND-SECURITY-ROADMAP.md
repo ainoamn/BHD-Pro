@@ -108,6 +108,12 @@ Public flags: `asyncApprovals: true`, `nfcBadgesConfigured`, `shiftVarianceLimit
 - Variable-measure EAN-13 weight PLU (prefix `2`)
 - Doc: [`UPGRADE-POS-WAVE7-2026-07.md`](./UPGRADE-POS-WAVE7-2026-07.md)
 
+### Done (Wave 8 — Loyalty redeem & tender)
+- Loyalty points redeem at checkout (atomic debit + `REDEEM` ledger)
+- Split tender: Cash + Card + Bank + Store credit
+- Custom POS receipt footer (browser + ESC/POS)
+- Doc: [`UPGRADE-POS-WAVE8-2026-07.md`](./UPGRADE-POS-WAVE8-2026-07.md)
+
 - [x] Full catalog sync API `GET /pos/catalog/sync` + offline IDB per warehouse
 - [x] Broader refunds + store-credit MVP (hardened debit / void restore / UI)
 - [x] Cash change due + receipt number lookup for refunds

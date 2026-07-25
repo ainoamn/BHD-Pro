@@ -150,6 +150,10 @@ export default function PosCheckoutPage() {
   const [customerPurchasesLoading, setCustomerPurchasesLoading] = useState(false);
   const [customerLoyaltyPoints, setCustomerLoyaltyPoints] = useState<number | null>(null);
   const [loyaltyEnabled, setLoyaltyEnabled] = useState(false);
+  const [redeemEnabled, setRedeemEnabled] = useState(false);
+  const [redeemRate, setRedeemRate] = useState(0);
+  const [redeemPointsInput, setRedeemPointsInput] = useState("");
+  const [receiptFooter, setReceiptFooter] = useState("");
   const [voidTarget, setVoidTarget] = useState<RecentCashSale | null>(null);
   const [voidBusy, setVoidBusy] = useState(false);
   const [refundTarget, setRefundTarget] = useState<RecentCashSale | null>(null);
@@ -196,6 +200,8 @@ export default function PosCheckoutPage() {
   const [splitOpen, setSplitOpen] = useState(false);
   const [splitCashAmt, setSplitCashAmt] = useState("");
   const [splitCardAmt, setSplitCardAmt] = useState("");
+  const [splitBankAmt, setSplitBankAmt] = useState("");
+  const [splitCreditAmt, setSplitCreditAmt] = useState("");
 
   const currency = company?.currency || "OMR";
   const companyId = company?.id;
@@ -432,6 +438,8 @@ export default function PosCheckoutPage() {
       setCustomerPurchasesLoading(false);
       setCustomerLoyaltyPoints(null);
       setLoyaltyEnabled(false);
+      setRedeemEnabled(false);
+      setRedeemPointsInput("");
       return;
     }
     let cancelled = false;
@@ -451,9 +459,14 @@ export default function PosCheckoutPage() {
         const pts = await api.getPosCustomerPoints(contactId);
         if (!cancelled) {
           setLoyaltyEnabled(!!pts.data.customerEnabled);
+          setRedeemEnabled(!!pts.data.redeemEnabled);
+          setRedeemRate(Number(pts.data.redeemPointsPerUnit) || 0);
           setCustomerLoyaltyPoints(
             pts.data.customerEnabled ? Number(pts.data.points) : null,
           );
+          if (pts.data.receiptFooter) {
+            setReceiptFooter(String(pts.data.receiptFooter));
+          }
         }
       } catch {
         if (!cancelled) {
@@ -542,6 +555,12 @@ export default function PosCheckoutPage() {
     }
     if (companyId) {
       void loadParkedCarts();
+      void api
+        .getPosIncentivesConfig()
+        .then((res) => {
+          setReceiptFooter(String(res.data.receiptFooter || ""));
+        })
+        .catch(() => undefined);
     } else {
       setParkedCarts([]);
     }
@@ -652,6 +671,7 @@ export default function PosCheckoutPage() {
       setCartNotes("");
       setTipAmount(0);
       setTipCustom("");
+      setRedeemPointsInput("");
       setSplitOpen(false);
       await loadParkedCarts();
       toast.success(t.parkOk);
@@ -933,6 +953,7 @@ export default function PosCheckoutPage() {
       setCartNotes("");
       setTipAmount(0);
       setTipCustom("");
+      setRedeemPointsInput("");
       setSplitOpen(false);
       focusScan();
     }
@@ -957,10 +978,30 @@ export default function PosCheckoutPage() {
     () => Math.max(0, Number(Number(tipAmount || 0).toFixed(3))),
     [tipAmount],
   );
-  const total = useMemo(
-    () => Number((merchandiseTotal + tipValue).toFixed(3)),
-    [merchandiseTotal, tipValue],
-  );
+  const redeemPointsValue = useMemo(() => {
+    if (!redeemEnabled || !contactId || !(redeemRate > 0)) return 0;
+    const pts = Math.max(0, parseFloat(redeemPointsInput) || 0);
+    const maxPts = customerLoyaltyPoints != null ? customerLoyaltyPoints : 0;
+    const usePts = Math.min(pts, maxPts);
+    const raw = Number((usePts * redeemRate).toFixed(3));
+    // Cap at merchandise (before tip)
+    return Math.min(raw, merchandiseTotal);
+  }, [
+    redeemEnabled,
+    contactId,
+    redeemRate,
+    redeemPointsInput,
+    customerLoyaltyPoints,
+    merchandiseTotal,
+  ]);
+  const redeemPointsToSend = useMemo(() => {
+    if (!(redeemPointsValue > 0.0005) || !(redeemRate > 0)) return 0;
+    return Number((redeemPointsValue / redeemRate).toFixed(3));
+  }, [redeemPointsValue, redeemRate]);
+  const total = useMemo(() => {
+    const merch = Math.max(0, merchandiseTotal - redeemPointsValue);
+    return Number((merch + tipValue).toFixed(3));
+  }, [merchandiseTotal, redeemPointsValue, tipValue]);
 
   const applyTipPercent = (pct: number) => {
     const next = Number(((merchandiseTotal * pct) / 100).toFixed(3));
@@ -974,6 +1015,8 @@ export default function PosCheckoutPage() {
     const rest = Number((total - half).toFixed(3));
     setSplitCashAmt(String(half));
     setSplitCardAmt(String(rest));
+    setSplitBankAmt("0");
+    setSplitCreditAmt("0");
     setSplitOpen(true);
   };
 
@@ -1006,6 +1049,7 @@ export default function PosCheckoutPage() {
         currency,
         lines: receiptLines,
         locale: locale === "en" ? "en" : "ar",
+        footerNote: receiptFooter || t.brand,
         labels: {
           vat: locale === "en" ? "VAT" : "الرقم الضريبي",
           cr: locale === "en" ? "CR" : "السجل التجاري",
@@ -1036,6 +1080,7 @@ export default function PosCheckoutPage() {
         total: receipt.total || 0,
         currency,
         lines: receiptLines,
+        footerNote: receiptFooter || t.brand,
       };
       try {
         const { tryPrintEscPosSmart, getPreferThermalPrinter } = await import("@/lib/pos-escpos");
@@ -1061,10 +1106,11 @@ export default function PosCheckoutPage() {
       company?.logo,
       currency,
       locale,
+      receiptFooter,
       t.brand,
+      t.warehouse,
       t.payment,
       t.total,
-      t.warehouse,
     ],
   );
 
@@ -1451,6 +1497,8 @@ export default function PosCheckoutPage() {
         : undefined,
       tipAmount: tipValue > 0.0005 ? tipValue : undefined,
       useStoreCredit: useStoreCredit || undefined,
+      loyaltyPointsToRedeem:
+        redeemPointsToSend > 0.0005 ? redeemPointsToSend : undefined,
       notes: saleNotes,
       warehouseId: warehouseId || undefined,
       contactId: contactId || undefined,
@@ -1567,6 +1615,7 @@ export default function PosCheckoutPage() {
       setCartNotes("");
       setTipAmount(0);
       setTipCustom("");
+      setRedeemPointsInput("");
       setSplitOpen(false);
       setPendingCheckout(null);
       toast.success(isPartner ? t.partnerPayPending : t.saleOk);
@@ -1656,7 +1705,9 @@ export default function PosCheckoutPage() {
   const completeSplitCheckout = async () => {
     const cash = Math.max(0, parseFloat(splitCashAmt) || 0);
     const card = Math.max(0, parseFloat(splitCardAmt) || 0);
-    const sum = Number((cash + card).toFixed(3));
+    const bank = Math.max(0, parseFloat(splitBankAmt) || 0);
+    const credit = Math.max(0, parseFloat(splitCreditAmt) || 0);
+    const sum = Number((cash + card + bank + credit).toFixed(3));
     if (Math.abs(sum - total) > 0.005) {
       toast.error(t.splitSumMismatch);
       return;
@@ -1665,6 +1716,10 @@ export default function PosCheckoutPage() {
     if (cash > 0.0005) payments.push({ method: "CASH", amount: Number(cash.toFixed(3)) });
     if (card > 0.0005)
       payments.push({ method: "CREDIT_CARD", amount: Number(card.toFixed(3)) });
+    if (bank > 0.0005)
+      payments.push({ method: "BANK_TRANSFER", amount: Number(bank.toFixed(3)) });
+    if (credit > 0.0005)
+      payments.push({ method: "STORE_CREDIT", amount: Number(credit.toFixed(3)) });
     if (!payments.length) {
       toast.error(t.splitSumMismatch);
       return;
@@ -2408,6 +2463,45 @@ export default function PosCheckoutPage() {
                 </div>
               ) : null}
             </div>
+            {contactId && redeemEnabled && customerLoyaltyPoints != null ? (
+              <div className="rounded-xl border border-violet-500/25 bg-violet-500/5 p-3 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-semibold text-violet-200">
+                    {t.redeemPoints}
+                  </p>
+                  <p className="text-[10px] text-slate-400">
+                    {t.points}: {customerLoyaltyPoints}
+                  </p>
+                </div>
+                <p className="text-[10px] text-slate-500">{t.redeemPointsHint}</p>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    max={customerLoyaltyPoints}
+                    value={redeemPointsInput}
+                    onChange={(e) => setRedeemPointsInput(e.target.value)}
+                    className="flex-1 h-9 px-2 rounded-md bg-black/30 border border-white/10 text-sm text-end text-white"
+                  />
+                  <button
+                    type="button"
+                    className="h-9 px-2 rounded-md text-[10px] font-semibold border border-white/10 text-slate-300"
+                    onClick={() =>
+                      setRedeemPointsInput(String(customerLoyaltyPoints || 0))
+                    }
+                  >
+                    {t.redeemMax}
+                  </button>
+                </div>
+                {redeemPointsValue > 0.0005 ? (
+                  <div className="flex justify-between text-xs text-violet-200">
+                    <span>{t.redeemValue}</span>
+                    <span>{formatMoney(redeemPointsValue, currency)}</span>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
             <div className="flex justify-between text-lg font-extrabold text-white pt-1">
               <span>{t.total}</span>
               <span>{formatMoney(total, currency)}</span>
@@ -2433,13 +2527,7 @@ export default function PosCheckoutPage() {
                     min={0}
                     step={0.001}
                     value={splitCashAmt}
-                    onChange={(e) => {
-                      const cash = Math.max(0, parseFloat(e.target.value) || 0);
-                      setSplitCashAmt(e.target.value);
-                      setSplitCardAmt(
-                        String(Number(Math.max(0, total - cash).toFixed(3))),
-                      );
-                    }}
+                    onChange={(e) => setSplitCashAmt(e.target.value)}
                     className="w-full h-9 px-2 rounded-md bg-black/30 border border-white/10 text-sm text-end text-white"
                   />
                 </label>
@@ -2450,13 +2538,29 @@ export default function PosCheckoutPage() {
                     min={0}
                     step={0.001}
                     value={splitCardAmt}
-                    onChange={(e) => {
-                      const card = Math.max(0, parseFloat(e.target.value) || 0);
-                      setSplitCardAmt(e.target.value);
-                      setSplitCashAmt(
-                        String(Number(Math.max(0, total - card).toFixed(3))),
-                      );
-                    }}
+                    onChange={(e) => setSplitCardAmt(e.target.value)}
+                    className="w-full h-9 px-2 rounded-md bg-black/30 border border-white/10 text-sm text-end text-white"
+                  />
+                </label>
+                <label className="text-[11px] text-slate-400 space-y-1">
+                  <span>{t.splitBank}</span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={0.001}
+                    value={splitBankAmt}
+                    onChange={(e) => setSplitBankAmt(e.target.value)}
+                    className="w-full h-9 px-2 rounded-md bg-black/30 border border-white/10 text-sm text-end text-white"
+                  />
+                </label>
+                <label className="text-[11px] text-slate-400 space-y-1">
+                  <span>{t.splitCredit}</span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={0.001}
+                    value={splitCreditAmt}
+                    onChange={(e) => setSplitCreditAmt(e.target.value)}
                     className="w-full h-9 px-2 rounded-md bg-black/30 border border-white/10 text-sm text-end text-white"
                   />
                 </label>

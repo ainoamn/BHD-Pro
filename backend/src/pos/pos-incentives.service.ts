@@ -18,6 +18,11 @@ export type IncentivesConfig = {
   cashierBonusTiers?: { minSales: number; bonusAmount: number }[];
   customerEnabled?: boolean;
   customerPointsPerUnit?: number;
+  /** OMR (or company currency) value of 1 loyalty point when redeeming */
+  redeemPointsPerUnit?: number;
+  redeemEnabled?: boolean;
+  /** Custom POS receipt footer line */
+  receiptFooter?: string;
 };
 
 @Injectable()
@@ -60,6 +65,15 @@ export class PosIncentivesService {
         c.customerPointsPerUnit >= 0
           ? Number(c.customerPointsPerUnit)
           : 0,
+      redeemEnabled: c.redeemEnabled === true,
+      redeemPointsPerUnit:
+        typeof c.redeemPointsPerUnit === 'number' && c.redeemPointsPerUnit >= 0
+          ? Number(c.redeemPointsPerUnit)
+          : 0,
+      receiptFooter:
+        typeof c.receiptFooter === 'string'
+          ? c.receiptFooter.trim().slice(0, 200)
+          : '',
     };
   }
 
@@ -91,6 +105,18 @@ export class PosIncentivesService {
         dto.customerPointsPerUnit !== undefined
           ? Math.max(0, Number(dto.customerPointsPerUnit))
           : current.customerPointsPerUnit,
+      redeemEnabled:
+        dto.redeemEnabled !== undefined
+          ? !!dto.redeemEnabled
+          : current.redeemEnabled,
+      redeemPointsPerUnit:
+        dto.redeemPointsPerUnit !== undefined
+          ? Math.max(0, Number(dto.redeemPointsPerUnit))
+          : current.redeemPointsPerUnit,
+      receiptFooter:
+        dto.receiptFooter !== undefined
+          ? String(dto.receiptFooter || '').trim().slice(0, 200)
+          : current.receiptFooter,
       cashierBonusTiers:
         dto.cashierBonusTiers !== undefined
           ? this.normalizeConfig({ cashierBonusTiers: dto.cashierBonusTiers })
@@ -201,6 +227,96 @@ export class PosIncentivesService {
     }
   }
 
+  /**
+   * Atomic debit of loyalty points (no ledger yet). Pair with recordRedeemLedger.
+   */
+  async debitLoyaltyPoints(
+    companyId: string,
+    contactId: string,
+    points: number,
+  ) {
+    const pts = Number(points);
+    if (!(pts > 0)) return;
+    const config = await this.getConfig(companyId);
+    if (!config.customerEnabled || !config.redeemEnabled) {
+      throw new BadRequestException('Loyalty redeem is not enabled');
+    }
+    const updated = await this.prisma.contact.updateMany({
+      where: {
+        id: contactId,
+        companyId,
+        loyaltyPoints: { gte: pts },
+      },
+      data: { loyaltyPoints: { decrement: pts } },
+    });
+    if (updated.count === 0) {
+      throw new BadRequestException('Insufficient loyalty points');
+    }
+  }
+
+  async restoreLoyaltyPoints(
+    companyId: string,
+    contactId: string,
+    points: number,
+  ) {
+    const pts = Number(points);
+    if (!(pts > 0)) return;
+    await this.prisma.contact.updateMany({
+      where: { id: contactId, companyId },
+      data: { loyaltyPoints: { increment: pts } },
+    });
+  }
+
+  async recordRedeemLedger(
+    companyId: string,
+    contactId: string,
+    invoiceId: string,
+    points: number,
+    note?: string,
+  ) {
+    const pts = Number(points);
+    if (!(pts > 0)) return;
+    const existing = await this.prisma.loyaltyPointsLedger.findFirst({
+      where: { companyId, contactId, invoiceId, type: 'REDEEM' },
+      select: { id: true },
+    });
+    if (existing) return;
+    await this.prisma.loyaltyPointsLedger.create({
+      data: {
+        companyId,
+        contactId,
+        invoiceId,
+        type: 'REDEEM',
+        points: -pts,
+        note: note || 'POS loyalty redeem',
+      },
+    });
+  }
+
+  /** @deprecated use debit + recordRedeemLedger */
+  async redeemOnSale(
+    companyId: string,
+    contactId: string,
+    invoiceId: string,
+    points: number,
+    note?: string,
+  ) {
+    await this.debitLoyaltyPoints(companyId, contactId, points);
+    try {
+      await this.recordRedeemLedger(
+        companyId,
+        contactId,
+        invoiceId,
+        points,
+        note,
+      );
+    } catch (err) {
+      await this.restoreLoyaltyPoints(companyId, contactId, points);
+      throw err;
+    }
+    return { points };
+  }
+
   /** Best-effort reverse of commission + loyalty for a voided invoice. */
   async reverseOnVoid(
     companyId: string,
@@ -251,7 +367,7 @@ export class PosIncentivesService {
             companyId,
             invoiceId,
             type: 'ADJUST',
-            note: { contains: 'void reverse' },
+            note: { contains: 'void reverse points' },
           },
           select: { id: true },
         });
@@ -271,6 +387,40 @@ export class PosIncentivesService {
             this.prisma.contact.update({
               where: { id: pointsEarn.contactId },
               data: { loyaltyPoints: { decrement: pts } },
+            }),
+          ]);
+        }
+      }
+
+      const pointsRedeem = await this.prisma.loyaltyPointsLedger.findFirst({
+        where: { companyId, invoiceId, type: 'REDEEM' },
+      });
+      if (pointsRedeem) {
+        const already = await this.prisma.loyaltyPointsLedger.findFirst({
+          where: {
+            companyId,
+            invoiceId,
+            type: 'ADJUST',
+            note: { contains: 'void reverse redeem' },
+          },
+          select: { id: true },
+        });
+        if (!already) {
+          const pts = Math.abs(Number(pointsRedeem.points));
+          await this.prisma.$transaction([
+            this.prisma.loyaltyPointsLedger.create({
+              data: {
+                companyId,
+                contactId: pointsRedeem.contactId,
+                invoiceId,
+                type: 'ADJUST',
+                points: pts,
+                note: 'POS void reverse redeem',
+              },
+            }),
+            this.prisma.contact.update({
+              where: { id: pointsRedeem.contactId },
+              data: { loyaltyPoints: { increment: pts } },
             }),
           ]);
         }
@@ -497,6 +647,9 @@ export class PosIncentivesService {
       points: Number(contact.loyaltyPoints),
       customerEnabled: !!config.customerEnabled,
       pointsPerUnit: config.customerPointsPerUnit || 0,
+      redeemEnabled: !!config.redeemEnabled && !!config.customerEnabled,
+      redeemPointsPerUnit: config.redeemPointsPerUnit || 0,
+      receiptFooter: config.receiptFooter || '',
     };
   }
 }

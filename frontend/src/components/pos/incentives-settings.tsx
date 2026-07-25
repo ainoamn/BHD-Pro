@@ -16,6 +16,9 @@ export function IncentivesSettings() {
   const [cashierPercent, setCashierPercent] = useState("0");
   const [customerEnabled, setCustomerEnabled] = useState(false);
   const [pointsPerUnit, setPointsPerUnit] = useState("0");
+  const [redeemEnabled, setRedeemEnabled] = useState(false);
+  const [redeemRate, setRedeemRate] = useState("0");
+  const [receiptFooter, setReceiptFooter] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -29,6 +32,9 @@ export function IncentivesSettings() {
         setCashierPercent(String(res.data.cashierPercent ?? 0));
         setCustomerEnabled(!!res.data.customerEnabled);
         setPointsPerUnit(String(res.data.customerPointsPerUnit ?? 0));
+        setRedeemEnabled(!!res.data.redeemEnabled);
+        setRedeemRate(String(res.data.redeemPointsPerUnit ?? 0));
+        setReceiptFooter(String(res.data.receiptFooter ?? ""));
       } catch {
         /* ignore */
       } finally {
@@ -49,6 +55,9 @@ export function IncentivesSettings() {
         cashierPercent: Number(cashierPercent) || 0,
         customerEnabled,
         customerPointsPerUnit: Number(pointsPerUnit) || 0,
+        redeemEnabled,
+        redeemPointsPerUnit: Number(redeemRate) || 0,
+        receiptFooter: receiptFooter.trim(),
       });
       toast.success(t.incentivesSaved);
     } catch (err) {
@@ -85,13 +94,12 @@ export function IncentivesSettings() {
           onChange={(e) => setCashierEnabled(e.target.checked)}
         />
       </label>
-
       <label className="flex items-center justify-between gap-3 text-sm text-slate-200">
         <span>{t.cashierPercent}</span>
         <input
           type="number"
           min={0}
-          step="0.01"
+          step={0.01}
           disabled={!isAdmin || !cashierEnabled}
           value={cashierPercent}
           onChange={(e) => setCashierPercent(e.target.value)}
@@ -108,17 +116,51 @@ export function IncentivesSettings() {
           onChange={(e) => setCustomerEnabled(e.target.checked)}
         />
       </label>
-
       <label className="flex items-center justify-between gap-3 text-sm text-slate-200">
         <span>{t.pointsPerUnit}</span>
         <input
           type="number"
           min={0}
-          step="0.01"
+          step={0.001}
           disabled={!isAdmin || !customerEnabled}
           value={pointsPerUnit}
           onChange={(e) => setPointsPerUnit(e.target.value)}
           className="w-24 h-8 rounded-lg border border-white/10 bg-black/30 px-2 text-end text-sm text-white disabled:opacity-50"
+        />
+      </label>
+
+      <label className="flex items-center justify-between gap-3 text-sm text-slate-200">
+        <span>{t.redeemEnabled}</span>
+        <input
+          type="checkbox"
+          checked={redeemEnabled}
+          disabled={!isAdmin || !customerEnabled}
+          onChange={(e) => setRedeemEnabled(e.target.checked)}
+        />
+      </label>
+      <label className="flex items-center justify-between gap-3 text-sm text-slate-200">
+        <span>{t.redeemRate}</span>
+        <input
+          type="number"
+          min={0}
+          step={0.001}
+          disabled={!isAdmin || !redeemEnabled}
+          value={redeemRate}
+          onChange={(e) => setRedeemRate(e.target.value)}
+          className="w-24 h-8 rounded-lg border border-white/10 bg-black/30 px-2 text-end text-sm text-white disabled:opacity-50"
+        />
+      </label>
+
+      <label className="block space-y-1 text-sm text-slate-200">
+        <span>{t.receiptFooter}</span>
+        <input
+          type="text"
+          maxLength={200}
+          disabled={!isAdmin}
+          value={receiptFooter}
+          onChange={(e) => setReceiptFooter(e.target.value)}
+          placeholder={t.receiptFooterHint}
+          className="w-full h-9 rounded-lg border border-white/10 bg-black/30 px-3 text-sm text-white disabled:opacity-50"
         />
       </label>
 

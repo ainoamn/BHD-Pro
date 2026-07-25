@@ -37,6 +37,7 @@ export type PosReceiptPrintData = {
   currency: string;
   lines: PosReceiptLine[];
   locale?: "ar" | "en";
+  footerNote?: string;
   labels: {
     vat: string;
     cr: string;
@@ -173,7 +174,7 @@ export function buildPosReceiptHtml(data: PosReceiptPrintData): string {
     <hr/>
     <p class="total">${escapeHtml(L.total)}: ${escapeHtml(formatMoney(data.total || 0, data.currency))}</p>
     <hr/>
-    <p class="footer">Hisaby POS · ${escapeHtml(L.barcode)}</p>
+    <p class="footer">${escapeHtml(data.footerNote || data.brand || "Hisaby POS")} · ${escapeHtml(L.barcode)}</p>
   </div>
   <script>
     window.addEventListener("load", function () {

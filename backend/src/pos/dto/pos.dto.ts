@@ -113,6 +113,13 @@ export class CreatePosSaleDto {
   @IsBoolean()
   useStoreCredit?: boolean;
 
+  /** Loyalty points to redeem as cart discount (requires customer + redeemEnabled) */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  loyaltyPointsToRedeem?: number;
+
   /**
    * Client-generated UUID for offline queue idempotency.
    * Re-submitting the same id returns the existing POS invoice instead of duplicating.
@@ -358,6 +365,21 @@ export class UpdateIncentivesConfigDto {
   @IsNumber()
   @Min(0)
   customerPointsPerUnit?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  redeemEnabled?: boolean;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  redeemPointsPerUnit?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  receiptFooter?: string;
 
   @IsOptional()
   @IsArray()

@@ -21,6 +21,7 @@ export type EscPosReceipt = {
   total: number;
   currency: string;
   lines: EscPosReceiptLine[];
+  footerNote?: string;
 };
 
 const PREFER_THERMAL_KEY = "hisaby-pos-prefer-thermal";
@@ -114,7 +115,7 @@ export function buildEscPosReceipt(r: EscPosReceipt): Uint8Array {
     if (bc) parts.push(line(`  BC: ${bc.slice(0, 28)}`));
   }
   parts.push(line("--------------------------------"), BOLD_ON, line(`${r.totalLabel}: ${r.total.toFixed(3)} ${r.currency}`), BOLD_OFF);
-  parts.push(CENTER, line("Hisaby POS"), line(""), line(""), CUT);
+  parts.push(CENTER, line(r.footerNote || r.brand || "Hisaby POS"), line(""), line(""), CUT);
   return concat(...parts);
 }
 
