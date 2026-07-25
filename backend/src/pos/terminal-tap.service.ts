@@ -1,20 +1,22 @@
-import {
+﻿import {
   BadRequestException,
   Injectable,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { InvoiceStatus, PaymentGatewaySlug } from '@prisma/client';
+import {
+  InvoiceStatus,
+  PaymentGatewaySlug,
+  PaymentMethod,
+  PaymentStatus,
+} from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentsService } from '../payments/payments.service';
 import { CompanyGatewaysService } from '../payments/company-gateways.service';
+import { InvoicesService } from '../invoices/invoices.service';
 
 export type TerminalTapMode = 'mock' | 'hosted' | 'softpos';
 
-/**
- * SoftPOS / partner terminal tap-to-pay sessions.
- * Not NFC badge dual-control — customer card/wallet capture via gateway or mock terminal.
- */
 @Injectable()
 export class TerminalTapService {
   private readonly logger = new Logger(TerminalTapService.name);
@@ -23,6 +25,7 @@ export class TerminalTapService {
     private prisma: PrismaService,
     private payments: PaymentsService,
     private companyGateways: CompanyGatewaysService,
+    private invoices: InvoicesService,
   ) {}
 
   preferredMode(): TerminalTapMode {
@@ -86,12 +89,7 @@ export class TerminalTapService {
       };
       await this.prisma.invoice.update({
         where: { id: invoice.id },
-        data: {
-          customFieldsJson: {
-            ...prev,
-            terminalTap: session,
-          },
-        },
+        data: { customFieldsJson: { ...prev, terminalTap: session } },
       });
       return {
         invoiceId: invoice.id,
@@ -119,16 +117,10 @@ export class TerminalTapService {
       gatewaySlug: slug as any,
       customerEmail: opts.customerEmail,
     });
-
-    const checkoutUrl =
-      (checkout as { checkoutUrl?: string })?.checkoutUrl || null;
-
+    const checkoutUrl = (checkout as { checkoutUrl?: string })?.checkoutUrl || null;
     const softposDeepLink =
       mode === 'softpos' && process.env.POS_SOFTPOS_DEEP_LINK_TEMPLATE
-        ? process.env.POS_SOFTPOS_DEEP_LINK_TEMPLATE.replace(
-            '{invoiceId}',
-            invoice.id,
-          )
+        ? process.env.POS_SOFTPOS_DEEP_LINK_TEMPLATE.replace('{invoiceId}', invoice.id)
             .replace('{amount}', String(due))
             .replace('{sessionId}', sessionId)
         : null;
@@ -150,23 +142,10 @@ export class TerminalTapService {
 
     await this.prisma.invoice.update({
       where: { id: invoice.id },
-      data: {
-        customFieldsJson: {
-          ...prev,
-          terminalTap: session,
-        },
-      },
+      data: { customFieldsJson: { ...prev, terminalTap: session } },
     });
-
-    this.logger.log(
-      `Terminal tap session ${sessionId} mode=${mode} invoice=${invoice.number}`,
-    );
-
-    return {
-      invoiceId: invoice.id,
-      invoiceNumber: invoice.number,
-      ...session,
-    };
+    this.logger.log(`Terminal tap session ${sessionId} mode=${mode} invoice=${invoice.number}`);
+    return { invoiceId: invoice.id, invoiceNumber: invoice.number, ...session };
   }
 
   async getSession(companyId: string, invoiceId: string) {
@@ -189,21 +168,29 @@ export class TerminalTapService {
         ? (invoice.customFieldsJson as Record<string, unknown>)
         : {};
     const tap = (fields.terminalTap || null) as Record<string, unknown> | null;
-    const paid = Number(invoice.paidAmount || 0) + 0.0005 >= Number(invoice.total);
+    const paid =
+      Number(invoice.paidAmount || 0) + 0.0005 >= Number(invoice.total) ||
+      invoice.status === InvoiceStatus.PAID;
     return {
       invoiceId: invoice.id,
       invoiceNumber: invoice.number,
       invoiceStatus: invoice.status,
       paid,
-      session: tap,
+      session: tap ? { ...tap, status: paid ? 'CAPTURED' : tap.status } : null,
     };
   }
 
-  /** Mock-only: mark terminal tap completed (ops/demo). Real gateways settle via webhooks. */
-  async confirmMockTap(companyId: string, invoiceId: string) {
+  async confirmMockTap(companyId: string, invoiceId: string, userId: string) {
     const invoice = await this.prisma.invoice.findFirst({
       where: { id: invoiceId, companyId },
-      select: { id: true, customFieldsJson: true, notes: true },
+      select: {
+        id: true,
+        customFieldsJson: true,
+        notes: true,
+        total: true,
+        paidAmount: true,
+        status: true,
+      },
     });
     if (!invoice) throw new NotFoundException('Invoice not found');
     const fields =
@@ -216,20 +203,40 @@ export class TerminalTapService {
     if (!tap || tap.mode !== 'mock') {
       throw new BadRequestException('Only mock terminal sessions can be confirmed here');
     }
+
+    const due = Number((Number(invoice.total) - Number(invoice.paidAmount || 0)).toFixed(3));
+    if (due > 0.0005) {
+      const today = new Date().toISOString().slice(0, 10);
+      await this.invoices.recordPayment(companyId, userId, invoice.id, {
+        method: PaymentMethod.ONLINE,
+        amount: due,
+        date: today,
+        notes: 'Terminal tap mock capture',
+        reference: String(tap.sessionId || 'mock-tap'),
+      });
+    }
+
+    const refreshed = await this.prisma.invoice.findUnique({
+      where: { id: invoice.id },
+      select: { customFieldsJson: true, notes: true },
+    });
+    const nextFields =
+      refreshed?.customFieldsJson &&
+      typeof refreshed.customFieldsJson === 'object' &&
+      !Array.isArray(refreshed.customFieldsJson)
+        ? (refreshed.customFieldsJson as Record<string, unknown>)
+        : fields;
+
     await this.prisma.invoice.update({
       where: { id: invoice.id },
       data: {
         customFieldsJson: {
-          ...fields,
-          terminalTap: {
-            ...tap,
-            status: 'CAPTURED',
-            capturedAt: new Date().toISOString(),
-          },
+          ...nextFields,
+          terminalTap: { ...tap, status: 'CAPTURED', capturedAt: new Date().toISOString() },
         },
-        notes: `${invoice.notes || ''}\n[TERMINAL_TAP_MOCK_CAPTURED]`.trim(),
+        notes: `${refreshed?.notes || invoice.notes || ''}\n[TERMINAL_TAP_MOCK_CAPTURED]`.trim(),
       },
     });
-    return { ok: true, status: 'CAPTURED' };
+    return { ok: true, status: 'CAPTURED', paid: true, paymentStatus: PaymentStatus.PAID };
   }
 }

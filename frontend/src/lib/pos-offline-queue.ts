@@ -1,8 +1,9 @@
-/** IndexedDB queue for POS sales created while offline. */
+/** IndexedDB queue for POS sales + deferred void/refund ops while offline. */
 
 const DB_NAME = "hisaby-pos-offline";
 const STORE = "pending-sales";
-const DB_VERSION = 1;
+const OPS_STORE = "pending-ops";
+const DB_VERSION = 2;
 
 export type PendingPosSale = {
   id: string;
@@ -14,7 +15,6 @@ export type PendingPosSale = {
     contactId?: string;
     tipAmount?: number;
     notes?: string;
-    /** Idempotency key — same as queue row id */
     clientSaleId?: string;
   };
   receipt: {
@@ -26,6 +26,15 @@ export type PendingPosSale = {
   };
 };
 
+export type PendingPosOp = {
+  id: string;
+  createdAt: string;
+  kind: "void" | "refund";
+  invoiceId: string;
+  /** Skip local OFF-* invoices — only server-known UUIDs */
+  payload: Record<string, unknown>;
+};
+
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
@@ -33,6 +42,9 @@ function openDb(): Promise<IDBDatabase> {
       const db = req.result;
       if (!db.objectStoreNames.contains(STORE)) {
         db.createObjectStore(STORE, { keyPath: "id" });
+      }
+      if (!db.objectStoreNames.contains(OPS_STORE)) {
+        db.createObjectStore(OPS_STORE, { keyPath: "id" });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -77,4 +89,51 @@ export async function removePendingSale(id: string): Promise<void> {
 export async function pendingSalesCount(): Promise<number> {
   const rows = await listPendingSales();
   return rows.length;
+}
+
+export async function enqueuePendingOp(op: PendingPosOp): Promise<void> {
+  if (op.invoiceId.startsWith("OFF-")) {
+    throw new Error("Offline-local invoices cannot queue void/refund");
+  }
+  const db = await openDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(OPS_STORE, "readwrite");
+    tx.objectStore(OPS_STORE).put(op);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+  db.close();
+}
+
+export async function listPendingOps(): Promise<PendingPosOp[]> {
+  const db = await openDb();
+  const rows = await new Promise<PendingPosOp[]>((resolve, reject) => {
+    const tx = db.transaction(OPS_STORE, "readonly");
+    const req = tx.objectStore(OPS_STORE).getAll();
+    req.onsuccess = () => resolve((req.result as PendingPosOp[]) || []);
+    req.onerror = () => reject(req.error);
+  });
+  db.close();
+  return rows.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+export async function removePendingOp(id: string): Promise<void> {
+  const db = await openDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(OPS_STORE, "readwrite");
+    tx.objectStore(OPS_STORE).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+  db.close();
+}
+
+export async function pendingOpsCount(): Promise<number> {
+  const rows = await listPendingOps();
+  return rows.length;
+}
+
+export async function pendingAllCount(): Promise<number> {
+  const [a, b] = await Promise.all([pendingSalesCount(), pendingOpsCount()]);
+  return a + b;
 }

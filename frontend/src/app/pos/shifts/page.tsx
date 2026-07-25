@@ -214,6 +214,7 @@ export default function PosShiftsPage() {
     shiftId: string;
     summary: string;
     findings: { severity: string; message: string }[];
+    llmNote?: string | null;
   } | null>(null);
 
   useEffect(() => {
@@ -398,7 +399,12 @@ export default function PosShiftsPage() {
         message: locale === "en" ? f.messageEn : f.messageAr,
       }));
       const summary = locale === "en" ? body.summaryEn : body.summaryAr;
-      setAiFindings({ shiftId, summary, findings });
+      setAiFindings({
+        shiftId,
+        summary,
+        findings,
+        llmNote: (body as { llmNote?: string | null }).llmNote || null,
+      });
       if (!findings.length) toast.success(t.aiReviewOk);
       else toast(summary, { icon: "⚠" });
     } catch (err) {
@@ -1004,6 +1010,11 @@ export default function PosShiftsPage() {
                 ✕
               </button>
             </div>
+            {aiFindings.llmNote ? (
+              <p className="mb-3 rounded-lg border border-violet-500/20 bg-violet-500/10 px-3 py-2 text-xs text-violet-100 whitespace-pre-wrap">
+                {aiFindings.llmNote}
+              </p>
+            ) : null}
             {aiFindings.findings.length ? (
               <ul className="space-y-2 max-h-64 overflow-y-auto">
                 {aiFindings.findings.map((f, i) => (

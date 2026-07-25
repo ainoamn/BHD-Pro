@@ -19,7 +19,7 @@ import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 import { useLocaleStore } from "@/store/locale";
 import { posCopy } from "@/lib/pos-copy";
-import { flushPendingPosSales, pendingSalesCount } from "@/lib/pos-offline-sync";
+import { flushPendingPosSales, pendingAllCount } from "@/lib/pos-offline-sync";
 import { PosCommissionChip } from "@/components/pos/pos-commission-chip";
 
 export function PosShell({ children }: { children: React.ReactNode }) {
@@ -39,7 +39,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
 
   const refreshPending = useCallback(async () => {
     try {
-      const n = await pendingSalesCount();
+      const n = await pendingAllCount();
       setPendingCount(n);
     } catch {
       setPendingCount(0);

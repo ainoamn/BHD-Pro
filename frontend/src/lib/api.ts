@@ -1313,7 +1313,7 @@ class ApiClient {
     return this.get('/messaging/readme');
   }
 
-  testMessaging(data: { channel: 'whatsapp' | 'email'; to: string; body?: string }) {
+  testMessaging(data: { channel: 'whatsapp' | 'email' | 'sms'; to: string; body?: string }) {
     return this.post('/messaging/test', data);
   }
 
@@ -1404,7 +1404,13 @@ class ApiClient {
   }
 
   getPosTerminalTap(invoiceId: string) {
-    return this.get(`/pos/sales/${invoiceId}/terminal-tap`);
+    return this.get<{
+      invoiceId: string;
+      invoiceNumber?: string;
+      paid: boolean;
+      invoiceStatus?: string;
+      session?: { status?: string; mode?: string } | null;
+    }>(`/pos/sales/${invoiceId}/terminal-tap`);
   }
 
   confirmPosTerminalTapMock(invoiceId: string) {
@@ -1734,6 +1740,7 @@ class ApiClient {
       overallRisk: string;
       summaryAr: string;
       summaryEn: string;
+      llmNote?: string | null;
       findings: {
         id: string;
         severity: string;

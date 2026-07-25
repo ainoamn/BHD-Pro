@@ -158,6 +158,7 @@ export default function PosCheckoutPage() {
   const [cameraOpen, setCameraOpen] = useState(false);
   const [catalogStale, setCatalogStale] = useState(false);
   const [catalogRefreshing, setCatalogRefreshing] = useState(false);
+  const [awaitingPayId, setAwaitingPayId] = useState<string | null>(null);
   const [shiftOpen, setShiftOpen] = useState(false);
   const [todayStats, setTodayStats] = useState<{
     salesCount: number;
@@ -304,6 +305,50 @@ export default function PosCheckoutPage() {
     warehouseId,
   ]);
 
+  // Background stock delta sync while POS is open (multi-register safety)
+  useEffect(() => {
+    let cancelled = false;
+    const tick = async (silent: boolean) => {
+      if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+      if (typeof api.syncPosStock !== "function") return;
+      try {
+        const wh = warehouseId || undefined;
+        const { loadCatalogCacheMeta, mergeCatalogDeltas, saveCatalogCache, isCatalogStale } =
+          await import("@/lib/pos-catalog-cache");
+        const meta = await loadCatalogCacheMeta(wh);
+        if (!meta.savedAt) return;
+        const deltaRes = await api.syncPosStock(wh, meta.savedAt);
+        if (cancelled) return;
+        const deltas = (deltaRes.data?.products as PosProduct[]) || [];
+        if (deltaRes.data?.full) {
+          await saveCatalogCache(deltas, wh);
+        } else if (deltas.length) {
+          await mergeCatalogDeltas(deltas, wh);
+        }
+        setCatalogStale(isCatalogStale(meta.savedAt) && !deltas.length);
+        if (!silent && deltas.length) {
+          await loadCatalog(search, wh);
+        }
+      } catch {
+        /* ignore background failures */
+      }
+    };
+    void tick(true);
+    const id = window.setInterval(() => void tick(true), 45000);
+    const onVis = () => {
+      if (document.visibilityState === "visible") void tick(true);
+    };
+    const onOnline = () => void tick(false);
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("online", onOnline);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("online", onOnline);
+    };
+  }, [warehouseId, loadCatalog, search]);
+
   const loadOpsStrip = useCallback(async () => {
     const wh = warehouseId || undefined;
     try {
@@ -341,6 +386,31 @@ export default function PosCheckoutPage() {
       /* ignore */
     }
   }, []);
+
+  useEffect(() => {
+    if (!awaitingPayId) return;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const res = await api.getPosTerminalTap(awaitingPayId);
+        if (cancelled) return;
+        if (res.data?.paid) {
+          setAwaitingPayId(null);
+          toast.success(t.terminalTapPaid);
+          void loadRecentSales();
+          void loadOpsStrip();
+        }
+      } catch {
+        /* keep polling */
+      }
+    };
+    void poll();
+    const id = window.setInterval(() => void poll(), 4000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [awaitingPayId, t.terminalTapPaid, loadRecentSales, loadOpsStrip]);
 
   useEffect(() => {
     if (!contactId) {
@@ -984,6 +1054,30 @@ export default function PosCheckoutPage() {
     }
     setRefundBusy(true);
     try {
+      const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+      if (offline) {
+        if (refundTarget.id.startsWith("OFF-") || !refundTarget.id) {
+          toast.error(t.offlineOpLocalOnly);
+          return;
+        }
+        const { enqueuePendingOp } = await import("@/lib/pos-offline-queue");
+        await enqueuePendingOp({
+          id: crypto.randomUUID(),
+          createdAt: new Date().toISOString(),
+          kind: "refund",
+          invoiceId: refundTarget.id,
+          payload: {
+            items,
+            reason: refundReason.trim() || undefined,
+            refundMethod,
+            approval,
+          },
+        });
+        toast.success(t.opQueued);
+        setRefundTarget(null);
+        setRefundAwaitingApproval(false);
+        return;
+      }
       await api.refundPosSale(refundTarget.id, {
         items,
         reason: refundReason.trim() || undefined,
@@ -1009,6 +1103,24 @@ export default function PosCheckoutPage() {
     if (!voidTarget) return;
     setVoidBusy(true);
     try {
+      const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+      if (offline) {
+        if (voidTarget.id.startsWith("OFF-") || !voidTarget.id) {
+          toast.error(t.offlineOpLocalOnly);
+          return;
+        }
+        const { enqueuePendingOp } = await import("@/lib/pos-offline-queue");
+        await enqueuePendingOp({
+          id: crypto.randomUUID(),
+          createdAt: new Date().toISOString(),
+          kind: "void",
+          invoiceId: voidTarget.id,
+          payload: { approval },
+        });
+        toast.success(t.opQueued);
+        setVoidTarget(null);
+        return;
+      }
       await api.voidPosSale(voidTarget.id, { approval });
       toast.success(t.voidOk);
       setLastInvoice((prev) => (prev?.number === voidTarget.number ? null : prev));
@@ -1304,6 +1416,7 @@ export default function PosCheckoutPage() {
         warehouseLabel: warehouseLabel || undefined,
       });
       if (isPartner && inv.id) {
+        setAwaitingPayId(inv.id);
         try {
           if (method === "TERMINAL") {
             const tapRes = await api.startPosTerminalTap(inv.id);
@@ -1319,6 +1432,7 @@ export default function PosCheckoutPage() {
               toast.success(t.terminalTapOpened);
             } else if (tap.mode === "mock") {
               await api.confirmPosTerminalTapMock(inv.id);
+              setAwaitingPayId(null);
               toast.success(t.terminalTapMockOk);
             } else {
               toast.error(t.terminalTapFail);
@@ -1347,7 +1461,7 @@ export default function PosCheckoutPage() {
       setTipCustom("");
       setSplitOpen(false);
       setPendingCheckout(null);
-      toast.success(t.saleOk);
+      toast.success(isPartner ? t.partnerPayPending : t.saleOk);
       void maybeKickDrawer(
         payments?.some((p) => p.method === "CASH") ? "CASH" : method,
       );
@@ -2302,6 +2416,18 @@ export default function PosCheckoutPage() {
               {t.payStoreCredit}
             </button>
           </div>
+          {awaitingPayId ? (
+            <div className="rounded-xl border border-fuchsia-500/30 bg-fuchsia-500/10 px-3 py-2 text-xs text-fuchsia-100 flex items-center justify-between gap-2">
+              <span>{t.partnerPayPending}</span>
+              <button
+                type="button"
+                className="underline font-semibold"
+                onClick={() => setAwaitingPayId(null)}
+              >
+                ✕
+              </button>
+            </div>
+          ) : null}
           {lastInvoice && (
             <div className="space-y-2">
               <button

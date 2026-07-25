@@ -469,6 +469,6 @@ export class PosController {
     @CurrentUser() user: TokenPayload,
     @Param('invoiceId') invoiceId: string,
   ) {
-    return this.terminalTap.confirmMockTap(user.companyId, invoiceId);
+    return this.terminalTap.confirmMockTap(user.companyId, invoiceId, user.sub);
   }
 }

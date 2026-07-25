@@ -554,6 +554,31 @@ export class PaymentsService {
             status: paymentStatus === PaymentStatus.PAID ? InvoiceStatus.PAID : salesInvoice.status,
           },
         });
+
+        if (paymentStatus === PaymentStatus.PAID) {
+          const fields =
+            salesInvoice.customFieldsJson &&
+            typeof salesInvoice.customFieldsJson === 'object' &&
+            !Array.isArray(salesInvoice.customFieldsJson)
+              ? (salesInvoice.customFieldsJson as Record<string, unknown>)
+              : {};
+          const tap = fields.terminalTap as Record<string, unknown> | undefined;
+          if (tap) {
+            await tx.invoice.update({
+              where: { id: salesInvoice.id },
+              data: {
+                customFieldsJson: {
+                  ...fields,
+                  terminalTap: {
+                    ...tap,
+                    status: 'CAPTURED',
+                    capturedAt: new Date().toISOString(),
+                  },
+                },
+              },
+            });
+          }
+        }
       }
     });
   }

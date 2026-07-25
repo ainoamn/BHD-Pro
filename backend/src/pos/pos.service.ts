@@ -1587,13 +1587,56 @@ export class PosService {
       score >= 0.5 ? 'high' : score >= 0.25 ? 'medium' : findings.length ? 'low' : 'none';
 
     let llmNote: string | null = null;
-    if (process.env.OPENAI_API_KEY && findings.length > 0) {
-      llmNote =
-        'OPENAI_API_KEY present — enrichment skipped (rules-first review is authoritative).';
+    const llmKey = process.env.OPENAI_API_KEY || process.env.AI_LLM_API_KEY;
+    if (llmKey && findings.length > 0) {
+      try {
+        const base =
+          process.env.AI_LLM_BASE_URL?.replace(/\/$/, '') ||
+          'https://api.openai.com/v1';
+        const model = process.env.AI_LLM_MODEL || 'gpt-4o-mini';
+        const res = await fetch(`${base}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${llmKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model,
+            temperature: 0.2,
+            max_tokens: 350,
+            messages: [
+              {
+                role: 'system',
+                content:
+                  'You summarize POS shift anomaly findings in Arabic briefly. Never instruct auto-posting. Say human review is required.',
+              },
+              {
+                role: 'user',
+                content: JSON.stringify({
+                  overallRisk,
+                  variance,
+                  findings: findings.map((f) => ({
+                    severity: f.severity,
+                    messageAr: f.messageAr,
+                  })),
+                }),
+              },
+            ],
+          }),
+        });
+        if (res.ok) {
+          const data = (await res.json()) as {
+            choices?: { message?: { content?: string } }[];
+          };
+          llmNote = data.choices?.[0]?.message?.content?.trim() || null;
+        }
+      } catch {
+        llmNote = null;
+      }
     }
 
     return {
-      engine: 'rules_v1',
+      engine: llmNote ? 'rules_v1+llm_summary' : 'rules_v1',
       shiftId: shift.id,
       status: shift.status,
       score: Number(score.toFixed(3)),

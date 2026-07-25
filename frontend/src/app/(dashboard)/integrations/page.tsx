@@ -3,7 +3,16 @@
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BookOpen, Loader2, MessageCircle, Mail, Send } from "lucide-react";
+import {
+  BookOpen,
+  Brain,
+  CreditCard,
+  Loader2,
+  MessageCircle,
+  Mail,
+  Send,
+  Smartphone,
+} from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { PageHeader, LoadingSpinner, GlassCard } from "@/components/ui/page-shell";
@@ -12,9 +21,16 @@ import { cn } from "@/lib/utils";
 type MessagingStatus = {
   whatsapp: { configured: boolean; mode: string };
   email: { configured: boolean; mode: string };
+  sms?: { configured: boolean; mode: string };
   storage: { driver: string; s3Ready: boolean };
-  payments: { thawani: boolean; stripe: boolean; paypal: boolean };
+  payments: {
+    thawani: boolean;
+    stripe: boolean;
+    paypal: boolean;
+    terminalMode?: string;
+  };
   ota: { note: string };
+  ai?: { llm: boolean; note?: string };
 };
 
 type ReadmeSection = {
@@ -33,7 +49,7 @@ export default function IntegrationsPage() {
   const t = useTranslations("integrations");
   const queryClient = useQueryClient();
   const [readmeOpen, setReadmeOpen] = useState(false);
-  const [channel, setChannel] = useState<"whatsapp" | "email">("whatsapp");
+  const [channel, setChannel] = useState<"whatsapp" | "email" | "sms">("whatsapp");
   const [to, setTo] = useState("");
   const [body, setBody] = useState("");
 
@@ -72,6 +88,7 @@ export default function IntegrationsPage() {
 
   const cards = useMemo(() => {
     if (!status) return [];
+    const payOk = status.payments.thawani || status.payments.stripe || status.payments.paypal;
     return [
       {
         key: "whatsapp",
@@ -88,11 +105,34 @@ export default function IntegrationsPage() {
         detail: status.email.mode,
       },
       {
+        key: "sms",
+        icon: Smartphone,
+        title: t("sms"),
+        ok: !!status.sms?.configured,
+        detail: status.sms?.mode || "off",
+      },
+      {
         key: "storage",
         icon: BookOpen,
         title: t("storage"),
         ok: status.storage.driver === "s3" ? status.storage.s3Ready : true,
         detail: status.storage.driver,
+      },
+      {
+        key: "payments",
+        icon: CreditCard,
+        title: t("payments"),
+        ok: payOk,
+        detail: status.payments.terminalMode
+          ? `terminal:${status.payments.terminalMode}`
+          : "gateways",
+      },
+      {
+        key: "ai",
+        icon: Brain,
+        title: t("ai"),
+        ok: !!status.ai?.llm,
+        detail: status.ai?.llm ? "llm" : "rules",
       },
     ];
   }, [status, t]);
@@ -117,7 +157,7 @@ export default function IntegrationsPage() {
       {isLoading || !status ? (
         <LoadingSpinner />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {cards.map((c) => (
             <GlassCard key={c.key} className="p-4">
               <div className="flex items-center gap-2 text-white">
@@ -173,10 +213,11 @@ export default function IntegrationsPage() {
             <select
               className="w-full rounded-lg border border-white/10 bg-slate-900 px-3 py-2"
               value={channel}
-              onChange={(e) => setChannel(e.target.value as "whatsapp" | "email")}
+              onChange={(e) => setChannel(e.target.value as "whatsapp" | "email" | "sms")}
             >
               <option value="whatsapp">WhatsApp</option>
               <option value="email">Email</option>
+              <option value="sms">SMS</option>
             </select>
           </label>
           <label className="text-sm text-slate-300 space-y-1">
@@ -185,7 +226,9 @@ export default function IntegrationsPage() {
               className="w-full rounded-lg border border-white/10 bg-slate-900 px-3 py-2"
               value={to}
               onChange={(e) => setTo(e.target.value)}
-              placeholder={channel === "whatsapp" ? "9689xxxxxxx" : "ops@company.com"}
+              placeholder={
+                channel === "email" ? "ops@company.com" : "9689xxxxxxx"
+              }
             />
           </label>
         </div>
