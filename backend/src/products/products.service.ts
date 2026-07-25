@@ -173,6 +173,22 @@ export class ProductsService {
     });
   }
 
+  async previewNextCodes(companyId: string) {
+    const [sku, barcode] = await Promise.all([
+      this.allocateSku(companyId),
+      this.allocateBarcode(companyId),
+    ]);
+    return {
+      sku,
+      barcode,
+      barcodeFormat: 'EAN-13',
+      noteAr:
+        'الباركود EAN-13 يُقرأ بماسح المحل وكاميرا الهاتف في الكاشير. رمز المنتج (SKU) للمرجع الداخلي فقط.',
+      noteEn:
+        'EAN-13 works with store scanners and phone camera on POS. SKU is an internal reference only.',
+    };
+  }
+
   async create(companyId: string, dto: CreateProductDto) {
     await this.subscriptions.assertSubscriptionActive(companyId);
 

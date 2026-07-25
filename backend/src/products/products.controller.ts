@@ -35,6 +35,14 @@ export class ProductsController {
     return this.productsService.getStats(user.companyId);
   }
 
+  @Get('next-codes')
+  @ApiOperation({
+    summary: 'Preview next auto SKU + EAN-13 barcode (phone + retail scanner compatible)',
+  })
+  nextCodes(@CurrentUser() user: TokenPayload) {
+    return this.productsService.previewNextCodes(user.companyId);
+  }
+
   @Get(':id')
   findOne(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.productsService.findOne(user.companyId, id);

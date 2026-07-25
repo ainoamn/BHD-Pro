@@ -16,6 +16,7 @@ import {
   Warehouse,
   ClipboardList,
   Printer,
+  RefreshCw,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
@@ -25,6 +26,7 @@ import { PageHeader, EmptyState, LoadingSpinner, GlassCard } from "@/components/
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { Product } from "@/types";
 import { printProductLabel } from "@/lib/product-label";
+import { FieldHelp } from "@/components/ui/field-help";
 import {
   CustomFieldsInputs,
   type CustomFieldDef,
@@ -76,6 +78,8 @@ export default function InventoryPage() {
   const [adjustWarehouseId, setAdjustWarehouseId] = useState("");
   const [transferToWarehouseId, setTransferToWarehouseId] = useState("");
   const [stockApprovalOpen, setStockApprovalOpen] = useState(false);
+  const [codesLoading, setCodesLoading] = useState(false);
+  const [autoCodesNote, setAutoCodesNote] = useState("");
 
   const { data: products = [], isLoading } = useQuery({
     queryKey: ["products"],
@@ -112,11 +116,31 @@ export default function InventoryPage() {
   const resetForm = () => {
     setEditingId(null);
     setForm(emptyProduct());
+    setAutoCodesNote("");
   };
 
-  const openCreate = () => {
+  const fillAutoCodes = async () => {
+    setCodesLoading(true);
+    try {
+      const res = await api.getNextProductCodes();
+      const data = res.data;
+      setForm((prev) => ({
+        ...prev,
+        sku: data.sku,
+        barcode: data.barcode,
+      }));
+      setAutoCodesNote(data.noteAr || t("barcodeCompatNote"));
+    } catch {
+      toast.error(t("codesLoadError"));
+    } finally {
+      setCodesLoading(false);
+    }
+  };
+
+  const openCreate = async () => {
     resetForm();
     setModalOpen(true);
+    await fillAutoCodes();
   };
 
   const openEdit = (product: Product & { customFieldsJson?: Record<string, string | number> }) => {
@@ -530,56 +554,103 @@ export default function InventoryPage() {
             </div>
 
             <div className="p-5 space-y-4">
+              {!editingId && (
+                <div className="rounded-xl border border-sky-500/25 bg-sky-500/10 px-3 py-2.5 text-xs text-sky-100 leading-relaxed space-y-1">
+                  <p className="font-semibold text-sky-200">{t("formIntroTitle")}</p>
+                  <p>{autoCodesNote || t("barcodeCompatNote")}</p>
+                  <p className="text-sky-200/80">{t("formIntroSku")}</p>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm text-slate-400 mb-1">{t("sku")}</label>
-                  <input
-                    value={form.sku}
-                    onChange={(e) => setForm({ ...form, sku: e.target.value })}
-                    disabled={!!editingId}
-                    placeholder={editingId ? undefined : t("skuAutoHint")}
-                    className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500 disabled:opacity-50"
-                  />
+                  <label className="flex items-center gap-1.5 text-sm text-slate-400 mb-1">
+                    <span>{t("sku")}</span>
+                    <FieldHelp text={t("helpSku")} />
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      value={form.sku}
+                      onChange={(e) => setForm({ ...form, sku: e.target.value })}
+                      disabled={!!editingId}
+                      placeholder={editingId ? undefined : t("skuAutoHint")}
+                      className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500 disabled:opacity-50 font-mono text-sm"
+                    />
+                  </div>
                 </div>
                 <div>
-                  <label className="block text-sm text-slate-400 mb-1">{t("barcode")}</label>
-                  <input
-                    value={form.barcode}
-                    onChange={(e) => setForm({ ...form, barcode: e.target.value })}
-                    placeholder={t("barcodeAutoHint")}
-                    className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500 font-mono text-sm"
-                  />
+                  <label className="flex items-center gap-1.5 text-sm text-slate-400 mb-1">
+                    <span>{t("barcode")}</span>
+                    <FieldHelp text={t("helpBarcode")} />
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      value={form.barcode}
+                      onChange={(e) => setForm({ ...form, barcode: e.target.value })}
+                      placeholder={t("barcodeAutoHint")}
+                      className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500 font-mono text-sm"
+                    />
+                    {!editingId && (
+                      <button
+                        type="button"
+                        title={t("regenCodes")}
+                        disabled={codesLoading}
+                        onClick={() => void fillAutoCodes()}
+                        className="h-10 w-10 shrink-0 inline-flex items-center justify-center rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 disabled:opacity-50"
+                      >
+                        {codesLoading ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <RefreshCw className="w-4 h-4" />
+                        )}
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm text-slate-400 mb-1">{t("category")}</label>
+                  <label className="flex items-center gap-1.5 text-sm text-slate-400 mb-1">
+                    <span>{t("category")}</span>
+                    <FieldHelp text={t("helpCategory")} />
+                  </label>
                   <input
                     value={form.category}
                     onChange={(e) => setForm({ ...form, category: e.target.value })}
+                    placeholder={t("categoryPlaceholder")}
                     className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-slate-400 mb-1">{t("unit")}</label>
+                  <label className="flex items-center gap-1.5 text-sm text-slate-400 mb-1">
+                    <span>{t("unit")}</span>
+                    <FieldHelp text={t("helpUnit")} />
+                  </label>
                   <input
                     value={form.unit}
                     onChange={(e) => setForm({ ...form, unit: e.target.value })}
+                    placeholder="pcs / kg / m"
                     className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500"
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-sm text-slate-400 mb-1">{t("name")}</label>
+                <label className="flex items-center gap-1.5 text-sm text-slate-400 mb-1">
+                  <span>{t("name")}</span>
+                  <FieldHelp text={t("helpName")} />
+                </label>
                 <input
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  placeholder={t("namePlaceholder")}
                   className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm text-slate-400 mb-1">{t("costPrice")}</label>
+                  <label className="flex items-center gap-1.5 text-sm text-slate-400 mb-1">
+                    <span>{t("costPrice")}</span>
+                    <FieldHelp text={t("helpCostPrice")} />
+                  </label>
                   <DecimalInput
                     value={form.costPrice}
                     min={0}
@@ -589,7 +660,10 @@ export default function InventoryPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-slate-400 mb-1">{t("salePrice")}</label>
+                  <label className="flex items-center gap-1.5 text-sm text-slate-400 mb-1">
+                    <span>{t("salePrice")}</span>
+                    <FieldHelp text={t("helpSalePrice")} />
+                  </label>
                   <DecimalInput
                     value={form.salePrice}
                     min={0}
@@ -601,7 +675,10 @@ export default function InventoryPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm text-slate-400 mb-1">{t("quantity")}</label>
+                  <label className="flex items-center gap-1.5 text-sm text-slate-400 mb-1">
+                    <span>{t("quantity")}</span>
+                    <FieldHelp text={t("helpQuantity")} />
+                  </label>
                   <input
                     type="number"
                     value={form.quantity}
@@ -611,7 +688,10 @@ export default function InventoryPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-slate-400 mb-1">{t("minQuantity")}</label>
+                  <label className="flex items-center gap-1.5 text-sm text-slate-400 mb-1">
+                    <span>{t("minQuantity")}</span>
+                    <FieldHelp text={t("helpMinQuantity")} />
+                  </label>
                   <input
                     type="number"
                     value={form.minQuantity}

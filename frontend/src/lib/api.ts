@@ -625,6 +625,16 @@ class ApiClient {
     return this.get('/products/stats');
   }
 
+  getNextProductCodes() {
+    return this.get<{
+      sku: string;
+      barcode: string;
+      barcodeFormat: string;
+      noteAr: string;
+      noteEn: string;
+    }>('/products/next-codes');
+  }
+
   createProduct(data: unknown) {
     return this.post('/products', data);
   }
