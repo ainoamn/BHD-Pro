@@ -77,10 +77,8 @@ export function HisabyAppsLinkHub({
   const locale = useLocaleStore((s) => s.locale);
   const t = copy[locale === "en" ? "en" : "ar"];
   const user = useAuthStore((s) => s.user);
-  const canManage =
-    user?.role === "ADMIN" ||
-    user?.role === "MANAGER" ||
-    user?.role === "RESTO_MANAGER";
+  const role = user?.role ?? "";
+  const canManage = ["ADMIN", "MANAGER", "RESTO_MANAGER"].includes(role);
 
   const [posLinked, setPosLinked] = useState<boolean | null>(null);
   const [restoLinked, setRestoLinked] = useState<boolean | null>(null);

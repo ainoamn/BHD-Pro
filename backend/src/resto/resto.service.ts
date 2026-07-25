@@ -842,6 +842,7 @@ export class RestoService {
         items: lines.map((i) => ({
           productId: i.productId as string,
           quantity: Number(i.qty),
+          unitPrice: Number(i.unitPrice),
         })),
         paymentMethod: dto.paymentMethod ?? PaymentMethod.CASH,
         warehouseId: dto.warehouseId,
@@ -955,7 +956,10 @@ export class RestoService {
         (s, i) => s + Number(i.qty) * Number(i.unitPrice),
         0,
       );
-      if (order.status === RestoOrderStatus.CLOSED) {
+      /** Paid close only — soft closes have no invoiceId */
+      const paidClose =
+        order.status === RestoOrderStatus.CLOSED && !!order.invoiceId;
+      if (paidClose) {
         revenue += orderRevenue;
       }
 
@@ -971,12 +975,13 @@ export class RestoService {
         revenue: 0,
       };
       tableRow.orders += 1;
-      if (order.status === RestoOrderStatus.CLOSED) {
+      if (paidClose) {
         tableRow.revenue += orderRevenue;
       }
       byTable.set(tableKey, tableRow);
 
       for (const item of order.items) {
+        if (!paidClose) continue;
         const key = item.productId || item.name;
         const row = byItem.get(key) || {
           name: item.name,
