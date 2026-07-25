@@ -83,6 +83,7 @@ export class PaymentsService {
     plan: Plan;
     billing: 'monthly' | 'yearly';
     gatewaySlug: PaymentGatewaySlug;
+    promoCode?: string;
   }) {
     const gateway = await this.platformGateways.getBySlug(opts.gatewaySlug);
     if (!gateway.isEnabled) {
@@ -90,16 +91,20 @@ export class PaymentsService {
     }
 
     const planDetails = PLAN_DETAILS[opts.plan];
-    const priceOmr =
-      opts.billing === 'yearly' ? planDetails.yearlyPrice : planDetails.monthlyPrice;
-    const amountBaisa = omrToBaisa(priceOmr);
+    const priced = await this.resolveSubscriptionPrice(
+      opts.plan,
+      opts.billing,
+      opts.promoCode,
+    );
+    const amountBaisa = omrToBaisa(priced.priceOmr);
 
-    if (amountBaisa <= 0) {
+    if (amountBaisa < 0) {
       throw new BadRequestException('Invalid plan price');
     }
 
     const number = await this.generateBillingNumber(opts.companyId);
-    const description = `BHD Pro — ${planDetails.nameEn} (${opts.billing})`;
+    const promoLabel = priced.promoCode ? ` · promo ${priced.promoCode}` : '';
+    const description = `BHD Pro — ${planDetails.nameEn} (${opts.billing})${promoLabel}`;
 
     const billingInvoice = await this.prisma.billingInvoice.create({
       data: {
@@ -113,6 +118,13 @@ export class PaymentsService {
         metadataJson: {
           plan: opts.plan,
           billing: opts.billing,
+          ...(priced.promoCode
+            ? {
+                promoCode: priced.promoCode,
+                discountPct: String(priced.discountPct),
+                listPriceOmr: String(priced.listPriceOmr),
+              }
+            : {}),
         },
       },
     });
@@ -122,6 +134,9 @@ export class PaymentsService {
       return {
         invoiceNumber: number,
         checkout: { kind: 'free' as const },
+        amount: 0,
+        currency: 'OMR',
+        promoCode: priced.promoCode,
       };
     }
 
@@ -143,7 +158,11 @@ export class PaymentsService {
       customerEmail: opts.userEmail,
       successUrl,
       cancelUrl: `${frontendOrigin}/subscription?cancelled=1`,
-      metadata: { invoice_number: number, purpose: 'subscription' },
+      metadata: {
+        invoice_number: number,
+        purpose: 'subscription',
+        ...(priced.promoCode ? { promo_code: priced.promoCode } : {}),
+      },
     });
 
     await this.prisma.billingInvoice.update({
@@ -154,7 +173,93 @@ export class PaymentsService {
       },
     });
 
-    return { invoiceNumber: number, checkout, amount: baisaToOmr(amountBaisa), currency: 'OMR' };
+    return {
+      invoiceNumber: number,
+      checkout,
+      amount: baisaToOmr(amountBaisa),
+      currency: 'OMR',
+      promoCode: priced.promoCode,
+      discountPct: priced.discountPct,
+    };
+  }
+
+  /** Resolve active PlanOffer by promo code for a given plan + billing period. */
+  async validatePromoCode(plan: Plan, billing: 'monthly' | 'yearly', promoCode?: string) {
+    return this.resolveSubscriptionPrice(plan, billing, promoCode);
+  }
+
+  private async resolveSubscriptionPrice(
+    plan: Plan,
+    billing: 'monthly' | 'yearly',
+    promoCode?: string,
+  ) {
+    const planDetails = PLAN_DETAILS[plan];
+    const listPriceOmr =
+      billing === 'yearly' ? planDetails.yearlyPrice : planDetails.monthlyPrice;
+
+    const code = (promoCode || '').trim().toUpperCase();
+    if (!code) {
+      return {
+        listPriceOmr,
+        priceOmr: listPriceOmr,
+        discountPct: 0,
+        promoCode: null as string | null,
+        offerNameAr: null as string | null,
+        offerNameEn: null as string | null,
+      };
+    }
+
+    const now = new Date();
+    const offer = await this.prisma.planOffer.findFirst({
+      where: {
+        promoCode: { equals: code, mode: 'insensitive' },
+        isActive: true,
+        plan,
+        AND: [
+          { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
+          { OR: [{ endsAt: null }, { endsAt: { gte: now } }] },
+        ],
+      },
+    });
+
+    if (!offer) {
+      throw new BadRequestException('Invalid or expired promo code');
+    }
+
+    let priceOmr = listPriceOmr;
+    const override =
+      billing === 'yearly'
+        ? offer.yearlyPrice != null
+          ? Number(offer.yearlyPrice)
+          : null
+        : offer.monthlyPrice != null
+          ? Number(offer.monthlyPrice)
+          : null;
+
+    if (override != null && Number.isFinite(override) && override >= 0) {
+      priceOmr = override;
+    } else {
+      const pct = Number(offer.discountPct || 0);
+      if (pct > 0) {
+        priceOmr = Number((listPriceOmr * (1 - pct / 100)).toFixed(3));
+      }
+    }
+
+    if (priceOmr < 0) priceOmr = 0;
+
+    const discountPct =
+      listPriceOmr > 0
+        ? Number((((listPriceOmr - priceOmr) / listPriceOmr) * 100).toFixed(2))
+        : Number(offer.discountPct || 0);
+
+    return {
+      listPriceOmr,
+      priceOmr,
+      discountPct,
+      promoCode: offer.promoCode || code,
+      offerNameAr: offer.nameAr,
+      offerNameEn: offer.nameEn,
+    };
   }
 
   async createInvoiceCollectionCheckout(opts: {

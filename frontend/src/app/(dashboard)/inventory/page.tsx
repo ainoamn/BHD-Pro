@@ -738,7 +738,10 @@ export default function InventoryPage() {
 
       <DualApprovalModal
         open={stockApprovalOpen}
+        action={adjustMode === "TRANSFER" ? "STOCK_TRANSFER" : "STOCK_ADJUST"}
         actionLabel={adjustMode === "TRANSFER" ? t("transferStock") : t("adjustStock")}
+        payload={{ mode: adjustMode }}
+        summary={adjustMode === "TRANSFER" ? t("transferStock") : t("adjustStock")}
         actorRole={user?.role}
         busy={adjustMutation.isPending}
         onCancel={() => !adjustMutation.isPending && setStockApprovalOpen(false)}

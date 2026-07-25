@@ -33,6 +33,7 @@ import { ExchangeRatesModule } from './exchange-rates/exchange-rates.module';
 import { FxRevaluationModule } from './fx-revaluation/fx-revaluation.module';
 import { AdminModule } from './admin/admin.module';
 import { PosModule } from './pos/pos.module';
+import { DualControlModule } from './dual-control/dual-control.module';
 import { HealthController } from './health.controller';
 import { DenyViewerMutationsGuard } from './common/guards/deny-viewer-mutations.guard';
 
@@ -76,6 +77,7 @@ import { DenyViewerMutationsGuard } from './common/guards/deny-viewer-mutations.
     FxRevaluationModule,
     AdminModule,
     PosModule,
+    DualControlModule,
   ],
   controllers: [HealthController],
   providers: [

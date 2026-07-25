@@ -12,7 +12,12 @@ import {
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-export const DUAL_APPROVAL_METHODS = ['SELF_CONFIRM', 'PASSWORD', 'PIN'] as const;
+export const DUAL_APPROVAL_METHODS = [
+  'SELF_CONFIRM',
+  'PASSWORD',
+  'PIN',
+  'APPROVAL_REQUEST',
+] as const;
 export type DualApprovalMethod = (typeof DUAL_APPROVAL_METHODS)[number];
 
 export class DualApprovalDto {
@@ -34,6 +39,12 @@ export class DualApprovalDto {
   @IsOptional()
   @IsString()
   pin?: string;
+
+  /** Consumed when method is APPROVAL_REQUEST (async online manager approve). */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  approvalRequestId?: string;
 }
 
 export const DUAL_CONTROL_ACTIONS = [
@@ -99,4 +110,33 @@ export class UpdateSecurityConfigDto {
   @IsOptional()
   @IsBoolean()
   clearSupervisorPin?: boolean;
+}
+
+export class CreateApprovalRequestDto {
+  @ApiProperty({ enum: DUAL_CONTROL_ACTIONS })
+  @IsIn(DUAL_CONTROL_ACTIONS)
+  action: DualControlAction;
+
+  @ApiPropertyOptional({ description: 'Opaque client context e.g. { invoiceId }' })
+  @IsOptional()
+  @IsObject()
+  payload?: Record<string, unknown>;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  summary?: string;
+}
+
+export class DecideApprovalRequestDto {
+  @ApiProperty()
+  @IsBoolean()
+  approve: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  note?: string;
 }

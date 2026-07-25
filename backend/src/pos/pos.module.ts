@@ -5,9 +5,16 @@ import { InvoicesModule } from '../invoices/invoices.module';
 import { ProductsModule } from '../products/products.module';
 import { PeriodsModule } from '../periods/periods.module';
 import { DualControlModule } from '../dual-control/dual-control.module';
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 
 @Module({
-  imports: [InvoicesModule, ProductsModule, PeriodsModule, DualControlModule],
+  imports: [
+    InvoicesModule,
+    ProductsModule,
+    PeriodsModule,
+    DualControlModule,
+    SubscriptionsModule,
+  ],
   controllers: [PosController],
   providers: [PosService],
   exports: [PosService],

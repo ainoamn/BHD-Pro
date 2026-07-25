@@ -63,12 +63,22 @@ Migration السلات المعلّقة متعددة الأجهزة: `2026072514
 Migration الحماية المزدوجة (maker-checker): `20260725150000_company_security_config`  
 (تضيف عمود `security_config` JSONB على `companies` لإعدادات dual-control: تفعيل عام، تبديل لكل إجراء حساس، وتجزئة PIN المشرف).
 
-**Dual control MVP:** عند تفعيل الحماية (الافتراضي عند غياب الإعداد)، تتطلب إجراءات مثل إلغاء بيع الكاشير، تجاوز السعر، تعديل/تحويل المخزون، إلغاء فاتورة، وعكس الدفعات موافقة:
+Migration طلبات الموافقة الأونلاين: `20260725160000_approval_requests`  
+(تنشئ جدول `approval_requests` للموافقة غير المتزامنة من المدير خلال 15 دقيقة — consumable token عبر `APPROVAL_REQUEST`).
+
+**Dual control:** عند تفعيل الحماية (الافتراضي عند غياب الإعداد)، تتطلب إجراءات مثل إلغاء بيع الكاشير، تجاوز السعر، تعديل/تحويل المخزون، إلغاء فاتورة، وعكس الدفعات موافقة:
 - `SELF_CONFIRM` للمدير/ADMIN
 - أو `PASSWORD` لمشرف آخر في نفس الشركة
 - أو `PIN` إن وُجد
+- أو **`APPROVAL_REQUEST`** — طلب أونلاين يوافق عليه المدير من `/pos/approvals` (جلسة المدير هي الموافقة؛ بدون كلمة مرور إضافية)
 
-مرحلة لاحقة (غير منفّذة): WhatsApp OTP / NFC، ونموذج `ApprovalRequest` غير المتزامن للموافقة عن بُعد.
+مرحلة لاحقة: WhatsApp OTP / NFC.
+
+**كاميرا الباركود / PWA:** الواجهة تستخدم `BarcodeDetector` مع احتياطي `@zxing/browser`. الـ PWA يخزّن shell خفيف لـ `/pos` و`/dashboard` مع اختصارات كاشير/محاسبة في `manifest.webmanifest`. يتطلب HTTPS (أو localhost) لإذن الكاميرا.
+
+**Keep-warm (Render Free):** workflow GitHub `.github/workflows/keep-warm.yml` ينادي `/api/health` كل 10 دقائق. يمكن ضبط السرّ `API_HEALTH_URL` إن اختلف عنوان الـ API.
+
+**أكواد الخصم:** عروض `PlanOffer` من لوحة `/admin` تُطبَّق في `POST /payments/subscription/checkout` عبر `promoCode`.
 
 عمليات الجرد أصبحت واعية بالمستودع (`WarehouseStock`) وواجهة التحويل بين المستودعات متاحة عبر `POST /products/:id/transfer` — لا حاجة لـ migration جديدة.
 
@@ -89,9 +99,11 @@ Migration الحماية المزدوجة (maker-checker): `20260725150000_compa
 | بند | الحالة |
 |-----|--------|
 | المحاسبة / الفواتير / الإيصالات | جاهز للبيتا على الدومين |
-| Hisaby POS (كاشير منفصل + ربط) | جاهز للبيتا — طبّق `migrate deploy` لحقول `pos_*` و`pos_drafts` |
+| Hisaby POS (كاشير منفصل + ربط) | جاهز للبيتا — طبّق `migrate deploy` لحقول `pos_*` و`pos_drafts` و`approval_requests` |
 | مخزون لكل مستودع (`warehouse_stocks`) | جاهز — طبّق `20260723190000_warehouse_stocks` |
 | سلات معلّقة متعددة الأجهزة (`pos_drafts`) | جاهز — طبّق `20260725140000_pos_drafts` |
+| موافقات أونلاين (`approval_requests`) | جاهز — طبّق `20260725160000_approval_requests` |
+| كاميرا باركود + اختصارات PWA | جاهز في الواجهة (HTTPS للكاميرا) |
 | الفوترة الإلكترونية OTA | غير مكتملة |
 | الشات الذكي | ردود ثابتة |
 

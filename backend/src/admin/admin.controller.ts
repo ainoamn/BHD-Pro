@@ -189,13 +189,32 @@ export class PublicVisitsController {
       req.ip ||
       (req.socket as { remoteAddress?: string })?.remoteAddress;
 
+    const headerCountry =
+      (req.headers['cf-ipcountry'] as string) ||
+      (req.headers['x-vercel-ip-country'] as string) ||
+      (req.headers['x-country-code'] as string) ||
+      '';
+    const headerCity =
+      (req.headers['x-vercel-ip-city'] as string) ||
+      (req.headers['cf-ipcity'] as string) ||
+      '';
+
+    const countryFromHeader =
+      headerCountry && headerCountry.toUpperCase() !== 'XX'
+        ? headerCountry.toUpperCase()
+        : undefined;
+    const country = (countryFromHeader || body.country?.trim()?.toUpperCase() || undefined)?.slice(
+      0,
+      8,
+    );
+
     return this.admin.recordVisit({
       path: body.path || '/',
       referrer: body.referrer,
       ipAddress: ip,
       userAgent: req.headers['user-agent'],
-      country: body.country,
-      city: body.city,
+      country,
+      city: (headerCity || body.city)?.slice(0, 80),
     });
   }
 }

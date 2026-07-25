@@ -51,6 +51,13 @@ function SubscriptionContent() {
   const queryClient = useQueryClient();
   const [billing, setBilling] = useState<"monthly" | "yearly">("monthly");
   const [checkoutPlan, setCheckoutPlan] = useState<string | null>(null);
+  const [promoCode, setPromoCode] = useState("");
+  const [promoPreview, setPromoPreview] = useState<{
+    priceOmr: number;
+    discountPct: number;
+    promoCode: string | null;
+  } | null>(null);
+  const [promoBusy, setPromoBusy] = useState(false);
 
   const { data: platformGateways = [] } = useQuery({
     queryKey: ["platform-gateways"],
@@ -77,8 +84,17 @@ function SubscriptionContent() {
   });
 
   const checkoutMutation = useMutation({
-    mutationFn: ({ plan, billing, gatewaySlug }: { plan: string; billing: "monthly" | "yearly"; gatewaySlug: string }) =>
-      api.createSubscriptionCheckout({ plan, billing, gatewaySlug }),
+    mutationFn: ({
+      plan,
+      billing,
+      gatewaySlug,
+      promoCode,
+    }: {
+      plan: string;
+      billing: "monthly" | "yearly";
+      gatewaySlug: string;
+      promoCode?: string;
+    }) => api.createSubscriptionCheckout({ plan, billing, gatewaySlug, promoCode }),
     onSuccess: (res) => {
       const data = res.data as { checkout?: { redirectUrl?: string; kind?: string } };
       setCheckoutPlan(null);
@@ -91,6 +107,34 @@ function SubscriptionContent() {
     },
     onError: () => toast.error(tPay("paymentFailed")),
   });
+
+  const applyPromo = async () => {
+    if (!checkoutPlan || !promoCode.trim()) {
+      setPromoPreview(null);
+      return;
+    }
+    setPromoBusy(true);
+    try {
+      const res = await api.validateSubscriptionPromo(checkoutPlan, billing, promoCode.trim());
+      const data = res.data as {
+        priceOmr: number;
+        discountPct: number;
+        promoCode: string | null;
+      };
+      setPromoPreview(data);
+      toast.success(
+        t("promoApplied", {
+          pct: data.discountPct,
+          price: data.priceOmr,
+        })
+      );
+    } catch {
+      setPromoPreview(null);
+      toast.error(t("promoInvalid"));
+    } finally {
+      setPromoBusy(false);
+    }
+  };
 
   const planName = (plan: Plan) => {
     const locale = typeof document !== "undefined" ? document.documentElement.lang : "ar";
@@ -265,6 +309,36 @@ function SubscriptionContent() {
             </div>
             <p className="text-sm text-slate-400">{tPay("subscriptionPayHint")}</p>
             <div className="space-y-2">
+              <label className="block text-xs text-slate-400">{t("promoCode")}</label>
+              <div className="flex gap-2">
+                <input
+                  value={promoCode}
+                  onChange={(e) => {
+                    setPromoCode(e.target.value.toUpperCase());
+                    setPromoPreview(null);
+                  }}
+                  placeholder={t("promoPlaceholder")}
+                  className="flex-1 h-10 rounded-lg bg-slate-800 border border-slate-700 px-3 text-sm text-white"
+                />
+                <button
+                  type="button"
+                  disabled={promoBusy || !promoCode.trim()}
+                  onClick={applyPromo}
+                  className="h-10 px-3 rounded-lg bg-slate-700 text-sm text-white disabled:opacity-50"
+                >
+                  {promoBusy ? "..." : t("applyPromo")}
+                </button>
+              </div>
+              {promoPreview && promoPreview.discountPct > 0 && (
+                <p className="text-xs text-emerald-400">
+                  {t("promoApplied", {
+                    pct: promoPreview.discountPct,
+                    price: promoPreview.priceOmr,
+                  })}
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
               {platformGateways.map((gw) => (
                 <button
                   key={gw.slug}
@@ -275,6 +349,7 @@ function SubscriptionContent() {
                       plan: checkoutPlan,
                       billing,
                       gatewaySlug: gw.slug,
+                      promoCode: promoCode.trim() || undefined,
                     })
                   }
                   className="w-full h-11 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-sm"
@@ -285,7 +360,11 @@ function SubscriptionContent() {
             </div>
             <button
               type="button"
-              onClick={() => setCheckoutPlan(null)}
+              onClick={() => {
+                setCheckoutPlan(null);
+                setPromoCode("");
+                setPromoPreview(null);
+              }}
               className="w-full h-10 text-slate-400 text-sm"
             >
               {tCommon("cancel")}

@@ -11,6 +11,7 @@ import {
   DualApprovalDto,
   DualControlAction,
   DualControlActionsDto,
+  DUAL_CONTROL_ACTIONS,
   UpdateSecurityConfigDto,
 } from './dto/approval.dto';
 
@@ -18,7 +19,7 @@ export type CompanySecurityConfig = {
   dualControlEnabled?: boolean;
   supervisorPinHash?: string | null;
   /** Enabled methods. OTP / NFC reserved for a later phase. */
-  methods?: Array<'SELF_CONFIRM' | 'PASSWORD' | 'PIN' | 'WHATSAPP_OTP' | 'NFC'>;
+  methods?: Array<'SELF_CONFIRM' | 'PASSWORD' | 'PIN' | 'WHATSAPP_OTP' | 'NFC' | 'APPROVAL_REQUEST'>;
   actions?: DualControlActionsDto;
 };
 
@@ -30,6 +31,14 @@ export type DualControlActor = {
 
 const APPROVER_ROLES: UserRole[] = [UserRole.ADMIN, UserRole.MANAGER];
 const DEFAULT_METHODS = ['SELF_CONFIRM', 'PASSWORD', 'PIN'] as const;
+const APPROVAL_TTL_MS = 15 * 60 * 1000;
+const APPROVAL_STATUSES = {
+  PENDING: 'PENDING',
+  APPROVED: 'APPROVED',
+  REJECTED: 'REJECTED',
+  CONSUMED: 'CONSUMED',
+  EXPIRED: 'EXPIRED',
+} as const;
 
 @Injectable()
 export class DualControlService {
@@ -71,12 +80,11 @@ export class DualControlService {
     return {
       dualControlEnabled,
       hasSupervisorPin: !!config.supervisorPinHash,
-      methods: [...DEFAULT_METHODS],
+      methods: [...DEFAULT_METHODS, 'APPROVAL_REQUEST'] as const,
       /** Future: WhatsApp OTP, NFC badge — not implemented in this MVP. */
       futureMethods: ['WHATSAPP_OTP', 'NFC'] as const,
       actions,
-      /** Phase 2: async ApprovalRequest workflow for online remote approve. */
-      asyncApprovals: false,
+      asyncApprovals: true,
     };
   }
 
@@ -109,6 +117,237 @@ export class DualControlService {
         } as Prisma.InputJsonValue,
       },
     });
+  }
+
+  private assertKnownAction(action: string): asserts action is DualControlAction {
+    if (!(DUAL_CONTROL_ACTIONS as readonly string[]).includes(action)) {
+      throw new BadRequestException('Unknown dual-control action');
+    }
+  }
+
+  async createApprovalRequest(
+    companyId: string,
+    actor: DualControlActor,
+    action: DualControlAction,
+    payload: Record<string, unknown>,
+    summary?: string,
+  ) {
+    this.assertKnownAction(action);
+    const expiresAt = new Date(Date.now() + APPROVAL_TTL_MS);
+    const row = await this.prisma.approvalRequest.create({
+      data: {
+        companyId,
+        action,
+        status: APPROVAL_STATUSES.PENDING,
+        payloadJson: (payload || {}) as Prisma.InputJsonValue,
+        summary: summary?.trim() || null,
+        requestedById: actor.sub,
+        expiresAt,
+      },
+      include: {
+        requestedBy: { select: { id: true, name: true, email: true } },
+      },
+    });
+    await this.writeAudit({
+      companyId,
+      userId: actor.sub,
+      action: 'APPROVAL_REQUEST_CREATED',
+      success: true,
+      details: { approvalRequestId: row.id, dualAction: action },
+    });
+    return this.serializeApproval(row);
+  }
+
+  async listPending(companyId: string) {
+    await this.expireStale(companyId);
+    const rows = await this.prisma.approvalRequest.findMany({
+      where: { companyId, status: APPROVAL_STATUSES.PENDING },
+      orderBy: { createdAt: 'asc' },
+      include: {
+        requestedBy: { select: { id: true, name: true, email: true } },
+        decidedBy: { select: { id: true, name: true, email: true } },
+      },
+    });
+    return rows.map((r) => this.serializeApproval(r));
+  }
+
+  async getApprovalRequest(
+    companyId: string,
+    id: string,
+    actor: DualControlActor,
+  ) {
+    await this.expireStale(companyId, id);
+    const row = await this.prisma.approvalRequest.findFirst({
+      where: { id, companyId },
+      include: {
+        requestedBy: { select: { id: true, name: true, email: true } },
+        decidedBy: { select: { id: true, name: true, email: true } },
+      },
+    });
+    if (!row) throw new NotFoundException('Approval request not found');
+    const isManager =
+      actor.role === UserRole.ADMIN || actor.role === UserRole.MANAGER;
+    if (!isManager && row.requestedById !== actor.sub) {
+      throw new ForbiddenException('Not allowed to view this approval request');
+    }
+    return this.serializeApproval(row);
+  }
+
+  async decide(
+    companyId: string,
+    approver: DualControlActor,
+    id: string,
+    approve: boolean,
+    note?: string,
+  ) {
+    if (approver.role !== UserRole.ADMIN && approver.role !== UserRole.MANAGER) {
+      throw new ForbiddenException('Only ADMIN or MANAGER can decide approvals');
+    }
+    await this.expireStale(companyId, id);
+    const row = await this.prisma.approvalRequest.findFirst({
+      where: { id, companyId },
+    });
+    if (!row) throw new NotFoundException('Approval request not found');
+    if (row.status === APPROVAL_STATUSES.EXPIRED) {
+      throw new BadRequestException('Approval request expired');
+    }
+    if (row.status !== APPROVAL_STATUSES.PENDING) {
+      throw new BadRequestException('Approval request is no longer pending');
+    }
+    if (row.expiresAt.getTime() <= Date.now()) {
+      await this.prisma.approvalRequest.update({
+        where: { id },
+        data: { status: APPROVAL_STATUSES.EXPIRED },
+      });
+      throw new BadRequestException('Approval request expired');
+    }
+
+    const updated = await this.prisma.approvalRequest.update({
+      where: { id },
+      data: {
+        status: approve ? APPROVAL_STATUSES.APPROVED : APPROVAL_STATUSES.REJECTED,
+        decidedById: approver.sub,
+        decisionNote: note?.trim() || null,
+      },
+      include: {
+        requestedBy: { select: { id: true, name: true, email: true } },
+        decidedBy: { select: { id: true, name: true, email: true } },
+      },
+    });
+
+    await this.writeAudit({
+      companyId,
+      userId: approver.sub,
+      action: approve ? 'APPROVAL_REQUEST_APPROVED' : 'APPROVAL_REQUEST_REJECTED',
+      success: true,
+      details: {
+        approvalRequestId: id,
+        dualAction: row.action,
+        note: note || null,
+      },
+    });
+
+    return this.serializeApproval(updated);
+  }
+
+  /**
+   * One-shot consume of an APPROVED request for the given action.
+   * Marks CONSUMED and returns approver info for assertApproved.
+   */
+  async consumeApprovalToken(
+    companyId: string,
+    actor: DualControlActor,
+    action: DualControlAction,
+    approvalRequestId: string,
+  ): Promise<{ approverId: string; method: string }> {
+    await this.expireStale(companyId, approvalRequestId);
+    const row = await this.prisma.approvalRequest.findFirst({
+      where: { id: approvalRequestId, companyId },
+    });
+    if (!row) throw new NotFoundException('Approval request not found');
+    if (row.requestedById !== actor.sub) {
+      throw new ForbiddenException('Approval request belongs to another user');
+    }
+    if (row.action !== action) {
+      throw new ForbiddenException('Approval request action mismatch');
+    }
+    if (row.status === APPROVAL_STATUSES.EXPIRED || row.expiresAt.getTime() <= Date.now()) {
+      if (row.status === APPROVAL_STATUSES.PENDING || row.status === APPROVAL_STATUSES.APPROVED) {
+        await this.prisma.approvalRequest.update({
+          where: { id: approvalRequestId },
+          data: { status: APPROVAL_STATUSES.EXPIRED },
+        });
+      }
+      throw new ForbiddenException('Approval request expired');
+    }
+    if (row.status === APPROVAL_STATUSES.REJECTED) {
+      throw new ForbiddenException('Approval request was rejected');
+    }
+    if (row.status === APPROVAL_STATUSES.CONSUMED) {
+      throw new ForbiddenException('Approval request already used');
+    }
+    if (row.status !== APPROVAL_STATUSES.APPROVED) {
+      throw new ForbiddenException('Approval request is not approved yet');
+    }
+    if (!row.decidedById) {
+      throw new ForbiddenException('Approval request missing approver');
+    }
+
+    await this.prisma.approvalRequest.update({
+      where: { id: approvalRequestId },
+      data: { status: APPROVAL_STATUSES.CONSUMED },
+    });
+
+    return { approverId: row.decidedById, method: 'APPROVAL_REQUEST' };
+  }
+
+  private async expireStale(companyId: string, id?: string) {
+    const where: Prisma.ApprovalRequestWhereInput = {
+      companyId,
+      status: {
+        in: [APPROVAL_STATUSES.PENDING, APPROVAL_STATUSES.APPROVED],
+      },
+      expiresAt: { lte: new Date() },
+      ...(id ? { id } : {}),
+    };
+    await this.prisma.approvalRequest.updateMany({
+      where,
+      data: { status: APPROVAL_STATUSES.EXPIRED },
+    });
+  }
+
+  private serializeApproval(row: {
+    id: string;
+    companyId: string;
+    action: string;
+    status: string;
+    payloadJson: Prisma.JsonValue;
+    summary: string | null;
+    requestedById: string;
+    decidedById: string | null;
+    decisionNote: string | null;
+    expiresAt: Date;
+    createdAt: Date;
+    updatedAt: Date;
+    requestedBy?: { id: string; name: string; email: string };
+    decidedBy?: { id: string; name: string; email: string } | null;
+  }) {
+    return {
+      id: row.id,
+      companyId: row.companyId,
+      action: row.action,
+      status: row.status,
+      payload: row.payloadJson,
+      summary: row.summary,
+      requestedById: row.requestedById,
+      decidedById: row.decidedById,
+      decisionNote: row.decisionNote,
+      expiresAt: row.expiresAt,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      requestedBy: row.requestedBy,
+      decidedBy: row.decidedBy ?? null,
+    };
   }
 
   async assertApproved(
@@ -145,6 +384,7 @@ export class DualControlService {
           approverId: result.approverId,
           actorEmail: actor.email,
           actorRole: actor.role,
+          approvalRequestId: approval.approvalRequestId || null,
         },
       });
       return result;
@@ -160,6 +400,7 @@ export class DualControlService {
           method: approval.method,
           actorEmail: actor.email,
           actorRole: actor.role,
+          approvalRequestId: approval.approvalRequestId || null,
         },
       });
       throw err;
@@ -169,9 +410,17 @@ export class DualControlService {
   private async validateApproval(
     companyId: string,
     actor: DualControlActor,
-    _action: DualControlAction,
+    action: DualControlAction,
     approval: DualApprovalDto,
   ): Promise<{ approverId: string; method: string }> {
+    if (approval.method === 'APPROVAL_REQUEST') {
+      const id = approval.approvalRequestId?.trim();
+      if (!id) {
+        throw new BadRequestException('approvalRequestId is required');
+      }
+      return this.consumeApprovalToken(companyId, actor, action, id);
+    }
+
     if (approval.method === 'SELF_CONFIRM') {
       if (actor.role !== UserRole.ADMIN && actor.role !== UserRole.MANAGER) {
         throw new ForbiddenException(

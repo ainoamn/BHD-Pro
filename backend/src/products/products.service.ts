@@ -13,6 +13,7 @@ import { MovementType, Prisma } from '@prisma/client';
 import { PeriodsService } from '../periods/periods.service';
 import { DualControlService } from '../dual-control/dual-control.service';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 
 const warehouseStockInclude = {
   warehouseStocks: {
@@ -27,6 +28,7 @@ export class ProductsService {
     private prisma: PrismaService,
     private periods: PeriodsService,
     private dualControl: DualControlService,
+    private subscriptions: SubscriptionsService,
   ) {}
 
   async findAll(companyId: string) {
@@ -129,6 +131,8 @@ export class ProductsService {
   }
 
   async create(companyId: string, dto: CreateProductDto) {
+    await this.subscriptions.assertSubscriptionActive(companyId);
+
     const existing = await this.prisma.product.findFirst({
       where: { companyId, sku: dto.sku },
     });

@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import api from "@/lib/api";
 
-/** Fire-and-forget page view for platform analytics */
+/** Fire-and-forget page view for platform analytics (country resolved server-side via edge headers). */
 export function SiteVisitTracker() {
   const pathname = usePathname();
   const last = useRef<string>("");
@@ -26,7 +26,6 @@ export function SiteVisitTracker() {
       .trackSiteVisit({
         path: pathname,
         referrer: typeof document !== "undefined" ? document.referrer || undefined : undefined,
-        country: "OM",
       })
       .catch(() => {
         /* analytics must never break UX */

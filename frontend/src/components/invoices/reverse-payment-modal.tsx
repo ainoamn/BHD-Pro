@@ -231,7 +231,10 @@ export function ReversePaymentModal({
 
       <DualApprovalModal
         open={approvalOpen}
+        action="PAYMENT_REVERSE"
         actionLabel={t("reverseAllConfirm")}
+        payload={{ invoiceId }}
+        summary={t("reverseAllConfirm")}
         actorRole={user?.role}
         busy={reverseAll.isPending}
         onCancel={() => !reverseAll.isPending && setApprovalOpen(false)}

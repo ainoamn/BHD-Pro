@@ -447,7 +447,12 @@
     "omr": "OMR",
     "perMonth": "/month",
     "perYear": "/year",
-    "upgraded": "Plan upgraded successfully"
+    "upgraded": "Plan upgraded successfully",
+    "promoCode": "Promo code",
+    "promoPlaceholder": "Enter offer code if you have one",
+    "applyPromo": "Apply",
+    "promoApplied": "Discount applied ({pct}%) — {price} OMR",
+    "promoInvalid": "Invalid or expired promo code"
   },
   "common": {
     "save": "Save",

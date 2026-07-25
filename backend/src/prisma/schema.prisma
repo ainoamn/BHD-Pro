@@ -78,6 +78,7 @@ model Company {
   customFieldDefinitions CustomFieldDefinition[]
   exchangeRates ExchangeRate[]
   posDrafts     PosDraft[]
+  approvalRequests ApprovalRequest[]
 
   @@index([vatNumber])
   @@index([crNumber])
@@ -121,6 +122,8 @@ model User {
   apiKeysCreated CompanyApiKey[] @relation("ApiKeysCreated")
   employeeClaimsCreated EmployeeClaim[] @relation("EmployeeClaimsCreated")
   posDraftsCreated PosDraft[] @relation("PosDraftsCreated")
+  approvalRequestsRequested ApprovalRequest[] @relation("ApprovalRequestedBy")
+  approvalRequestsDecided   ApprovalRequest[] @relation("ApprovalDecidedBy")
 
   @@index([companyId])
   @@index([email])
@@ -1437,4 +1440,26 @@ model PosDraft {
   @@index([companyId])
   @@index([companyId, createdAt])
   @@map("pos_drafts")
+}
+
+/// Async dual-control: cashier requests online manager approval (15 min TTL).
+model ApprovalRequest {
+  id            String   @id @default(uuid())
+  companyId     String   @map("company_id")
+  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  action        String   // DualControlAction value
+  status        String   @default("PENDING") // PENDING APPROVED REJECTED CONSUMED EXPIRED
+  payloadJson   Json     @map("payload_json") // opaque client context e.g. { invoiceId }
+  summary       String?
+  requestedById String   @map("requested_by_id")
+  requestedBy   User     @relation("ApprovalRequestedBy", fields: [requestedById], references: [id])
+  decidedById   String?  @map("decided_by_id")
+  decidedBy     User?    @relation("ApprovalDecidedBy", fields: [decidedById], references: [id])
+  decisionNote  String?  @map("decision_note")
+  expiresAt     DateTime @map("expires_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@index([companyId, status])
+  @@map("approval_requests")
 }

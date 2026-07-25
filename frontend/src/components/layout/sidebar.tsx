@@ -11,7 +11,6 @@ import {
   Users,
   BarChart3,
   Receipt,
-  Brain,
   Settings,
   Crown,
   Shield,
@@ -65,7 +64,6 @@ const navItems = [
   { href: "/warehouses", icon: Warehouse, label: "warehouses" },
   { href: "/contacts", icon: Users, label: "addressBook" },
   { href: "/vat", icon: Receipt, label: "vat" },
-  { href: "/ai-analytics", icon: Brain, label: "aiAnalytics" },
 ];
 
 const settingsItems = [

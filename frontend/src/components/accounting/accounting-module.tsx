@@ -1434,7 +1434,10 @@ export function AccountingModule() {
 
       <DualApprovalModal
         open={!!cancelPendingId}
+        action="INVOICE_CANCEL"
         actionLabel={t("cancelConfirm")}
+        payload={cancelPendingId ? { invoiceId: cancelPendingId } : undefined}
+        summary={t("cancelConfirm")}
         actorRole={user?.role}
         busy={statusMutation.isPending}
         onCancel={() => !statusMutation.isPending && setCancelPendingId(null)}

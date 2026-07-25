@@ -5,7 +5,6 @@ interface UIState {
   sidebarCollapsed: boolean;
   theme: 'dark' | 'light';
   commandPaletteOpen: boolean;
-  aiChatOpen: boolean;
   notifications: Notification[];
 
   toggleSidebar: () => void;
@@ -14,7 +13,6 @@ interface UIState {
   setTheme: (theme: 'dark' | 'light') => void;
   toggleTheme: () => void;
   setCommandPaletteOpen: (open: boolean) => void;
-  setAiChatOpen: (open: boolean) => void;
   addNotification: (notification: Notification) => void;
   removeNotification: (id: string) => void;
 }
@@ -33,7 +31,6 @@ export const useUIStore = create<UIState>((set) => ({
   sidebarCollapsed: false,
   theme: 'dark',
   commandPaletteOpen: false,
-  aiChatOpen: false,
   notifications: [],
 
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
@@ -42,7 +39,6 @@ export const useUIStore = create<UIState>((set) => ({
   setTheme: (theme) => set({ theme }),
   toggleTheme: () => set((state) => ({ theme: state.theme === 'dark' ? 'light' : 'dark' })),
   setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
-  setAiChatOpen: (open) => set({ aiChatOpen: open }),
   addNotification: (notification) =>
     set((state) => ({ notifications: [notification, ...state.notifications] })),
   removeNotification: (id) =>

@@ -22,5 +22,21 @@
       "type": "image/png",
       "purpose": "any maskable"
     }
+  ],
+  "shortcuts": [
+    {
+      "name": "كاشير",
+      "short_name": "كاشير",
+      "description": "فتح نقطة البيع",
+      "url": "/pos",
+      "icons": [{ "src": "/brand/hisaby-mark.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "المحاسبة",
+      "short_name": "محاسبة",
+      "description": "لوحة المحاسبة",
+      "url": "/dashboard",
+      "icons": [{ "src": "/brand/hisaby-mark.png", "sizes": "192x192" }]
+    }
   ]
 }

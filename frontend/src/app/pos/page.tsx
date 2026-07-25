@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Loader2, Minus, PackagePlus, Plus, Printer, ScanBarcode, ShoppingCart, Trash2, Warehouse } from "lucide-react";
+import { Loader2, Camera, Minus, PackagePlus, Plus, Printer, ScanBarcode, ShoppingCart, Trash2, Warehouse } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
@@ -14,6 +14,7 @@ import {
   DualApprovalModal,
   type DualApprovalPayload,
 } from "@/components/security/dual-approval-modal";
+import { BarcodeCameraScanner } from "@/components/pos/barcode-camera-scanner";
 
 const POS_WAREHOUSE_KEY = "hisaby-pos-warehouse-id";
 
@@ -103,6 +104,7 @@ export default function PosCheckoutPage() {
   const [voidBusy, setVoidBusy] = useState(false);
   const [pendingCheckout, setPendingCheckout] = useState<CheckoutMethod | null>(null);
   const [checkoutBusy, setCheckoutBusy] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
 
   const currency = company?.currency || "OMR";
   const companyId = company?.id;
@@ -393,10 +395,17 @@ export default function PosCheckoutPage() {
     e.preventDefault();
     const code = scan.trim();
     if (!code) return;
+    await applyScanCode(code);
+  };
+
+  const applyScanCode = async (code: string) => {
+    const trimmed = code.trim();
+    if (!trimmed) return;
     try {
-      const res = await api.lookupPosProduct(code, warehouseId || undefined);
+      const res = await api.lookupPosProduct(trimmed, warehouseId || undefined);
       addProduct(res.data as PosProduct, 1);
       setScan("");
+      setCameraOpen(false);
       focusScan();
     } catch {
       toast.error(t.notFound);
@@ -446,12 +455,19 @@ export default function PosCheckoutPage() {
         : "";
       w.document.write(`<!doctype html><html dir="${dir}"><head><title>Receipt</title>
       <style>
-        body{font-family:system-ui,sans-serif;padding:16px;width:280px;margin:0 auto;color:#111}
-        h1{font-size:16px;margin:0 0 4px} h2{font-size:18px;margin:6px 0 2px;font-weight:800}
-        p{margin:4px 0;font-size:13px}
-        table{width:100%;border-collapse:collapse;font-size:12px;margin:8px 0}
-        td{padding:3px 0;vertical-align:top}
-        hr{border:none;border-top:1px dashed #999;margin:12px 0}
+        @page { size: 80mm auto; margin: 4mm; }
+        body{
+          font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+          padding: 0; width: 72mm; max-width: 100%; margin: 0 auto; color:#111;
+          font-size: 12px; line-height: 1.35;
+        }
+        h1{font-size:14px;margin:0 0 4px} h2{font-size:15px;margin:6px 0 2px;font-weight:800}
+        p{margin:4px 0;font-size:12px}
+        table{width:100%;border-collapse:collapse;font-size:11px;margin:8px 0;table-layout:fixed}
+        td{padding:3px 0;vertical-align:top;word-wrap:break-word}
+        td:nth-child(2){width:2.5em;text-align:center}
+        td:nth-child(3){width:5.5em;text-align:end;white-space:nowrap}
+        hr{border:none;border-top:1px dashed #999;margin:10px 0}
       </style></head><body>
       <h1>${t.brand}</h1>
       <h2>${companyName}</h2>
@@ -633,8 +649,8 @@ export default function PosCheckoutPage() {
         </div>
 
         <form onSubmit={handleScan} className="space-y-1.5">
-          <div className="flex gap-2">
-            <div className="relative flex-1">
+          <div className="flex flex-col sm:flex-row gap-2">
+            <div className="relative flex-1 min-w-0">
               <ScanBarcode className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 w-5 h-5 text-sky-400/80" />
               <input
                 ref={scanRef}
@@ -645,12 +661,24 @@ export default function PosCheckoutPage() {
                 autoComplete="off"
               />
             </div>
-            <button
-              type="submit"
-              className="h-14 px-5 rounded-2xl bg-sky-500 text-white font-bold hover:bg-sky-400 transition"
-            >
-              Enter
-            </button>
+            <div className="flex gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setCameraOpen(true)}
+                className="h-14 min-w-14 px-4 rounded-2xl border border-sky-400/40 text-sky-200 font-bold hover:bg-sky-500/15 transition inline-flex items-center justify-center gap-2"
+                title={t.scanCamera}
+                aria-label={t.scanCamera}
+              >
+                <Camera className="w-5 h-5" />
+                <span className="sm:hidden text-sm">{t.scanCamera}</span>
+              </button>
+              <button
+                type="submit"
+                className="h-14 flex-1 sm:flex-none px-5 rounded-2xl bg-sky-500 text-white font-bold hover:bg-sky-400 transition"
+              >
+                Enter
+              </button>
+            </div>
           </div>
           <p className="text-[11px] text-slate-500 px-1 flex flex-wrap items-center gap-x-3 gap-y-1">
             <span className="inline-flex items-center gap-1.5">
@@ -753,7 +781,7 @@ export default function PosCheckoutPage() {
         )}
       </section>
 
-      <aside className="lg:col-span-5 xl:col-span-4 mt-4 lg:mt-0 rounded-3xl border border-white/10 bg-[#111827] flex flex-col min-h-[420px]">
+      <aside className="lg:col-span-5 xl:col-span-4 mt-4 lg:mt-0 rounded-3xl border border-white/10 bg-[#111827] flex flex-col min-h-[420px] pb-28 lg:pb-0">
         <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 font-bold">
             <ShoppingCart className="w-4 h-4 text-sky-400" />
@@ -916,7 +944,7 @@ export default function PosCheckoutPage() {
           ))}
         </div>
 
-        <div className="border-t border-white/10 p-4 space-y-3">
+        <div className="border-t border-white/10 p-4 space-y-3 sticky bottom-0 z-20 bg-[#111827] lg:static shadow-[0_-8px_24px_rgba(0,0,0,0.35)] lg:shadow-none">
           <div className="space-y-1 text-sm">
             <div className="flex justify-between text-slate-400">
               <span>{t.subtotal}</span>
@@ -938,7 +966,7 @@ export default function PosCheckoutPage() {
               type="button"
               disabled={!cart.length || paying}
               onClick={() => checkout("CASH")}
-              className="h-12 rounded-xl bg-emerald-500 text-white font-bold disabled:opacity-40 hover:bg-emerald-400 inline-flex items-center justify-center gap-2 text-sm"
+              className="min-h-12 h-12 rounded-xl bg-emerald-500 text-white font-bold disabled:opacity-40 hover:bg-emerald-400 inline-flex items-center justify-center gap-2 text-sm"
             >
               {paying && <Loader2 className="w-4 h-4 animate-spin" />}
               {t.payCash}
@@ -947,7 +975,7 @@ export default function PosCheckoutPage() {
               type="button"
               disabled={!cart.length || paying}
               onClick={() => checkout("CREDIT_CARD")}
-              className="h-12 rounded-xl bg-sky-500 text-white font-bold disabled:opacity-40 hover:bg-sky-400 text-sm"
+              className="min-h-12 h-12 rounded-xl bg-sky-500 text-white font-bold disabled:opacity-40 hover:bg-sky-400 text-sm"
             >
               {t.payCard}
             </button>
@@ -955,7 +983,7 @@ export default function PosCheckoutPage() {
               type="button"
               disabled={!cart.length || paying}
               onClick={() => checkout("BANK_TRANSFER")}
-              className="h-12 rounded-xl bg-teal-600 text-white font-bold disabled:opacity-40 hover:bg-teal-500 text-sm"
+              className="min-h-12 h-12 rounded-xl bg-teal-600 text-white font-bold disabled:opacity-40 hover:bg-teal-500 text-sm"
             >
               {t.payBank}
             </button>
@@ -964,7 +992,7 @@ export default function PosCheckoutPage() {
             <button
               type="button"
               onClick={() => printReceiptSnapshot(lastInvoice)}
-              className="w-full h-10 rounded-xl border border-white/10 text-sm text-slate-300 hover:bg-white/5"
+              className="w-full min-h-10 h-10 rounded-xl border border-white/10 text-sm text-slate-300 hover:bg-white/5"
             >
               {t.printReceipt} · {lastInvoice.number}
             </button>
@@ -972,9 +1000,18 @@ export default function PosCheckoutPage() {
         </div>
       </aside>
 
+      <BarcodeCameraScanner
+        open={cameraOpen}
+        onClose={() => setCameraOpen(false)}
+        onDetected={(code) => void applyScanCode(code)}
+      />
+
       <DualApprovalModal
         open={!!voidTarget}
+        action="POS_VOID"
         actionLabel={t.voidConfirm}
+        payload={voidTarget ? { invoiceId: voidTarget.id } : undefined}
+        summary={voidTarget ? `${t.voidSale}: ${voidTarget.number}` : undefined}
         actorRole={user?.role}
         busy={voidBusy}
         onCancel={() => !voidBusy && setVoidTarget(null)}
@@ -983,7 +1020,10 @@ export default function PosCheckoutPage() {
 
       <DualApprovalModal
         open={!!pendingCheckout}
+        action="POS_PRICE_OVERRIDE"
         actionLabel={locale === "en" ? "Confirm price override" : "تأكيد تجاوز السعر"}
+        payload={{ method: pendingCheckout || undefined }}
+        summary={locale === "en" ? "POS price override" : "تجاوز سعر الكاشير"}
         actorRole={user?.role}
         busy={checkoutBusy || paying}
         onCancel={() => {

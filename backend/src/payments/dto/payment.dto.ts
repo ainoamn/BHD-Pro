@@ -24,6 +24,10 @@ export class CreateSubscriptionCheckoutDto {
 
   @IsEnum(PaymentGatewaySlug)
   gatewaySlug: PaymentGatewaySlug;
+
+  @IsOptional()
+  @IsString()
+  promoCode?: string;
 }
 
 export class CreateInvoiceCheckoutDto {

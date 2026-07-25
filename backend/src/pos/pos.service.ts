@@ -22,6 +22,7 @@ import { DualControlService } from '../dual-control/dual-control.service';
 import { DualApprovalDto } from '../dual-control/dto/approval.dto';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
 import { CreatePosSaleDto, CreatePosDraftDto } from './dto/pos.dto';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 
 const WALK_IN_NAME = 'POS Walk-in / نقدي';
 
@@ -33,6 +34,7 @@ export class PosService {
     private products: ProductsService,
     private periods: PeriodsService,
     private dualControl: DualControlService,
+    private subscriptions: SubscriptionsService,
   ) {}
 
   private hashKey(secret: string) {
@@ -450,6 +452,7 @@ export class PosService {
     actor: TokenPayload,
     dto: CreatePosSaleDto,
   ) {
+    await this.subscriptions.assertCanCreateInvoice(companyId);
     const userId = actor.sub;
     const contact = await this.resolveSaleContact(companyId, dto.contactId);
     const role = await this.resolveUserRole(userId, actor.role);

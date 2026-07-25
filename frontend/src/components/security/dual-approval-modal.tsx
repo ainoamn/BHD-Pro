@@ -1,14 +1,25 @@
 "use client";
 
-import { useState } from "react";
-import { Loader2, ShieldCheck, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Loader2, ShieldCheck, Wifi, X } from "lucide-react";
+import toast from "react-hot-toast";
+import api from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
 
+export type DualControlAction =
+  | "POS_VOID"
+  | "POS_PRICE_OVERRIDE"
+  | "STOCK_ADJUST"
+  | "STOCK_TRANSFER"
+  | "INVOICE_CANCEL"
+  | "PAYMENT_REVERSE";
+
 export type DualApprovalPayload = {
-  method: "SELF_CONFIRM" | "PASSWORD" | "PIN";
+  method: "SELF_CONFIRM" | "PASSWORD" | "PIN" | "APPROVAL_REQUEST";
   email?: string;
   password?: string;
   pin?: string;
+  approvalRequestId?: string;
 };
 
 type ActorRole = string | undefined;
@@ -16,6 +27,10 @@ type ActorRole = string | undefined;
 type Props = {
   open: boolean;
   actionLabel: string;
+  /** Required to create an async online approval request. */
+  action?: DualControlAction;
+  payload?: Record<string, unknown>;
+  summary?: string;
   actorRole?: ActorRole;
   busy?: boolean;
   onConfirm: (approval: DualApprovalPayload) => void | Promise<void>;
@@ -31,10 +46,17 @@ const copy = {
     cancel: "إلغاء",
     tabPassword: "كلمة مرور المشرف",
     tabPin: "رمز PIN",
+    tabOnline: "طلب موافقة أونلاين",
     email: "بريد المشرف",
     password: "كلمة المرور",
     pin: "رمز المشرف (4–8 أرقام)",
     submit: "تأكيد الموافقة",
+    waiting: "بانتظار موافقة المدير…",
+    waitingHint: "اطلب من المدير فتح قائمة الموافقات والموافقة خلال 15 دقيقة",
+    approved: "تمت الموافقة — جاري التنفيذ",
+    rejected: "رُفض الطلب",
+    expired: "انتهت صلاحية الطلب",
+    requestFail: "تعذر إنشاء طلب الموافقة",
   },
   en: {
     title: "Dual control",
@@ -44,10 +66,17 @@ const copy = {
     cancel: "Cancel",
     tabPassword: "Supervisor password",
     tabPin: "PIN",
+    tabOnline: "Request online approval",
     email: "Supervisor email",
     password: "Password",
     pin: "Supervisor PIN (4–8 digits)",
     submit: "Confirm approval",
+    waiting: "Waiting for manager approval…",
+    waitingHint: "Ask a manager to open Approvals and decide within 15 minutes",
+    approved: "Approved — continuing",
+    rejected: "Request was rejected",
+    expired: "Request expired",
+    requestFail: "Could not create approval request",
   },
 };
 
@@ -55,9 +84,14 @@ function isApprover(role?: string) {
   return role === "ADMIN" || role === "MANAGER";
 }
 
+type WaitMode = "idle" | "waiting" | "done";
+
 export function DualApprovalModal({
   open,
   actionLabel,
+  action,
+  payload,
+  summary,
   actorRole,
   busy,
   onConfirm,
@@ -68,10 +102,73 @@ export function DualApprovalModal({
   const approver = isApprover(actorRole);
 
   const [checked, setChecked] = useState(false);
-  const [mode, setMode] = useState<"PASSWORD" | "PIN">("PASSWORD");
+  const [mode, setMode] = useState<"PASSWORD" | "PIN" | "ONLINE">("PASSWORD");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [pin, setPin] = useState("");
+  const [waitMode, setWaitMode] = useState<WaitMode>("idle");
+  const [requestId, setRequestId] = useState<string | null>(null);
+  const [requestBusy, setRequestBusy] = useState(false);
+  const confirmedRef = useRef(false);
+
+  useEffect(() => {
+    if (!open) {
+      setChecked(false);
+      setMode("PASSWORD");
+      setEmail("");
+      setPassword("");
+      setPin("");
+      setWaitMode("idle");
+      setRequestId(null);
+      setRequestBusy(false);
+      confirmedRef.current = false;
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || waitMode !== "waiting" || !requestId) return;
+    let cancelled = false;
+
+    const poll = async () => {
+      try {
+        const res = await api.getDualControlRequest(requestId);
+        const status = String(res.data?.status || "").toUpperCase();
+        if (cancelled) return;
+        if (status === "APPROVED") {
+          setWaitMode("done");
+          if (!confirmedRef.current) {
+            confirmedRef.current = true;
+            toast.success(t.approved);
+            await onConfirm({
+              method: "APPROVAL_REQUEST",
+              approvalRequestId: requestId,
+            });
+          }
+          return;
+        }
+        if (status === "REJECTED") {
+          setWaitMode("idle");
+          setRequestId(null);
+          toast.error(t.rejected);
+          return;
+        }
+        if (status === "EXPIRED" || status === "CONSUMED") {
+          setWaitMode("idle");
+          setRequestId(null);
+          toast.error(t.expired);
+        }
+      } catch {
+        /* keep polling */
+      }
+    };
+
+    void poll();
+    const id = window.setInterval(() => void poll(), 3000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [open, waitMode, requestId, onConfirm, t.approved, t.expired, t.rejected]);
 
   if (!open) return null;
 
@@ -81,7 +178,28 @@ export function DualApprovalModal({
   };
 
   const submitOther = async () => {
-    if (busy) return;
+    if (busy || requestBusy) return;
+    if (mode === "ONLINE") {
+      if (!action) {
+        toast.error(t.requestFail);
+        return;
+      }
+      setRequestBusy(true);
+      try {
+        const res = await api.createDualControlRequest({
+          action,
+          payload: payload || {},
+          summary: summary || actionLabel,
+        });
+        setRequestId(res.data.id);
+        setWaitMode("waiting");
+      } catch {
+        toast.error(t.requestFail);
+      } finally {
+        setRequestBusy(false);
+      }
+      return;
+    }
     if (mode === "PASSWORD") {
       await onConfirm({
         method: "PASSWORD",
@@ -92,6 +210,8 @@ export function DualApprovalModal({
     }
     await onConfirm({ method: "PIN", pin: pin.trim() });
   };
+
+  const showOnline = !!action;
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60">
@@ -112,7 +232,8 @@ export function DualApprovalModal({
           <button
             type="button"
             onClick={onCancel}
-            className="text-slate-400 hover:text-white"
+            disabled={busy || waitMode === "waiting"}
+            className="text-slate-400 hover:text-white disabled:opacity-40"
             aria-label={t.cancel}
           >
             <X className="w-4 h-4" />
@@ -120,7 +241,20 @@ export function DualApprovalModal({
         </div>
 
         <div className="px-5 py-4 space-y-4">
-          {approver ? (
+          {waitMode === "waiting" || waitMode === "done" ? (
+            <div className="text-center space-y-3 py-4">
+              <Loader2 className="w-8 h-8 animate-spin text-sky-400 mx-auto" />
+              <p className="text-sm font-semibold text-white">{t.waiting}</p>
+              <p className="text-xs text-slate-400">{t.waitingHint}</p>
+              <button
+                type="button"
+                onClick={onCancel}
+                className="mt-2 px-3 py-2 text-sm rounded-lg text-slate-300 hover:bg-white/5"
+              >
+                {t.cancel}
+              </button>
+            </div>
+          ) : approver ? (
             <>
               <label className="flex items-start gap-3 text-sm text-slate-200 cursor-pointer">
                 <input
@@ -131,24 +265,55 @@ export function DualApprovalModal({
                 />
                 <span>{t.selfConfirm}</span>
               </label>
-              <div className="flex gap-2 justify-end">
+              {showOnline ? (
                 <button
                   type="button"
-                  onClick={onCancel}
-                  className="px-3 py-2 text-sm rounded-lg text-slate-300 hover:bg-white/5"
+                  onClick={() => setMode("ONLINE")}
+                  className="w-full inline-flex items-center justify-center gap-2 h-10 rounded-lg border border-sky-500/30 text-sm text-sky-200 hover:bg-sky-500/10"
                 >
-                  {t.cancel}
+                  <Wifi className="w-4 h-4" />
+                  {t.tabOnline}
                 </button>
-                <button
-                  type="button"
-                  disabled={!checked || busy}
-                  onClick={submitSelf}
-                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-amber-500 text-slate-950 disabled:opacity-50"
-                >
-                  {busy && <Loader2 className="w-4 h-4 animate-spin" />}
-                  {t.continue}
-                </button>
-              </div>
+              ) : null}
+              {mode === "ONLINE" && showOnline ? (
+                <div className="flex gap-2 justify-end">
+                  <button
+                    type="button"
+                    onClick={onCancel}
+                    className="px-3 py-2 text-sm rounded-lg text-slate-300 hover:bg-white/5"
+                  >
+                    {t.cancel}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy || requestBusy}
+                    onClick={submitOther}
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-sky-500 text-white disabled:opacity-50"
+                  >
+                    {(busy || requestBusy) && <Loader2 className="w-4 h-4 animate-spin" />}
+                    {t.tabOnline}
+                  </button>
+                </div>
+              ) : (
+                <div className="flex gap-2 justify-end">
+                  <button
+                    type="button"
+                    onClick={onCancel}
+                    className="px-3 py-2 text-sm rounded-lg text-slate-300 hover:bg-white/5"
+                  >
+                    {t.cancel}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!checked || busy}
+                    onClick={submitSelf}
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-amber-500 text-slate-950 disabled:opacity-50"
+                  >
+                    {busy && <Loader2 className="w-4 h-4 animate-spin" />}
+                    {t.continue}
+                  </button>
+                </div>
+              )}
             </>
           ) : (
             <>
@@ -156,7 +321,7 @@ export function DualApprovalModal({
                 <button
                   type="button"
                   onClick={() => setMode("PASSWORD")}
-                  className={`flex-1 px-3 py-2 text-xs font-semibold ${
+                  className={`flex-1 px-2 py-2 text-[11px] font-semibold ${
                     mode === "PASSWORD"
                       ? "bg-sky-500/20 text-sky-200"
                       : "text-slate-400 hover:bg-white/5"
@@ -167,7 +332,7 @@ export function DualApprovalModal({
                 <button
                   type="button"
                   onClick={() => setMode("PIN")}
-                  className={`flex-1 px-3 py-2 text-xs font-semibold ${
+                  className={`flex-1 px-2 py-2 text-[11px] font-semibold ${
                     mode === "PIN"
                       ? "bg-sky-500/20 text-sky-200"
                       : "text-slate-400 hover:bg-white/5"
@@ -175,6 +340,19 @@ export function DualApprovalModal({
                 >
                   {t.tabPin}
                 </button>
+                {showOnline ? (
+                  <button
+                    type="button"
+                    onClick={() => setMode("ONLINE")}
+                    className={`flex-1 px-2 py-2 text-[11px] font-semibold ${
+                      mode === "ONLINE"
+                        ? "bg-sky-500/20 text-sky-200"
+                        : "text-slate-400 hover:bg-white/5"
+                    }`}
+                  >
+                    {t.tabOnline}
+                  </button>
+                ) : null}
               </div>
 
               {mode === "PASSWORD" ? (
@@ -200,7 +378,7 @@ export function DualApprovalModal({
                     />
                   </div>
                 </div>
-              ) : (
+              ) : mode === "PIN" ? (
                 <div>
                   <label className="block text-xs text-slate-400 mb-1">{t.pin}</label>
                   <input
@@ -212,6 +390,8 @@ export function DualApprovalModal({
                     className="w-full h-10 px-3 rounded-lg bg-black/30 border border-white/10 text-sm text-white tracking-widest"
                   />
                 </div>
+              ) : (
+                <p className="text-xs text-slate-400">{t.waitingHint}</p>
               )}
 
               <div className="flex gap-2 justify-end">
@@ -226,15 +406,18 @@ export function DualApprovalModal({
                   type="button"
                   disabled={
                     busy ||
+                    requestBusy ||
                     (mode === "PASSWORD"
                       ? !email.trim() || !password
-                      : pin.length < 4)
+                      : mode === "PIN"
+                        ? pin.length < 4
+                        : !action)
                   }
                   onClick={submitOther}
                   className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-amber-500 text-slate-950 disabled:opacity-50"
                 >
-                  {busy && <Loader2 className="w-4 h-4 animate-spin" />}
-                  {t.submit}
+                  {(busy || requestBusy) && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {mode === "ONLINE" ? t.tabOnline : t.submit}
                 </button>
               </div>
             </>

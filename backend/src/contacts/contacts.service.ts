@@ -3,10 +3,14 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateContactDto } from './dto/create-contact.dto';
 import { UpdateContactDto } from './dto/update-contact.dto';
 import { ContactType, InvoiceStatus, PaymentStatus } from '@prisma/client';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 
 @Injectable()
 export class ContactsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private subscriptions: SubscriptionsService,
+  ) {}
 
   async findAll(companyId: string, type?: ContactType) {
     const contacts = await this.prisma.contact.findMany({
@@ -75,6 +79,7 @@ export class ContactsService {
   }
 
   async create(companyId: string, dto: CreateContactDto) {
+    await this.subscriptions.assertSubscriptionActive(companyId);
     const { customFieldsJson, ...rest } = dto;
     return this.prisma.contact.create({
       data: {

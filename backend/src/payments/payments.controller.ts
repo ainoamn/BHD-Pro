@@ -9,10 +9,11 @@ import {
   Req,
   Res,
   UseGuards,
+  BadRequestException,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { PaymentGatewaySlug, UserRole } from '@prisma/client';
+import { PaymentGatewaySlug, Plan, UserRole } from '@prisma/client';
 import { Request, Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -88,7 +89,24 @@ export class PaymentsController {
       plan: dto.plan,
       billing: dto.billing,
       gatewaySlug: dto.gatewaySlug,
+      promoCode: dto.promoCode,
     });
+  }
+
+  @Get('subscription/promo')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Validate a subscription promo code before checkout' })
+  validatePromo(
+    @Query('plan') plan: string,
+    @Query('billing') billing: string,
+    @Query('code') code?: string,
+  ) {
+    const plans = Object.values(Plan) as string[];
+    if (!plans.includes(plan) || (billing !== 'monthly' && billing !== 'yearly')) {
+      throw new BadRequestException('plan and billing are required');
+    }
+    return this.payments.validatePromoCode(plan as Plan, billing, code);
   }
 
   @Post('invoices/:invoiceId/checkout')

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Calculator, Link2, Link2Off, LogOut, Package, Settings2 } from "lucide-react";
+import { Calculator, Link2, Link2Off, LogOut, Package, Settings2, ShieldCheck } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
@@ -20,6 +20,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
   const [linked, setLinked] = useState<boolean | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const isLogin = pathname?.startsWith("/pos/login");
+  const canSeeApprovals = user?.role === "ADMIN" || user?.role === "MANAGER";
 
   useEffect(() => {
     setHydrated(true);
@@ -112,6 +113,16 @@ export function PosShell({ children }: { children: React.ReactNode }) {
               <Package className="w-4 h-4" />
               <span className="hidden sm:inline">{t.inventory}</span>
             </Link>
+            {canSeeApprovals ? (
+              <Link
+                href="/pos/approvals"
+                className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-amber-200/90 hover:bg-amber-500/10"
+                title={t.approvals}
+              >
+                <ShieldCheck className="w-4 h-4" />
+                <span className="hidden sm:inline">{t.approvals}</span>
+              </Link>
+            ) : null}
             <Link
               href="/pos/settings"
               className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-300 hover:bg-white/5"

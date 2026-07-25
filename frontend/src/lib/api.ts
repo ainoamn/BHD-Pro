@@ -2,10 +2,11 @@ import axios, { AxiosInstance, AxiosError, AxiosRequestConfig } from 'axios';
 import { useAuthStore } from '@/store/auth';
 
 export type DualApprovalPayload = {
-  method: 'SELF_CONFIRM' | 'PASSWORD' | 'PIN';
+  method: 'SELF_CONFIRM' | 'PASSWORD' | 'PIN' | 'APPROVAL_REQUEST';
   email?: string;
   password?: string;
   pin?: string;
+  approvalRequestId?: string;
 };
 
 /** Prefer same-origin Next rewrite so httpOnly cookies work on localhost + production */
@@ -548,6 +549,11 @@ class ApiClient {
 
   createSubscriptionCheckout(data: unknown) {
     return this.post('/payments/subscription/checkout', data);
+  }
+
+  validateSubscriptionPromo(plan: string, billing: string, code: string) {
+    const q = new URLSearchParams({ plan, billing, code });
+    return this.get(`/payments/subscription/promo?${q.toString()}`);
   }
 
   createInvoiceCheckout(invoiceId: string, data: unknown) {
@@ -1102,6 +1108,48 @@ class ApiClient {
 
   updateCompanySecurity(data: unknown) {
     return this.patch('/companies/me/security', data);
+  }
+
+  createDualControlRequest(data: {
+    action: string;
+    payload?: Record<string, unknown>;
+    summary?: string;
+  }) {
+    return this.post<{
+      id: string;
+      action: string;
+      status: string;
+      expiresAt: string;
+      summary?: string | null;
+    }>('/dual-control/requests', data);
+  }
+
+  listPendingDualControlRequests() {
+    return this.get<
+      {
+        id: string;
+        action: string;
+        status: string;
+        summary?: string | null;
+        expiresAt: string;
+        createdAt: string;
+        requestedBy?: { id: string; name: string; email: string };
+      }[]
+    >('/dual-control/requests/pending');
+  }
+
+  getDualControlRequest(id: string) {
+    return this.get<{
+      id: string;
+      action: string;
+      status: string;
+      summary?: string | null;
+      expiresAt: string;
+    }>(`/dual-control/requests/${id}`);
+  }
+
+  decideDualControlRequest(id: string, data: { approve: boolean; note?: string }) {
+    return this.post(`/dual-control/requests/${id}/decide`, data);
   }
 
   getPeriods(year?: number) {

@@ -94,6 +94,14 @@ BHD Pro يساعد الشركات الصغيرة والمتوسطة على:
 - مستخدمون بصلاحيات (Admin, Accountant, Viewer, Manager)
 - واجهة عربية (RTL) + إنجليزية
 
+### Hisaby POS والكاشير
+
+- مسار الكاشير: **`/pos`** (دخول `/pos/login`، إعدادات `/pos/settings`، موافقات المدير `/pos/approvals`)
+- مسح باركود: قارئ أجهزة + **كاميرا** (مع احتياطي ZXing)
+- حماية مزدوجة + موافقات أونلاين غير متزامنة
+- توثيق الحالة والفجوات: [`docs/HISABY-STATUS-AND-GAPS.md`](./docs/HISABY-STATUS-AND-GAPS.md)
+- خارطة POS والأمان: [`docs/HISABY-POS-AND-SECURITY-ROADMAP.md`](./docs/HISABY-POS-AND-SECURITY-ROADMAP.md)
+
 ### التراجع وتصحيح الأخطاء
 
 | الإجراء | متى يُستخدم | النتيجة |

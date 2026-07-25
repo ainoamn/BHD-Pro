@@ -447,7 +447,12 @@
     "omr": "ر.ع",
     "perMonth": "/شهر",
     "perYear": "/سنة",
-    "upgraded": "تم ترقية الخطة بنجاح"
+    "upgraded": "تم ترقية الخطة بنجاح",
+    "promoCode": "رمز الخصم",
+    "promoPlaceholder": "أدخل رمز العرض إن وُجد",
+    "applyPromo": "تطبيق",
+    "promoApplied": "تم تطبيق الخصم ({pct}%) — السعر {price} ر.ع",
+    "promoInvalid": "رمز الخصم غير صالح أو منتهٍ"
   },
   "common": {
     "save": "حفظ",
