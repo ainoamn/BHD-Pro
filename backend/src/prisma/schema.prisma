@@ -80,6 +80,7 @@ model Company {
   posDrafts     PosDraft[]
   approvalRequests ApprovalRequest[]
   posShifts     PosShift[]
+  posCashMovements PosCashMovement[]
   dualControlOtps DualControlOtp[]
   recurringCommitments RecurringCommitment[]
   attachments Attachment[]
@@ -131,6 +132,7 @@ model User {
   approvalRequestsDecided   ApprovalRequest[] @relation("ApprovalDecidedBy")
   posShiftsOpened PosShift[] @relation("PosShiftOpenedBy")
   posShiftsClosed PosShift[] @relation("PosShiftClosedBy")
+  posCashMovementsCreated PosCashMovement[] @relation("PosCashMovementCreatedBy")
   dualControlOtpsRequested DualControlOtp[] @relation("DualControlOtpRequestedBy")
 
   @@index([companyId])
@@ -1534,10 +1536,31 @@ model PosShift {
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
   invoices Invoice[]
+  cashMovements PosCashMovement[]
 
   @@index([companyId, status])
   @@index([companyId, openedAt])
   @@map("pos_shifts")
+}
+
+/// Paid-in / paid-out cash drawer movements during an open POS shift.
+model PosCashMovement {
+  id          String   @id @default(uuid())
+  companyId   String   @map("company_id")
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  shiftId     String   @map("shift_id")
+  shift       PosShift @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  /// IN | OUT
+  type        String
+  amount      Decimal  @db.Decimal(14, 3)
+  reason      String?
+  createdById String   @map("created_by_id")
+  createdBy   User     @relation("PosCashMovementCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([companyId, shiftId])
+  @@index([shiftId, createdAt])
+  @@map("pos_cash_movements")
 }
 
 /// Short-lived WhatsApp OTP for dual-control approvals.

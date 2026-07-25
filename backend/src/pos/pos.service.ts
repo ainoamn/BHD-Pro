@@ -24,6 +24,7 @@ import { TokenPayload } from '../auth/interfaces/token-payload.interface';
 import {
   CreatePosSaleDto,
   CreatePosDraftDto,
+  CreatePosCashMovementDto,
   OpenPosShiftDto,
   ClosePosShiftDto,
   RefundPosSaleDto,
@@ -822,7 +823,11 @@ export class PosService {
       new Date(),
       Number(shift.openingFloat),
     );
-    return { shift, live };
+    return {
+      shift,
+      live,
+      cashMovements: shift.cashMovements || [],
+    };
   }
 
   /** Start of calendar day in Asia/Muscat (UTC+4, no DST). */
@@ -902,8 +907,91 @@ export class PosService {
       include: {
         openedBy: { select: { id: true, name: true, email: true } },
         warehouse: { select: { id: true, name: true, code: true } },
+        cashMovements: {
+          orderBy: { createdAt: 'desc' },
+          include: {
+            createdBy: { select: { id: true, name: true } },
+          },
+        },
       },
     });
+  }
+
+  async createCashMovement(
+    companyId: string,
+    userId: string,
+    dto: CreatePosCashMovementDto,
+  ) {
+    const shift = await this.findOpenShift(companyId, dto.warehouseId || null);
+    if (!shift) throw new BadRequestException('No open shift');
+    const amount = Number(dto.amount);
+    if (!(amount > 0)) {
+      throw new BadRequestException('Amount must be greater than zero');
+    }
+    const movement = await this.prisma.posCashMovement.create({
+      data: {
+        companyId,
+        shiftId: shift.id,
+        type: dto.type,
+        amount,
+        reason: dto.reason?.trim() || null,
+        createdById: userId,
+      },
+      include: {
+        createdBy: { select: { id: true, name: true } },
+      },
+    });
+    const live = await this.buildZReport(
+      companyId,
+      shift.id,
+      shift.openedAt,
+      new Date(),
+      Number(shift.openingFloat),
+    );
+    const cashMovements = await this.prisma.posCashMovement.findMany({
+      where: { companyId, shiftId: shift.id },
+      orderBy: { createdAt: 'desc' },
+      include: { createdBy: { select: { id: true, name: true } } },
+    });
+    return { movement, live, cashMovements, shift: { id: shift.id } };
+  }
+
+  async getCustomerRecentSales(companyId: string, contactId: string) {
+    const contact = await this.prisma.contact.findFirst({
+      where: { id: contactId, companyId },
+      select: { id: true, name: true },
+    });
+    if (!contact) throw new NotFoundException('Customer not found');
+
+    const sales = await this.prisma.invoice.findMany({
+      where: {
+        companyId,
+        contactId,
+        type: InvoiceType.SALES,
+        status: { not: InvoiceStatus.CANCELLED },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+      include: {
+        items: true,
+        payments: { select: { method: true } },
+      },
+    });
+
+    return {
+      contact,
+      sales: sales.map((inv) => ({
+        id: inv.id,
+        number: inv.number,
+        total: inv.total,
+        date: inv.date,
+        createdAt: inv.createdAt,
+        status: inv.status,
+        notes: inv.notes,
+        items: inv.items,
+        payments: inv.payments,
+      })),
+    };
   }
 
   async openShift(companyId: string, userId: string, dto: OpenPosShiftDto) {
@@ -1133,7 +1221,25 @@ export class PosService {
       })
       .reduce((s, r) => s + Number(r.total), 0);
     const cashSales = byPaymentMethod[PaymentMethod.CASH] || 0;
-    const expectedCash = Number((openingFloat + cashSales - cashRefundsTotal).toFixed(3));
+
+    const movements = await this.prisma.posCashMovement.findMany({
+      where: { companyId, shiftId },
+      orderBy: { createdAt: 'asc' },
+      include: { createdBy: { select: { id: true, name: true } } },
+    });
+    let cashIn = 0;
+    let cashOut = 0;
+    for (const m of movements) {
+      const amt = Number(m.amount);
+      if (m.type === 'IN') cashIn += amt;
+      else if (m.type === 'OUT') cashOut += amt;
+    }
+    cashIn = Number(cashIn.toFixed(3));
+    cashOut = Number(cashOut.toFixed(3));
+
+    const expectedCash = Number(
+      (openingFloat + cashSales - cashRefundsTotal + cashIn - cashOut).toFixed(3),
+    );
     const variance =
       closingCash != null ? Number((closingCash - expectedCash).toFixed(3)) : null;
 
@@ -1159,6 +1265,16 @@ export class PosService {
       cashSales: Number(cashSales.toFixed(3)),
       cardSales: Number((byPaymentMethod[PaymentMethod.CREDIT_CARD] || 0).toFixed(3)),
       bankSales: Number((byPaymentMethod[PaymentMethod.BANK_TRANSFER] || 0).toFixed(3)),
+      cashIn,
+      cashOut,
+      cashMovements: movements.map((m) => ({
+        id: m.id,
+        type: m.type,
+        amount: Number(m.amount),
+        reason: m.reason,
+        createdAt: m.createdAt,
+        createdBy: m.createdBy,
+      })),
       expectedCash,
       closingCash: closingCash ?? null,
       variance,

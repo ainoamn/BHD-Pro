@@ -276,6 +276,45 @@ export function AccountingModule() {
     }
   }, [searchParams, router]);
 
+  // Deep-link: /accounting?open=<invoiceId> opens the document viewer
+  useEffect(() => {
+    const openId = searchParams.get("open");
+    if (!openId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.getInvoice(openId);
+        if (cancelled) return;
+        const inv = res.data as Invoice;
+        setPrintInvoice(inv);
+        setDocumentVariant("invoice");
+        const dt = String(inv.type || "");
+        if (DOC_TYPES.has(dt)) {
+          const docType = dt as DocumentType;
+          setDocumentType(docType);
+          setInvoiceType(
+            docType === "PURCHASE" || docType === "DEBIT_NOTE" ? "PURCHASE" : "SALES",
+          );
+          const hub =
+            DOC_TYPE_HUB[docType] ||
+            (docType === "PURCHASE" || docType === "DEBIT_NOTE" ? "purchases" : "sales");
+          setHubTab(hub);
+        }
+      } catch {
+        // ignore — invoice may be deleted
+      } finally {
+        if (cancelled) return;
+        const params = new URLSearchParams(searchParams.toString());
+        params.delete("open");
+        const qs = params.toString();
+        router.replace(qs ? `/accounting?${qs}` : "/accounting");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams, router]);
+
   // المصروفات: كل دفتر العناوين | الإيرادات: العملاء فقط
   const contactsQueryType = invoiceType === "SALES" ? "CUSTOMER" : undefined;
 

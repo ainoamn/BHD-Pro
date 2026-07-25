@@ -77,6 +77,11 @@ export class ManagementAlertsService {
       method: string;
     },
   ) {
+    const primaryInvoice = await this.prisma.invoice.findFirst({
+      where: { id: payment.invoiceId, companyId },
+      select: { number: true },
+    });
+
     if (payment.reference) {
       const dupRef = await this.prisma.payment.findFirst({
         where: {
@@ -99,7 +104,8 @@ export class ManagementAlertsService {
             otherPaymentId: dupRef.id,
             reference: payment.reference,
             invoiceId: payment.invoiceId,
-            invoiceNumber: dupRef.invoice.number,
+            invoiceNumber: primaryInvoice?.number || dupRef.invoice.number,
+            otherInvoiceNumber: dupRef.invoice.number,
           },
         });
       }
@@ -135,6 +141,7 @@ export class ManagementAlertsService {
           similarIds: similar.map((s) => s.id),
           invoices: similar.map((s) => s.invoice.number),
           invoiceId: payment.invoiceId,
+          invoiceNumber: primaryInvoice?.number,
         },
       });
     }

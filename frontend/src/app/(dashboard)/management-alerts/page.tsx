@@ -130,14 +130,22 @@ export default function ManagementAlertsPage() {
                       {new Date(row.createdAt).toLocaleString()}
                       {invoiceHint ? ` · ${t("relatedInvoice")}: ${invoiceHint}` : ""}
                     </p>
-                    {row.entityType === "PAYMENT" && (
+                    {row.entityType === "PAYMENT" && payload.invoiceId ? (
                       <Link
-                        href="/invoices"
+                        href={`/accounting?open=${payload.invoiceId}`}
+                        className="inline-block text-xs text-sky-400 hover:text-sky-300 mt-1"
+                      >
+                        {t("openInvoice")}
+                        {payload.invoiceNumber ? ` · ${payload.invoiceNumber}` : ""}
+                      </Link>
+                    ) : row.entityType === "PAYMENT" ? (
+                      <Link
+                        href="/accounting?tab=sales"
                         className="inline-block text-xs text-sky-400 hover:text-sky-300 mt-1"
                       >
                         {t("openInvoices")}
                       </Link>
-                    )}
+                    ) : null}
                   </div>
                 </div>
 

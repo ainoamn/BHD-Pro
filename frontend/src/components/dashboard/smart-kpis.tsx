@@ -10,6 +10,7 @@ import {
   ArrowLeft,
   ShieldCheck,
   ShoppingCart,
+  ShieldAlert,
 } from "lucide-react";
 import { formatMoney } from "@/lib/utils";
 import { cn } from "@/lib/utils";
@@ -26,6 +27,7 @@ export interface SmartKpisData {
   todayPosSales?: number;
   todayPosSalesCount?: number;
   openPosShiftsCount?: number;
+  openManagementAlertsCount?: number;
 }
 
 interface SmartKpisProps {
@@ -65,6 +67,17 @@ export function SmartKpis({ data, currency = "OMR" }: SmartKpisProps) {
       tone:
         (data.pendingApprovalsCount || 0) > 0
           ? "text-amber-400 bg-amber-500/10"
+          : "text-slate-300 bg-slate-500/10",
+    },
+    {
+      key: "openManagementAlerts",
+      href: "/management-alerts",
+      icon: ShieldAlert,
+      value: String(data.openManagementAlertsCount || 0),
+      hint: t("openManagementAlertsHint"),
+      tone:
+        (data.openManagementAlertsCount || 0) > 0
+          ? "text-rose-400 bg-rose-500/10"
           : "text-slate-300 bg-slate-500/10",
     },
     {

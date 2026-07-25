@@ -11,6 +11,23 @@ export type PosReceiptShareData = {
   lines?: { name: string; qty: number; lineTotal: number }[];
 };
 
+export type PosShiftReportShareData = {
+  kind: "X" | "Z";
+  companyName?: string;
+  currency?: string;
+  openingCash?: number;
+  salesTotal?: number;
+  salesCount?: number;
+  cashSales?: number;
+  cashIn?: number;
+  cashOut?: number;
+  refundTotal?: number;
+  voidedTotal?: number;
+  expectedCash?: number;
+  closingCash?: number | null;
+  variance?: number | null;
+};
+
 export function buildPosReceiptPlainText(receipt: PosReceiptShareData): string {
   const currency = receipt.currency || "OMR";
   const lines = [
@@ -41,4 +58,41 @@ export function openPosReceiptEmail(receipt: PosReceiptShareData): void {
   );
   const body = encodeURIComponent(text);
   openExternalUrl(`mailto:?subject=${subject}&body=${body}`);
+}
+
+export function buildPosShiftReportPlainText(report: PosShiftReportShareData): string {
+  const currency = report.currency || "OMR";
+  const title = report.kind === "X" ? "X-Report" : "Z-Report";
+  const money = (n?: number | null) =>
+    n == null || Number.isNaN(Number(n)) ? "—" : formatMoney(Number(n), currency);
+  const lines = [
+    `${title} · ${report.companyName || "Hisaby POS"}`,
+    new Date().toLocaleString(),
+    "",
+    `Opening: ${money(report.openingCash)}`,
+    `Sales: ${money(report.salesTotal)} (${report.salesCount ?? 0})`,
+    `Cash sales: ${money(report.cashSales)}`,
+    `Cash in: ${money(report.cashIn)}`,
+    `Cash out: ${money(report.cashOut)}`,
+    `Refunds: ${money(report.refundTotal)}`,
+    `Voids: ${money(report.voidedTotal)}`,
+    `Expected cash: ${money(report.expectedCash)}`,
+  ];
+  if (report.kind === "Z") {
+    lines.push(`Closing cash: ${money(report.closingCash)}`);
+    lines.push(`Variance: ${money(report.variance)}`);
+  }
+  return lines.join("\n");
+}
+
+export function openPosShiftReportWhatsApp(report: PosShiftReportShareData): boolean {
+  const text = buildPosShiftReportPlainText(report);
+  return openExternalUrl(`https://wa.me/?text=${encodeURIComponent(text)}`);
+}
+
+export function openPosShiftReportEmail(report: PosShiftReportShareData): void {
+  const text = buildPosShiftReportPlainText(report);
+  const title = report.kind === "X" ? "X-Report" : "Z-Report";
+  const subject = encodeURIComponent(`${title} · ${report.companyName || "Hisaby POS"}`);
+  openExternalUrl(`mailto:?subject=${subject}&body=${encodeURIComponent(text)}`);
 }

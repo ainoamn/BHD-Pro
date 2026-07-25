@@ -92,6 +92,7 @@ type RecentCashSale = {
   number: string;
   total: number | string;
   date?: string;
+  createdAt?: string;
   notes?: string | null;
   status?: string;
   items?: {
@@ -123,6 +124,8 @@ export default function PosCheckoutPage() {
   const [parkedCarts, setParkedCarts] = useState<ParkedCart[]>([]);
   const [customers, setCustomers] = useState<Contact[]>([]);
   const [contactId, setContactId] = useState("");
+  const [customerRecentPurchases, setCustomerRecentPurchases] = useState<RecentCashSale[]>([]);
+  const [customerPurchasesLoading, setCustomerPurchasesLoading] = useState(false);
   const [voidTarget, setVoidTarget] = useState<RecentCashSale | null>(null);
   const [voidBusy, setVoidBusy] = useState(false);
   const [refundTarget, setRefundTarget] = useState<RecentCashSale | null>(null);
@@ -297,6 +300,41 @@ export default function PosCheckoutPage() {
       /* ignore */
     }
   }, []);
+
+  useEffect(() => {
+    if (!contactId) {
+      setCustomerRecentPurchases([]);
+      setCustomerPurchasesLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setCustomerPurchasesLoading(true);
+    (async () => {
+      try {
+        const res = await api.getPosCustomerRecentSales(contactId);
+        if (!cancelled) {
+          setCustomerRecentPurchases((res.data?.sales || []) as RecentCashSale[]);
+        }
+      } catch {
+        if (!cancelled) setCustomerRecentPurchases([]);
+      } finally {
+        if (!cancelled) setCustomerPurchasesLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [contactId]);
+
+  const refreshCustomerPurchases = useCallback(async () => {
+    if (!contactId) return;
+    try {
+      const res = await api.getPosCustomerRecentSales(contactId);
+      setCustomerRecentPurchases((res.data?.sales || []) as RecentCashSale[]);
+    } catch {
+      /* ignore */
+    }
+  }, [contactId]);
 
   const maybeKickDrawer = useCallback(async (method: CheckoutMethod) => {
     if (method !== "CASH") return;
@@ -1019,6 +1057,7 @@ export default function PosCheckoutPage() {
       loadCatalog(search);
       loadRecentSales();
       loadOpsStrip();
+      void refreshCustomerPurchases();
       focusScan();
     } catch (err: unknown) {
       const networkFail =
@@ -1228,6 +1267,44 @@ export default function PosCheckoutPage() {
               <span className="hidden sm:inline">{t.addCustomer}</span>
             </button>
           </label>
+          {contactId ? (
+            <div className="pt-1.5 border-t border-white/5 space-y-1.5">
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">
+                {t.recentPurchases}
+              </p>
+              {customerPurchasesLoading ? (
+                <p className="text-[11px] text-slate-500 inline-flex items-center gap-1.5">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  …
+                </p>
+              ) : !customerRecentPurchases.length ? (
+                <p className="text-[11px] text-slate-500">{t.noRecentPurchases}</p>
+              ) : (
+                <div className="flex gap-2 overflow-x-auto pb-0.5">
+                  {customerRecentPurchases.map((sale) => {
+                    const when = sale.date || sale.createdAt;
+                    return (
+                      <button
+                        key={sale.id}
+                        type="button"
+                        onClick={() => reprintSale(sale)}
+                        className="shrink-0 rounded-lg border border-white/10 bg-black/25 px-2.5 py-1.5 text-start min-w-[7.5rem] hover:border-sky-400/40 transition"
+                        title={t.reprint}
+                      >
+                        <p className="text-[10px] text-slate-500">
+                          {when ? new Date(when).toLocaleDateString() : "—"}
+                        </p>
+                        <p className="text-[11px] font-bold text-white truncate">{sale.number}</p>
+                        <p className="text-[11px] text-sky-300 font-semibold">
+                          {formatMoney(Number(sale.total), currency)}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ) : null}
         </div>
 
         <form onSubmit={handleScan} className="space-y-1.5">

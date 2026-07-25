@@ -161,6 +161,25 @@ export class ClosePosShiftDto {
   approval?: DualApprovalDto;
 }
 
+export class CreatePosCashMovementDto {
+  @IsIn(['IN', 'OUT'])
+  type: 'IN' | 'OUT';
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.001)
+  amount: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  reason?: string;
+
+  @IsOptional()
+  @IsUUID()
+  warehouseId?: string;
+}
+
 export class LinkPosDto {
   @IsString()
   key: string;

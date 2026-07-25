@@ -75,12 +75,16 @@ Public flags: `asyncApprovals: true`, `nfcBadgesConfigured`, `shiftVarianceLimit
 - [x] Store credit pay + void restore (`useStoreCredit`, atomic wallet debit, `Contact.currentBalance`)
 - [x] Cash change-due tender modal (amount tendered → change → confirm)
 - [x] Refund-by-receipt lookup (`GET /pos/sales/by-number?number=`)
+- [x] Cash in / cash out on open shift (`pos_cash_movements`, `POST /pos/shifts/current/cash-movements`; expected cash = opening + cash sales − cash refunds + in − out)
+- [x] Customer recent purchases strip on checkout (`GET /pos/customers/:id/recent-sales`)
+- [x] Share X/Z report via WhatsApp + email (`pos-receipt-share` text summary from `/pos/shifts`)
 
 ### Planned
 - [ ] Partner NFC tap-to-pay (gateway / wallet partners — not badge dual-control)
 - [ ] Native wrapper (Capacitor) if PWA limits hit
 - [ ] Reliable multi-vendor Web Bluetooth thermal (current BLE path is best-effort)
 - [x] Full AR GL posting for store-credit (`PaymentMethod.STORE_CREDIT` → liability **2130** ائتمان عملاء; wallet `Contact.currentBalance` kept as operational balance)
+- [ ] Split tender (multi-payment on one sale)
 
 ### Done (Wave 6)
 - [x] Full catalog sync API `GET /pos/catalog/sync` + offline IDB per warehouse
@@ -111,3 +115,8 @@ Public flags: `asyncApprovals: true`, `nfcBadgesConfigured`, `shiftVarianceLimit
 16. Bank internal transfer dual-control (`BANK_INTERNAL_TRANSFER`) + statement match suggestions UI on `/bank-reconciliation`.
 17. Store-credit GL: `PaymentMethod.STORE_CREDIT` posts Dr/Cr liability **2130** against AR (not cash 1100); wallet `Contact.currentBalance` remains operational.
 18. Management alerts polish: status tabs + acknowledge/dismiss/resolve + severity; commitments edit with GL accounts + attachments open.
+19. Deploy migration `20260725200000_pos_cash_movements` for drawer paid-in/out audit; cash movements appear on current shift, X/Z print, and expected cash.
+20. Customer recent sales: `GET /pos/customers/:id/recent-sales` (last 5) under POS customer select; tap to reprint.
+21. Share X/Z: WhatsApp / email buttons on `/pos/shifts` using plain-text report summary (same pattern as receipt share).
+19. Alert → invoice deep-link (`/accounting?open=`), dashboard/notifications open-alert count, journal attachments.
+20. POS cash drawer paid-in / paid-out (`pos_cash_movements`) — adjusts expected cash on X/Z reports.

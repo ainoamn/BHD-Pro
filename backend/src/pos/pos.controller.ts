@@ -10,6 +10,7 @@ import { TokenPayload } from '../auth/interfaces/token-payload.interface';
 import { PosService } from './pos.service';
 import {
   ClosePosShiftDto,
+  CreatePosCashMovementDto,
   CreatePosDraftDto,
   CreatePosSaleDto,
   LinkPosDto,
@@ -178,6 +179,24 @@ export class PosController {
     @Query('warehouseId') warehouseId?: string,
   ) {
     return this.pos.getCurrentShift(user.companyId, warehouseId || null);
+  }
+
+  @Post('shifts/current/cash-movements')
+  @Roles(...POS_STAFF)
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @ApiOperation({ summary: 'Cash in / cash out on the current open shift' })
+  createCashMovement(
+    @CurrentUser() user: TokenPayload,
+    @Body() dto: CreatePosCashMovementDto,
+  ) {
+    return this.pos.createCashMovement(user.companyId, user.sub, dto);
+  }
+
+  @Get('customers/:id/recent-sales')
+  @Roles(...POS_STAFF)
+  @ApiOperation({ summary: 'Last 5 sales invoices for a POS customer' })
+  customerRecentSales(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
+    return this.pos.getCustomerRecentSales(user.companyId, id);
   }
 
   @Get('shifts/current/x-report')

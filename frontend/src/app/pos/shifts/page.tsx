@@ -2,16 +2,30 @@
 
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Clock3, Loader2, Printer } from "lucide-react";
+import { Clock3, Loader2, Mail, MessageCircle, Printer } from "lucide-react";
 import toast from "react-hot-toast";
 import api, { DualApprovalPayload } from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
 import { useAuthStore } from "@/store/auth";
 import { posCopy } from "@/lib/pos-copy";
 import { DualApprovalModal } from "@/components/security/dual-approval-modal";
+import {
+  openPosShiftReportEmail,
+  openPosShiftReportWhatsApp,
+  type PosShiftReportShareData,
+} from "@/lib/pos-receipt-share";
 
 const POS_WAREHOUSE_KEY = "hisaby-pos-warehouse-id";
 const DEFAULT_VARIANCE_LIMIT = 1;
+
+type CashMovement = {
+  id: string;
+  type: string;
+  amount: number | string;
+  reason?: string | null;
+  createdAt: string;
+  createdBy?: { name?: string };
+};
 
 type ZReport = {
   salesTotal?: number;
@@ -19,6 +33,9 @@ type ZReport = {
   cashSales?: number;
   cardSales?: number;
   bankSales?: number;
+  cashIn?: number;
+  cashOut?: number;
+  cashMovements?: CashMovement[];
   refundTotal?: number;
   refundsTotal?: number;
   voidedTotal?: number;
@@ -30,6 +47,30 @@ type ZReport = {
   variance?: number | null;
 };
 
+function toShareReport(
+  report: ZReport,
+  kind: "Z" | "X",
+  companyName?: string,
+  currency?: string,
+): PosShiftReportShareData {
+  return {
+    kind,
+    companyName,
+    currency: currency || "OMR",
+    openingCash: Number(report.openingCash ?? report.openingFloat ?? 0),
+    salesTotal: Number(report.salesTotal ?? 0),
+    salesCount: Number(report.salesCount ?? 0),
+    cashSales: Number(report.cashSales ?? 0),
+    cashIn: Number(report.cashIn ?? 0),
+    cashOut: Number(report.cashOut ?? 0),
+    refundTotal: Number(report.refundsTotal ?? report.refundTotal ?? 0),
+    voidedTotal: Number(report.voidsTotal ?? report.voidedTotal ?? 0),
+    expectedCash: Number(report.expectedCash ?? 0),
+    closingCash: report.closingCash != null ? Number(report.closingCash) : null,
+    variance: report.variance != null ? Number(report.variance) : null,
+  };
+}
+
 function printShiftReport(
   t: (typeof posCopy)["en"] | (typeof posCopy)["ar"],
   report: ZReport,
@@ -37,11 +78,14 @@ function printShiftReport(
   companyName?: string,
 ) {
   const title = kind === "X" ? "X-Report" : "Z-Report";
+  const movements = report.cashMovements || [];
   const rows = [
     [t.openingFloat, report.openingCash ?? report.openingFloat ?? 0],
     [t.zSales, report.salesTotal ?? 0],
     [t.zCount, report.salesCount ?? 0],
     [t.zCash, report.cashSales ?? 0],
+    [t.zCashIn, report.cashIn ?? 0],
+    [t.zCashOut, report.cashOut ?? 0],
     [t.zRefunds, report.refundsTotal ?? report.refundTotal ?? 0],
     [t.zVoids, report.voidsTotal ?? report.voidedTotal ?? 0],
     [t.zExpected, report.expectedCash ?? 0],
@@ -52,10 +96,19 @@ function printShiftReport(
         ] as [string, string | number][])
       : []),
   ];
+  const movementRows = movements
+    .map((m) => {
+      const label = m.type === "IN" ? t.cashIn : t.cashOut;
+      const reason = m.reason ? ` · ${m.reason}` : "";
+      const when = m.createdAt ? new Date(m.createdAt).toLocaleString() : "";
+      return `<tr><td>${label}${reason}<br/><span style="font-size:11px;color:#666">${when}</span></td><td>${m.amount}</td></tr>`;
+    })
+    .join("");
   const html = `<!doctype html><html><head><title>${title}</title>
     <style>
       body{font-family:ui-monospace,monospace;padding:16px;color:#111}
       h1{font-size:16px;margin:0 0 8px} h2{font-size:13px;margin:0 0 12px;color:#444}
+      h3{font-size:12px;margin:16px 0 8px}
       table{width:100%;border-collapse:collapse;font-size:13px}
       td{padding:6px 0;border-bottom:1px dashed #ccc}
       td:last-child{text-align:right;font-weight:700}
@@ -64,6 +117,11 @@ function printShiftReport(
     <h1>${title} · ${companyName || "Hisaby POS"}</h1>
     <h2>${new Date().toLocaleString()}</h2>
     <table>${rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join("")}</table>
+    ${
+      movements.length
+        ? `<h3>${t.cashMovements}</h3><table>${movementRows}</table>`
+        : ""
+    }
     <script>window.onload=()=>window.print()</script>
     </body></html>`;
   const w = window.open("", "_blank", "noopener,noreferrer,width=420,height=640");
@@ -90,11 +148,15 @@ export default function PosShiftsPage() {
   const [openingFloat, setOpeningFloat] = useState("0");
   const [closingCash, setClosingCash] = useState("");
   const [lastZ, setLastZ] = useState<ZReport | null>(null);
+  const [lastX, setLastX] = useState<ZReport | null>(null);
   const [warehouseId, setWarehouseId] = useState("");
   const [warehouses, setWarehouses] = useState<{ id: string; name: string; code: string }[]>([]);
   const [varianceLimit, setVarianceLimit] = useState(DEFAULT_VARIANCE_LIMIT);
   const [approvalOpen, setApprovalOpen] = useState(false);
   const [pendingCloseCash, setPendingCloseCash] = useState<number | null>(null);
+  const [cashType, setCashType] = useState<"IN" | "OUT">("IN");
+  const [cashAmount, setCashAmount] = useState("");
+  const [cashReason, setCashReason] = useState("");
 
   useEffect(() => {
     try {
@@ -207,8 +269,30 @@ export default function PosShiftsPage() {
     },
   });
 
+  const cashMut = useMutation({
+    mutationFn: () =>
+      api.createPosCashMovement({
+        type: cashType,
+        amount: Number(cashAmount),
+        reason: cashReason.trim() || undefined,
+        warehouseId: warehouseId || undefined,
+      }),
+    onSuccess: () => {
+      toast.success(cashType === "IN" ? t.cashInOk : t.cashOutOk);
+      setCashAmount("");
+      setCashReason("");
+      qc.invalidateQueries({ queryKey: ["pos-shift-current"] });
+    },
+    onError: (err: { response?: { data?: { message?: string } } }) => {
+      toast.error(err.response?.data?.message || t.cashMovementFail);
+    },
+  });
+
   const live = data?.live as ZReport | undefined;
   const expectedCash = Number(live?.expectedCash ?? 0);
+  const cashMovements = (data?.cashMovements ||
+    live?.cashMovements ||
+    []) as CashMovement[];
 
   const requestClose = () => {
     const cash = Number(closingCash);
@@ -232,12 +316,20 @@ export default function PosShiftsPage() {
         toast.error(t.xReportFail);
         return;
       }
+      setLastX(report);
       printShiftReport(t, report, "X", company?.name);
     },
     onError: (err: { response?: { data?: { message?: string } } }) => {
       toast.error(err.response?.data?.message || t.xReportFail);
     },
   });
+
+  const shareReport = (report: ZReport | null, kind: "Z" | "X", channel: "wa" | "email") => {
+    if (!report) return;
+    const payload = toShareReport(report, kind, company?.name, company?.currency);
+    if (channel === "wa") openPosShiftReportWhatsApp(payload);
+    else openPosShiftReportEmail(payload);
+  };
 
   const shift = data?.shift as
     | {
@@ -305,6 +397,14 @@ export default function PosShiftsPage() {
                 <p className="font-bold text-emerald-300">{live.expectedCash ?? 0}</p>
               </div>
               <div className="rounded-lg bg-black/20 p-3">
+                <p className="text-slate-500 text-xs">{t.zCashIn}</p>
+                <p className="font-bold text-white">{live.cashIn ?? 0}</p>
+              </div>
+              <div className="rounded-lg bg-black/20 p-3">
+                <p className="text-slate-500 text-xs">{t.zCashOut}</p>
+                <p className="font-bold text-white">{live.cashOut ?? 0}</p>
+              </div>
+              <div className="rounded-lg bg-black/20 p-3">
                 <p className="text-slate-500 text-xs">{t.zRefunds}</p>
                 <p className="font-bold text-white">{live.refundsTotal ?? live.refundTotal ?? 0}</p>
               </div>
@@ -318,6 +418,90 @@ export default function PosShiftsPage() {
               </div>
             </div>
           ) : null}
+
+          <div className="rounded-xl border border-white/10 bg-black/20 p-4 space-y-3">
+            <p className="text-xs font-semibold text-slate-300">{t.cashMovements}</p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setCashType("IN")}
+                className={`h-9 px-3 rounded-lg text-xs font-semibold border ${
+                  cashType === "IN"
+                    ? "border-emerald-400/50 bg-emerald-500/15 text-emerald-200"
+                    : "border-white/10 text-slate-400"
+                }`}
+              >
+                {t.cashIn}
+              </button>
+              <button
+                type="button"
+                onClick={() => setCashType("OUT")}
+                className={`h-9 px-3 rounded-lg text-xs font-semibold border ${
+                  cashType === "OUT"
+                    ? "border-amber-400/50 bg-amber-500/15 text-amber-200"
+                    : "border-white/10 text-slate-400"
+                }`}
+              >
+                {t.cashOut}
+              </button>
+            </div>
+            <div className="flex flex-wrap items-end gap-3">
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">{t.cashMovementAmount}</label>
+                <input
+                  value={cashAmount}
+                  onChange={(e) => setCashAmount(e.target.value)}
+                  inputMode="decimal"
+                  className="h-10 w-32 rounded-lg bg-black/30 border border-white/10 px-3 text-sm text-white"
+                />
+              </div>
+              <div className="flex-1 min-w-[10rem]">
+                <label className="block text-xs text-slate-400 mb-1">{t.cashMovementReason}</label>
+                <input
+                  value={cashReason}
+                  onChange={(e) => setCashReason(e.target.value)}
+                  className="h-10 w-full rounded-lg bg-black/30 border border-white/10 px-3 text-sm text-white"
+                />
+              </div>
+              <button
+                type="button"
+                disabled={cashMut.isPending || !(Number(cashAmount) > 0)}
+                onClick={() => cashMut.mutate()}
+                className="h-10 px-4 rounded-lg bg-sky-500/90 text-white text-sm font-semibold disabled:opacity-50"
+              >
+                {cashMut.isPending ? "…" : cashType === "IN" ? t.cashIn : t.cashOut}
+              </button>
+            </div>
+            {cashMovements.length ? (
+              <ul className="space-y-1.5 max-h-40 overflow-y-auto">
+                {cashMovements.map((m) => (
+                  <li
+                    key={m.id}
+                    className="flex justify-between gap-2 text-xs text-slate-300 border-b border-white/5 pb-1.5"
+                  >
+                    <span>
+                      <span
+                        className={
+                          m.type === "IN" ? "text-emerald-300 font-semibold" : "text-amber-300 font-semibold"
+                        }
+                      >
+                        {m.type === "IN" ? t.cashIn : t.cashOut}
+                      </span>
+                      {m.reason ? ` · ${m.reason}` : ""}
+                      <span className="block text-slate-500">
+                        {new Date(m.createdAt).toLocaleString()}
+                        {m.createdBy?.name ? ` · ${m.createdBy.name}` : ""}
+                      </span>
+                    </span>
+                    <span className="font-bold text-white shrink-0">{m.amount}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-xs text-slate-500">{t.noCashMovements}</p>
+            )}
+          </div>
+
           <div className="flex flex-wrap items-end gap-3">
             <div>
               <label className="block text-xs text-slate-400 mb-1">{t.closingCash}</label>
@@ -340,6 +524,24 @@ export default function PosShiftsPage() {
                 <Printer className="w-4 h-4" />
               )}
               {t.xReport}
+            </button>
+            <button
+              type="button"
+              onClick={() => shareReport(lastX || live || null, "X", "wa")}
+              disabled={!(lastX || live)}
+              className="h-10 px-3 rounded-lg border border-emerald-500/30 text-emerald-200 text-xs font-semibold inline-flex items-center gap-1.5 disabled:opacity-40"
+            >
+              <MessageCircle className="w-3.5 h-3.5" />
+              {t.shareReportWhatsApp}
+            </button>
+            <button
+              type="button"
+              onClick={() => shareReport(lastX || live || null, "X", "email")}
+              disabled={!(lastX || live)}
+              className="h-10 px-3 rounded-lg border border-white/15 text-slate-200 text-xs font-semibold inline-flex items-center gap-1.5 disabled:opacity-40"
+            >
+              <Mail className="w-3.5 h-3.5" />
+              {t.shareReportEmail}
             </button>
             <button
               type="button"
@@ -377,14 +579,32 @@ export default function PosShiftsPage() {
       )}
 
       {lastZ ? (
-        <button
-          type="button"
-          onClick={() => printShiftReport(t, lastZ, "Z", company?.name)}
-          className="inline-flex items-center gap-2 text-sm text-sky-300 hover:underline"
-        >
-          <Printer className="w-4 h-4" />
-          {t.printZReport}
-        </button>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => printShiftReport(t, lastZ, "Z", company?.name)}
+            className="inline-flex items-center gap-2 text-sm text-sky-300 hover:underline"
+          >
+            <Printer className="w-4 h-4" />
+            {t.printZReport}
+          </button>
+          <button
+            type="button"
+            onClick={() => shareReport(lastZ, "Z", "wa")}
+            className="inline-flex items-center gap-1.5 text-sm text-emerald-300 hover:underline"
+          >
+            <MessageCircle className="w-4 h-4" />
+            {t.shareReportWhatsApp}
+          </button>
+          <button
+            type="button"
+            onClick={() => shareReport(lastZ, "Z", "email")}
+            className="inline-flex items-center gap-1.5 text-sm text-slate-300 hover:underline"
+          >
+            <Mail className="w-4 h-4" />
+            {t.shareReportEmail}
+          </button>
+        </div>
       ) : null}
 
       <div>
@@ -406,7 +626,7 @@ export default function PosShiftsPage() {
                 </p>
               </div>
               {s.zReportJson ? (
-                <div className="text-xs text-slate-400 text-end">
+                <div className="text-xs text-slate-400 text-end space-y-1">
                   <p>
                     {t.zSales}: {s.zReportJson.salesTotal ?? "—"}
                   </p>
@@ -416,6 +636,29 @@ export default function PosShiftsPage() {
                   <p>
                     {t.zVariance}: {s.zReportJson.variance ?? "—"}
                   </p>
+                  <div className="flex flex-wrap justify-end gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => printShiftReport(t, s.zReportJson!, "Z", company?.name)}
+                      className="text-sky-300 hover:underline"
+                    >
+                      {t.printZReport}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => shareReport(s.zReportJson!, "Z", "wa")}
+                      className="text-emerald-300 hover:underline"
+                    >
+                      {t.shareReportWhatsApp}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => shareReport(s.zReportJson!, "Z", "email")}
+                      className="text-slate-300 hover:underline"
+                    >
+                      {t.shareReportEmail}
+                    </button>
+                  </div>
                 </div>
               ) : null}
             </li>

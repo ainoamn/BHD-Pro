@@ -175,7 +175,9 @@
     "lowStockHint": "منتجات تحت الحد الأدنى",
     "vatPending": "ضريبة معلّقة",
     "vatPendingHint": "فواتير بلا رقم ضريبي هذا الشهر",
-    "open": "فتح"
+    "open": "فتح",
+    "openManagementAlerts": "تنبيهات الإدارة",
+    "openManagementAlertsHint": "تنبيهات مفتوحة تحتاج مراجعة"
   },
   "onboarding": {
     "title": "إعداد شركتك",
@@ -529,7 +531,9 @@
     "pendingApprovalsTitle": "موافقات معلّقة",
     "pendingApprovalsMsg": "{count} طلب موافقة بانتظار المدير",
     "openShiftsTitle": "ورديات مفتوحة",
-    "openShiftsMsg": "{count} وردية كاشير مفتوحة"
+    "openShiftsMsg": "{count} وردية كاشير مفتوحة",
+    "mgmtAlertsTitle": "تنبيهات إدارة مفتوحة",
+    "mgmtAlertsMsg": "{count} تنبيه بانتظار المراجعة"
   },
   "status": {
     "paid": "مدفوع",
@@ -571,7 +575,8 @@
     "deleted": "تم حذف القيد",
     "deleteConfirm": "حذف هذا القيد؟",
     "saveError": "فشل حفظ القيد",
-    "project": "المشروع"
+    "project": "المشروع",
+    "attachments": "مرفقات"
   },
   "inventory": {
     "title": "المخزون",
@@ -1522,7 +1527,8 @@
       "HIGH": "مرتفع",
       "MEDIUM": "متوسط",
       "LOW": "منخفض"
-    }
+    },
+    "openInvoice": "فتح الفاتورة"
   },
   "attachments": {
     "title": "المرفقات",

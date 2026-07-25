@@ -175,7 +175,9 @@
     "lowStockHint": "Products below minimum",
     "vatPending": "VAT pending",
     "vatPendingHint": "Invoices without tax UUID this month",
-    "open": "Open"
+    "open": "Open",
+    "openManagementAlerts": "Management alerts",
+    "openManagementAlertsHint": "Open alerts needing review"
   },
   "onboarding": {
     "title": "Set up your company",
@@ -529,7 +531,9 @@
     "pendingApprovalsTitle": "Pending approvals",
     "pendingApprovalsMsg": "{count} dual-control request(s) waiting",
     "openShiftsTitle": "Open POS shifts",
-    "openShiftsMsg": "{count} open cashier shift(s)"
+    "openShiftsMsg": "{count} open cashier shift(s)",
+    "mgmtAlertsTitle": "Open management alerts",
+    "mgmtAlertsMsg": "{count} alert(s) awaiting review"
   },
   "status": {
     "paid": "Paid",
@@ -571,7 +575,8 @@
     "deleted": "Journal entry deleted",
     "deleteConfirm": "Delete this journal entry?",
     "saveError": "Failed to save journal entry",
-    "project": "Project"
+    "project": "Project",
+    "attachments": "Attachments"
   },
   "inventory": {
     "title": "Inventory",
@@ -1522,7 +1527,8 @@
       "HIGH": "High",
       "MEDIUM": "Medium",
       "LOW": "Low"
-    }
+    },
+    "openInvoice": "Open invoice"
   },
   "attachments": {
     "title": "Attachments",

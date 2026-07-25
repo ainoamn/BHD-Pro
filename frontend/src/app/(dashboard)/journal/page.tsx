@@ -1,15 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Fragment } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, BookOpen, Trash2, X, Loader2, Scale } from "lucide-react";
+import { Plus, BookOpen, Trash2, X, Loader2, Scale, Paperclip } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { cn, formatMoney, formatDate } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
 import { PageHeader, EmptyState, LoadingSpinner, GlassCard } from "@/components/ui/page-shell";
 import { FormLabel, LineFieldLabel, LineItemsGrid } from "@/components/ui/form-field";
+import { EntityAttachments } from "@/components/attachments/entity-attachments";
 
 interface Account {
   id: string;
@@ -74,6 +75,7 @@ export default function JournalPage() {
   const [description, setDescription] = useState("");
   const [reference, setReference] = useState("");
   const [lines, setLines] = useState<LineForm[]>([emptyLine(), emptyLine()]);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const { data: journals = [], isLoading } = useQuery({
     queryKey: ["journals"],
@@ -243,7 +245,22 @@ export default function JournalPage() {
                     {formatMoney(Number(journal.totalDebit), currency)}
                   </span>
                 </div>
-                <div className="flex justify-end">{deleteBtn(journal.id)}</div>
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setExpandedId((id) => (id === journal.id ? null : journal.id))
+                    }
+                    className="p-2 rounded bg-slate-800 text-slate-300"
+                    title={t("attachments")}
+                  >
+                    <Paperclip className="w-4 h-4" />
+                  </button>
+                  {deleteBtn(journal.id)}
+                </div>
+                {expandedId === journal.id && (
+                  <EntityAttachments entityType="JOURNAL" entityId={journal.id} />
+                )}
               </GlassCard>
             ))}
           </div>
@@ -264,33 +281,58 @@ export default function JournalPage() {
                 </thead>
                 <tbody>
                   {journals.map((journal) => (
-                    <tr
-                      key={journal.id}
-                      className="border-b border-slate-800/50 hover:bg-slate-800/30"
-                    >
-                      <td className="p-4 text-white font-medium">{journal.number}</td>
-                      <td className="p-4 text-slate-400">{formatDate(journal.date)}</td>
-                      <td className="p-4 text-slate-300">{journal.description || "—"}</td>
-                      <td className="p-4 text-white">
-                        {formatMoney(Number(journal.totalDebit), currency)}
-                      </td>
-                      <td className="p-4 text-white">
-                        {formatMoney(Number(journal.totalCredit), currency)}
-                      </td>
-                      <td className="p-4">
-                        <span
-                          className={cn(
-                            "px-2 py-1 rounded-full text-xs font-medium",
-                            journal.isBalanced
-                              ? "bg-emerald-500/10 text-emerald-400"
-                              : "bg-rose-500/10 text-rose-400"
-                          )}
-                        >
-                          {journal.isBalanced ? t("yes") : t("no")}
-                        </span>
-                      </td>
-                      <td className="p-4">{deleteBtn(journal.id)}</td>
-                    </tr>
+                    <Fragment key={journal.id}>
+                      <tr className="border-b border-slate-800/50 hover:bg-slate-800/30">
+                        <td className="p-4 text-white font-medium">{journal.number}</td>
+                        <td className="p-4 text-slate-400">{formatDate(journal.date)}</td>
+                        <td className="p-4 text-slate-300">{journal.description || "—"}</td>
+                        <td className="p-4 text-white">
+                          {formatMoney(Number(journal.totalDebit), currency)}
+                        </td>
+                        <td className="p-4 text-white">
+                          {formatMoney(Number(journal.totalCredit), currency)}
+                        </td>
+                        <td className="p-4">
+                          <span
+                            className={cn(
+                              "px-2 py-1 rounded-full text-xs font-medium",
+                              journal.isBalanced
+                                ? "bg-emerald-500/10 text-emerald-400"
+                                : "bg-rose-500/10 text-rose-400"
+                            )}
+                          >
+                            {journal.isBalanced ? t("yes") : t("no")}
+                          </span>
+                        </td>
+                        <td className="p-4">
+                          <div className="flex items-center gap-2 justify-end">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedId((id) =>
+                                  id === journal.id ? null : journal.id,
+                                )
+                              }
+                              className="p-2 rounded bg-slate-800 text-slate-300"
+                              title={t("attachments")}
+                            >
+                              <Paperclip className="w-4 h-4" />
+                            </button>
+                            {deleteBtn(journal.id)}
+                          </div>
+                        </td>
+                      </tr>
+                      {expandedId === journal.id && (
+                        <tr className="border-b border-slate-800/50">
+                          <td colSpan={7} className="p-4 bg-slate-900/40">
+                            <EntityAttachments
+                              entityType="JOURNAL"
+                              entityId={journal.id}
+                            />
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
                   ))}
                 </tbody>
               </table>

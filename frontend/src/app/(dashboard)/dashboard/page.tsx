@@ -34,6 +34,7 @@ interface DashboardData {
   todayPosSales?: number;
   todayPosSalesCount?: number;
   openPosShiftsCount?: number;
+  openManagementAlertsCount?: number;
   onboarding?: OnboardingState;
   recentInvoices: {
     id: string;
@@ -111,6 +112,7 @@ export default function DashboardPage() {
               todayPosSales: data.todayPosSales ?? 0,
               todayPosSalesCount: data.todayPosSalesCount ?? 0,
               openPosShiftsCount: data.openPosShiftsCount ?? 0,
+              openManagementAlertsCount: data.openManagementAlertsCount ?? 0,
             }}
             currency={currency}
           />

@@ -1372,8 +1372,58 @@ class ApiClient {
         openedBy?: { name: string };
         warehouse?: { id: string; name: string; code: string } | null;
       } | null;
-      live?: Record<string, number | string | null>;
+      live?: Record<string, number | string | null | unknown>;
+      cashMovements?: {
+        id: string;
+        type: string;
+        amount: number | string;
+        reason?: string | null;
+        createdAt: string;
+        createdBy?: { id: string; name: string };
+      }[];
     }>(`/pos/shifts/current${q}`);
+  }
+
+  createPosCashMovement(data: {
+    type: 'IN' | 'OUT';
+    amount: number;
+    reason?: string;
+    warehouseId?: string;
+  }) {
+    return this.post<{
+      movement: {
+        id: string;
+        type: string;
+        amount: number | string;
+        reason?: string | null;
+        createdAt: string;
+      };
+      live?: Record<string, unknown>;
+      cashMovements?: unknown[];
+    }>('/pos/shifts/current/cash-movements', data);
+  }
+
+  getPosCustomerRecentSales(contactId: string) {
+    return this.get<{
+      contact: { id: string; name: string };
+      sales: {
+        id: string;
+        number: string;
+        total: number | string;
+        date?: string;
+        createdAt?: string;
+        status?: string;
+        notes?: string | null;
+        items?: {
+          productId?: string | null;
+          description: string;
+          quantity: number | string;
+          unitPrice?: number | string;
+          total: number | string;
+        }[];
+        payments?: { method?: string }[];
+      }[];
+    }>(`/pos/customers/${encodeURIComponent(contactId)}/recent-sales`);
   }
 
   getPosTodayStats(warehouseId?: string) {

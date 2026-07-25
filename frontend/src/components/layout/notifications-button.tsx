@@ -140,6 +140,17 @@ export function NotificationsButton() {
         });
       }
 
+      const openMgmtAlerts = Number(dashData.openManagementAlertsCount ?? 0);
+      if (openMgmtAlerts > 0) {
+        items.push({
+          id: "open-management-alerts",
+          title: t("mgmtAlertsTitle"),
+          message: t("mgmtAlertsMsg", { count: openMgmtAlerts }),
+          href: "/management-alerts",
+          type: "warning",
+        });
+      }
+
       const openPosShifts = Number(dashData.openPosShiftsCount ?? 0);
       if (openPosShifts > 0) {
         items.push({
