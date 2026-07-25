@@ -114,6 +114,9 @@ export function LandingPage() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [visible, setVisible] = useState(false);
   const [stats, setStats] = useState<PlatformStats | null>(null);
+  const [customerLogos, setCustomerLogos] = useState<
+    { id: string; name: string; logo: string }[]
+  >([]);
   const t = landingCopy[locale === "en" ? "en" : "ar"];
   const isAr = locale !== "en";
 
@@ -130,6 +133,23 @@ export function LandingPage() {
         if (!cancelled && res.data) setStats(res.data as PlatformStats);
       } catch {
         // keep section hidden if API unavailable
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.getPublicCustomerLogos();
+        if (!cancelled && res.data?.companies?.length) {
+          setCustomerLogos(res.data.companies);
+        }
+      } catch {
+        /* optional strip */
       }
     })();
     return () => {
@@ -157,6 +177,9 @@ export function LandingPage() {
           <nav className="hidden items-center gap-8 text-[13px] font-medium text-slate-500 md:flex">
             <a href="#stats" className="transition-colors hover:text-emerald-900">
               {t.statsTitle}
+            </a>
+            <a href="#customers" className="transition-colors hover:text-emerald-900">
+              {t.customersTitle}
             </a>
             <a href="#features" className="transition-colors hover:text-emerald-900">
               {t.navFeatures}
@@ -346,6 +369,39 @@ export function LandingPage() {
           </div>
         </section>
       )}
+
+      <section
+        id="customers"
+        className="border-b border-emerald-950/[0.04] bg-[#f3f7f5] py-14 md:py-16"
+      >
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <p className="text-xs font-semibold tracking-[0.14em] text-emerald-800/70">
+            {t.customersTitle}
+          </p>
+          <p className="mt-3 max-w-2xl text-[15px] text-slate-500">{t.customersSub}</p>
+          {customerLogos.length === 0 ? (
+            <p className="mt-8 text-sm text-slate-400">{t.customersEmpty}</p>
+          ) : (
+            <ul className="mt-10 grid grid-cols-2 gap-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+              {customerLogos.map((c) => (
+                <li
+                  key={c.id}
+                  className="flex h-20 items-center justify-center rounded-2xl border border-emerald-950/[0.06] bg-white/80 px-4"
+                  title={c.name}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={c.logo}
+                    alt={c.name}
+                    className="max-h-12 max-w-full object-contain opacity-90"
+                    loading="lazy"
+                  />
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </section>
 
       <section id="products" className="border-y border-emerald-950/[0.04] bg-white py-16">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">

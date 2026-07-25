@@ -554,6 +554,13 @@ class ApiClient {
     }>('/public/stats');
   }
 
+  getPublicCustomerLogos() {
+    return this.client.get<{
+      companies: { id: string; name: string; logo: string }[];
+      updatedAt: string;
+    }>('/public/customer-logos');
+  }
+
   getCompanyGateways() {
     return this.get('/payments/company-gateways');
   }

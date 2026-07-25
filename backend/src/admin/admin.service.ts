@@ -10,6 +10,10 @@ export class AdminService {
     | { at: number; data: Awaited<ReturnType<AdminService['computePublicStats']>> }
     | null = null;
 
+  private publicLogosCache:
+    | { at: number; data: { companies: { id: string; name: string; logo: string }[]; updatedAt: string } }
+    | null = null;
+
   constructor(private prisma: PrismaService) {}
 
   me(email: string) {
@@ -27,6 +31,48 @@ export class AdminService {
     }
     const data = await this.computePublicStats();
     this.publicStatsCache = { at: now, data };
+    return data;
+  }
+
+  /**
+   * Logos of paid active companies for the landing page.
+   * Paid = planExpiry in the future (set after successful subscription payment).
+   * Unpaid/default STARTER signups have null planExpiry and are excluded.
+   * Cached ~2 minutes.
+   */
+  async publicCustomerLogos() {
+    const now = Date.now();
+    if (this.publicLogosCache && now - this.publicLogosCache.at < 120_000) {
+      return this.publicLogosCache.data;
+    }
+
+    const rows = await this.prisma.company.findMany({
+      where: {
+        deletedAt: null,
+        isActive: true,
+        planExpiry: { gt: new Date() },
+        logo: { not: null },
+      },
+      select: {
+        id: true,
+        name: true,
+        logo: true,
+        planStartedAt: true,
+      },
+      orderBy: [{ planStartedAt: 'desc' }, { createdAt: 'desc' }],
+      take: 48,
+    });
+
+    const companies = rows
+      .filter((r) => typeof r.logo === 'string' && r.logo.trim().length > 8)
+      .map((r) => ({
+        id: r.id,
+        name: r.name,
+        logo: r.logo!.trim(),
+      }));
+
+    const data = { companies, updatedAt: new Date().toISOString() };
+    this.publicLogosCache = { at: now, data };
     return data;
   }
 

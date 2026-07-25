@@ -179,6 +179,15 @@ export class PublicVisitsController {
     return this.admin.publicStats();
   }
 
+  @Get('customer-logos')
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  @ApiOperation({
+    summary: 'Paid subscriber company logos for the landing page (excludes free/unpaid tenants)',
+  })
+  customerLogos() {
+    return this.admin.publicCustomerLogos();
+  }
+
   @Post('visits')
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
   @ApiOperation({ summary: 'Record anonymous site visit (analytics)' })
