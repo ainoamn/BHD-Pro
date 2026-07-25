@@ -30,11 +30,13 @@ type ZReport = {
   variance?: number | null;
 };
 
-function printZReport(
+function printShiftReport(
   t: (typeof posCopy)["en"] | (typeof posCopy)["ar"],
   report: ZReport,
+  kind: "Z" | "X",
   companyName?: string,
 ) {
+  const title = kind === "X" ? "X-Report" : "Z-Report";
   const rows = [
     [t.openingFloat, report.openingCash ?? report.openingFloat ?? 0],
     [t.zSales, report.salesTotal ?? 0],
@@ -43,10 +45,14 @@ function printZReport(
     [t.zRefunds, report.refundsTotal ?? report.refundTotal ?? 0],
     [t.zVoids, report.voidsTotal ?? report.voidedTotal ?? 0],
     [t.zExpected, report.expectedCash ?? 0],
-    [t.closingCash, report.closingCash ?? "—"],
-    [t.zVariance, report.variance ?? "—"],
+    ...(kind === "Z"
+      ? ([
+          [t.closingCash, report.closingCash ?? "—"],
+          [t.zVariance, report.variance ?? "—"],
+        ] as [string, string | number][])
+      : []),
   ];
-  const html = `<!doctype html><html><head><title>Z-Report</title>
+  const html = `<!doctype html><html><head><title>${title}</title>
     <style>
       body{font-family:ui-monospace,monospace;padding:16px;color:#111}
       h1{font-size:16px;margin:0 0 8px} h2{font-size:13px;margin:0 0 12px;color:#444}
@@ -55,7 +61,7 @@ function printZReport(
       td:last-child{text-align:right;font-weight:700}
       @media print{button{display:none}}
     </style></head><body>
-    <h1>Z-Report · ${companyName || "Hisaby POS"}</h1>
+    <h1>${title} · ${companyName || "Hisaby POS"}</h1>
     <h2>${new Date().toLocaleString()}</h2>
     <table>${rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join("")}</table>
     <script>window.onload=()=>window.print()</script>
@@ -183,7 +189,7 @@ export default function PosShiftsPage() {
       setPendingCloseCash(null);
       const z = (res.data as { zReport?: ZReport })?.zReport || null;
       setLastZ(z);
-      if (z) printZReport(t, z, company?.name);
+      if (z) printShiftReport(t, z, "Z", company?.name);
       qc.invalidateQueries({ queryKey: ["pos-shift-current"] });
       qc.invalidateQueries({ queryKey: ["pos-shifts"] });
     },
@@ -216,8 +222,26 @@ export default function PosShiftsPage() {
     closeMut.mutate({ closingCash: cash });
   };
 
+  const xReportMut = useMutation({
+    mutationFn: async () => {
+      const res = await api.getPosXReport({ warehouseId: warehouseId || undefined });
+      return (res.data as { xReport?: ZReport })?.xReport || null;
+    },
+    onSuccess: (report) => {
+      if (!report) {
+        toast.error(t.xReportFail);
+        return;
+      }
+      printShiftReport(t, report, "X", company?.name);
+    },
+    onError: (err: { response?: { data?: { message?: string } } }) => {
+      toast.error(err.response?.data?.message || t.xReportFail);
+    },
+  });
+
   const shift = data?.shift as
     | {
+        id?: string;
         openedAt: string;
         openedBy?: { name: string };
         warehouse?: { code: string } | null;
@@ -306,6 +330,19 @@ export default function PosShiftsPage() {
             </div>
             <button
               type="button"
+              disabled={xReportMut.isPending}
+              onClick={() => xReportMut.mutate()}
+              className="h-10 px-4 rounded-lg border border-sky-500/40 bg-sky-500/10 text-sky-200 text-sm font-semibold disabled:opacity-50 inline-flex items-center gap-2"
+            >
+              {xReportMut.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Printer className="w-4 h-4" />
+              )}
+              {t.xReport}
+            </button>
+            <button
+              type="button"
               disabled={closeMut.isPending || closingCash === ""}
               onClick={requestClose}
               className="h-10 px-4 rounded-lg bg-rose-500/90 text-white text-sm font-semibold disabled:opacity-50"
@@ -342,11 +379,11 @@ export default function PosShiftsPage() {
       {lastZ ? (
         <button
           type="button"
-          onClick={() => printZReport(t, lastZ, company?.name)}
+          onClick={() => printShiftReport(t, lastZ, "Z", company?.name)}
           className="inline-flex items-center gap-2 text-sm text-sky-300 hover:underline"
         >
           <Printer className="w-4 h-4" />
-          {t.printReceipt}
+          {t.printZReport}
         </button>
       ) : null}
 

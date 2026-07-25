@@ -1418,6 +1418,23 @@ class ApiClient {
     );
   }
 
+  getPosXReport(opts?: { shiftId?: string; warehouseId?: string }) {
+    if (opts?.shiftId) {
+      return this.get<{
+        shift: unknown;
+        xReport: Record<string, unknown>;
+        reportType: 'X';
+      }>(`/pos/shifts/${opts.shiftId}/x-report`);
+    }
+    return this.get<{
+      shift: unknown;
+      xReport: Record<string, unknown>;
+      reportType: 'X';
+    }>('/pos/shifts/current/x-report', {
+      params: opts?.warehouseId ? { warehouseId: opts.warehouseId } : {},
+    });
+  }
+
   requestWhatsappOtp(action: string) {
     return this.post('/dual-control/whatsapp-otp', { action });
   }
