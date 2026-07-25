@@ -33,6 +33,7 @@ import { SendDocumentModal } from "@/components/invoices/send-document-modal";
 import { openInvoicePrintDialog, downloadInvoicePdf } from "@/lib/invoice-print";
 import { RecordPaymentModal } from "@/components/invoices/record-payment-modal";
 import { ReversePaymentModal } from "@/components/invoices/reverse-payment-modal";
+import { EntityAttachments } from "@/components/attachments/entity-attachments";
 import {
   DualApprovalModal,
   type DualApprovalPayload,
@@ -1368,6 +1369,15 @@ export function AccountingModule() {
               : undefined
           }
         />
+      )}
+
+      {activeDocumentInvoice && (
+        <div className="fixed bottom-4 left-4 z-[70] w-72 max-w-[calc(100vw-2rem)] bg-slate-900/95 border border-slate-700 rounded-xl p-3 shadow-xl print:hidden">
+          <EntityAttachments
+            entityType="INVOICE"
+            entityId={activeDocumentInvoice.id}
+          />
+        </div>
       )}
 
       {shareDocument && (

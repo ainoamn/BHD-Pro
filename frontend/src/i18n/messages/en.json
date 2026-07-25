@@ -343,6 +343,8 @@
     "remaining": "Remaining",
     "reference": "Reference",
     "referenceHint": "Cheque or transfer number",
+    "bankAccount": "Bank account",
+    "bankAccountOptional": "No bank link (optional)",
     "pendingCollection": "Awaiting collection",
     "paymentStatus": "Payment status",
     "search": "Search",
@@ -1092,6 +1094,8 @@
     "reject": "Reject",
     "pay": "Mark paid",
     "payConfirm": "Mark this claim as reimbursed/paid?",
+    "optionalBank": "Bank account (optional)",
+    "confirmPay": "Confirm payout",
     "rejectReasonPrompt": "Rejection reason (optional)",
     "action_submit": "Claim submitted",
     "action_approve": "Claim approved",
@@ -1476,5 +1480,11 @@
     "empty": "No open alerts",
     "resolve": "Acknowledge",
     "forbidden": "This page is for owner / admin / accountant only"
+  },
+  "attachments": {
+    "title": "Attachments",
+    "add": "Attach",
+    "empty": "No attachments yet",
+    "tooLarge": "File is larger than 2 MB"
   }
 }

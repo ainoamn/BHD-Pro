@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useTranslations } from "next-intl";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { X, Loader2, Receipt, ArrowDownUp } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
@@ -136,6 +136,14 @@ export function RecordPaymentModal({
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [reference, setReference] = useState("");
   const [notes, setNotes] = useState("");
+  const [bankAccountId, setBankAccountId] = useState("");
+
+  const { data: banks = [] } = useQuery({
+    queryKey: ["bank-accounts"],
+    queryFn: async () =>
+      (await api.getBankAccounts()).data as { id: string; name: string; bankName: string }[],
+    enabled: open,
+  });
 
   const contactInvoices = useMemo(
     () => collectible.filter((inv) => inv.contact?.id === contactId),
@@ -195,6 +203,7 @@ export function RecordPaymentModal({
     setDate(new Date().toISOString().split("T")[0]);
     setReference("");
     setNotes("");
+    setBankAccountId("");
     if (cid) initForContact(cid, defaultInvoiceId);
   }, [open, defaultInvoiceId, defaultContactId, collectible, contactsWithInvoices, initForContact]);
 
@@ -251,6 +260,7 @@ export function RecordPaymentModal({
         date,
         reference: reference || undefined,
         notes: notes || undefined,
+        bankAccountId: bankAccountId || undefined,
         allocations: rows,
       });
     },
@@ -493,6 +503,22 @@ export function RecordPaymentModal({
                         className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
                       />
                     </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm text-slate-400 mb-1">{t("bankAccount")}</label>
+                    <select
+                      value={bankAccountId}
+                      onChange={(e) => setBankAccountId(e.target.value)}
+                      className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
+                    >
+                      <option value="">{t("bankAccountOptional")}</option>
+                      {banks.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.name} — {b.bankName}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   <div>

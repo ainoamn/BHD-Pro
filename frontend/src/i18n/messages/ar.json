@@ -343,6 +343,8 @@
     "remaining": "المتبقي",
     "reference": "المرجع",
     "referenceHint": "رقم الشيك أو التحويل",
+    "bankAccount": "الحساب البنكي",
+    "bankAccountOptional": "بدون ربط بنك (اختياري)",
     "pendingCollection": "بانتظار التحصيل",
     "paymentStatus": "حالة السداد",
     "search": "بحث",
@@ -1092,6 +1094,8 @@
     "reject": "رفض",
     "pay": "تمييز كمدفوع",
     "payConfirm": "تمييز هذه المطالبة كمسدَّدة؟",
+    "optionalBank": "حساب بنك (اختياري)",
+    "confirmPay": "تأكيد الصرف",
     "rejectReasonPrompt": "سبب الرفض (اختياري)",
     "action_submit": "تم إرسال المطالبة",
     "action_approve": "تم اعتماد المطالبة",
@@ -1476,5 +1480,11 @@
     "empty": "لا توجد تنبيهات مفتوحة",
     "resolve": "تم الاطلاع",
     "forbidden": "هذه الصفحة متاحة للمالك/المدير/المحاسب فقط"
+  },
+  "attachments": {
+    "title": "المرفقات",
+    "add": "إرفاق",
+    "empty": "لا مرفقات بعد",
+    "tooLarge": "حجم الملف أكبر من 2 ميجابايت"
   }
 }

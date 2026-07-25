@@ -381,6 +381,7 @@ class ApiClient {
     date?: string;
     reference?: string;
     notes?: string;
+    bankAccountId?: string;
     allocations: { invoiceId: string; amount: number }[];
   }) {
     return this.post('/invoices/payments/batch', data);

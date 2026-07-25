@@ -614,6 +614,7 @@ export class InvoicesService {
           date: dto.date,
           reference: dto.reference,
           notes: dto.notes,
+          bankAccountId: dto.bankAccountId,
         });
         updated.push(result);
       }

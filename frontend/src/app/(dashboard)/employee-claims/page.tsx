@@ -20,6 +20,7 @@ import { formatDate, formatMoney, cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
 import { PageHeader, LoadingSpinner, EmptyState, GlassCard } from "@/components/ui/page-shell";
 import { DecimalInput } from "@/components/ui/decimal-input";
+import { EntityAttachments } from "@/components/attachments/entity-attachments";
 
 interface LineForm {
   description: string;
@@ -64,6 +65,8 @@ export default function EmployeeClaimsPage() {
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<LineForm[]>([emptyLine()]);
+  const [payingId, setPayingId] = useState<string | null>(null);
+  const [payBankId, setPayBankId] = useState("");
 
   const { data: employees = [] } = useQuery({
     queryKey: ["employees"],
@@ -71,6 +74,12 @@ export default function EmployeeClaimsPage() {
       const res = await api.getEmployees();
       return res.data as { id: string; name: string; employeeNumber: string; isActive?: boolean }[];
     },
+  });
+
+  const { data: banks = [] } = useQuery({
+    queryKey: ["bank-accounts"],
+    queryFn: async () =>
+      (await api.getBankAccounts()).data as { id: string; name: string; bankName: string }[],
   });
 
   const { data: rows = [], isLoading } = useQuery({
@@ -130,18 +139,25 @@ export default function EmployeeClaimsPage() {
       id,
       action,
       reason,
+      bankAccountId,
     }: {
       id: string;
       action: "submit" | "approve" | "reject" | "pay";
       reason?: string;
+      bankAccountId?: string;
     }) => {
       if (action === "submit") return api.submitEmployeeClaim(id);
       if (action === "approve") return api.approveEmployeeClaim(id);
       if (action === "reject") return api.rejectEmployeeClaim(id, { reason });
-      return api.payEmployeeClaim(id);
+      return api.payEmployeeClaim(id, {
+        bankAccountId,
+        paymentMethod: bankAccountId ? "BANK_TRANSFER" : "CASH",
+      });
     },
     onSuccess: (_res, vars) => {
       invalidate();
+      setPayingId(null);
+      setPayBankId("");
       toast.success(t(`action_${vars.action}` as "action_submit"));
     },
     onError: (err: { response?: { data?: { message?: string } } }) => {
@@ -218,6 +234,18 @@ export default function EmployeeClaimsPage() {
                   t={t}
                   tCommon={tCommon}
                   busy={actionMutation.isPending || deleteMutation.isPending}
+                  payingId={payingId}
+                  payBankId={payBankId}
+                  banks={banks}
+                  onPayStart={() => setPayingId(row.id)}
+                  onPayBankChange={setPayBankId}
+                  onPayConfirm={() =>
+                    actionMutation.mutate({
+                      id: row.id,
+                      action: "pay",
+                      bankAccountId: payBankId || undefined,
+                    })
+                  }
                   onAction={(action, reason) =>
                     actionMutation.mutate({ id: row.id, action, reason })
                   }
@@ -225,6 +253,7 @@ export default function EmployeeClaimsPage() {
                     if (confirm(tCommon("confirmDelete"))) deleteMutation.mutate(row.id);
                   }}
                 />
+                <EntityAttachments entityType="EMPLOYEE_CLAIM" entityId={row.id} />
               </GlassCard>
             ))}
           </div>
@@ -267,12 +296,29 @@ export default function EmployeeClaimsPage() {
                         t={t}
                         tCommon={tCommon}
                         busy={actionMutation.isPending || deleteMutation.isPending}
+                        payingId={payingId}
+                        payBankId={payBankId}
+                        banks={banks}
+                        onPayStart={() => setPayingId(row.id)}
+                        onPayBankChange={setPayBankId}
+                        onPayConfirm={() =>
+                          actionMutation.mutate({
+                            id: row.id,
+                            action: "pay",
+                            bankAccountId: payBankId || undefined,
+                          })
+                        }
                         onAction={(action, reason) =>
                           actionMutation.mutate({ id: row.id, action, reason })
                         }
                         onDelete={() => {
                           if (confirm(tCommon("confirmDelete"))) deleteMutation.mutate(row.id);
                         }}
+                      />
+                      <EntityAttachments
+                        className="mt-2 max-w-xs"
+                        entityType="EMPLOYEE_CLAIM"
+                        entityId={row.id}
                       />
                     </td>
                   </tr>
@@ -421,6 +467,12 @@ function ClaimActions({
   t,
   tCommon,
   busy,
+  payingId,
+  payBankId,
+  banks,
+  onPayStart,
+  onPayBankChange,
+  onPayConfirm,
   onAction,
   onDelete,
 }: {
@@ -428,6 +480,12 @@ function ClaimActions({
   t: (key: string) => string;
   tCommon: (key: string) => string;
   busy: boolean;
+  payingId: string | null;
+  payBankId: string;
+  banks: { id: string; name: string; bankName: string }[];
+  onPayStart: () => void;
+  onPayBankChange: (id: string) => void;
+  onPayConfirm: () => void;
   onAction: (action: "submit" | "approve" | "reject" | "pay", reason?: string) => void;
   onDelete: () => void;
 }) {
@@ -478,16 +536,39 @@ function ClaimActions({
       )}
       {row.status === "APPROVED" && (
         <>
-          <IconBtn
-            title={t("pay")}
-            disabled={busy}
-            onClick={() => {
-              if (confirm(t("payConfirm"))) onAction("pay");
-            }}
-            className="text-emerald-400 hover:bg-emerald-500/10"
-          >
-            <Banknote className="w-4 h-4" />
-          </IconBtn>
+          {payingId === row.id ? (
+            <div className="flex flex-col gap-1 items-end w-full">
+              <select
+                value={payBankId}
+                onChange={(e) => onPayBankChange(e.target.value)}
+                className="h-8 px-2 bg-slate-900 border border-slate-700 rounded text-xs text-white max-w-[180px]"
+              >
+                <option value="">{t("optionalBank")}</option>
+                {banks.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+              <IconBtn
+                title={t("confirmPay")}
+                disabled={busy}
+                onClick={onPayConfirm}
+                className="text-emerald-400 hover:bg-emerald-500/10"
+              >
+                <Banknote className="w-4 h-4" />
+              </IconBtn>
+            </div>
+          ) : (
+            <IconBtn
+              title={t("pay")}
+              disabled={busy}
+              onClick={onPayStart}
+              className="text-emerald-400 hover:bg-emerald-500/10"
+            >
+              <Banknote className="w-4 h-4" />
+            </IconBtn>
+          )}
           <IconBtn
             title={t("reject")}
             disabled={busy}

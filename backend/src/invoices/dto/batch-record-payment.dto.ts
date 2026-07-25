@@ -44,6 +44,11 @@ export class BatchRecordPaymentDto {
   @IsString()
   notes?: string;
 
+  @ApiPropertyOptional({ description: 'Optional bank account for cash/bank sync' })
+  @IsOptional()
+  @IsString()
+  bankAccountId?: string;
+
   @ApiProperty({ type: [PaymentAllocationDto] })
   @IsArray()
   @ArrayMinSize(1)
