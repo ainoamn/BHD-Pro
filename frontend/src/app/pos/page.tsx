@@ -246,6 +246,40 @@ export default function PosCheckoutPage() {
     })();
   }, [loadRecentSales, loadParkedCarts, focusScan, companyId]);
 
+  /** Flush offline sales when connectivity returns. */
+  useEffect(() => {
+    let cancelled = false;
+    const flush = async () => {
+      if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+      try {
+        const { listPendingSales, removePendingSale } = await import("@/lib/pos-offline-queue");
+        const pending = await listPendingSales();
+        for (const row of pending) {
+          if (cancelled) return;
+          try {
+            await api.createPosSale(row.payload);
+            await removePendingSale(row.id);
+            toast.success(t.saleOk);
+          } catch {
+            break;
+          }
+        }
+        if (pending.length) {
+          await loadRecentSales();
+          await loadCatalog(search, warehouseId || undefined);
+        }
+      } catch {
+        /* ignore */
+      }
+    };
+    void flush();
+    window.addEventListener("online", flush);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("online", flush);
+    };
+  }, [loadCatalog, loadRecentSales, search, t.saleOk, warehouseId]);
+
   useEffect(() => {
     const id = window.setTimeout(() => loadCatalog(search), 220);
     return () => window.clearTimeout(id);

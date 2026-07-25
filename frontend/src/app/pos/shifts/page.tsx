@@ -1,12 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Clock3, Loader2, Printer } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
+import { useAuthStore } from "@/store/auth";
 import { posCopy } from "@/lib/pos-copy";
+
+const POS_WAREHOUSE_KEY = "hisaby-pos-warehouse-id";
 
 type ZReport = {
   salesTotal?: number;
@@ -23,7 +26,6 @@ type ZReport = {
   openingFloat?: number;
   closingCash?: number | null;
   variance?: number | null;
-  byPaymentMethod?: Record<string, number>;
 };
 
 function printZReport(t: (typeof posCopy)["en"], report: ZReport, companyName?: string) {
@@ -60,16 +62,48 @@ function printZReport(t: (typeof posCopy)["en"], report: ZReport, companyName?: 
 
 export default function PosShiftsPage() {
   const locale = useLocaleStore((s) => s.locale);
+  const company = useAuthStore((s) => s.company);
   const t = posCopy[locale === "en" ? "en" : "ar"];
   const qc = useQueryClient();
   const [openingFloat, setOpeningFloat] = useState("0");
   const [closingCash, setClosingCash] = useState("");
   const [lastZ, setLastZ] = useState<ZReport | null>(null);
+  const [warehouseId, setWarehouseId] = useState("");
+  const [warehouses, setWarehouses] = useState<{ id: string; name: string; code: string }[]>([]);
+
+  useEffect(() => {
+    try {
+      setWarehouseId(localStorage.getItem(POS_WAREHOUSE_KEY) || "");
+    } catch {
+      /* ignore */
+    }
+    (async () => {
+      try {
+        const res = await api.getWarehouses();
+        const rows = ((res.data as { id: string; name: string; code: string; isActive?: boolean }[]) || []).filter(
+          (w) => w.isActive !== false,
+        );
+        setWarehouses(rows);
+      } catch {
+        /* ignore */
+      }
+    })();
+  }, []);
+
+  const onWarehouseChange = (id: string) => {
+    setWarehouseId(id);
+    try {
+      if (id) localStorage.setItem(POS_WAREHOUSE_KEY, id);
+      else localStorage.removeItem(POS_WAREHOUSE_KEY);
+    } catch {
+      /* ignore */
+    }
+  };
 
   const { data, isLoading } = useQuery({
-    queryKey: ["pos-shift-current"],
+    queryKey: ["pos-shift-current", warehouseId || "default"],
     queryFn: async () => {
-      const res = await api.getCurrentPosShift();
+      const res = await api.getCurrentPosShift(warehouseId || undefined);
       return res.data;
     },
     refetchInterval: 15000,
@@ -88,12 +122,17 @@ export default function PosShiftsPage() {
         closingCash?: number | null;
         zReportJson?: ZReport | null;
         openedBy?: { name: string };
+        warehouse?: { name: string; code: string } | null;
       }[];
     },
   });
 
   const openMut = useMutation({
-    mutationFn: () => api.openPosShift({ openingCash: Number(openingFloat) || 0 }),
+    mutationFn: () =>
+      api.openPosShift({
+        openingCash: Number(openingFloat) || 0,
+        warehouseId: warehouseId || undefined,
+      }),
     onSuccess: () => {
       toast.success(t.shiftOpened);
       qc.invalidateQueries({ queryKey: ["pos-shift-current"] });
@@ -105,13 +144,17 @@ export default function PosShiftsPage() {
   });
 
   const closeMut = useMutation({
-    mutationFn: () => api.closePosShift({ closingCash: Number(closingCash) || 0 }),
+    mutationFn: () =>
+      api.closePosShift({
+        closingCash: Number(closingCash) || 0,
+        warehouseId: warehouseId || undefined,
+      }),
     onSuccess: (res) => {
       toast.success(t.shiftClosed);
       setClosingCash("");
       const z = (res.data as { zReport?: ZReport })?.zReport || null;
       setLastZ(z);
-      if (z) printZReport(t, z);
+      if (z) printZReport(t, z, company?.name);
       qc.invalidateQueries({ queryKey: ["pos-shift-current"] });
       qc.invalidateQueries({ queryKey: ["pos-shifts"] });
     },
@@ -120,7 +163,14 @@ export default function PosShiftsPage() {
     },
   });
 
-  const shift = data?.shift;
+  const shift = data?.shift as
+    | {
+        openedAt: string;
+        openedBy?: { name: string };
+        warehouse?: { code: string } | null;
+      }
+    | null
+    | undefined;
   const live = data?.live as ZReport | undefined;
 
   return (
@@ -133,6 +183,26 @@ export default function PosShiftsPage() {
         </div>
       </div>
 
+      {warehouses.length > 0 ? (
+        <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
+          <span className="text-xs text-slate-400 shrink-0">{t.warehouse}</span>
+          <select
+            value={warehouseId}
+            onChange={(e) => onWarehouseChange(e.target.value)}
+            className="flex-1 bg-transparent text-sm text-white focus:outline-none"
+          >
+            <option value="" className="bg-[#111827]">
+              {t.warehouseDefault}
+            </option>
+            {warehouses.map((w) => (
+              <option key={w.id} value={w.id} className="bg-[#111827]">
+                {w.code} — {w.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+
       {isLoading ? (
         <div className="flex justify-center py-12">
           <Loader2 className="w-8 h-8 animate-spin text-emerald-400" />
@@ -142,6 +212,7 @@ export default function PosShiftsPage() {
           <p className="text-sm text-emerald-300 font-semibold">{t.shiftOpen}</p>
           <p className="text-xs text-slate-400">
             {t.openedBy}: {shift.openedBy?.name || "—"} · {new Date(shift.openedAt).toLocaleString()}
+            {shift.warehouse ? ` · ${shift.warehouse.code}` : ""}
           </p>
           {live ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
@@ -219,11 +290,11 @@ export default function PosShiftsPage() {
       {lastZ ? (
         <button
           type="button"
-          onClick={() => printZReport(t, lastZ)}
-          className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-300 hover:bg-white/5"
+          onClick={() => printZReport(t, lastZ, company?.name)}
+          className="inline-flex items-center gap-2 text-sm text-sky-300 hover:underline"
         >
           <Printer className="w-4 h-4" />
-          {t.printZReport}
+          {t.printReceipt}
         </button>
       ) : null}
 
@@ -238,6 +309,7 @@ export default function PosShiftsPage() {
               <div>
                 <p className="text-white font-medium">
                   {s.status === "OPEN" ? t.shiftOpen : t.shiftClosedLabel} · {s.openedBy?.name || "—"}
+                  {s.warehouse ? ` · ${s.warehouse.code}` : ""}
                 </p>
                 <p className="text-xs text-slate-500">
                   {new Date(s.openedAt).toLocaleString()}
@@ -245,7 +317,7 @@ export default function PosShiftsPage() {
                 </p>
               </div>
               {s.zReportJson ? (
-                <div className="text-xs text-slate-400 text-end space-y-1">
+                <div className="text-xs text-slate-400 text-end">
                   <p>
                     {t.zSales}: {s.zReportJson.salesTotal ?? "—"}
                   </p>
@@ -255,13 +327,6 @@ export default function PosShiftsPage() {
                   <p>
                     {t.zVariance}: {s.zReportJson.variance ?? "—"}
                   </p>
-                  <button
-                    type="button"
-                    onClick={() => printZReport(t, s.zReportJson!)}
-                    className="text-sky-300 hover:underline"
-                  >
-                    {t.printZReport}
-                  </button>
                 </div>
               ) : null}
             </li>
