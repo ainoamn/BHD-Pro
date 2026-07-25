@@ -89,6 +89,16 @@ export default function RestoFloorPage() {
   const [stationId, setStationId] = useState("");
   const [itemNote, setItemNote] = useState("");
   const [tipAmount, setTipAmount] = useState("");
+  const [modifiers, setModifiers] = useState<
+    Array<{ id: string; name: string; nameEn: string | null; priceDelta: number }>
+  >([]);
+  const [selectedMods, setSelectedMods] = useState<string[]>([]);
+  const [opsMode, setOpsMode] = useState<"none" | "transfer" | "merge" | "split">(
+    "none",
+  );
+  const [opsTableId, setOpsTableId] = useState("");
+  const [opsTargetOrderId, setOpsTargetOrderId] = useState("");
+  const [splitItemIds, setSplitItemIds] = useState<string[]>([]);
 
   const loadFloor = useCallback(async () => {
     setLoading(true);
@@ -114,6 +124,12 @@ export default function RestoFloorPage() {
       try {
         const res = await api.getRestoStations();
         setStations(res.data.stations || []);
+      } catch {
+        /* ignore */
+      }
+      try {
+        const res = await api.getRestoModifiers();
+        setModifiers(res.data.modifiers || []);
       } catch {
         /* ignore */
       }
@@ -197,20 +213,106 @@ export default function RestoFloorPage() {
     setBusy(true);
     setError("");
     try {
+      const mods = modifiers
+        .filter((m) => selectedMods.includes(m.id))
+        .map((m) => ({
+          name: locale === "en" && m.nameEn ? m.nameEn : m.name,
+          priceDelta: m.priceDelta,
+        }));
       const res = await api.addRestoOrderItem(order.id, {
         productId,
         qty: 1,
         notes: itemNote.trim() || undefined,
         stationId: stationId || defaultStationId || undefined,
+        modifiers: mods.length ? mods : undefined,
       });
       setOrder(res.data);
       setItemNote("");
+      setSelectedMods([]);
       await loadFloor();
     } catch {
       setError(t.actionFail);
     } finally {
       setBusy(false);
     }
+  };
+
+  const freeTables = zones
+    .flatMap((z) => z.tables)
+    .filter(
+      (tb) =>
+        !tb.openOrder &&
+        tb.status !== "OCCUPIED" &&
+        tb.status !== "BILLING" &&
+        tb.id !== order?.table?.id,
+    );
+
+  const otherOpenOrders = zones
+    .flatMap((z) => z.tables)
+    .filter((tb) => tb.openOrder && tb.openOrder.id !== order?.id)
+    .map((tb) => ({
+      orderId: tb.openOrder!.id,
+      label: `${tb.code} · ${tb.openOrder!.number}`,
+    }));
+
+  const runTransfer = async () => {
+    if (!order || !opsTableId) return;
+    setBusy(true);
+    try {
+      const res = await api.transferRestoOrder(order.id, opsTableId);
+      setOrder(res.data);
+      setOpsMode("none");
+      setOpsTableId("");
+      await loadFloor();
+    } catch {
+      setError(t.actionFail);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const runMerge = async () => {
+    if (!order || !opsTargetOrderId) return;
+    if (!window.confirm(t.confirmMerge)) return;
+    setBusy(true);
+    try {
+      await api.mergeRestoOrder(order.id, opsTargetOrderId);
+      setOrder(null);
+      setOpsMode("none");
+      setOpsTargetOrderId("");
+      await loadFloor();
+    } catch {
+      setError(t.actionFail);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const runSplit = async (asTakeaway: boolean) => {
+    if (!order || splitItemIds.length === 0) return;
+    if (!asTakeaway && !opsTableId) return;
+    setBusy(true);
+    try {
+      const res = await api.splitRestoOrder(order.id, {
+        itemIds: splitItemIds,
+        tableId: asTakeaway ? undefined : opsTableId || undefined,
+      });
+      setOrder(res.data.source);
+      setOpsMode("none");
+      setSplitItemIds([]);
+      setOpsTableId("");
+      await loadFloor();
+    } catch {
+      setError(t.actionFail);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggleSplitItem = (id: string) => {
+    setSplitItemIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
   };
 
   const bumpQty = async (itemId: string, qty: number) => {
@@ -538,11 +640,21 @@ export default function RestoFloorPage() {
                         className="rounded-xl bg-white/[0.04] px-3 py-2 space-y-1.5"
                       >
                         <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="text-sm font-semibold truncate">{it.name}</p>
-                            <p className="text-[11px] text-stone-500">
-                              {itemStatusLabel(it.status)} · {fmt(it.lineTotal)}
-                            </p>
+                          <div className="min-w-0 flex items-start gap-2">
+                            {opsMode === "split" ? (
+                              <input
+                                type="checkbox"
+                                checked={splitItemIds.includes(it.id)}
+                                onChange={() => toggleSplitItem(it.id)}
+                                className="mt-1"
+                              />
+                            ) : null}
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold truncate">{it.name}</p>
+                              <p className="text-[11px] text-stone-500">
+                                {itemStatusLabel(it.status)} · {fmt(it.lineTotal)}
+                              </p>
+                            </div>
                           </div>
                           {it.status === "PENDING" ? (
                             <div className="flex items-center gap-1 shrink-0">
@@ -607,6 +719,122 @@ export default function RestoFloorPage() {
                   <span className="tabular-nums text-amber-200">
                     {fmt(order.subtotal)}
                   </span>
+                </div>
+
+                <div className="border border-white/10 rounded-xl p-2 space-y-2">
+                  <p className="text-[11px] font-bold text-stone-400">{t.opsTitle}</p>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {(
+                      [
+                        ["transfer", t.transferTable],
+                        ["merge", t.mergeOrder],
+                        ["split", t.splitOrder],
+                      ] as const
+                    ).map(([mode, label]) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        disabled={busy}
+                        onClick={() => {
+                          setOpsMode((m) => (m === mode ? "none" : mode));
+                          setOpsTableId("");
+                          setOpsTargetOrderId("");
+                          setSplitItemIds([]);
+                        }}
+                        className={`rounded-lg px-1.5 py-1.5 text-[10px] font-bold ${
+                          opsMode === mode
+                            ? "bg-violet-500/30 text-violet-100 border border-violet-400/40"
+                            : "border border-white/10 text-stone-300 hover:bg-white/5"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  {opsMode === "transfer" ? (
+                    <div className="space-y-1.5">
+                      <select
+                        value={opsTableId}
+                        onChange={(e) => setOpsTableId(e.target.value)}
+                        className="w-full h-9 rounded-lg bg-black/30 border border-white/10 px-2 text-xs"
+                      >
+                        <option value="">{t.pickFreeTable}</option>
+                        {freeTables.map((tb) => (
+                          <option key={tb.id} value={tb.id}>
+                            {tb.code}
+                            {tb.name ? ` · ${tb.name}` : ""}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        disabled={busy || !opsTableId}
+                        onClick={() => void runTransfer()}
+                        className="w-full rounded-lg bg-violet-600/80 py-2 text-[11px] font-bold disabled:opacity-40"
+                      >
+                        {t.confirmTransfer}
+                      </button>
+                    </div>
+                  ) : null}
+                  {opsMode === "merge" ? (
+                    <div className="space-y-1.5">
+                      <select
+                        value={opsTargetOrderId}
+                        onChange={(e) => setOpsTargetOrderId(e.target.value)}
+                        className="w-full h-9 rounded-lg bg-black/30 border border-white/10 px-2 text-xs"
+                      >
+                        <option value="">{t.pickTargetOrder}</option>
+                        {otherOpenOrders.map((o) => (
+                          <option key={o.orderId} value={o.orderId}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        disabled={busy || !opsTargetOrderId}
+                        onClick={() => void runMerge()}
+                        className="w-full rounded-lg bg-violet-600/80 py-2 text-[11px] font-bold disabled:opacity-40"
+                      >
+                        {t.confirmMerge}
+                      </button>
+                    </div>
+                  ) : null}
+                  {opsMode === "split" ? (
+                    <div className="space-y-1.5">
+                      <p className="text-[10px] text-stone-500">{t.splitHint}</p>
+                      <select
+                        value={opsTableId}
+                        onChange={(e) => setOpsTableId(e.target.value)}
+                        className="w-full h-9 rounded-lg bg-black/30 border border-white/10 px-2 text-xs"
+                      >
+                        <option value="">{t.pickFreeTable}</option>
+                        {freeTables.map((tb) => (
+                          <option key={tb.id} value={tb.id}>
+                            {tb.code}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <button
+                          type="button"
+                          disabled={busy || splitItemIds.length === 0 || !opsTableId}
+                          onClick={() => void runSplit(false)}
+                          className="rounded-lg bg-violet-600/80 py-2 text-[10px] font-bold disabled:opacity-40"
+                        >
+                          {t.confirmSplit}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busy || splitItemIds.length === 0}
+                          onClick={() => void runSplit(true)}
+                          className="rounded-lg border border-white/15 py-2 text-[10px] font-bold disabled:opacity-40"
+                        >
+                          {t.splitTakeaway}
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
@@ -689,6 +917,41 @@ export default function RestoFloorPage() {
                     placeholder={t.itemNotesPh}
                     className="w-full h-9 rounded-lg bg-black/30 border border-white/10 px-3 text-sm"
                   />
+                  {modifiers.length > 0 ? (
+                    <div className="space-y-1">
+                      <p className="text-[11px] text-stone-500">{t.modifiers}</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {modifiers.map((m) => {
+                          const on = selectedMods.includes(m.id);
+                          const label =
+                            locale === "en" && m.nameEn ? m.nameEn : m.name;
+                          return (
+                            <button
+                              key={m.id}
+                              type="button"
+                              onClick={() =>
+                                setSelectedMods((prev) =>
+                                  on
+                                    ? prev.filter((x) => x !== m.id)
+                                    : [...prev, m.id],
+                                )
+                              }
+                              className={`rounded-lg px-2 py-1 text-[10px] font-bold border ${
+                                on
+                                  ? "border-amber-400/50 bg-amber-500/20 text-amber-100"
+                                  : "border-white/10 text-stone-400 hover:bg-white/5"
+                              }`}
+                            >
+                              {label}
+                              {m.priceDelta
+                                ? ` +${m.priceDelta.toFixed(3)}`
+                                : ""}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
                   {stations.length > 0 ? (
                     <select
                       value={stationId}

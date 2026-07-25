@@ -16,6 +16,7 @@ import {
   ShoppingBag,
   Soup,
   Store,
+  Truck,
   UtensilsCrossed,
 } from "lucide-react";
 import api from "@/lib/api";
@@ -100,6 +101,12 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
       label: t.takeaway,
       icon: ShoppingBag,
       active: pathname?.startsWith("/resto/takeaway"),
+    },
+    {
+      href: "/resto/delivery",
+      label: t.delivery,
+      icon: Truck,
+      active: pathname?.startsWith("/resto/delivery"),
     },
     {
       href: "/resto/menu",

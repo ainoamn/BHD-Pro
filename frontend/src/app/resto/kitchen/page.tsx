@@ -90,10 +90,59 @@ export default function RestoKitchenPage() {
     setLoading(true);
     primed.current = false;
     knownIds.current = new Set();
-    void load();
-    const id = window.setInterval(() => void load(), 5000);
-    return () => window.clearInterval(id);
-  }, [load]);
+
+    let es: EventSource | null = null;
+    let pollId: number | undefined;
+    let usePoll = false;
+
+    const startPoll = () => {
+      if (usePoll) return;
+      usePoll = true;
+      void load();
+      pollId = window.setInterval(() => void load(), 5000);
+    };
+
+    try {
+      es = new EventSource(api.restoKitchenStreamUrl(stationId || undefined), {
+        withCredentials: true,
+      });
+      es.onmessage = (ev) => {
+        try {
+          const payload = JSON.parse(ev.data) as {
+            items?: KitchenItem[];
+            stations?: Station[];
+          };
+          const next = payload.items || [];
+          if (primed.current && soundOn) {
+            const fresh = next.filter((it) => !knownIds.current.has(it.id));
+            if (fresh.length > 0) playChime();
+          }
+          knownIds.current = new Set(next.map((it) => it.id));
+          primed.current = true;
+          setItems(next);
+          setStations(payload.stations || []);
+          setError("");
+          setLoading(false);
+        } catch {
+          /* ignore parse */
+        }
+      };
+      es.onerror = () => {
+        es?.close();
+        es = null;
+        startPoll();
+      };
+      // Initial fetch while SSE connects
+      void load();
+    } catch {
+      startPoll();
+    }
+
+    return () => {
+      es?.close();
+      if (pollId) window.clearInterval(pollId);
+    };
+  }, [load, stationId, soundOn]);
 
   const setStatus = async (
     itemId: string,
@@ -168,7 +217,9 @@ export default function RestoKitchenPage() {
             {t.kitchenTitle}
           </h1>
           <p className="text-sm text-stone-400 mt-1">{t.kitchenSub}</p>
-          <p className="text-[11px] text-stone-500 mt-1">{t.kdsBumpHint}</p>
+          <p className="text-[11px] text-stone-500 mt-1">
+            {t.kdsBumpHint} · {t.kdsLive}
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button

@@ -76,7 +76,7 @@
 | 2FA **إلزامي** لـ ADMIN/MANAGER | اختياري اليوم | عالية أمنياً |
 | WAF / حماية بوتات | غير موجود | عالية إنتاج |
 | واتساب/إيميل إنتاجي 100% | يحتاج أسرار env على Render | متوسطة |
-| مطاعم: معدّلات أصناف / توصيل / SSE | جزئي — سفري وKDS صوت منجزان | متوسطة |
+| مطاعم: معدّلات أصناف / توصيل / SSE | منجز — modifiers · delivery · transfer/merge/split · KDS SSE | منخفضة |
 | استقرار DNS / cold start | تشغيلي | مستمرة |
 
 ---
@@ -112,7 +112,7 @@ npx prisma migrate deploy
 - **J** جهاز tap-to-pay طرفي إن لزم
 - **K** Capacitor build إن فشلت PWA
 - **L** تحسينات UX onboarding وقوالب قطاعات
-- **Resto** معدّلات أصناف · قناة توصيل · SSE للمطبخ
+- **Resto** courses/fire · waitlist · تكامل تطبيقات توصيل
 
 ---
 

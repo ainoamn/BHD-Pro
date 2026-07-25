@@ -1689,7 +1689,13 @@ class ApiClient {
 
   addRestoOrderItem(
     orderId: string,
-    data: { productId: string; qty?: number; notes?: string; stationId?: string },
+    data: {
+      productId: string;
+      qty?: number;
+      notes?: string;
+      stationId?: string;
+      modifiers?: Array<{ name: string; priceDelta?: number }>;
+    },
   ) {
     return this.post<RestoOrderPayload>(`/resto/orders/${orderId}/items`, data);
   }
@@ -1710,6 +1716,59 @@ class ApiClient {
     data: { guests?: number; notes?: string },
   ) {
     return this.patch<RestoOrderPayload>(`/resto/orders/${orderId}`, data);
+  }
+
+  transferRestoOrder(orderId: string, tableId: string) {
+    return this.post<RestoOrderPayload>(`/resto/orders/${orderId}/transfer`, {
+      tableId,
+    });
+  }
+
+  mergeRestoOrder(orderId: string, targetOrderId: string) {
+    return this.post<RestoOrderPayload>(`/resto/orders/${orderId}/merge`, {
+      targetOrderId,
+    });
+  }
+
+  splitRestoOrder(
+    orderId: string,
+    data: { itemIds: string[]; tableId?: string; guests?: number },
+  ) {
+    return this.post<{
+      source: RestoOrderPayload;
+      split: RestoOrderPayload;
+    }>(`/resto/orders/${orderId}/split`, data);
+  }
+
+  getRestoModifiers() {
+    return this.get<{
+      modifiers: Array<{
+        id: string;
+        name: string;
+        nameEn: string | null;
+        priceDelta: number;
+        sortOrder: number;
+      }>;
+    }>('/resto/modifiers');
+  }
+
+  createRestoModifier(data: {
+    name: string;
+    nameEn?: string;
+    priceDelta?: number;
+    sortOrder?: number;
+  }) {
+    return this.post('/resto/modifiers', data);
+  }
+
+  /** Absolute URL for kitchen SSE (cookie auth, same-origin rewrite). */
+  restoKitchenStreamUrl(stationId?: string) {
+    const base =
+      typeof window !== 'undefined'
+        ? `${window.location.origin}/backend-api`
+        : API_URL;
+    const q = stationId ? `?stationId=${encodeURIComponent(stationId)}` : '';
+    return `${base}/resto/kitchen/stream${q}`;
   }
 
   removeRestoOrderItem(orderId: string, itemId: string) {
