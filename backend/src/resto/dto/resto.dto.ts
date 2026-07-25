@@ -1,21 +1,25 @@
-import {
-  IsBoolean,
-  IsEnum,
-  IsInt,
-  IsOptional,
-  IsString,
-  IsUUID,
-  Max,
-  MaxLength,
-  Min,
-  MinLength,
-} from 'class-validator';
+import { IsBoolean, IsEnum, IsIn, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { Type } from 'class-transformer';
 import { PaymentMethod, RestoOrderChannel } from '@prisma/client';
 
 export class LinkRestoDto {
   @IsString()
   key: string;
+
+  @IsOptional()
+  @IsUUID()
+  warehouseId?: string;
+}
+
+export class SetRestoWarehouseDto {
+  @IsUUID()
+  warehouseId: string;
+}
+
+export class ActivateRestoLinkDto {
+  @IsOptional()
+  @IsUUID()
+  warehouseId?: string;
 }
 
 export class CreateRestoZoneDto {
@@ -160,4 +164,46 @@ export class CloseRestoOrderDto {
   @Type(() => Number)
   @Min(0)
   tipAmount?: number;
+}
+
+export class SetRestoProductStationDto {
+  @IsOptional()
+  @IsUUID()
+  stationId?: string | null;
+}
+
+export class CreateRestoReservationDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(120)
+  guestName: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  phone?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  guests?: number;
+
+  @IsString()
+  reservedAt: string;
+
+  @IsOptional()
+  @IsUUID()
+  tableId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  notes?: string;
+}
+
+export class UpdateRestoReservationStatusDto {
+  @IsIn(['PENDING', 'CONFIRMED', 'SEATED', 'CANCELLED', 'NO_SHOW'])
+  status: 'PENDING' | 'CONFIRMED' | 'SEATED' | 'CANCELLED' | 'NO_SHOW';
 }

@@ -24,6 +24,7 @@ import {
   OpenRestoOrderDto,
   UpdateRestoOrderItemDto,
 } from './dto/resto.dto';
+import { productWhereForWarehouse } from '../common/warehouse-product-scope';
 
 const ACTIVE_ORDER: RestoOrderStatus[] = [
   RestoOrderStatus.OPEN,
@@ -61,7 +62,17 @@ export class RestoService {
         name: true,
         restoLinkedAt: true,
         restoIntegrationKeyPrefix: true,
+        restoWarehouseId: true,
         posLinkedAt: true,
+        restoWarehouse: {
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            nameEn: true,
+            sector: true,
+          },
+        },
       },
     });
     if (!company) throw new NotFoundException('Company not found');
@@ -70,23 +81,85 @@ export class RestoService {
       companyId: company.id,
       companyName: company.name,
       keyPrefix: company.restoIntegrationKeyPrefix,
+      warehouseId: company.restoWarehouseId,
+      warehouse: company.restoWarehouse,
       posLinked: !!company.posLinkedAt,
       apps: { accounting: true, pos: true, resto: true },
     };
   }
 
-  /** Same-login SSO: mark Accounting/POS ↔ Restaurants as linked */
-  async activateLink(companyId: string) {
+  private async assertCompanyWarehouse(companyId: string, warehouseId: string) {
+    const wh = await this.prisma.warehouse.findFirst({
+      where: { id: warehouseId, companyId, isActive: true },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        nameEn: true,
+        sector: true,
+      },
+    });
+    if (!wh) throw new BadRequestException('Warehouse not found for this company');
+    return wh;
+  }
+
+  async setWarehouse(companyId: string, warehouseId: string) {
+    const wh = await this.assertCompanyWarehouse(companyId, warehouseId);
     const company = await this.prisma.company.update({
       where: { id: companyId },
-      data: { restoLinkedAt: new Date() },
-      select: { id: true, name: true, restoLinkedAt: true },
+      data: {
+        restoWarehouseId: wh.id,
+        restoLinkedAt: new Date(),
+      },
+      select: {
+        id: true,
+        name: true,
+        restoLinkedAt: true,
+        restoWarehouseId: true,
+      },
     });
     return {
       linked: true,
       companyId: company.id,
       companyName: company.name,
       linkedAt: company.restoLinkedAt,
+      warehouseId: company.restoWarehouseId,
+      warehouse: wh,
+    };
+  }
+
+  /** Same-login SSO: mark Accounting/POS ↔ Restaurants as linked */
+  async activateLink(companyId: string, warehouseId?: string) {
+    if (warehouseId) {
+      return this.setWarehouse(companyId, warehouseId);
+    }
+    const company = await this.prisma.company.update({
+      where: { id: companyId },
+      data: { restoLinkedAt: new Date() },
+      select: {
+        id: true,
+        name: true,
+        restoLinkedAt: true,
+        restoWarehouseId: true,
+        restoWarehouse: {
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            nameEn: true,
+            sector: true,
+          },
+        },
+      },
+    });
+    return {
+      linked: true,
+      companyId: company.id,
+      companyName: company.name,
+      linkedAt: company.restoLinkedAt,
+      warehouseId: company.restoWarehouseId,
+      warehouse: company.restoWarehouse,
+      needsWarehouse: !company.restoWarehouseId,
     };
   }
 
@@ -97,6 +170,7 @@ export class RestoService {
         restoLinkedAt: null,
         restoIntegrationKeyHash: null,
         restoIntegrationKeyPrefix: null,
+        restoWarehouseId: null,
       },
       select: { id: true, name: true, restoLinkedAt: true },
     });
@@ -105,11 +179,15 @@ export class RestoService {
       companyId: company.id,
       companyName: company.name,
       linkedAt: null,
+      warehouseId: null,
     };
   }
 
-  async generateIntegrationKey(companyId: string) {
-    const secret = `hresto_${randomBytes(24).toString('hex')}`;
+  async generateIntegrationKey(companyId: string, warehouseId?: string) {
+    if (warehouseId) {
+      await this.assertCompanyWarehouse(companyId, warehouseId);
+    }
+    const secret = 'hresto_' + randomBytes(24).toString('hex');
     const prefix = secret.slice(0, 12);
     await this.prisma.company.update({
       where: { id: companyId },
@@ -117,17 +195,19 @@ export class RestoService {
         restoIntegrationKeyHash: this.hashKey(secret),
         restoIntegrationKeyPrefix: prefix,
         restoLinkedAt: new Date(),
+        ...(warehouseId ? { restoWarehouseId: warehouseId } : {}),
       },
     });
     return {
       key: secret,
       prefix,
       linked: true,
+      warehouseId: warehouseId || null,
       warning: 'Store this key now — it will not be shown again',
     };
   }
 
-  async linkWithKey(companyId: string, key: string) {
+  async linkWithKey(companyId: string, key: string, warehouseId?: string) {
     const trimmed = key.trim();
     if (!trimmed.startsWith('hresto_')) {
       throw new BadRequestException('Invalid restaurant integration key');
@@ -142,27 +222,33 @@ export class RestoService {
         'Integration key does not match this company — generate a key while signed into the same company, or use shared login to link',
       );
     }
-    return this.activateLink(companyId);
+    return this.activateLink(companyId, warehouseId);
   }
 
-  /** Active products as restaurant menu (shared inventory) */
+  async resolveWarehouseId(companyId: string): Promise<string | null> {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { restoWarehouseId: true },
+    });
+    return company?.restoWarehouseId ?? null;
+  }
+
+  /** Menu = products in the linked restaurant warehouse only */
   async getMenu(companyId: string, q?: string) {
-    const query = q?.trim();
+    const warehouseId = await this.resolveWarehouseId(companyId);
+    if (!warehouseId) {
+      return {
+        items: [],
+        count: 0,
+        warehouseId: null,
+        needsWarehouse: true,
+        message:
+          'Select a restaurant warehouse in settings — menu shows only products in that warehouse',
+      };
+    }
+
     const products = await this.prisma.product.findMany({
-      where: {
-        companyId,
-        isActive: true,
-        ...(query
-          ? {
-              OR: [
-                { name: { contains: query, mode: 'insensitive' } },
-                { nameEn: { contains: query, mode: 'insensitive' } },
-                { sku: { contains: query, mode: 'insensitive' } },
-                { barcode: { contains: query, mode: 'insensitive' } },
-              ],
-            }
-          : {}),
-      },
+      where: productWhereForWarehouse(companyId, warehouseId, q),
       select: {
         id: true,
         name: true,
@@ -176,18 +262,72 @@ export class RestoService {
       orderBy: { name: 'asc' },
       take: 500,
     });
+    const routes = await this.prisma.restoProductStation.findMany({
+      where: {
+        companyId,
+        productId: { in: products.map((p) => p.id) },
+      },
+      include: {
+        station: { select: { id: true, name: true, nameEn: true } },
+      },
+    });
+    const byProduct = new Map(routes.map((r) => [r.productId, r]));
     return {
-      items: products.map((p) => ({
-        id: p.id,
-        name: p.name,
-        nameEn: p.nameEn,
-        sku: p.sku,
-        barcode: p.barcode,
-        price: p.salePrice,
-        unit: p.unit,
-        category: p.category,
-      })),
+      items: products.map((p) => {
+        const route = byProduct.get(p.id);
+        return {
+          id: p.id,
+          name: p.name,
+          nameEn: p.nameEn,
+          sku: p.sku,
+          barcode: p.barcode,
+          price: p.salePrice,
+          unit: p.unit,
+          category: p.category,
+          defaultStationId: route?.stationId ?? null,
+          defaultStationName: route?.station?.name ?? null,
+        };
+      }),
       count: products.length,
+      warehouseId,
+      needsWarehouse: false,
+    };
+  }
+
+  async setProductStation(
+    companyId: string,
+    productId: string,
+    stationId: string | null,
+  ) {
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, companyId },
+      select: { id: true },
+    });
+    if (!product) throw new NotFoundException('Product not found');
+
+    if (!stationId) {
+      await this.prisma.restoProductStation.deleteMany({
+        where: { companyId, productId },
+      });
+      return { productId, stationId: null };
+    }
+
+    const station = await this.prisma.restoStation.findFirst({
+      where: { id: stationId, companyId, isActive: true },
+    });
+    if (!station) throw new NotFoundException('Station not found');
+
+    await this.prisma.restoProductStation.upsert({
+      where: {
+        companyId_productId: { companyId, productId },
+      },
+      create: { companyId, productId, stationId },
+      update: { stationId },
+    });
+    return {
+      productId,
+      stationId: station.id,
+      stationName: station.name,
     };
   }
 
@@ -591,9 +731,19 @@ export class RestoService {
     });
     if (!product) throw new NotFoundException('Product not found');
 
-    const station = dto.stationId
+    let stationId = dto.stationId || null;
+    if (!stationId) {
+      const route = await this.prisma.restoProductStation.findUnique({
+        where: {
+          companyId_productId: { companyId, productId: product.id },
+        },
+        select: { stationId: true },
+      });
+      stationId = route?.stationId ?? null;
+    }
+    const station = stationId
       ? await this.prisma.restoStation.findFirst({
-          where: { id: dto.stationId, companyId, isActive: true },
+          where: { id: stationId, companyId, isActive: true },
         })
       : await this.ensureStation(companyId);
     if (!station) throw new NotFoundException('Station not found');
@@ -898,7 +1048,7 @@ export class RestoService {
           unitPrice: Number(i.unitPrice),
         })),
         paymentMethod: dto.paymentMethod ?? PaymentMethod.CASH,
-        warehouseId: dto.warehouseId,
+        warehouseId: dto.warehouseId || (await this.resolveWarehouseId(companyId)) || undefined,
         contactId: dto.contactId,
         tipAmount: dto.tipAmount,
         notes: `Hisaby Resto ${order.number} [${order.channel}]`,
@@ -1083,5 +1233,155 @@ export class RestoService {
         .sort((a, b) => b.qty - a.qty)
         .slice(0, 15),
     };
+  }
+
+  private mapReservation(r: {
+    id: string;
+    guestName: string;
+    phone: string | null;
+    guests: number;
+    reservedAt: Date;
+    status: string;
+    notes: string | null;
+    tableId: string | null;
+    createdAt: Date;
+    table?: { id: string; code: string; name: string | null } | null;
+  }) {
+    return {
+      id: r.id,
+      guestName: r.guestName,
+      phone: r.phone,
+      guests: r.guests,
+      reservedAt: r.reservedAt,
+      status: r.status,
+      notes: r.notes,
+      tableId: r.tableId,
+      table: r.table
+        ? { id: r.table.id, code: r.table.code, name: r.table.name }
+        : null,
+      createdAt: r.createdAt,
+    };
+  }
+
+  async listReservations(companyId: string, days = 2) {
+    const safeDays = Math.min(Math.max(days || 2, 1), 30);
+    const from = new Date();
+    from.setHours(0, 0, 0, 0);
+    const to = new Date(from);
+    to.setDate(to.getDate() + safeDays);
+
+    const rows = await this.prisma.restoReservation.findMany({
+      where: {
+        companyId,
+        reservedAt: { gte: from, lt: to },
+      },
+      include: {
+        table: { select: { id: true, code: true, name: true } },
+      },
+      orderBy: { reservedAt: 'asc' },
+      take: 200,
+    });
+    return {
+      from: from.toISOString(),
+      to: to.toISOString(),
+      reservations: rows.map((r) => this.mapReservation(r)),
+      count: rows.length,
+    };
+  }
+
+  async createReservation(
+    companyId: string,
+    dto: {
+      guestName: string;
+      phone?: string;
+      guests?: number;
+      reservedAt: string;
+      tableId?: string;
+      notes?: string;
+    },
+  ) {
+    const guestName = dto.guestName.trim();
+    if (!guestName) throw new BadRequestException('Guest name required');
+    const reservedAt = new Date(dto.reservedAt);
+    if (Number.isNaN(reservedAt.getTime())) {
+      throw new BadRequestException('Invalid reservation time');
+    }
+    if (dto.tableId) {
+      const table = await this.prisma.restoTable.findFirst({
+        where: { id: dto.tableId, companyId },
+      });
+      if (!table) throw new NotFoundException('Table not found');
+    }
+    const created = await this.prisma.restoReservation.create({
+      data: {
+        companyId,
+        guestName,
+        phone: dto.phone?.trim() || null,
+        guests: dto.guests ?? 2,
+        reservedAt,
+        tableId: dto.tableId || null,
+        notes: dto.notes?.trim() || null,
+        status: 'PENDING',
+      },
+      include: {
+        table: { select: { id: true, code: true, name: true } },
+      },
+    });
+    if (created.tableId) {
+      await this.prisma.restoTable.update({
+        where: { id: created.tableId },
+        data: { status: RestoTableStatus.RESERVED },
+      });
+    }
+    return this.mapReservation(created);
+  }
+
+  async updateReservationStatus(
+    companyId: string,
+    id: string,
+    status: 'PENDING' | 'CONFIRMED' | 'SEATED' | 'CANCELLED' | 'NO_SHOW',
+  ) {
+    const row = await this.prisma.restoReservation.findFirst({
+      where: { id, companyId },
+    });
+    if (!row) throw new NotFoundException('Reservation not found');
+
+    const updated = await this.prisma.restoReservation.update({
+      where: { id },
+      data: { status },
+      include: {
+        table: { select: { id: true, code: true, name: true } },
+      },
+    });
+
+    if (row.tableId) {
+      if (status === 'CANCELLED' || status === 'NO_SHOW') {
+        const active = await this.prisma.restoOrder.findFirst({
+          where: {
+            companyId,
+            tableId: row.tableId,
+            status: { in: ACTIVE_ORDER },
+          },
+        });
+        if (!active) {
+          await this.prisma.restoTable.update({
+            where: { id: row.tableId },
+            data: { status: RestoTableStatus.FREE },
+          });
+        }
+      } else if (status === 'SEATED' || status === 'CONFIRMED' || status === 'PENDING') {
+        await this.prisma.restoTable.update({
+          where: { id: row.tableId },
+          data: {
+            status:
+              status === 'SEATED'
+                ? RestoTableStatus.OCCUPIED
+                : RestoTableStatus.RESERVED,
+          },
+        });
+      }
+    }
+
+    return this.mapReservation(updated);
   }
 }

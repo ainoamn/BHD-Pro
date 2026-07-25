@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   BarChart3,
   Calculator,
+  CalendarDays,
   ChefHat,
   LayoutGrid,
   Link2,
@@ -103,6 +104,12 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
       label: t.kitchen,
       icon: ChefHat,
       active: pathname?.startsWith("/resto/kitchen"),
+    },
+    {
+      href: "/resto/reservations",
+      label: t.reservations,
+      icon: CalendarDays,
+      active: pathname?.startsWith("/resto/reservations"),
     },
     {
       href: "/resto/reports",

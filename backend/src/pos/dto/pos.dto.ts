@@ -235,6 +235,21 @@ export class CreatePosCashMovementDto {
 export class LinkPosDto {
   @IsString()
   key: string;
+
+  @IsOptional()
+  @IsUUID()
+  warehouseId?: string;
+}
+
+export class SetPosWarehouseDto {
+  @IsUUID()
+  warehouseId: string;
+}
+
+export class ActivatePosLinkDto {
+  @IsOptional()
+  @IsUUID()
+  warehouseId?: string;
 }
 
 export class PosDraftLineDto {

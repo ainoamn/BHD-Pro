@@ -43,6 +43,13 @@ type MenuItem = {
   nameEn: string | null;
   price: string | number;
   category: string;
+  defaultStationId?: string | null;
+};
+
+type Station = {
+  id: string;
+  name: string;
+  nameEn: string | null;
 };
 
 function statusStyle(status: string, occupied: boolean) {
@@ -72,6 +79,8 @@ export default function RestoFloorPage() {
   const [menu, setMenu] = useState<MenuItem[]>([]);
   const [menuQ, setMenuQ] = useState("");
   const [guests, setGuests] = useState(2);
+  const [stations, setStations] = useState<Station[]>([]);
+  const [stationId, setStationId] = useState("");
 
   const loadFloor = useCallback(async () => {
     setLoading(true);
@@ -91,6 +100,17 @@ export default function RestoFloorPage() {
   useEffect(() => {
     void loadFloor();
   }, [loadFloor]);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await api.getRestoStations();
+        setStations(res.data.stations || []);
+      } catch {
+        /* ignore */
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     if (!order) return;
@@ -164,12 +184,16 @@ export default function RestoFloorPage() {
     await loadFloor();
   };
 
-  const addProduct = async (productId: string) => {
+  const addProduct = async (productId: string, defaultStationId?: string | null) => {
     if (!order) return;
     setBusy(true);
     setError("");
     try {
-      const res = await api.addRestoOrderItem(order.id, { productId, qty: 1 });
+      const res = await api.addRestoOrderItem(order.id, {
+        productId,
+        qty: 1,
+        stationId: stationId || defaultStationId || undefined,
+      });
       setOrder(res.data);
       await loadFloor();
     } catch {
@@ -506,6 +530,20 @@ export default function RestoFloorPage() {
 
                 <div className="border-t border-white/10 pt-3 space-y-2">
                   <p className="text-xs font-bold text-stone-300">{t.addItems}</p>
+                  {stations.length > 0 ? (
+                    <select
+                      value={stationId}
+                      onChange={(e) => setStationId(e.target.value)}
+                      className="w-full h-9 rounded-lg bg-black/30 border border-white/10 px-2 text-sm"
+                    >
+                      <option value="">{t.stationAuto}</option>
+                      {stations.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {locale === "en" && s.nameEn ? s.nameEn : s.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : null}
                   <input
                     value={menuQ}
                     onChange={(e) => setMenuQ(e.target.value)}
@@ -525,7 +563,9 @@ export default function RestoFloorPage() {
                           <button
                             type="button"
                             disabled={busy}
-                            onClick={() => void addProduct(m.id)}
+                            onClick={() =>
+                              void addProduct(m.id, m.defaultStationId)
+                            }
                             className="w-full flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-start text-sm hover:bg-white/5 disabled:opacity-50"
                           >
                             <span className="truncate">{label}</span>

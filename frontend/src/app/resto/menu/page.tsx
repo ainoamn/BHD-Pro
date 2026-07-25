@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { Loader2, Search, UtensilsCrossed } from "lucide-react";
+import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
+import { useAuthStore } from "@/store/auth";
 import { restoCopy } from "@/lib/resto-copy";
 
 type MenuItem = {
@@ -15,14 +17,35 @@ type MenuItem = {
   price: string | number;
   unit: string;
   category: string;
+  defaultStationId?: string | null;
+  defaultStationName?: string | null;
+};
+
+type Station = {
+  id: string;
+  name: string;
+  nameEn: string | null;
 };
 
 export default function RestoMenuPage() {
   const locale = useLocaleStore((s) => s.locale);
   const t = restoCopy[locale === "en" ? "en" : "ar"];
+  const user = useAuthStore((s) => s.user);
+  const canManage =
+    user?.role === "ADMIN" ||
+    user?.role === "MANAGER" ||
+    user?.role === "RESTO_MANAGER";
   const [q, setQ] = useState("");
   const [items, setItems] = useState<MenuItem[]>([]);
+  const [stations, setStations] = useState<Station[]>([]);
   const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  useEffect(() => {
+    void api.getRestoStations().then((res) => {
+      setStations(res.data.stations || []);
+    }).catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -49,6 +72,30 @@ export default function RestoMenuPage() {
     const n = typeof price === "number" ? price : Number(price);
     if (Number.isNaN(n)) return String(price);
     return n.toFixed(3);
+  };
+
+  const setStation = async (productId: string, stationId: string) => {
+    setBusyId(productId);
+    try {
+      await api.setRestoProductStation(productId, stationId || null);
+      const st = stations.find((s) => s.id === stationId);
+      setItems((prev) =>
+        prev.map((it) =>
+          it.id === productId
+            ? {
+                ...it,
+                defaultStationId: stationId || null,
+                defaultStationName: st?.name || null,
+              }
+            : it,
+        ),
+      );
+      toast.success(locale === "en" ? "Station saved" : "حُفظت المحطة");
+    } catch {
+      toast.error(t.actionFail);
+    } finally {
+      setBusyId(null);
+    }
   };
 
   return (
@@ -90,18 +137,39 @@ export default function RestoMenuPage() {
             return (
               <li
                 key={item.id}
-                className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 flex items-start justify-between gap-3"
+                className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 space-y-2"
               >
-                <div className="min-w-0">
-                  <p className="font-semibold truncate">{label}</p>
-                  <p className="text-xs text-stone-500 mt-0.5 truncate">
-                    {item.category}
-                    {item.sku ? ` · ${item.sku}` : ""}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-semibold truncate">{label}</p>
+                    <p className="text-xs text-stone-500 mt-0.5 truncate">
+                      {item.category}
+                      {item.sku ? ` · ${item.sku}` : ""}
+                    </p>
+                  </div>
+                  <p className="shrink-0 font-bold tabular-nums text-amber-200">
+                    {fmt(item.price)}
                   </p>
                 </div>
-                <p className="shrink-0 font-bold tabular-nums text-amber-200">
-                  {fmt(item.price)}
-                </p>
+                {canManage && stations.length > 0 ? (
+                  <select
+                    value={item.defaultStationId || ""}
+                    disabled={busyId === item.id}
+                    onChange={(e) => void setStation(item.id, e.target.value)}
+                    className="w-full h-9 rounded-lg bg-black/30 border border-white/10 px-2 text-xs"
+                  >
+                    <option value="">{t.stationAuto}</option>
+                    {stations.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {locale === "en" && s.nameEn ? s.nameEn : s.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : item.defaultStationName ? (
+                  <p className="text-[11px] text-stone-500">
+                    {t.stations}: {item.defaultStationName}
+                  </p>
+                ) : null}
               </li>
             );
           })}

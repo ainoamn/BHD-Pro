@@ -46,11 +46,17 @@ model Company {
   posLinkedAt DateTime? @map("pos_linked_at")
   posIntegrationKeyHash String? @map("pos_integration_key_hash")
   posIntegrationKeyPrefix String? @map("pos_integration_key_prefix")
+  /// POS sells only products assigned/stocked in this warehouse (sector separation)
+  posWarehouseId String? @map("pos_warehouse_id")
+  posWarehouse   Warehouse? @relation("CompanyPosWarehouse", fields: [posWarehouseId], references: [id], onDelete: SetNull)
 
   /// Explicit bind for Hisaby Restaurants (F&B) with Accounting / POS
   restoLinkedAt DateTime? @map("resto_linked_at")
   restoIntegrationKeyHash String? @map("resto_integration_key_hash")
   restoIntegrationKeyPrefix String? @map("resto_integration_key_prefix")
+  /// Restaurants menu/sales scoped to this warehouse only
+  restoWarehouseId String? @map("resto_warehouse_id")
+  restoWarehouse   Warehouse? @relation("CompanyRestoWarehouse", fields: [restoWarehouseId], references: [id], onDelete: SetNull)
 
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
@@ -99,6 +105,8 @@ model Company {
   restoTables RestoTable[]
   restoStations RestoStation[]
   restoOrders RestoOrder[]
+  restoProductStations RestoProductStation[]
+  restoReservations RestoReservation[]
 
   @@index([vatNumber])
   @@index([crNumber])
@@ -419,6 +427,7 @@ model Branch {
   fixedAssets  FixedAsset[]
   bankAccounts BankAccount[]
   payrollRuns  PayrollRun[]
+  warehouses   Warehouse[]
 
   @@unique([companyId, code])
   @@index([companyId])
@@ -990,9 +999,13 @@ model Warehouse {
   company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   name        String
-  nameEn      String?  @map("name_en")
+  nameEn       String?  @map("name_en")
   code        String
   address     String?
+  /// Sector: keep RETAIL vs RESTAURANT stock/catalogs separate
+  sector      WarehouseSector @default(GENERAL)
+  branchId    String?  @map("branch_id")
+  branch      Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
   isActive    Boolean  @default(true) @map("is_active")
 
   createdAt   DateTime @default(now()) @map("created_at")
@@ -1003,8 +1016,12 @@ model Warehouse {
   stockCounts StockCount[]
   warehouseStocks WarehouseStock[]
   posShifts PosShift[]
+  companiesPosDefault   Company[] @relation("CompanyPosWarehouse")
+  companiesRestoDefault Company[] @relation("CompanyRestoWarehouse")
 
   @@unique([companyId, code])
+  @@index([companyId, sector])
+  @@index([branchId])
   @@map("warehouses")
 }
 
@@ -1216,6 +1233,13 @@ enum Plan {
   STARTER
   PROFESSIONAL
   ENTERPRISE
+}
+
+/// Inventory sector — separate retail vs F&B catalogs per warehouse
+enum WarehouseSector {
+  GENERAL
+  RETAIL
+  RESTAURANT
 }
 
 enum UserRole {
@@ -1810,6 +1834,7 @@ model RestoTable {
   updatedAt DateTime        @updatedAt @map("updated_at")
 
   orders RestoOrder[]
+  reservations RestoReservation[]
 
   @@unique([companyId, code])
   @@index([companyId, zoneId, sortOrder])
@@ -1828,10 +1853,55 @@ model RestoStation {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  items RestoOrderItem[]
+  items            RestoOrderItem[]
+  productStations  RestoProductStation[]
 
   @@index([companyId, sortOrder])
   @@map("resto_stations")
+}
+
+/// Default kitchen station per menu product (routing to KDS)
+model RestoProductStation {
+  id        String       @id @default(uuid())
+  companyId String       @map("company_id")
+  company   Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  productId String       @map("product_id")
+  stationId String       @map("station_id")
+  station   RestoStation @relation(fields: [stationId], references: [id], onDelete: Cascade)
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+
+  @@unique([companyId, productId])
+  @@index([companyId, stationId])
+  @@map("resto_product_stations")
+}
+
+enum RestoReservationStatus {
+  PENDING
+  CONFIRMED
+  SEATED
+  CANCELLED
+  NO_SHOW
+}
+
+model RestoReservation {
+  id         String                 @id @default(uuid())
+  companyId  String                 @map("company_id")
+  company    Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  tableId    String?                @map("table_id")
+  table      RestoTable?            @relation(fields: [tableId], references: [id], onDelete: SetNull)
+  guestName  String                 @map("guest_name")
+  phone      String?
+  guests     Int                    @default(2)
+  reservedAt DateTime               @map("reserved_at")
+  status     RestoReservationStatus @default(PENDING)
+  notes      String?
+  createdAt  DateTime               @default(now()) @map("created_at")
+  updatedAt  DateTime               @updatedAt @map("updated_at")
+
+  @@index([companyId, reservedAt])
+  @@index([companyId, status])
+  @@map("resto_reservations")
 }
 
 model RestoOrder {

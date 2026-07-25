@@ -90,6 +90,8 @@ export class ErpService {
         name: dto.name.trim(),
         nameEn: dto.nameEn?.trim() || null,
         address: dto.address?.trim() || null,
+        sector: dto.sector ?? 'GENERAL',
+        branchId: dto.branchId || null,
         isActive: dto.isActive ?? true,
       },
     });
@@ -104,6 +106,8 @@ export class ErpService {
         ...(dto.name !== undefined && { name: dto.name.trim() }),
         ...(dto.nameEn !== undefined && { nameEn: dto.nameEn?.trim() || null }),
         ...(dto.address !== undefined && { address: dto.address?.trim() || null }),
+        ...(dto.sector !== undefined && { sector: dto.sector }),
+        ...(dto.branchId !== undefined && { branchId: dto.branchId || null }),
         ...(dto.isActive !== undefined && { isActive: dto.isActive }),
       },
     });

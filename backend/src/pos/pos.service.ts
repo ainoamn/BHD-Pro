@@ -34,6 +34,7 @@ import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { GlPostingService } from '../journal/gl-posting.service';
 import { CustomerNotifyService } from '../notifications/customer-notify.service';
 import { PosIncentivesService } from './pos-incentives.service';
+import { productWhereForWarehouse } from '../common/warehouse-product-scope';
 
 const WALK_IN_NAME = 'POS Walk-in / نقدي';
 
@@ -63,7 +64,17 @@ export class PosService {
         name: true,
         posLinkedAt: true,
         posIntegrationKeyPrefix: true,
+        posWarehouseId: true,
         restoLinkedAt: true,
+        posWarehouse: {
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            nameEn: true,
+            sector: true,
+          },
+        },
       },
     });
     if (!company) throw new NotFoundException('Company not found');
@@ -72,23 +83,103 @@ export class PosService {
       companyId: company.id,
       companyName: company.name,
       keyPrefix: company.posIntegrationKeyPrefix,
+      warehouseId: company.posWarehouseId,
+      warehouse: company.posWarehouse,
       restoLinked: !!company.restoLinkedAt,
       apps: { accounting: true, pos: true, resto: true },
     };
   }
 
-  /** Same-login SSO: mark Accounting ↔ POS as linked for this company */
-  async activateLink(companyId: string) {
+  private async assertCompanyWarehouse(companyId: string, warehouseId: string) {
+    const wh = await this.prisma.warehouse.findFirst({
+      where: { id: warehouseId, companyId, isActive: true },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        nameEn: true,
+        sector: true,
+      },
+    });
+    if (!wh) throw new BadRequestException('Warehouse not found for this company');
+    return wh;
+  }
+
+  async setWarehouse(companyId: string, warehouseId: string) {
+    const wh = await this.assertCompanyWarehouse(companyId, warehouseId);
     const company = await this.prisma.company.update({
       where: { id: companyId },
-      data: { posLinkedAt: new Date() },
-      select: { id: true, name: true, posLinkedAt: true },
+      data: {
+        posWarehouseId: wh.id,
+        posLinkedAt: new Date(),
+      },
+      select: {
+        id: true,
+        name: true,
+        posLinkedAt: true,
+        posWarehouseId: true,
+      },
     });
     return {
       linked: true,
       companyId: company.id,
       companyName: company.name,
       linkedAt: company.posLinkedAt,
+      warehouseId: company.posWarehouseId,
+      warehouse: wh,
+    };
+  }
+
+  async resolvePosWarehouseId(
+    companyId: string,
+    overrideWarehouseId?: string,
+  ): Promise<string | null> {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { posWarehouseId: true },
+    });
+    if (company?.posWarehouseId) {
+      return company.posWarehouseId;
+    }
+    if (overrideWarehouseId) {
+      await this.assertCompanyWarehouse(companyId, overrideWarehouseId);
+      return overrideWarehouseId;
+    }
+    return null;
+  }
+
+  /** Same-login SSO: mark Accounting ↔ POS as linked for this company */
+  async activateLink(companyId: string, warehouseId?: string) {
+    if (warehouseId) {
+      return this.setWarehouse(companyId, warehouseId);
+    }
+    const company = await this.prisma.company.update({
+      where: { id: companyId },
+      data: { posLinkedAt: new Date() },
+      select: {
+        id: true,
+        name: true,
+        posLinkedAt: true,
+        posWarehouseId: true,
+        posWarehouse: {
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            nameEn: true,
+            sector: true,
+          },
+        },
+      },
+    });
+    return {
+      linked: true,
+      companyId: company.id,
+      companyName: company.name,
+      linkedAt: company.posLinkedAt,
+      warehouseId: company.posWarehouseId,
+      warehouse: company.posWarehouse,
+      needsWarehouse: !company.posWarehouseId,
     };
   }
 
@@ -100,6 +191,7 @@ export class PosService {
         posLinkedAt: null,
         posIntegrationKeyHash: null,
         posIntegrationKeyPrefix: null,
+        posWarehouseId: null,
       },
       select: { id: true, name: true, posLinkedAt: true },
     });
@@ -108,11 +200,15 @@ export class PosService {
       companyId: company.id,
       companyName: company.name,
       linkedAt: null,
+      warehouseId: null,
     };
   }
 
-  async generateIntegrationKey(companyId: string) {
-    const secret = `hpos_${randomBytes(24).toString('hex')}`;
+  async generateIntegrationKey(companyId: string, warehouseId?: string) {
+    if (warehouseId) {
+      await this.assertCompanyWarehouse(companyId, warehouseId);
+    }
+    const secret = 'hpos_' + randomBytes(24).toString('hex');
     const prefix = secret.slice(0, 12);
     await this.prisma.company.update({
       where: { id: companyId },
@@ -120,17 +216,19 @@ export class PosService {
         posIntegrationKeyHash: this.hashKey(secret),
         posIntegrationKeyPrefix: prefix,
         posLinkedAt: new Date(),
+        ...(warehouseId ? { posWarehouseId: warehouseId } : {}),
       },
     });
     return {
       key: secret,
       prefix,
       linked: true,
+      warehouseId: warehouseId || null,
       warning: 'Store this key now — it will not be shown again',
     };
   }
 
-  async linkWithKey(companyId: string, key: string) {
+  async linkWithKey(companyId: string, key: string, warehouseId?: string) {
     const trimmed = key.trim();
     if (!trimmed.startsWith('hpos_')) {
       throw new BadRequestException('Invalid POS integration key');
@@ -145,7 +243,7 @@ export class PosService {
         'Integration key does not match this company — generate a key while signed into the same company, or use shared login to link',
       );
     }
-    return this.activateLink(companyId);
+    return this.activateLink(companyId, warehouseId);
   }
 
   private async applyWarehouseQuantity<
@@ -171,51 +269,67 @@ export class PosService {
     const q = code.trim();
     if (!q) throw new BadRequestException('Scan code is required');
 
+    const scopeWh = await this.resolvePosWarehouseId(companyId, warehouseId);
     const product = await this.prisma.product.findFirst({
-      where: {
-        companyId,
-        isActive: true,
-        OR: [
-          { barcode: q },
-          { sku: { equals: q, mode: 'insensitive' } },
-        ],
-      },
+      where: scopeWh
+        ? {
+            AND: [
+              productWhereForWarehouse(companyId, scopeWh),
+              {
+                OR: [
+                  { barcode: q },
+                  { sku: { equals: q, mode: 'insensitive' } },
+                ],
+              },
+            ],
+          }
+        : {
+            companyId,
+            isActive: true,
+            OR: [
+              { barcode: q },
+              { sku: { equals: q, mode: 'insensitive' } },
+            ],
+          },
       include: { warehouse: { select: { id: true, code: true, name: true } } },
     });
     if (!product) throw new NotFoundException('Product not found for this barcode/SKU');
-    const [mapped] = await this.applyWarehouseQuantity([product], warehouseId);
+    const [mapped] = await this.applyWarehouseQuantity([product], scopeWh || undefined);
     return mapped;
   }
 
   async searchProducts(companyId: string, q: string, warehouseId?: string) {
+    const scopeWh = await this.resolvePosWarehouseId(companyId, warehouseId);
     const term = q.trim();
-    const products = !term
-      ? await this.prisma.product.findMany({
-          where: { companyId, isActive: true },
-          take: 40,
-          orderBy: { name: 'asc' },
-          include: { warehouse: { select: { id: true, code: true, name: true } } },
-        })
-      : await this.prisma.product.findMany({
-          where: {
+    const where = scopeWh
+      ? productWhereForWarehouse(companyId, scopeWh, term || undefined)
+      : !term
+        ? { companyId, isActive: true }
+        : {
             companyId,
             isActive: true,
             OR: [
-              { name: { contains: term, mode: 'insensitive' } },
-              { sku: { contains: term, mode: 'insensitive' } },
-              { barcode: { contains: term, mode: 'insensitive' } },
+              { name: { contains: term, mode: 'insensitive' as const } },
+              { sku: { contains: term, mode: 'insensitive' as const } },
+              { barcode: { contains: term, mode: 'insensitive' as const } },
             ],
-          },
-          take: 40,
-          orderBy: { name: 'asc' },
-          include: { warehouse: { select: { id: true, code: true, name: true } } },
-        });
-    return this.applyWarehouseQuantity(products, warehouseId);
+          };
+
+    const products = await this.prisma.product.findMany({
+      where,
+      take: 40,
+      orderBy: { name: 'asc' },
+      include: { warehouse: { select: { id: true, code: true, name: true } } },
+    });
+    return this.applyWarehouseQuantity(products, scopeWh || undefined);
   }
 
   async syncCatalog(companyId: string, warehouseId?: string) {
+    const scopeWh = await this.resolvePosWarehouseId(companyId, warehouseId);
     const products = await this.prisma.product.findMany({
-      where: { companyId, isActive: true },
+      where: scopeWh
+        ? productWhereForWarehouse(companyId, scopeWh)
+        : { companyId, isActive: true },
       take: 5000,
       select: {
         id: true,
@@ -230,13 +344,14 @@ export class PosService {
         updatedAt: true,
       },
     });
-    const withStock = await this.applyWarehouseQuantity(products, warehouseId);
+    const withStock = await this.applyWarehouseQuantity(products, scopeWh || undefined);
     return {
-      warehouseId: warehouseId || null,
+      warehouseId: scopeWh || null,
       syncedAt: new Date(),
       count: withStock.length,
       products: withStock,
       full: true,
+      needsWarehouse: !scopeWh,
     };
   }
 
@@ -254,11 +369,14 @@ export class PosService {
       return this.syncCatalog(companyId, warehouseId);
     }
 
+    const scopeWh = await this.resolvePosWarehouseId(companyId, warehouseId);
+    const baseWhere = scopeWh
+      ? productWhereForWarehouse(companyId, scopeWh)
+      : { companyId, isActive: true };
+
     const products = await this.prisma.product.findMany({
       where: {
-        companyId,
-        isActive: true,
-        updatedAt: { gt: sinceDate },
+        AND: [baseWhere, { updatedAt: { gt: sinceDate } }],
       },
       take: 5000,
       select: {
@@ -274,54 +392,15 @@ export class PosService {
         updatedAt: true,
       },
     });
-    const withStock = await this.applyWarehouseQuantity(products, warehouseId);
-
-    // Also include warehouse stock rows touched after since (qty-only changes)
-    let warehouseTouched: typeof withStock = [];
-    if (warehouseId) {
-      const touched = await this.prisma.warehouseStock.findMany({
-        where: {
-          warehouseId,
-          updatedAt: { gt: sinceDate },
-          product: { companyId, isActive: true },
-        },
-        take: 5000,
-        include: {
-          product: {
-            select: {
-              id: true,
-              name: true,
-              sku: true,
-              barcode: true,
-              salePrice: true,
-              quantity: true,
-              minQuantity: true,
-              isTracked: true,
-              warehouseId: true,
-              updatedAt: true,
-            },
-          },
-        },
-      });
-      const byId = new Map(withStock.map((p) => [p.id, p]));
-      for (const row of touched) {
-        if (byId.has(row.product.id)) continue;
-        byId.set(row.product.id, {
-          ...row.product,
-          quantity: row.quantity,
-        } as (typeof withStock)[number]);
-      }
-      warehouseTouched = Array.from(byId.values());
-    }
-
-    const productsOut = warehouseId ? warehouseTouched : withStock;
+    const withStock = await this.applyWarehouseQuantity(products, scopeWh || undefined);
     return {
-      warehouseId: warehouseId || null,
+      warehouseId: scopeWh || null,
       syncedAt: new Date(),
       since: sinceDate,
-      count: productsOut.length,
-      products: productsOut,
+      count: withStock.length,
+      products: withStock,
       full: false,
+      needsWarehouse: !scopeWh,
     };
   }
 

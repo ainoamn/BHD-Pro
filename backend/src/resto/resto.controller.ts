@@ -18,15 +18,20 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
 import { RestoService } from './resto.service';
 import {
+  ActivateRestoLinkDto,
   AddRestoOrderItemDto,
   CloseRestoOrderDto,
+  CreateRestoReservationDto,
   CreateRestoStationDto,
   CreateRestoTableDto,
   CreateRestoZoneDto,
   LinkRestoDto,
   OpenRestoOrderDto,
   SeedRestoFloorDto,
+  SetRestoProductStationDto,
+  SetRestoWarehouseDto,
   UpdateRestoOrderItemDto,
+  UpdateRestoReservationStatusDto,
 } from './dto/resto.dto';
 import { IsIn } from 'class-validator';
 
@@ -65,9 +70,22 @@ export class RestoController {
   }
 
   @Post('link/activate')
-  @ApiOperation({ summary: 'Activate restaurant link (SSO)' })
-  activate(@CurrentUser() user: TokenPayload) {
-    return this.resto.activateLink(user.companyId);
+  @ApiOperation({ summary: 'Activate restaurant link (SSO) + optional warehouse' })
+  activate(
+    @CurrentUser() user: TokenPayload,
+    @Body() dto: ActivateRestoLinkDto,
+  ) {
+    return this.resto.activateLink(user.companyId, dto?.warehouseId);
+  }
+
+  @Post('link/warehouse')
+  @Roles(...RESTO_FLOOR_MGR)
+  @ApiOperation({ summary: 'Bind restaurants to a warehouse sector' })
+  setWarehouse(
+    @CurrentUser() user: TokenPayload,
+    @Body() dto: SetRestoWarehouseDto,
+  ) {
+    return this.resto.setWarehouse(user.companyId, dto.warehouseId);
   }
 
   @Post('link/deactivate')
@@ -80,20 +98,23 @@ export class RestoController {
   @Post('link/generate')
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Generate restaurant integration key' })
-  generate(@CurrentUser() user: TokenPayload) {
-    return this.resto.generateIntegrationKey(user.companyId);
+  generate(
+    @CurrentUser() user: TokenPayload,
+    @Body() dto: ActivateRestoLinkDto,
+  ) {
+    return this.resto.generateIntegrationKey(user.companyId, dto?.warehouseId);
   }
 
   @Post('link')
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Confirm restaurant link with key' })
   linkWithKey(@CurrentUser() user: TokenPayload, @Body() dto: LinkRestoDto) {
-    return this.resto.linkWithKey(user.companyId, dto.key);
+    return this.resto.linkWithKey(user.companyId, dto.key, dto.warehouseId);
   }
 
   @Get('menu')
   @Roles(...RESTO_STAFF)
-  @ApiOperation({ summary: 'Active products as restaurant menu' })
+  @ApiOperation({ summary: 'Menu from linked restaurant warehouse only' })
   menu(@CurrentUser() user: TokenPayload, @Query('q') q?: string) {
     return this.resto.getMenu(user.companyId, q);
   }
@@ -248,6 +269,60 @@ export class RestoController {
     return this.resto.getReportsSummary(
       user.companyId,
       Number.isFinite(n) ? n : 7,
+    );
+  }
+
+  @Patch('menu/:productId/station')
+  @Roles(...RESTO_FLOOR_MGR)
+  @ApiOperation({ summary: 'Set default KDS station for a menu product' })
+  setProductStation(
+    @CurrentUser() user: TokenPayload,
+    @Param('productId') productId: string,
+    @Body() dto: SetRestoProductStationDto,
+  ) {
+    return this.resto.setProductStation(
+      user.companyId,
+      productId,
+      dto.stationId || null,
+    );
+  }
+
+  @Get('reservations')
+  @Roles(...RESTO_STAFF)
+  @ApiOperation({ summary: 'List upcoming reservations' })
+  reservations(
+    @CurrentUser() user: TokenPayload,
+    @Query('days') days?: string,
+  ) {
+    const n = days ? Number(days) : 2;
+    return this.resto.listReservations(
+      user.companyId,
+      Number.isFinite(n) ? n : 2,
+    );
+  }
+
+  @Post('reservations')
+  @Roles(...RESTO_FLOOR_MGR, UserRole.WAITER)
+  @ApiOperation({ summary: 'Create reservation' })
+  createReservation(
+    @CurrentUser() user: TokenPayload,
+    @Body() dto: CreateRestoReservationDto,
+  ) {
+    return this.resto.createReservation(user.companyId, dto);
+  }
+
+  @Patch('reservations/:id/status')
+  @Roles(...RESTO_FLOOR_MGR, UserRole.WAITER)
+  @ApiOperation({ summary: 'Update reservation status' })
+  updateReservationStatus(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+    @Body() dto: UpdateRestoReservationStatusDto,
+  ) {
+    return this.resto.updateReservationStatus(
+      user.companyId,
+      id,
+      dto.status,
     );
   }
 }

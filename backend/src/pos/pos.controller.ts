@@ -10,6 +10,7 @@ import { TokenPayload } from '../auth/interfaces/token-payload.interface';
 import { PosService } from './pos.service';
 import { PosIncentivesService } from './pos-incentives.service';
 import {
+  ActivatePosLinkDto,
   ClosePosShiftDto,
   CreatePosCashMovementDto,
   CreatePosDraftDto,
@@ -18,6 +19,7 @@ import {
   OpenPosShiftDto,
   PayoutCommissionDto,
   RefundPosSaleDto,
+  SetPosWarehouseDto,
   UpdateIncentivesConfigDto,
   UpdatePosDraftDto,
   VoidPosSaleDto,
@@ -151,9 +153,22 @@ export class PosController {
   }
 
   @Post('link/activate')
-  @ApiOperation({ summary: 'Link POS to Accounting via shared login session' })
-  activate(@CurrentUser() user: TokenPayload) {
-    return this.pos.activateLink(user.companyId);
+  @ApiOperation({ summary: 'Link POS to Accounting via shared login + warehouse' })
+  activate(
+    @CurrentUser() user: TokenPayload,
+    @Body() dto: ActivatePosLinkDto,
+  ) {
+    return this.pos.activateLink(user.companyId, dto?.warehouseId);
+  }
+
+  @Post('link/warehouse')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @ApiOperation({ summary: 'Bind POS catalog to a warehouse sector' })
+  setWarehouse(
+    @CurrentUser() user: TokenPayload,
+    @Body() dto: SetPosWarehouseDto,
+  ) {
+    return this.pos.setWarehouse(user.companyId, dto.warehouseId);
   }
 
   @Post('link/deactivate')
@@ -166,15 +181,18 @@ export class PosController {
   @Post('link/generate')
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Generate technical integration key (ADMIN, shown once)' })
-  generate(@CurrentUser() user: TokenPayload) {
-    return this.pos.generateIntegrationKey(user.companyId);
+  generate(
+    @CurrentUser() user: TokenPayload,
+    @Body() dto: ActivatePosLinkDto,
+  ) {
+    return this.pos.generateIntegrationKey(user.companyId, dto?.warehouseId);
   }
 
   @Post('link')
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Confirm link with integration key (ADMIN, same company)' })
   linkWithKey(@CurrentUser() user: TokenPayload, @Body() dto: LinkPosDto) {
-    return this.pos.linkWithKey(user.companyId, dto.key);
+    return this.pos.linkWithKey(user.companyId, dto.key, dto.warehouseId);
   }
 
   @Get('products/lookup')

@@ -1368,26 +1368,40 @@ class ApiClient {
       companyId: string;
       companyName: string;
       keyPrefix: string | null;
-      apps: { accounting: boolean; pos: boolean };
+      warehouseId: string | null;
+      warehouse: {
+        id: string;
+        code: string;
+        name: string;
+        nameEn: string | null;
+        sector: string;
+      } | null;
+      restoLinked?: boolean;
+      apps: { accounting: boolean; pos: boolean; resto?: boolean };
     }>('/pos/link-status');
   }
 
-  activatePosLink() {
-    return this.post('/pos/link/activate');
+  activatePosLink(warehouseId?: string) {
+    return this.post('/pos/link/activate', warehouseId ? { warehouseId } : {});
+  }
+
+  setPosWarehouse(warehouseId: string) {
+    return this.post('/pos/link/warehouse', { warehouseId });
   }
 
   deactivatePosLink() {
     return this.post('/pos/link/deactivate');
   }
 
-  generatePosLinkKey() {
+  generatePosLinkKey(warehouseId?: string) {
     return this.post<{ key: string; prefix: string; linked: boolean; warning: string }>(
       '/pos/link/generate',
+      warehouseId ? { warehouseId } : {},
     );
   }
 
-  confirmPosLinkKey(key: string) {
-    return this.post('/pos/link', { key });
+  confirmPosLinkKey(key: string, warehouseId?: string) {
+    return this.post('/pos/link', { key, warehouseId });
   }
 
   // Hisaby Restaurants
@@ -1397,27 +1411,40 @@ class ApiClient {
       companyId: string;
       companyName: string;
       keyPrefix: string | null;
+      warehouseId: string | null;
+      warehouse: {
+        id: string;
+        code: string;
+        name: string;
+        nameEn: string | null;
+        sector: string;
+      } | null;
       posLinked: boolean;
       apps: { accounting: boolean; pos: boolean; resto: boolean };
     }>('/resto/link-status');
   }
 
-  activateRestoLink() {
-    return this.post('/resto/link/activate');
+  activateRestoLink(warehouseId?: string) {
+    return this.post('/resto/link/activate', warehouseId ? { warehouseId } : {});
+  }
+
+  setRestoWarehouse(warehouseId: string) {
+    return this.post('/resto/link/warehouse', { warehouseId });
   }
 
   deactivateRestoLink() {
     return this.post('/resto/link/deactivate');
   }
 
-  generateRestoLinkKey() {
+  generateRestoLinkKey(warehouseId?: string) {
     return this.post<{ key: string; prefix: string; linked: boolean; warning: string }>(
       '/resto/link/generate',
+      warehouseId ? { warehouseId } : {},
     );
   }
 
-  confirmRestoLinkKey(key: string) {
-    return this.post('/resto/link', { key });
+  confirmRestoLinkKey(key: string, warehouseId?: string) {
+    return this.post('/resto/link', { key, warehouseId });
   }
 
   getRestoMenu(q?: string) {
@@ -1431,9 +1458,54 @@ class ApiClient {
         price: string | number;
         unit: string;
         category: string;
+        defaultStationId?: string | null;
+        defaultStationName?: string | null;
       }>;
       count: number;
     }>('/resto/menu', { params: q ? { q } : undefined });
+  }
+
+  setRestoProductStation(productId: string, stationId: string | null) {
+    return this.patch(`/resto/menu/${productId}/station`, { stationId });
+  }
+
+  getRestoReservations(days?: number) {
+    return this.get<{
+      from: string;
+      to: string;
+      count: number;
+      reservations: Array<{
+        id: string;
+        guestName: string;
+        phone: string | null;
+        guests: number;
+        reservedAt: string;
+        status: string;
+        notes: string | null;
+        tableId: string | null;
+        table: { id: string; code: string; name: string | null } | null;
+      }>;
+    }>('/resto/reservations', {
+      params: days ? { days } : undefined,
+    });
+  }
+
+  createRestoReservation(data: {
+    guestName: string;
+    phone?: string;
+    guests?: number;
+    reservedAt: string;
+    tableId?: string;
+    notes?: string;
+  }) {
+    return this.post('/resto/reservations', data);
+  }
+
+  updateRestoReservationStatus(
+    id: string,
+    status: 'PENDING' | 'CONFIRMED' | 'SEATED' | 'CANCELLED' | 'NO_SHOW',
+  ) {
+    return this.patch(`/resto/reservations/${id}/status`, { status });
   }
 
   getRestoFloor() {

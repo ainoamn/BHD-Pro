@@ -6,6 +6,8 @@ import {
   IsEnum,
   IsDateString,
   IsInt,
+  IsIn,
+  IsUUID,
   Min,
   Max,
   MinLength,
@@ -144,6 +146,11 @@ export class WarehouseDto {
   @IsString()
   nameEn?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() address?: string;
+  @ApiPropertyOptional({ enum: ['GENERAL', 'RETAIL', 'RESTAURANT'] })
+  @IsOptional()
+  @IsIn(['GENERAL', 'RETAIL', 'RESTAURANT'])
+  sector?: 'GENERAL' | 'RETAIL' | 'RESTAURANT';
+  @ApiPropertyOptional() @IsOptional() @IsUUID() branchId?: string;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
 }
 
