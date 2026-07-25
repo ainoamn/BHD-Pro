@@ -101,6 +101,17 @@ export function renderCode128ToCanvas(
   ctx.fillText(clean, w / 2, height + 14);
 }
 
+function toAbsoluteUrl(url: string | null | undefined): string {
+  const raw = (url || "").trim();
+  if (!raw) return "";
+  if (/^(data:|blob:|https?:)/i.test(raw)) return raw;
+  try {
+    return new URL(raw, window.location.origin).href;
+  } catch {
+    return raw;
+  }
+}
+
 export function printProductLabel(data: ProductLabelData): void {
   const barcode = (data.barcode || data.sku || "").trim();
   if (!barcode) return;
@@ -114,8 +125,9 @@ export function printProductLabel(data: ProductLabelData): void {
       ? `${Number(data.salePrice).toFixed(3)} ${data.currency || "OMR"}`
       : "";
 
-  const logo = data.logoUrl
-    ? `<img src="${escapeHtml(data.logoUrl)}" alt="" style="height:36px;max-width:120px;object-fit:contain" />`
+  const logoSrc = toAbsoluteUrl(data.logoUrl);
+  const logo = logoSrc
+    ? `<img src="${escapeHtml(logoSrc)}" alt="" style="height:36px;max-width:120px;object-fit:contain" />`
     : "";
 
   const companyBits = [data.companyName, data.vatNumber ? `VAT ${data.vatNumber}` : "", data.phone]
@@ -131,7 +143,7 @@ export function printProductLabel(data: ProductLabelData): void {
 <style>
   @page { size: 60mm 40mm; margin: 2mm; }
   * { box-sizing: border-box; }
-  body { margin: 0; font-family: Tahoma, Arial, sans-serif; color: #111; }
+  body { margin: 0; background: #fff; font-family: Tahoma, Arial, sans-serif; color: #111; }
   .label {
     width: 56mm; min-height: 36mm; padding: 2mm;
     border: 0.3mm solid #ddd; display: flex; flex-direction: column; gap: 1.5mm;
@@ -152,7 +164,7 @@ export function printProductLabel(data: ProductLabelData): void {
 </head>
 <body>
   <div class="no-print" style="padding:12px;font-family:sans-serif">
-    <button onclick="window.print()" style="padding:8px 16px;font-weight:700;cursor:pointer">طباعة الملصق / Print</button>
+    <button type="button" onclick="window.print()" style="padding:8px 16px;font-weight:700;cursor:pointer">طباعة الملصق / Print</button>
   </div>
   <div class="label">
     <div class="brand">
@@ -164,15 +176,53 @@ export function printProductLabel(data: ProductLabelData): void {
     ${price ? `<div class="price">${escapeHtml(price)}</div>` : ""}
     <div class="bc"><img src="${barcodeDataUrl}" alt="${escapeHtml(barcode)}" /></div>
   </div>
-  <script>setTimeout(function(){ window.print(); }, 250);</script>
+  <script>
+    window.addEventListener("load", function () {
+      setTimeout(function () { window.print(); }, 200);
+    });
+  </script>
 </body>
 </html>`;
 
-  const w = window.open("", "_blank", "noopener,noreferrer,width=480,height=640");
-  if (!w) return;
-  w.document.open();
-  w.document.write(html);
-  w.document.close();
+  // Blob URL avoids Chrome's noopener quirk: window.open(..., "noopener") returns null
+  // and leaves a blank about:blank tab that we cannot write into.
+  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const w = window.open(url, "_blank", "width=480,height=640");
+  if (!w) {
+    URL.revokeObjectURL(url);
+    // Fallback: same-tab print iframe if popups are blocked
+    printViaHiddenIframe(html);
+    return;
+  }
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+function printViaHiddenIframe(html: string): void {
+  const iframe = document.createElement("iframe");
+  iframe.setAttribute("aria-hidden", "true");
+  iframe.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0";
+  document.body.appendChild(iframe);
+  const doc = iframe.contentDocument;
+  if (!doc) {
+    iframe.remove();
+    return;
+  }
+  doc.open();
+  doc.write(html);
+  doc.close();
+  const cleanup = () => {
+    window.setTimeout(() => iframe.remove(), 1500);
+  };
+  iframe.onload = () => {
+    try {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+    } finally {
+      cleanup();
+    }
+  };
+  window.setTimeout(cleanup, 8000);
 }
 
 function escapeHtml(s: string): string {

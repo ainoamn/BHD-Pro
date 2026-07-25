@@ -205,17 +205,20 @@ export default function InventoryPage() {
       toast.error(t("labelNoBarcode"));
       return;
     }
-    printProductLabel({
-      name: product.name,
-      sku: product.sku,
-      barcode: code,
-      salePrice: Number(product.salePrice),
-      currency,
-      companyName: company?.name,
-      vatNumber: company?.vatNumber || undefined,
-      phone: company?.phone || undefined,
-      logoUrl: company?.logo || "/brand/hisaby-mark.png",
-    });
+    // Defer so the click can paint before canvas/print work (INP).
+    window.setTimeout(() => {
+      printProductLabel({
+        name: product.name,
+        sku: product.sku,
+        barcode: code,
+        salePrice: Number(product.salePrice),
+        currency,
+        companyName: company?.name,
+        vatNumber: company?.vatNumber || undefined,
+        phone: company?.phone || undefined,
+        logoUrl: company?.logo || "/brand/hisaby-mark.png",
+      });
+    }, 0);
   };
 
   const saveMutation = useMutation({
