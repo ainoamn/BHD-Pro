@@ -1017,6 +1017,38 @@ export class PosService {
     return { shift, zReport };
   }
 
+  /**
+   * Mid-shift X-report: same totals as Z for the open window until now, without closing.
+   */
+  async getXReport(companyId: string, shiftId: string) {
+    const shift = await this.prisma.posShift.findFirst({
+      where: { id: shiftId, companyId },
+      include: {
+        openedBy: { select: { id: true, name: true, email: true } },
+        closedBy: { select: { id: true, name: true, email: true } },
+        warehouse: { select: { id: true, name: true, code: true } },
+      },
+    });
+    if (!shift) throw new NotFoundException('Shift not found');
+    if (shift.status !== 'OPEN') {
+      throw new BadRequestException('X-report is only available for an open shift');
+    }
+    const xReport = await this.buildZReport(
+      companyId,
+      shift.id,
+      shift.openedAt,
+      new Date(),
+      Number(shift.openingFloat),
+    );
+    return { shift, xReport, reportType: 'X' as const };
+  }
+
+  async getCurrentXReport(companyId: string, warehouseId?: string | null) {
+    const shift = await this.findOpenShift(companyId, warehouseId);
+    if (!shift) throw new NotFoundException('No open shift');
+    return this.getXReport(companyId, shift.id);
+  }
+
   async listShifts(companyId: string) {
     return this.prisma.posShift.findMany({
       where: { companyId },

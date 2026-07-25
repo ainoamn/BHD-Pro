@@ -180,6 +180,18 @@ export class PosController {
     return this.pos.getCurrentShift(user.companyId, warehouseId || null);
   }
 
+  @Get('shifts/current/x-report')
+  @Roles(...POS_STAFF)
+  @ApiOperation({
+    summary: 'X-report for the current open shift (live totals, does not close)',
+  })
+  currentXReport(
+    @CurrentUser() user: TokenPayload,
+    @Query('warehouseId') warehouseId?: string,
+  ) {
+    return this.pos.getCurrentXReport(user.companyId, warehouseId || null);
+  }
+
   @Get('shifts')
   @Roles(...POS_STAFF)
   @ApiOperation({ summary: 'List recent POS shifts' })
@@ -199,6 +211,13 @@ export class PosController {
   @ApiOperation({ summary: 'Close open POS shift and save Z-report' })
   closeShift(@CurrentUser() user: TokenPayload, @Body() dto: ClosePosShiftDto) {
     return this.pos.closeShift(user.companyId, user, dto);
+  }
+
+  @Get('shifts/:id/x-report')
+  @Roles(...POS_STAFF)
+  @ApiOperation({ summary: 'X-report for an open POS shift (does not close)' })
+  xReport(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
+    return this.pos.getXReport(user.companyId, id);
   }
 
   @Get('shifts/:id/z-report')
