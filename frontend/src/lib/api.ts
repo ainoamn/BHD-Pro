@@ -18,6 +18,9 @@ export type RestoOrderPayload = {
   channel?: string;
   guests: number;
   notes: string | null;
+  guestName?: string | null;
+  guestPhone?: string | null;
+  deliveryAddress?: string | null;
   invoiceId?: string | null;
   sentAt: string | null;
   closedAt: string | null;
@@ -32,6 +35,8 @@ export type RestoOrderPayload = {
     lineTotal: number;
     notes: string | null;
     course?: number;
+    isComp?: boolean;
+    voidReason?: string | null;
     status: string;
   }>;
   subtotal: number;
@@ -1671,6 +1676,9 @@ class ApiClient {
     channel?: 'DINE_IN' | 'TAKEAWAY' | 'DELIVERY';
     guests?: number;
     notes?: string;
+    guestName?: string;
+    guestPhone?: string;
+    deliveryAddress?: string;
   }) {
     return this.post<RestoOrderPayload>('/resto/orders', data);
   }
@@ -1686,6 +1694,9 @@ class ApiClient {
         status: string;
         guests: number;
         notes: string | null;
+        guestName?: string | null;
+        guestPhone?: string | null;
+        deliveryAddress?: string | null;
         createdAt: string;
         table: { id: string; code: string; name: string | null } | null;
         itemCount: number;
@@ -1734,9 +1745,47 @@ class ApiClient {
 
   updateRestoOrder(
     orderId: string,
-    data: { guests?: number; notes?: string },
+    data: {
+      guests?: number;
+      notes?: string;
+      guestName?: string;
+      guestPhone?: string;
+      deliveryAddress?: string;
+    },
   ) {
     return this.patch<RestoOrderPayload>(`/resto/orders/${orderId}`, data);
+  }
+
+  voidRestoOrderItem(
+    orderId: string,
+    itemId: string,
+    data: { reason: string; comp?: boolean },
+  ) {
+    return this.post<RestoOrderPayload>(
+      `/resto/orders/${orderId}/items/${itemId}/void`,
+      data,
+    );
+  }
+
+  getRestoExpo() {
+    return this.get<{
+      count: number;
+      items: Array<{
+        id: string;
+        name: string;
+        qty: number;
+        notes: string | null;
+        course: number;
+        status: string;
+        readyAt: string | null;
+        orderId: string;
+        orderNumber: string;
+        channel: string;
+        guestName: string | null;
+        stationName: string | null;
+        table: { id: string; code: string; name: string | null } | null;
+      }>;
+    }>('/resto/expo');
   }
 
   transferRestoOrder(orderId: string, tableId: string) {
@@ -1875,6 +1924,8 @@ class ApiClient {
       warehouseId?: string;
       contactId?: string;
       tipAmount?: number;
+      serviceChargeAmount?: number;
+      serviceChargePct?: number;
     },
   ) {
     return this.post<RestoOrderPayload & { invoice?: { id: string } | null }>(

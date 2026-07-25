@@ -47,6 +47,7 @@ import {
   UpdateRestoWaitlistStatusDto,
   UpsertRestoRecipeDto,
   UpdateRestoReservationStatusDto,
+  VoidRestoOrderItemDto,
 } from './dto/resto.dto';
 import { IsIn } from 'class-validator';
 
@@ -306,6 +307,24 @@ export class RestoController {
     return this.resto.removeItem(user.companyId, id, itemId);
   }
 
+  @Post('orders/:id/items/:itemId/void')
+  @Roles(...RESTO_FLOOR_MGR, UserRole.WAITER)
+  @ApiOperation({ summary: 'Void or comp a sent kitchen line (reason required)' })
+  voidItem(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+    @Body() dto: VoidRestoOrderItemDto,
+  ) {
+    return this.resto.voidItem(
+      user.companyId,
+      id,
+      itemId,
+      dto.reason,
+      !!dto.comp,
+    );
+  }
+
   @Post('orders/:id/send')
   @Roles(...RESTO_STAFF)
   @ApiOperation({ summary: 'Fire pending items to KDS (optional course filter)' })
@@ -357,6 +376,13 @@ export class RestoController {
     @Query('stationId') stationId?: string,
   ) {
     return this.resto.getKitchenQueue(user.companyId, stationId);
+  }
+
+  @Get('expo')
+  @Roles(...RESTO_STAFF)
+  @ApiOperation({ summary: 'Expo / runner pass — READY items awaiting serve' })
+  expo(@CurrentUser() user: TokenPayload) {
+    return this.resto.getExpoQueue(user.companyId);
   }
 
   @Sse('kitchen/stream')

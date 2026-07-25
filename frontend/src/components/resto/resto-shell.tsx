@@ -19,6 +19,7 @@ import {
   Truck,
   Users,
   UtensilsCrossed,
+  BellRing,
 } from "lucide-react";
 import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
@@ -126,6 +127,12 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
       label: t.kitchen,
       icon: ChefHat,
       active: pathname?.startsWith("/resto/kitchen"),
+    },
+    {
+      href: "/resto/expo",
+      label: t.expo,
+      icon: BellRing,
+      active: pathname?.startsWith("/resto/expo"),
     },
     {
       href: "/resto/reservations",

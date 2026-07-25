@@ -86,6 +86,21 @@ export class OpenRestoOrderDto {
   @IsString()
   @MaxLength(500)
   notes?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  guestName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  guestPhone?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  deliveryAddress?: string;
 }
 
 export class RestoModifierChoiceDto {
@@ -300,6 +315,34 @@ export class UpdateRestoOrderDto {
   @IsString()
   @MaxLength(500)
   notes?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  guestName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  guestPhone?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  deliveryAddress?: string;
+}
+
+export class VoidRestoOrderItemDto {
+  @IsString()
+  @MinLength(2)
+  @MaxLength(200)
+  reason: string;
+
+  /** Complimentary — keep on check at 0 for audit, or true void cancel */
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  comp?: boolean;
 }
 
 export class CloseRestoOrderDto {
@@ -327,6 +370,19 @@ export class CloseRestoOrderDto {
   @Type(() => Number)
   @Min(0)
   tipAmount?: number;
+
+  /** Absolute service charge amount (added with tip on POS close) */
+  @IsOptional()
+  @Type(() => Number)
+  @Min(0)
+  serviceChargeAmount?: number;
+
+  /** Or percent of billable subtotal (0–30) */
+  @IsOptional()
+  @Type(() => Number)
+  @Min(0)
+  @Max(30)
+  serviceChargePct?: number;
 }
 
 export class SetRestoProductStationDto {

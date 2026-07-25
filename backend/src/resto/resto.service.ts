@@ -636,6 +636,9 @@ export class RestoService {
     channel: string;
     guests: number;
     notes: string | null;
+    guestName?: string | null;
+    guestPhone?: string | null;
+    deliveryAddress?: string | null;
     tableId: string | null;
     invoiceId?: string | null;
     sentAt: Date | null;
@@ -651,6 +654,8 @@ export class RestoService {
       unitPrice: Prisma.Decimal;
       notes: string | null;
       course?: number;
+      isComp?: boolean;
+      voidReason?: string | null;
       status: RestoOrderItemStatus;
       sentAt: Date | null;
       readyAt: Date | null;
@@ -670,11 +675,15 @@ export class RestoService {
       lineTotal: Number(it.qty) * Number(it.unitPrice),
       notes: it.notes,
       course: it.course ?? 1,
+      isComp: !!it.isComp,
+      voidReason: it.voidReason ?? null,
       status: it.status,
       sentAt: it.sentAt,
       readyAt: it.readyAt,
     }));
-    const subtotal = items.reduce((s, it) => s + it.lineTotal, 0);
+    const subtotal = items
+      .filter((it) => !it.isComp)
+      .reduce((s, it) => s + it.lineTotal, 0);
     return {
       id: order.id,
       number: order.number,
@@ -682,6 +691,9 @@ export class RestoService {
       channel: order.channel,
       guests: order.guests,
       notes: order.notes,
+      guestName: order.guestName ?? null,
+      guestPhone: order.guestPhone ?? null,
+      deliveryAddress: order.deliveryAddress ?? null,
       tableId: order.tableId,
       invoiceId: order.invoiceId ?? null,
       table: order.table
@@ -754,6 +766,9 @@ export class RestoService {
             number,
             guests: dto.guests ?? 1,
             notes: dto.notes?.trim() || null,
+            guestName: dto.guestName?.trim() || null,
+            guestPhone: dto.guestPhone?.trim() || null,
+            deliveryAddress: dto.deliveryAddress?.trim() || null,
             openedById: userId || null,
             status: RestoOrderStatus.OPEN,
             channel: RestoOrderChannel.DINE_IN,
@@ -776,6 +791,9 @@ export class RestoService {
         number,
         guests: dto.guests ?? 1,
         notes: dto.notes?.trim() || null,
+        guestName: dto.guestName?.trim() || null,
+        guestPhone: dto.guestPhone?.trim() || null,
+        deliveryAddress: dto.deliveryAddress?.trim() || null,
         openedById: userId || null,
         status: RestoOrderStatus.OPEN,
         channel,
@@ -1160,6 +1178,15 @@ export class RestoService {
       data: {
         ...(dto.guests !== undefined ? { guests: dto.guests } : {}),
         ...(dto.notes !== undefined ? { notes: dto.notes?.trim() || null } : {}),
+        ...(dto.guestName !== undefined
+          ? { guestName: dto.guestName?.trim() || null }
+          : {}),
+        ...(dto.guestPhone !== undefined
+          ? { guestPhone: dto.guestPhone?.trim() || null }
+          : {}),
+        ...(dto.deliveryAddress !== undefined
+          ? { deliveryAddress: dto.deliveryAddress?.trim() || null }
+          : {}),
       },
     });
     return this.getOrder(companyId, orderId);
@@ -1179,6 +1206,111 @@ export class RestoService {
     await this.prisma.restoOrderItem.delete({ where: { id: item.id } });
     await this.refreshOrderStatus(companyId, orderId);
     return this.getOrder(companyId, orderId);
+  }
+
+  /**
+   * Void or comp a line after it was sent to kitchen.
+   * Comp: stays SERVED/READY at 0 price for audit. Void: CANCELLED with reason.
+   */
+  async voidItem(
+    companyId: string,
+    orderId: string,
+    itemId: string,
+    reason: string,
+    comp = false,
+  ) {
+    const item = await this.prisma.restoOrderItem.findFirst({
+      where: { id: itemId, orderId, order: { companyId } },
+    });
+    if (!item) throw new NotFoundException('Item not found');
+    if (item.status === RestoOrderItemStatus.CANCELLED) {
+      throw new BadRequestException('Item already voided');
+    }
+    if (item.status === RestoOrderItemStatus.PENDING) {
+      throw new BadRequestException('Remove pending items instead of voiding');
+    }
+    const reasonText = reason.trim();
+    if (reasonText.length < 2) {
+      throw new BadRequestException('Void reason required');
+    }
+
+    if (comp) {
+      await this.prisma.restoOrderItem.update({
+        where: { id: item.id },
+        data: {
+          isComp: true,
+          unitPrice: this.decimal(0),
+          voidReason: reasonText,
+          voidedAt: new Date(),
+          notes: [item.notes, `COMP: ${reasonText}`].filter(Boolean).join(' — '),
+        },
+      });
+    } else {
+      await this.prisma.restoOrderItem.update({
+        where: { id: item.id },
+        data: {
+          status: RestoOrderItemStatus.CANCELLED,
+          voidReason: reasonText,
+          voidedAt: new Date(),
+          notes: [item.notes, `VOID: ${reasonText}`].filter(Boolean).join(' — '),
+        },
+      });
+    }
+    await this.refreshOrderStatus(companyId, orderId);
+    this.notifyKitchen(companyId);
+    return this.getOrder(companyId, orderId);
+  }
+
+  /** Expo / runner pass — READY tickets awaiting SERVED */
+  async getExpoQueue(companyId: string) {
+    const items = await this.prisma.restoOrderItem.findMany({
+      where: {
+        status: RestoOrderItemStatus.READY,
+        order: {
+          companyId,
+          status: { in: ACTIVE_ORDER },
+        },
+      },
+      orderBy: [{ readyAt: 'asc' }, { sentAt: 'asc' }],
+      include: {
+        station: { select: { id: true, name: true, nameEn: true } },
+        order: {
+          select: {
+            id: true,
+            number: true,
+            channel: true,
+            guestName: true,
+            table: { select: { id: true, code: true, name: true } },
+          },
+        },
+      },
+      take: 100,
+    });
+    return {
+      count: items.length,
+      items: items.map((it) => ({
+        id: it.id,
+        name: it.name,
+        qty: Number(it.qty),
+        notes: it.notes,
+        course: it.course ?? 1,
+        status: it.status,
+        readyAt: it.readyAt,
+        sentAt: it.sentAt,
+        stationName: it.station?.name ?? null,
+        orderId: it.order.id,
+        orderNumber: it.order.number,
+        channel: it.order.channel,
+        guestName: it.order.guestName,
+        table: it.order.table
+          ? {
+              id: it.order.table.id,
+              code: it.order.table.code,
+              name: it.order.table.name,
+            }
+          : null,
+      })),
+    };
   }
 
   /** Fire pending items to kitchen (KDS), optionally by course */
@@ -1323,6 +1455,9 @@ export class RestoService {
           status: o.status,
           guests: o.guests,
           notes: o.notes,
+          guestName: o.guestName,
+          guestPhone: o.guestPhone,
+          deliveryAddress: o.deliveryAddress,
           createdAt: o.createdAt,
           table: o.table,
           itemCount: o.items.length,
@@ -1467,10 +1602,16 @@ export class RestoService {
         (i) =>
           i.status !== RestoOrderItemStatus.CANCELLED &&
           i.status !== RestoOrderItemStatus.PENDING &&
-          !!i.productId,
+          !i.isComp &&
+          !!i.productId &&
+          Number(i.unitPrice) > 0,
       );
       const fallback = order.items.filter(
-        (i) => i.status !== RestoOrderItemStatus.CANCELLED && !!i.productId,
+        (i) =>
+          i.status !== RestoOrderItemStatus.CANCELLED &&
+          !i.isComp &&
+          !!i.productId &&
+          Number(i.unitPrice) > 0,
       );
       const lines = billable.length > 0 ? billable : fallback;
       if (lines.length === 0) {
@@ -1502,6 +1643,25 @@ export class RestoService {
         warehouseId,
       );
 
+      const subtotal = lines.reduce(
+        (s, i) => s + Number(i.qty) * Number(i.unitPrice),
+        0,
+      );
+      let serviceCharge = Number(dto.serviceChargeAmount) || 0;
+      if (dto.serviceChargePct != null && dto.serviceChargePct > 0) {
+        serviceCharge += (subtotal * Number(dto.serviceChargePct)) / 100;
+      }
+      const tip = (Number(dto.tipAmount) || 0) + serviceCharge;
+      const noteParts = [
+        `Hisaby Resto ${order.number} [${order.channel}]`,
+        order.guestName ? `Guest: ${order.guestName}` : '',
+        order.guestPhone ? `Tel: ${order.guestPhone}` : '',
+        order.deliveryAddress ? `Addr: ${order.deliveryAddress}` : '',
+        serviceCharge > 0.0005
+          ? `Service charge ${serviceCharge.toFixed(3)}`
+          : '',
+      ].filter(Boolean);
+
       const invoice = await this.pos.createSale(companyId, actor, {
         items: lines.map((i) => ({
           productId: i.productId as string,
@@ -1511,8 +1671,8 @@ export class RestoService {
         paymentMethod: dto.paymentMethod ?? PaymentMethod.CASH,
         warehouseId,
         contactId: dto.contactId,
-        tipAmount: dto.tipAmount,
-        notes: `Hisaby Resto ${order.number} [${order.channel}]`,
+        tipAmount: tip > 0.0005 ? tip : undefined,
+        notes: noteParts.join(' · '),
         clientSaleId: `resto-${order.id}`,
       });
       invoiceId = invoice.id;

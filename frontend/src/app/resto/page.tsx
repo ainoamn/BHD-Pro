@@ -89,6 +89,8 @@ export default function RestoFloorPage() {
   const [stationId, setStationId] = useState("");
   const [itemNote, setItemNote] = useState("");
   const [tipAmount, setTipAmount] = useState("");
+  const [serviceChargePct, setServiceChargePct] = useState("10");
+  const [voidReason, setVoidReason] = useState("");
   const [modifiers, setModifiers] = useState<
     Array<{ id: string; name: string; nameEn: string | null; priceDelta: number }>
   >([]);
@@ -371,6 +373,29 @@ export default function RestoFloorPage() {
     }
   };
 
+  const voidOrComp = async (itemId: string, comp: boolean) => {
+    if (!order) return;
+    const reason =
+      voidReason.trim() ||
+      window.prompt(t.voidReasonPh)?.trim() ||
+      "";
+    if (reason.length < 2) return;
+    setBusy(true);
+    try {
+      const res = await api.voidRestoOrderItem(order.id, itemId, {
+        reason,
+        comp,
+      });
+      setOrder(res.data);
+      setVoidReason("");
+      await loadFloor();
+    } catch {
+      setError(t.actionFail);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const sendKitchen = async (fireCourse?: number) => {
     if (!order) return;
     setBusy(true);
@@ -428,6 +453,7 @@ export default function RestoFloorPage() {
         await api.closeRestoOrder(order.id, {
           paymentMethod: method,
           tipAmount: Number(tipAmount) || undefined,
+          serviceChargePct: Number(serviceChargePct) || undefined,
         });
       }
       setOrder(null);
@@ -699,9 +725,33 @@ export default function RestoFloorPage() {
                               </button>
                             </div>
                           ) : (
-                            <span className="text-xs tabular-nums text-stone-400">
-                              ×{it.qty}
-                            </span>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <span className="text-xs tabular-nums text-stone-400">
+                                {it.isComp ? "COMP " : ""}×{it.qty}
+                              </span>
+                              {it.status !== "CANCELLED" && !it.isComp ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    disabled={busy}
+                                    onClick={() => void voidOrComp(it.id, true)}
+                                    className="text-[10px] font-bold text-sky-300 px-1"
+                                    title={t.compItem}
+                                  >
+                                    COMP
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={busy}
+                                    onClick={() => void voidOrComp(it.id, false)}
+                                    className="text-[10px] font-bold text-rose-300 px-1"
+                                    title={t.voidItem}
+                                  >
+                                    VOID
+                                  </button>
+                                </>
+                              ) : null}
+                            </div>
                           )}
                         </div>
                         {it.status === "PENDING" ? (
@@ -860,11 +910,31 @@ export default function RestoFloorPage() {
                       className="w-full h-9 rounded-lg bg-black/30 border border-white/10 px-2 text-sm tabular-nums"
                     />
                   </label>
+                  <label className="block space-y-1">
+                    <span className="text-[11px] text-stone-500">{t.serviceChargePct}</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={30}
+                      step="1"
+                      value={serviceChargePct}
+                      onChange={(e) => setServiceChargePct(e.target.value)}
+                      className="w-full h-9 rounded-lg bg-black/30 border border-white/10 px-2 text-sm tabular-nums"
+                    />
+                  </label>
+                </div>
+                <input
+                  value={voidReason}
+                  onChange={(e) => setVoidReason(e.target.value)}
+                  placeholder={t.voidReasonPh}
+                  className="w-full h-8 rounded-lg bg-black/30 border border-white/10 px-2 text-[11px]"
+                />
+                <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
                     disabled={!order.items.length}
                     onClick={printCheck}
-                    className="self-end inline-flex items-center justify-center gap-1.5 h-9 rounded-lg border border-white/15 text-xs font-semibold hover:bg-white/5 disabled:opacity-40"
+                    className="self-end inline-flex items-center justify-center gap-1.5 h-9 rounded-lg border border-white/15 text-xs font-semibold hover:bg-white/5 disabled:opacity-40 col-span-2"
                   >
                     <Printer className="w-3.5 h-3.5" />
                     {t.printCheck}

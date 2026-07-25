@@ -1953,6 +1953,10 @@ model RestoOrder {
   status      RestoOrderStatus @default(OPEN)
   guests      Int              @default(1)
   notes       String?
+  /// Delivery / takeaway guest contact
+  guestName   String?          @map("guest_name")
+  guestPhone  String?          @map("guest_phone")
+  deliveryAddress String?      @map("delivery_address")
   openedById  String?          @map("opened_by_id")
   openedBy    User?            @relation("RestoOrderOpenedBy", fields: [openedById], references: [id], onDelete: SetNull)
   /// POS/Accounting invoice created on paid close (R4)
@@ -1985,6 +1989,10 @@ model RestoOrderItem {
   /// 0=drinks · 1=starter · 2=main · 3=dessert — fire by course to KDS
   course     Int                  @default(1)
   status     RestoOrderItemStatus @default(PENDING)
+  /// Comp = complimentary (zero bill); void = cancelled after send with reason
+  isComp     Boolean              @default(false) @map("is_comp")
+  voidReason String?              @map("void_reason")
+  voidedAt   DateTime?            @map("voided_at")
   sentAt     DateTime?            @map("sent_at")
   readyAt    DateTime?            @map("ready_at")
   createdAt  DateTime             @default(now()) @map("created_at")

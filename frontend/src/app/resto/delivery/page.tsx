@@ -14,6 +14,9 @@ type DeliveryOrder = {
   status: string;
   guests: number;
   notes: string | null;
+  guestName?: string | null;
+  guestPhone?: string | null;
+  deliveryAddress?: string | null;
   createdAt: string;
   itemCount: number;
   total: number;
@@ -27,6 +30,9 @@ export default function RestoDeliveryPage() {
   const [orders, setOrders] = useState<DeliveryOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [guestName, setGuestName] = useState("");
+  const [guestPhone, setGuestPhone] = useState("");
+  const [address, setAddress] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -47,11 +53,18 @@ export default function RestoDeliveryPage() {
   }, [load]);
 
   const openNew = async () => {
+    if (!guestName.trim() || !guestPhone.trim()) {
+      toast.error(t.guestPhone);
+      return;
+    }
     setBusy(true);
     try {
       const res = await api.openRestoOrder({
         channel: "DELIVERY",
         guests: 1,
+        guestName: guestName.trim(),
+        guestPhone: guestPhone.trim(),
+        deliveryAddress: address.trim() || undefined,
       });
       router.push(`/resto/orders/${res.data.id}`);
     } catch {
@@ -72,14 +85,35 @@ export default function RestoDeliveryPage() {
 
   return (
     <div className="p-4 sm:p-6 max-w-3xl mx-auto space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-extrabold flex items-center gap-2">
-            <Truck className="w-6 h-6 text-amber-400" />
-            {t.deliveryTitle}
-          </h1>
-          <p className="text-sm text-stone-400 mt-1">{t.deliverySub}</p>
+      <div>
+        <h1 className="text-xl font-extrabold flex items-center gap-2">
+          <Truck className="w-6 h-6 text-amber-400" />
+          {t.deliveryTitle}
+        </h1>
+        <p className="text-sm text-stone-400 mt-1">{t.deliverySub}</p>
+      </div>
+
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 space-y-2">
+        <div className="grid sm:grid-cols-2 gap-2">
+          <input
+            value={guestName}
+            onChange={(e) => setGuestName(e.target.value)}
+            placeholder={t.guestName}
+            className="h-10 rounded-xl bg-[#1a1614] border border-white/10 px-3 text-sm"
+          />
+          <input
+            value={guestPhone}
+            onChange={(e) => setGuestPhone(e.target.value)}
+            placeholder={t.guestPhone}
+            className="h-10 rounded-xl bg-[#1a1614] border border-white/10 px-3 text-sm"
+          />
         </div>
+        <input
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+          placeholder={t.deliveryAddress}
+          className="w-full h-10 rounded-xl bg-[#1a1614] border border-white/10 px-3 text-sm"
+        />
         <button
           type="button"
           disabled={busy}
@@ -109,14 +143,14 @@ export default function RestoDeliveryPage() {
                   <div>
                     <p className="font-bold">{o.number}</p>
                     <p className="text-xs text-stone-500 mt-0.5">
-                      {statusLabel(o.status)} · {o.itemCount} ·{" "}
-                      {new Date(o.createdAt).toLocaleTimeString(
-                        locale === "en" ? "en" : "ar",
-                        { hour: "2-digit", minute: "2-digit" },
-                      )}
+                      {o.guestName || "—"}
+                      {o.guestPhone ? ` · ${o.guestPhone}` : ""} ·{" "}
+                      {statusLabel(o.status)} · {o.itemCount}
                     </p>
-                    {o.notes ? (
-                      <p className="text-xs text-amber-200/80 mt-1">{o.notes}</p>
+                    {o.deliveryAddress ? (
+                      <p className="text-xs text-amber-200/80 mt-1">
+                        {o.deliveryAddress}
+                      </p>
                     ) : null}
                   </div>
                   <span className="tabular-nums font-bold text-amber-200">
