@@ -196,7 +196,59 @@ export class DualControlService {
       success: true,
       details: { approvalRequestId: row.id, dualAction: action },
     });
+
+    // Best-effort manager WhatsApp ping — never fail request creation
+    void this.notifyManagersOfApprovalRequest(companyId, actor, action, row.id);
+
     return this.serializeApproval(row);
+  }
+
+  /** Resolve notify phones (config → company phone) and send a short bilingual alert. */
+  private async notifyManagersOfApprovalRequest(
+    companyId: string,
+    actor: DualControlActor,
+    action: DualControlAction,
+    approvalRequestId: string,
+  ) {
+    try {
+      if (!this.whatsapp.isConfigured()) return;
+
+      const config = await this.loadConfig(companyId);
+      const phones = (config.whatsappNotifyPhones || [])
+        .map((p) => String(p).replace(/[^\d]/g, ''))
+        .filter((p) => p.length >= 8);
+
+      let targets = phones;
+      if (!targets.length) {
+        const company = await this.prisma.company.findUnique({
+          where: { id: companyId },
+          select: { phone: true },
+        });
+        const fallback = company?.phone?.replace(/[^\d]/g, '') || '';
+        if (fallback.length >= 8) targets = [fallback];
+      }
+      if (!targets.length) return;
+
+      const actorEmail = actor.email || actor.sub;
+      const body = `Hisaby: موافقة مطلوبة — ${action} من ${actorEmail}. افتح /pos/approvals\nHisaby: Approval needed — ${action} by ${actorEmail}. Open /pos/approvals`;
+      const results = await Promise.all(targets.map((to) => this.whatsapp.sendText(to, body)));
+      const anyOk = results.some((r) => r.ok);
+      if (!anyOk) return;
+
+      await this.writeAudit({
+        companyId,
+        userId: actor.sub,
+        action: 'APPROVAL_REQUEST_NOTIFIED',
+        success: true,
+        details: {
+          approvalRequestId,
+          dualAction: action,
+          targets: targets.length,
+        },
+      });
+    } catch {
+      /* ignore — notification must not block approval creation */
+    }
   }
 
   async listPending(companyId: string) {

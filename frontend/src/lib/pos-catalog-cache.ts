@@ -1,9 +1,9 @@
-/** Offline POS catalog cache (IndexedDB) — last successful product search snapshot. */
+/** Offline POS catalog cache (IndexedDB) — full warehouse snapshot + search/barcode. */
 
 const DB_NAME = "hisaby-pos-catalog";
 const STORE = "catalog";
-const DB_VERSION = 1;
-const KEY = "latest";
+const DB_VERSION = 2;
+const STALE_MS = 30 * 60 * 1000; // 30 min
 
 export type CachedPosProduct = {
   id: string;
@@ -13,6 +13,7 @@ export type CachedPosProduct = {
   salePrice: number | string;
   quantity: number | string;
   isTracked: boolean;
+  minQuantity?: number | string | null;
 };
 
 type CatalogSnapshot = {
@@ -21,6 +22,10 @@ type CatalogSnapshot = {
   warehouseId?: string;
   products: CachedPosProduct[];
 };
+
+function snapshotKey(warehouseId?: string) {
+  return `wh:${warehouseId || "default"}`;
+}
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -42,7 +47,7 @@ export async function saveCatalogCache(
 ): Promise<void> {
   const db = await openDb();
   const row: CatalogSnapshot = {
-    id: KEY,
+    id: snapshotKey(warehouseId),
     savedAt: new Date().toISOString(),
     warehouseId,
     products,
@@ -50,26 +55,66 @@ export async function saveCatalogCache(
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE, "readwrite");
     tx.objectStore(STORE).put(row);
+    tx.objectStore(STORE).put({ ...row, id: "latest" });
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });
   db.close();
 }
 
-export async function loadCatalogCache(warehouseId?: string): Promise<CachedPosProduct[]> {
+async function readSnapshot(warehouseId?: string): Promise<CatalogSnapshot | undefined> {
   const db = await openDb();
+  const key = snapshotKey(warehouseId);
   const row = await new Promise<CatalogSnapshot | undefined>((resolve, reject) => {
     const tx = db.transaction(STORE, "readonly");
-    const req = tx.objectStore(STORE).get(KEY);
-    req.onsuccess = () => resolve(req.result as CatalogSnapshot | undefined);
+    const store = tx.objectStore(STORE);
+    const req = store.get(key);
+    req.onsuccess = () => {
+      const hit = req.result as CatalogSnapshot | undefined;
+      if (hit?.products?.length) {
+        resolve(hit);
+        return;
+      }
+      const legacy = store.get("latest");
+      legacy.onsuccess = () => resolve(legacy.result as CatalogSnapshot | undefined);
+      legacy.onerror = () => reject(legacy.error);
+    };
     req.onerror = () => reject(req.error);
   });
   db.close();
-  if (!row?.products?.length) return [];
-  if (warehouseId && row.warehouseId && row.warehouseId !== warehouseId) {
-    // Still usable as fallback when offline
-  }
-  return row.products;
+  return row;
+}
+
+export async function loadCatalogCache(warehouseId?: string): Promise<CachedPosProduct[]> {
+  const row = await readSnapshot(warehouseId);
+  return row?.products?.length ? row.products : [];
+}
+
+export async function loadCatalogCacheMeta(warehouseId?: string): Promise<{
+  products: CachedPosProduct[];
+  savedAt: string | null;
+  count: number;
+}> {
+  const row = await readSnapshot(warehouseId);
+  return {
+    products: row?.products || [],
+    savedAt: row?.savedAt || null,
+    count: row?.products?.length || 0,
+  };
+}
+
+export function isCatalogStale(savedAt: string | null | undefined): boolean {
+  if (!savedAt) return true;
+  const t = Date.parse(savedAt);
+  if (Number.isNaN(t)) return true;
+  return Date.now() - t > STALE_MS;
+}
+
+export async function catalogCacheMeta(
+  warehouseId?: string,
+): Promise<{ savedAt: string | null; count: number }> {
+  const meta = await loadCatalogCacheMeta(warehouseId);
+  return { savedAt: meta.savedAt, count: meta.count };
 }
 
 export function filterCachedCatalog(
@@ -100,4 +145,20 @@ export async function lookupCachedProduct(
         String(p.sku || "").toLowerCase() === c,
     ) || null
   );
+}
+
+/** Optimistic local stock decrement after an offline sale. */
+export async function adjustCachedStock(
+  lines: { productId: string; quantity: number }[],
+  warehouseId?: string,
+): Promise<void> {
+  const products = await loadCatalogCache(warehouseId);
+  if (!products.length || !lines.length) return;
+  const delta = new Map(lines.map((l) => [l.productId, l.quantity]));
+  const next = products.map((p) => {
+    const q = delta.get(p.id);
+    if (!q) return p;
+    return { ...p, quantity: Number((Number(p.quantity) - q).toFixed(3)) };
+  });
+  await saveCatalogCache(next, warehouseId);
 }

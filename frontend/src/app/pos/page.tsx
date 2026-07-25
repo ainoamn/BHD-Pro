@@ -2,7 +2,20 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Loader2, Camera, Minus, PackagePlus, Plus, Printer, ScanBarcode, ShoppingCart, Trash2, Warehouse } from "lucide-react";
+import {
+  Loader2,
+  Camera,
+  Minus,
+  PackagePlus,
+  Plus,
+  Printer,
+  RefreshCw,
+  ScanBarcode,
+  ShoppingCart,
+  Trash2,
+  UserPlus,
+  Warehouse,
+} from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
@@ -26,6 +39,7 @@ type PosProduct = {
   salePrice: number | string;
   quantity: number | string;
   isTracked: boolean;
+  minQuantity?: number | string | null;
 };
 
 type CartLine = {
@@ -112,6 +126,20 @@ export default function PosCheckoutPage() {
   const [pendingCheckout, setPendingCheckout] = useState<CheckoutMethod | null>(null);
   const [checkoutBusy, setCheckoutBusy] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [catalogStale, setCatalogStale] = useState(false);
+  const [catalogRefreshing, setCatalogRefreshing] = useState(false);
+  const [shiftOpen, setShiftOpen] = useState(false);
+  const [todayStats, setTodayStats] = useState<{
+    salesCount: number;
+    salesTotal: number;
+    refundCount: number;
+    voidCount: number;
+  } | null>(null);
+  const [addCustomerOpen, setAddCustomerOpen] = useState(false);
+  const [newCustomerName, setNewCustomerName] = useState("");
+  const [newCustomerPhone, setNewCustomerPhone] = useState("");
+  const [savingCustomer, setSavingCustomer] = useState(false);
+  const [webSerialOk, setWebSerialOk] = useState(false);
 
   const currency = company?.currency || "OMR";
   const companyId = company?.id;
@@ -141,20 +169,62 @@ export default function PosCheckoutPage() {
       const res = await api.searchPosProducts(q, wh);
       const rows = (res.data as PosProduct[]) || [];
       setCatalog(rows);
+      setCatalogStale(false);
       if (!q?.trim() && rows.length) {
         const { saveCatalogCache } = await import("@/lib/pos-catalog-cache");
         void saveCatalogCache(rows, wh);
       }
     } catch {
       try {
-        const { loadCatalogCache, filterCachedCatalog } = await import("@/lib/pos-catalog-cache");
-        const cached = await loadCatalogCache(wh);
-        setCatalog(filterCachedCatalog(cached, q) as PosProduct[]);
+        const { loadCatalogCacheMeta, filterCachedCatalog, isCatalogStale } = await import(
+          "@/lib/pos-catalog-cache"
+        );
+        const meta = await loadCatalogCacheMeta(wh);
+        setCatalog(filterCachedCatalog(meta.products, q) as PosProduct[]);
+        setCatalogStale(isCatalogStale(meta.savedAt));
       } catch {
         /* ignore */
       }
     } finally {
       setCatalogLoaded(true);
+    }
+  }, [warehouseId]);
+
+  const refreshCatalog = useCallback(async () => {
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      toast.error(t.syncFail);
+      return;
+    }
+    setCatalogRefreshing(true);
+    try {
+      await loadCatalog(search, warehouseId || undefined);
+      toast.success(t.refreshCatalog);
+    } finally {
+      setCatalogRefreshing(false);
+    }
+  }, [loadCatalog, search, t.refreshCatalog, t.syncFail, warehouseId]);
+
+  const loadOpsStrip = useCallback(async () => {
+    const wh = warehouseId || undefined;
+    try {
+      const [shiftRes, statsRes] = await Promise.all([
+        api.getCurrentPosShift(wh),
+        api.getPosTodayStats(wh),
+      ]);
+      setShiftOpen(!!shiftRes.data?.shift);
+      const s = statsRes.data;
+      setTodayStats(
+        s
+          ? {
+              salesCount: Number(s.salesCount) || 0,
+              salesTotal: Number(s.salesTotal) || 0,
+              refundCount: Number(s.refundCount) || 0,
+              voidCount: Number(s.voidCount) || 0,
+            }
+          : null,
+      );
+    } catch {
+      /* ignore */
     }
   }, [warehouseId]);
 
@@ -169,6 +239,19 @@ export default function PosCheckoutPage() {
       setRecentSales(rows.slice(0, 5));
     } catch {
       /* ignore */
+    }
+  }, []);
+
+  const maybeKickDrawer = useCallback(async (method: CheckoutMethod) => {
+    if (method !== "CASH") return;
+    try {
+      const { getPreferCashDrawer, tryOpenCashDrawer, isWebSerialSupported } = await import(
+        "@/lib/pos-escpos"
+      );
+      if (!isWebSerialSupported() || !getPreferCashDrawer()) return;
+      await tryOpenCashDrawer();
+    } catch {
+      /* best-effort */
     }
   }, []);
 
@@ -227,6 +310,12 @@ export default function PosCheckoutPage() {
     }
     (async () => {
       try {
+        const { isWebSerialSupported } = await import("@/lib/pos-escpos");
+        setWebSerialOk(isWebSerialSupported());
+      } catch {
+        setWebSerialOk(false);
+      }
+      try {
         const [whRes, contactRes] = await Promise.all([
           api.getWarehouses(),
           api.getContacts("CUSTOMER"),
@@ -258,6 +347,10 @@ export default function PosCheckoutPage() {
     })();
   }, [loadRecentSales, loadParkedCarts, focusScan, companyId]);
 
+  useEffect(() => {
+    void loadOpsStrip();
+  }, [loadOpsStrip]);
+
   /** Flush offline sales when connectivity returns. */
   useEffect(() => {
     let cancelled = false;
@@ -270,6 +363,7 @@ export default function PosCheckoutPage() {
         if (result.synced > 0) {
           toast.success(t.syncOk);
           await loadRecentSales();
+          await loadOpsStrip();
           await loadCatalog(search, warehouseId || undefined);
         } else if (result.failed) {
           toast.error(t.syncFail);
@@ -284,7 +378,7 @@ export default function PosCheckoutPage() {
       cancelled = true;
       window.removeEventListener("online", flush);
     };
-  }, [loadCatalog, loadRecentSales, search, t.syncFail, t.syncOk, warehouseId]);
+  }, [loadCatalog, loadOpsStrip, loadRecentSales, search, t.syncFail, t.syncOk, warehouseId]);
 
   useEffect(() => {
     const id = window.setTimeout(() => loadCatalog(search), 220);
@@ -653,6 +747,7 @@ export default function PosCheckoutPage() {
       setRefundTarget(null);
       setRefundAwaitingApproval(false);
       await loadRecentSales();
+      await loadOpsStrip();
       await loadCatalog(search, warehouseId || undefined);
       focusScan();
     } catch (err: unknown) {
@@ -672,6 +767,7 @@ export default function PosCheckoutPage() {
       setLastInvoice((prev) => (prev?.number === voidTarget.number ? null : prev));
       setVoidTarget(null);
       await loadRecentSales();
+      await loadOpsStrip();
       await loadCatalog(search, warehouseId || undefined);
       focusScan();
     } catch (err: unknown) {
@@ -679,6 +775,36 @@ export default function PosCheckoutPage() {
       toast.error(typeof msg === "string" ? msg : t.voidFail);
     } finally {
       setVoidBusy(false);
+    }
+  };
+
+  const saveNewCustomer = async () => {
+    const name = newCustomerName.trim();
+    if (!name) return;
+    setSavingCustomer(true);
+    try {
+      const res = await api.createContact({
+        type: "CUSTOMER",
+        name,
+        phone: newCustomerPhone.trim() || undefined,
+      });
+      const created = res.data as Contact;
+      const contactRes = await api.getContacts("CUSTOMER");
+      const contactRows = ((contactRes.data as Contact[]) || []).filter(
+        (c) => c.isActive !== false,
+      );
+      setCustomers(contactRows);
+      setContactId(created.id);
+      setAddCustomerOpen(false);
+      setNewCustomerName("");
+      setNewCustomerPhone("");
+      toast.success(t.customerSaved);
+      focusScan();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      toast.error(typeof msg === "string" ? msg : t.saleFail);
+    } finally {
+      setSavingCustomer(false);
     }
   };
 
@@ -706,6 +832,7 @@ export default function PosCheckoutPage() {
       const offline = typeof navigator !== "undefined" && navigator.onLine === false;
       if (offline) {
         const { enqueuePendingSale } = await import("@/lib/pos-offline-queue");
+        const { adjustCachedStock } = await import("@/lib/pos-catalog-cache");
         const localNumber = `OFF-${Date.now().toString(36).toUpperCase()}`;
         await enqueuePendingSale({
           id: crypto.randomUUID(),
@@ -724,6 +851,7 @@ export default function PosCheckoutPage() {
             warehouseLabel: warehouseLabel || undefined,
           },
         });
+        void adjustCachedStock(payload.items, warehouseId || undefined);
         setLastInvoice({
           number: localNumber,
           total,
@@ -750,8 +878,10 @@ export default function PosCheckoutPage() {
       setCart([]);
       setPendingCheckout(null);
       toast.success(t.saleOk);
+      void maybeKickDrawer(method);
       loadCatalog(search);
       loadRecentSales();
+      loadOpsStrip();
       focusScan();
     } catch (err: unknown) {
       const networkFail =
@@ -761,6 +891,7 @@ export default function PosCheckoutPage() {
       if (networkFail) {
         try {
           const { enqueuePendingSale } = await import("@/lib/pos-offline-queue");
+          const { adjustCachedStock } = await import("@/lib/pos-catalog-cache");
           const localNumber = `OFF-${Date.now().toString(36).toUpperCase()}`;
           await enqueuePendingSale({
             id: crypto.randomUUID(),
@@ -779,6 +910,7 @@ export default function PosCheckoutPage() {
               warehouseLabel: warehouseLabel || undefined,
             },
           });
+          void adjustCachedStock(payload.items, warehouseId || undefined);
           setLastInvoice({
             number: localNumber,
             total,
@@ -845,7 +977,7 @@ export default function PosCheckoutPage() {
           </div>
         ) : null}
 
-        <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 space-y-1">
           <label className="flex items-center gap-2">
             <span className="text-xs text-slate-400 shrink-0">{t.customer}</span>
             <select
@@ -863,6 +995,15 @@ export default function PosCheckoutPage() {
                 </option>
               ))}
             </select>
+            <button
+              type="button"
+              onClick={() => setAddCustomerOpen(true)}
+              className="shrink-0 h-8 px-2 rounded-lg border border-sky-400/30 text-[11px] font-semibold text-sky-200 hover:bg-sky-500/15 inline-flex items-center gap-1"
+              title={t.addCustomer}
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">{t.addCustomer}</span>
+            </button>
           </label>
         </div>
 
@@ -907,20 +1048,64 @@ export default function PosCheckoutPage() {
           </p>
         </form>
 
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder={t.searchPlaceholder}
-          className="w-full h-11 rounded-xl bg-white/5 border border-white/10 px-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-white/20"
-        />
+        <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t.searchPlaceholder}
+            className="w-full h-11 rounded-xl bg-white/5 border border-white/10 px-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-white/20"
+          />
+          <button
+            type="button"
+            onClick={() => void refreshCatalog()}
+            disabled={catalogRefreshing}
+            className="h-11 shrink-0 px-3 rounded-xl border border-white/10 text-xs font-semibold text-slate-300 hover:bg-white/5 inline-flex items-center justify-center gap-1.5 disabled:opacity-40"
+            title={t.refreshCatalog}
+          >
+            {catalogRefreshing ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="w-3.5 h-3.5" />
+            )}
+            {t.refreshCatalog}
+          </button>
+        </div>
+        {catalogStale ? (
+          <p className="text-[11px] text-amber-300/90 px-1">{t.catalogStale}</p>
+        ) : null}
 
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2.5 space-y-2">
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
+              <Link
+                href="/pos/shifts"
+                className={`font-semibold hover:underline ${
+                  shiftOpen ? "text-emerald-300" : "text-slate-500"
+                }`}
+              >
+                {shiftOpen ? t.shiftStripOpen : t.shiftStripClosed}
+              </Link>
+              {todayStats ? (
+                <span className="text-slate-400">
+                  {t.todaySales}:{" "}
+                  <span className="text-white font-semibold">{todayStats.salesCount}</span>
+                  {" · "}
+                  <span className="text-sky-300 font-semibold">
+                    {formatMoney(todayStats.salesTotal, currency)}
+                  </span>
+                  {todayStats.voidCount || todayStats.refundCount ? (
+                    <span className="text-slate-500 ms-1">
+                      ({t.zVoids} {todayStats.voidCount} · {t.zRefunds} {todayStats.refundCount})
+                    </span>
+                  ) : null}
+                </span>
+              ) : null}
+            </div>
             <p className="text-xs font-bold text-slate-300">{t.recentSales}</p>
-            {!recentSales.length ? (
-              <p className="text-[11px] text-slate-500">{t.noRecentSales}</p>
-            ) : null}
           </div>
+          {!recentSales.length ? (
+            <p className="text-[11px] text-slate-500">{t.noRecentSales}</p>
+          ) : null}
           {recentSales.length > 0 ? (
             <div className="flex gap-2 overflow-x-auto pb-0.5">
               {recentSales.map((sale) => (
@@ -977,14 +1162,27 @@ export default function PosCheckoutPage() {
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2 max-h-[52vh] overflow-y-auto pe-1">
-            {catalog.map((p) => (
+            {catalog.map((p) => {
+              const qty = Number(p.quantity);
+              const minQ =
+                p.minQuantity != null && p.minQuantity !== ""
+                  ? Number(p.minQuantity)
+                  : 5;
+              const threshold = Number.isFinite(minQ) ? minQ : 5;
+              const showLow = p.isTracked && qty <= threshold;
+              return (
               <button
                 key={p.id}
                 type="button"
                 onClick={() => addProduct(p)}
-                className="text-start rounded-2xl border border-white/10 bg-white/[0.03] hover:bg-sky-500/10 hover:border-sky-400/40 p-3 transition"
+                className="relative text-start rounded-2xl border border-white/10 bg-white/[0.03] hover:bg-sky-500/10 hover:border-sky-400/40 p-3 transition"
               >
-                <p className="font-semibold text-sm line-clamp-2">{p.name}</p>
+                {showLow ? (
+                  <span className="absolute top-2 end-2 rounded-md bg-amber-500/20 border border-amber-400/40 px-1.5 py-0.5 text-[9px] font-bold text-amber-200">
+                    {t.lowStock}
+                  </span>
+                ) : null}
+                <p className="font-semibold text-sm line-clamp-2 pe-10">{p.name}</p>
                 <p className="text-[11px] text-slate-500 mt-1">{p.sku}</p>
                 {p.barcode ? (
                   <p className="text-[10px] text-slate-600 font-mono mt-0.5 truncate">{p.barcode}</p>
@@ -993,12 +1191,15 @@ export default function PosCheckoutPage() {
                   <span className="text-sky-300 font-bold text-sm">
                     {formatMoney(Number(p.salePrice), currency)}
                   </span>
-                  <span className="text-[10px] text-slate-500">
-                    {t.stock} {Number(p.quantity)}
+                  <span
+                    className={`text-[10px] ${showLow ? "text-amber-300 font-semibold" : "text-slate-500"}`}
+                  >
+                    {t.stock} {qty}
                   </span>
                 </div>
               </button>
-            ))}
+              );
+            })}
             {catalogLoaded && catalog.length === 0 && search.trim() ? (
               <p className="col-span-full text-center text-sm text-slate-500 py-8">{t.notFound}</p>
             ) : null}
@@ -1248,10 +1449,71 @@ export default function PosCheckoutPage() {
               >
                 {t.thermalPrint}
               </button>
+              {webSerialOk ? (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const { tryOpenCashDrawer } = await import("@/lib/pos-escpos");
+                      const ok = await tryOpenCashDrawer();
+                      if (!ok) toast.error(t.thermalFail);
+                    } catch {
+                      toast.error(t.thermalFail);
+                    }
+                  }}
+                  className="w-full min-h-10 h-10 rounded-xl border border-emerald-500/30 text-sm text-emerald-200 hover:bg-emerald-500/10"
+                >
+                  {t.openDrawer}
+                </button>
+              ) : null}
             </div>
           )}
         </div>
       </aside>
+
+      {addCustomerOpen ? (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 p-3">
+          <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#121a2b] p-4 space-y-3 shadow-xl">
+            <div className="flex items-center justify-between gap-2">
+              <p className="font-bold text-white">{t.addCustomer}</p>
+              <button
+                type="button"
+                className="text-slate-400 text-sm"
+                onClick={() => !savingCustomer && setAddCustomerOpen(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <label className="block space-y-1">
+              <span className="text-[11px] text-slate-400">{t.customerName}</span>
+              <input
+                value={newCustomerName}
+                onChange={(e) => setNewCustomerName(e.target.value)}
+                className="w-full h-10 rounded-xl bg-white/5 border border-white/10 px-3 text-sm text-white"
+                autoFocus
+              />
+            </label>
+            <label className="block space-y-1">
+              <span className="text-[11px] text-slate-400">{t.customerPhone}</span>
+              <input
+                value={newCustomerPhone}
+                onChange={(e) => setNewCustomerPhone(e.target.value)}
+                className="w-full h-10 rounded-xl bg-white/5 border border-white/10 px-3 text-sm text-white"
+                inputMode="tel"
+              />
+            </label>
+            <button
+              type="button"
+              disabled={!newCustomerName.trim() || savingCustomer}
+              onClick={() => void saveNewCustomer()}
+              className="w-full h-11 rounded-xl bg-sky-500 text-white font-bold disabled:opacity-40 inline-flex items-center justify-center gap-2"
+            >
+              {savingCustomer && <Loader2 className="w-4 h-4 animate-spin" />}
+              {t.addCustomer}
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <BarcodeCameraScanner
         open={cameraOpen}

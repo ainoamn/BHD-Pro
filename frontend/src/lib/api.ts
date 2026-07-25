@@ -1284,6 +1284,17 @@ class ApiClient {
     }>(`/pos/shifts/current${q}`);
   }
 
+  getPosTodayStats(warehouseId?: string) {
+    const q = warehouseId ? `?warehouseId=${encodeURIComponent(warehouseId)}` : "";
+    return this.get<{
+      salesCount: number;
+      salesTotal: number;
+      refundCount: number;
+      voidCount: number;
+      from?: string;
+    }>(`/pos/stats/today${q}`);
+  }
+
   listPosShifts() {
     return this.get('/pos/shifts');
   }

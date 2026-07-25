@@ -7,7 +7,9 @@ import { posCopy } from "@/lib/pos-copy";
 import { PosLinkSettings } from "@/components/pos/pos-link-settings";
 import { DualControlSettings } from "@/components/security/dual-control-settings";
 import {
+  getPreferCashDrawer,
   getPreferThermalPrinter,
+  setPreferCashDrawer,
   setPreferThermalPrinter,
 } from "@/lib/pos-escpos";
 
@@ -15,9 +17,11 @@ export default function PosSettingsPage() {
   const locale = useLocaleStore((s) => s.locale);
   const t = posCopy[locale === "en" ? "en" : "ar"];
   const [preferThermal, setPreferThermal] = useState(true);
+  const [preferDrawer, setPreferDrawer] = useState(true);
 
   useEffect(() => {
     setPreferThermal(getPreferThermalPrinter());
+    setPreferDrawer(getPreferCashDrawer());
   }, []);
 
   return (
@@ -38,6 +42,19 @@ export default function PosSettingsPage() {
             const next = e.target.checked;
             setPreferThermal(next);
             setPreferThermalPrinter(next);
+          }}
+        />
+      </label>
+
+      <label className="flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-200">
+        <span>{t.preferCashDrawer}</span>
+        <input
+          type="checkbox"
+          checked={preferDrawer}
+          onChange={(e) => {
+            const next = e.target.checked;
+            setPreferDrawer(next);
+            setPreferCashDrawer(next);
           }}
         />
       </label>

@@ -134,6 +134,16 @@ export class PosController {
     return this.pos.refundSale(user.companyId, user, id, dto);
   }
 
+  @Get('stats/today')
+  @Roles(...POS_STAFF)
+  @ApiOperation({ summary: 'Today POS sales/refund/void totals (Asia/Muscat day)' })
+  todayStats(
+    @CurrentUser() user: TokenPayload,
+    @Query('warehouseId') warehouseId?: string,
+  ) {
+    return this.pos.getTodayStats(user.companyId, warehouseId || undefined);
+  }
+
   @Get('shifts/current')
   @Roles(...POS_STAFF)
   @ApiOperation({ summary: 'Get open POS shift + live Z totals (per warehouse)' })

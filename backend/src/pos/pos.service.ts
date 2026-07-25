@@ -672,6 +672,71 @@ export class PosService {
     return { shift, live };
   }
 
+  /** Start of calendar day in Asia/Muscat (UTC+4, no DST). */
+  private startOfDayMuscat(now = new Date()): Date {
+    const fmt = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Muscat',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    const dateStr = fmt.format(now); // YYYY-MM-DD
+    return new Date(`${dateStr}T00:00:00+04:00`);
+  }
+
+  /**
+   * Lightweight today totals for POS checkout strip.
+   * Counts Hisaby POS invoices since start of day (Asia/Muscat).
+   */
+  async getTodayStats(companyId: string, warehouseId?: string) {
+    const from = this.startOfDayMuscat();
+    const warehouseFilter = warehouseId
+      ? { posShift: { is: { warehouseId } } }
+      : {};
+
+    const sales = await this.prisma.invoice.findMany({
+      where: {
+        companyId,
+        type: InvoiceType.SALES,
+        isCash: true,
+        notes: { contains: 'Hisaby POS' },
+        createdAt: { gte: from },
+        ...warehouseFilter,
+      },
+      select: { id: true, total: true, status: true },
+    });
+
+    let salesCount = 0;
+    let salesTotal = 0;
+    let voidCount = 0;
+    for (const inv of sales) {
+      if (inv.status === InvoiceStatus.CANCELLED) {
+        voidCount += 1;
+        continue;
+      }
+      salesCount += 1;
+      salesTotal += Number(inv.total);
+    }
+
+    const refundCount = await this.prisma.invoice.count({
+      where: {
+        companyId,
+        type: InvoiceType.CREDIT_NOTE,
+        notes: { contains: 'Hisaby POS refund' },
+        createdAt: { gte: from },
+        ...warehouseFilter,
+      },
+    });
+
+    return {
+      salesCount,
+      salesTotal: Number(salesTotal.toFixed(3)),
+      refundCount,
+      voidCount,
+      from,
+    };
+  }
+
   /** One OPEN shift per company+warehouse (null warehouse = company default drawer). */
   private async findOpenShift(companyId: string, warehouseId?: string | null) {
     return this.prisma.posShift.findFirst({
