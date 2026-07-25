@@ -1910,6 +1910,7 @@ class ApiClient {
         id: string;
         productId: string;
         note: string | null;
+        auto?: boolean;
         product: {
           id: string;
           name: string;
@@ -1926,6 +1927,16 @@ class ApiClient {
 
   clearRestoMenu86(productId: string) {
     return this.delete(`/resto/menu/86/${productId}`);
+  }
+
+  reconcileRestoMenu86() {
+    return this.post<{
+      upserted: number;
+      cleared: number;
+      keptManual: number;
+      auto86: number;
+      warehouseId: string | null;
+    }>('/resto/menu/86/reconcile', {});
   }
 
   /** Absolute URL for kitchen SSE (cookie auth, same-origin rewrite). */

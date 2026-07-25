@@ -868,6 +868,16 @@ export class RestoService {
     });
     if (!product) throw new NotFoundException('Product not found');
 
+    const eightySixed = await this.prisma.restoMenu86.findFirst({
+      where: { companyId, productId: product.id },
+      select: { note: true },
+    });
+    if (eightySixed) {
+      throw new BadRequestException(
+        `Item unavailable (86)${eightySixed.note ? `: ${eightySixed.note}` : ''}`,
+      );
+    }
+
     let stationId = dto.stationId || null;
     if (!stationId) {
       const route = await this.prisma.restoProductStation.findUnique({
@@ -1859,6 +1869,11 @@ export class RestoService {
         clientSaleId: `resto-${order.id}`,
       });
       invoiceId = invoice.id;
+      try {
+        await this.reconcileAuto86(companyId);
+      } catch {
+        /* non-fatal */
+      }
     }
 
     await this.prisma.$transaction(async (tx) => {
@@ -2082,6 +2097,12 @@ export class RestoService {
       where: { id: orderId },
       data: { invoiceId: invoice.id },
     });
+
+    try {
+      await this.reconcileAuto86(companyId);
+    } catch {
+      /* non-fatal */
+    }
 
     return {
       orderId,
@@ -2907,6 +2928,169 @@ export class RestoService {
         );
       }
     }
+
+    // Keep floor/guest menus honest after stock moves
+    try {
+      await this.reconcileAuto86(companyId);
+    } catch {
+      /* non-fatal */
+    }
+  }
+
+  private static readonly AUTO_86_PREFIX = 'AUTO:';
+
+  private async stockQtyMap(
+    productIds: string[],
+    warehouseId: string | null,
+  ): Promise<Map<string, number>> {
+    const map = new Map<string, number>();
+    if (!productIds.length) return map;
+    if (warehouseId) {
+      const rows = await this.prisma.warehouseStock.findMany({
+        where: { warehouseId, productId: { in: productIds } },
+        select: { productId: true, quantity: true },
+      });
+      for (const r of rows) map.set(r.productId, Number(r.quantity));
+      for (const id of productIds) {
+        if (!map.has(id)) map.set(id, 0);
+      }
+      return map;
+    }
+    const rows = await this.prisma.product.findMany({
+      where: { id: { in: productIds } },
+      select: { id: true, quantity: true },
+    });
+    for (const r of rows) map.set(r.id, Number(r.quantity));
+    return map;
+  }
+
+  /**
+   * Auto-86 dishes that cannot be made from warehouse stock.
+   * Only upserts/clears rows with note prefix AUTO: — manual 86 stays manager-owned.
+   */
+  async reconcileAuto86(companyId: string) {
+    const warehouseId = await this.resolveWarehouseId(companyId);
+    const should86 = new Map<string, string>();
+
+    const recipes = await this.prisma.restoRecipe.findMany({
+      where: { companyId },
+      include: {
+        items: {
+          include: {
+            component: {
+              select: {
+                id: true,
+                name: true,
+                sku: true,
+                isTracked: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const componentIds = [
+      ...new Set(
+        recipes.flatMap((r) =>
+          r.items
+            .filter((i) => i.component.isTracked)
+            .map((i) => i.componentProductId),
+        ),
+      ),
+    ];
+    const componentStock = await this.stockQtyMap(componentIds, warehouseId);
+
+    for (const recipe of recipes) {
+      let blocking: string | null = null;
+      for (const item of recipe.items) {
+        if (!item.component.isTracked) continue;
+        const need = Number(item.qty);
+        if (!(need > 0)) continue;
+        const onHand = componentStock.get(item.componentProductId) || 0;
+        if (onHand + 0.0005 < need) {
+          blocking = item.component.sku || item.component.name;
+          break;
+        }
+      }
+      if (blocking) {
+        should86.set(
+          recipe.productId,
+          `${RestoService.AUTO_86_PREFIX}recipe:${blocking}`,
+        );
+      }
+    }
+
+    if (warehouseId) {
+      const tracked = await this.prisma.product.findMany({
+        where: {
+          ...productWhereForWarehouse(companyId, warehouseId),
+          isTracked: true,
+        },
+        select: { id: true, minQuantity: true, sku: true, name: true },
+        take: 500,
+      });
+      const trackedStock = await this.stockQtyMap(
+        tracked.map((p) => p.id),
+        warehouseId,
+      );
+      for (const p of tracked) {
+        if (should86.has(p.id)) continue;
+        const onHand = trackedStock.get(p.id) || 0;
+        const minQ = Number(p.minQuantity) || 0;
+        if (onHand <= 0.0005 || (minQ > 0 && onHand + 0.0005 < minQ)) {
+          should86.set(p.id, `${RestoService.AUTO_86_PREFIX}stock`);
+        }
+      }
+    }
+
+    const existing = await this.prisma.restoMenu86.findMany({
+      where: { companyId },
+    });
+    let upserted = 0;
+    let cleared = 0;
+    let keptManual = 0;
+
+    for (const [productId, note] of should86) {
+      const row = existing.find((e) => e.productId === productId);
+      if (
+        row?.note &&
+        !row.note.startsWith(RestoService.AUTO_86_PREFIX)
+      ) {
+        keptManual += 1;
+        continue;
+      }
+      await this.prisma.restoMenu86.upsert({
+        where: { companyId_productId: { companyId, productId } },
+        create: { companyId, productId, note },
+        update: { note },
+      });
+      upserted += 1;
+    }
+
+    for (const row of existing) {
+      if (
+        !row.note ||
+        !row.note.startsWith(RestoService.AUTO_86_PREFIX)
+      ) {
+        continue;
+      }
+      if (should86.has(row.productId)) continue;
+      await this.prisma.restoMenu86.delete({ where: { id: row.id } });
+      cleared += 1;
+    }
+
+    if (upserted > 0 || cleared > 0) {
+      this.notifyKitchen(companyId);
+    }
+
+    return {
+      upserted,
+      cleared,
+      keptManual,
+      auto86: should86.size,
+      warehouseId,
+    };
   }
 
   async listRecipes(companyId: string) {
@@ -3176,6 +3360,7 @@ export class RestoService {
         id: r.id,
         productId: r.productId,
         note: r.note,
+        auto: !!(r.note && r.note.startsWith(RestoService.AUTO_86_PREFIX)),
         createdAt: r.createdAt,
         product: byId.get(r.productId) || null,
       })),
@@ -3188,6 +3373,12 @@ export class RestoService {
       select: { id: true },
     });
     if (!product) throw new NotFoundException('Product not found');
+    const note = dto.note?.trim() || null;
+    // Manual 86 must not use AUTO: prefix (reserved for stock reconcile)
+    const safeNote =
+      note && note.startsWith(RestoService.AUTO_86_PREFIX)
+        ? note.slice(RestoService.AUTO_86_PREFIX.length) || 'manual'
+        : note;
     const row = await this.prisma.restoMenu86.upsert({
       where: {
         companyId_productId: { companyId, productId: dto.productId },
@@ -3195,17 +3386,24 @@ export class RestoService {
       create: {
         companyId,
         productId: dto.productId,
-        note: dto.note?.trim() || null,
+        note: safeNote,
       },
-      update: { note: dto.note?.trim() || null },
+      update: { note: safeNote },
     });
-    return { id: row.id, productId: row.productId, note: row.note };
+    this.notifyKitchen(companyId);
+    return {
+      id: row.id,
+      productId: row.productId,
+      note: row.note,
+      auto: false,
+    };
   }
 
   async clearMenu86(companyId: string, productId: string) {
     await this.prisma.restoMenu86.deleteMany({
       where: { companyId, productId },
     });
+    this.notifyKitchen(companyId);
     return { ok: true, productId };
   }
 

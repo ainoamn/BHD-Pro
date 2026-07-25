@@ -65,9 +65,11 @@ export default function RestoMenuPage() {
     Array<{
       productId: string;
       note: string | null;
+      auto?: boolean;
       product: { name: string; nameEn: string | null } | null;
     }>
   >([]);
+  const [reconciling, setReconciling] = useState(false);
 
   const load86 = async () => {
     try {
@@ -75,6 +77,21 @@ export default function RestoMenuPage() {
       setEightySix(res.data.items || []);
     } catch {
       /* ignore */
+    }
+  };
+
+  const reconcile86 = async () => {
+    setReconciling(true);
+    try {
+      await api.reconcileRestoMenu86();
+      await load86();
+      const res = await api.getRestoMenu(q.trim() || undefined);
+      setItems(res.data.items || []);
+      toast.success(t.menu86ReconcileOk);
+    } catch {
+      toast.error(t.actionFail);
+    } finally {
+      setReconciling(false);
     }
   };
 
@@ -335,9 +352,24 @@ export default function RestoMenuPage() {
       )}
 
       <div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-4 space-y-3">
-        <div>
-          <h2 className="font-bold text-rose-100">{t.menu86Title}</h2>
-          <p className="text-xs text-stone-400 mt-0.5">{t.menu86Sub}</p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="font-bold text-rose-100">{t.menu86Title}</h2>
+            <p className="text-xs text-stone-400 mt-0.5">{t.menu86Sub}</p>
+          </div>
+          {canManage ? (
+            <button
+              type="button"
+              disabled={reconciling}
+              onClick={() => void reconcile86()}
+              className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-rose-400/30 bg-rose-500/10 text-xs font-bold text-rose-100 hover:bg-rose-500/20 disabled:opacity-50"
+            >
+              {reconciling ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : null}
+              {t.menu86Reconcile}
+            </button>
+          ) : null}
         </div>
         {eightySix.length === 0 ? (
           <p className="text-sm text-stone-500">{t.menu86Empty}</p>
@@ -353,12 +385,25 @@ export default function RestoMenuPage() {
                   key={row.productId}
                   className="flex items-center justify-between gap-2 text-sm"
                 >
-                  <span className="font-semibold text-rose-100/90">{label}</span>
+                  <div className="min-w-0 flex items-center gap-2">
+                    <span className="font-semibold text-rose-100/90 truncate">
+                      {label}
+                    </span>
+                    <span
+                      className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${
+                        row.auto
+                          ? "bg-amber-500/20 text-amber-200 border border-amber-400/30"
+                          : "bg-white/10 text-stone-300 border border-white/15"
+                      }`}
+                    >
+                      {row.auto ? t.menu86Auto : t.menu86Manual}
+                    </span>
+                  </div>
                   <button
                     type="button"
                     disabled={busyId === row.productId}
                     onClick={() => void clear86(row.productId)}
-                    className="text-[11px] font-bold text-emerald-300 hover:text-emerald-200"
+                    className="text-[11px] font-bold text-emerald-300 hover:text-emerald-200 shrink-0"
                   >
                     {t.menu86Clear}
                   </button>

@@ -629,4 +629,14 @@ export class RestoController {
   ) {
     return this.resto.clearMenu86(user.companyId, productId);
   }
+
+  @Post('menu/86/reconcile')
+  @Roles(...RESTO_FLOOR_MGR)
+  @ApiOperation({
+    summary:
+      'Reconcile auto-86 from recipe/warehouse stock (manual 86 untouched)',
+  })
+  reconcile86(@CurrentUser() user: TokenPayload) {
+    return this.resto.reconcileAuto86(user.companyId);
+  }
 }
