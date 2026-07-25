@@ -6,6 +6,7 @@ import { ProductsModule } from '../products/products.module';
 import { PeriodsModule } from '../periods/periods.module';
 import { DualControlModule } from '../dual-control/dual-control.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
+import { JournalModule } from '../journal/journal.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
     PeriodsModule,
     DualControlModule,
     SubscriptionsModule,
+    JournalModule,
   ],
   controllers: [PosController],
   providers: [PosService],

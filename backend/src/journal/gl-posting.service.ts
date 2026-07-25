@@ -967,6 +967,121 @@ export class GlPostingService {
     );
   }
 
+  /** Ensure POS cash drawer expense / deposit COA (5290 / 4290). */
+  async ensurePosCashAccounts(companyId: string) {
+    const defaults: Array<{
+      code: string;
+      name: string;
+      type: AccountType;
+      category: AccountCategory;
+    }> = [
+      {
+        code: '5290',
+        name: 'مصروف صندوق',
+        type: AccountType.EXPENSE,
+        category: AccountCategory.OPERATING_EXPENSE,
+      },
+      {
+        code: '4290',
+        name: 'إيداع صندوق (دخل آخر)',
+        type: AccountType.REVENUE,
+        category: AccountCategory.OTHER_INCOME,
+      },
+    ];
+
+    for (const acc of defaults) {
+      const existing = await this.prisma.account.findFirst({
+        where: { companyId, code: acc.code },
+      });
+      if (!existing) {
+        await this.prisma.account.create({
+          data: { companyId, ...acc, isActive: true },
+        });
+      }
+    }
+  }
+
+  /**
+   * Cash OUT from POS drawer: Dr expense 5290 (fallback 5200) / Cr cash 1100.
+   */
+  async postPosCashOut(
+    companyId: string,
+    userId: string,
+    opts: { amount: number; reason?: string; reference: string },
+  ) {
+    const amount = Number(opts.amount);
+    if (!(amount > 0)) return null;
+
+    await this.ensurePosCashAccounts(companyId);
+    const accounts = await this.resolveAccounts(companyId);
+    const cash = accounts.cash;
+    const expense =
+      (await this.accountByCode(companyId, '5290')) || accounts.expense;
+    if (!cash || !expense) {
+      this.logger.warn(`POS cash-out GL skipped — missing cash/expense COA (${opts.reference})`);
+      return null;
+    }
+
+    const desc =
+      opts.reason?.trim() ||
+      `إخراج نقد من الصندوق — ${opts.reference}`;
+
+    return this.createEntry(
+      companyId,
+      userId,
+      {
+        date: new Date(),
+        description: desc,
+        reference: opts.reference,
+      },
+      [
+        { accountId: expense.id, description: desc, debit: amount, credit: 0 },
+        { accountId: cash.id, description: desc, debit: 0, credit: amount },
+      ],
+    );
+  }
+
+  /**
+   * Cash IN to POS drawer: Dr cash 1100 / Cr other income 4290 (fallback 4200).
+   */
+  async postPosCashIn(
+    companyId: string,
+    userId: string,
+    opts: { amount: number; reason?: string; reference: string },
+  ) {
+    const amount = Number(opts.amount);
+    if (!(amount > 0)) return null;
+
+    await this.ensurePosCashAccounts(companyId);
+    const accounts = await this.resolveAccounts(companyId);
+    const cash = accounts.cash;
+    const income =
+      (await this.accountByCode(companyId, '4290')) ||
+      (await this.accountByCode(companyId, '4200'));
+    if (!cash || !income) {
+      this.logger.warn(`POS cash-in GL skipped — missing cash/income COA (${opts.reference})`);
+      return null;
+    }
+
+    const desc =
+      opts.reason?.trim() ||
+      `إدخال نقد إلى الصندوق — ${opts.reference}`;
+
+    return this.createEntry(
+      companyId,
+      userId,
+      {
+        date: new Date(),
+        description: desc,
+        reference: opts.reference,
+      },
+      [
+        { accountId: cash.id, description: desc, debit: amount, credit: 0 },
+        { accountId: income.id, description: desc, debit: 0, credit: amount },
+      ],
+    );
+  }
+
   /** Internal transfer between two company bank accounts (Dr to / Cr from). */
   async postBankTransfer(
     companyId: string,

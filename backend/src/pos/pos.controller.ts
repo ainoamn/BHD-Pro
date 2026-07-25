@@ -171,6 +171,16 @@ export class PosController {
     return this.pos.getTodayStats(user.companyId, warehouseId || undefined);
   }
 
+  @Get('stats/shifts-today')
+  @Roles(...POS_STAFF)
+  @ApiOperation({
+    summary:
+      'All warehouses’ shifts for today (Asia/Muscat) with sales/cash totals — managers see all; cashier sees own',
+  })
+  shiftsToday(@CurrentUser() user: TokenPayload) {
+    return this.pos.getShiftsToday(user.companyId, user);
+  }
+
   @Get('shifts/current')
   @Roles(...POS_STAFF)
   @ApiOperation({ summary: 'Get open POS shift + live Z totals (per warehouse)' })
@@ -215,7 +225,7 @@ export class PosController {
   @Roles(...POS_STAFF)
   @ApiOperation({ summary: 'List recent POS shifts' })
   listShifts(@CurrentUser() user: TokenPayload) {
-    return this.pos.listShifts(user.companyId);
+    return this.pos.listShifts(user.companyId, user);
   }
 
   @Post('shifts/open')

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Clock3, Loader2, Mail, MessageCircle, Printer } from "lucide-react";
 import toast from "react-hot-toast";
@@ -23,6 +24,7 @@ type CashMovement = {
   type: string;
   amount: number | string;
   reason?: string | null;
+  journalId?: string | null;
   createdAt: string;
   createdBy?: { name?: string };
 };
@@ -194,6 +196,9 @@ export default function PosShiftsPage() {
     }
   };
 
+  const isManagerView =
+    user?.role === "ADMIN" || user?.role === "MANAGER" || user?.role === "ACCOUNTANT";
+
   const { data, isLoading } = useQuery({
     queryKey: ["pos-shift-current", warehouseId || "default"],
     queryFn: async () => {
@@ -221,6 +226,15 @@ export default function PosShiftsPage() {
     },
   });
 
+  const { data: shiftsToday } = useQuery({
+    queryKey: ["pos-shifts-today"],
+    queryFn: async () => {
+      const res = await api.getPosShiftsToday();
+      return res.data;
+    },
+    enabled: !!user,
+    refetchInterval: 30000,
+  });
   const openMut = useMutation({
     mutationFn: () =>
       api.openPosShift({
@@ -277,17 +291,26 @@ export default function PosShiftsPage() {
         reason: cashReason.trim() || undefined,
         warehouseId: warehouseId || undefined,
       }),
-    onSuccess: () => {
-      toast.success(cashType === "IN" ? t.cashInOk : t.cashOutOk);
+    onSuccess: (res) => {
+      const posted = (res.data as { postedToGl?: boolean })?.postedToGl;
+      toast.success(
+        posted
+          ? `${cashType === "IN" ? t.cashInOk : t.cashOutOk} · ${t.cashPostedToGl}`
+          : cashType === "IN"
+            ? t.cashInOk
+            : t.cashOutOk,
+      );
       setCashAmount("");
       setCashReason("");
       qc.invalidateQueries({ queryKey: ["pos-shift-current"] });
+      qc.invalidateQueries({ queryKey: ["pos-shifts-today"] });
     },
-    onError: (err: { response?: { data?: { message?: string } } }) => {
-      toast.error(err.response?.data?.message || t.cashMovementFail);
+    onError: (err: { response?: { data?: { message?: string | string[] } } }) => {
+      const raw = err.response?.data?.message;
+      const msg = Array.isArray(raw) ? raw[0] : raw;
+      toast.error(msg || t.cashMovementFail);
     },
   });
-
   const live = data?.live as ZReport | undefined;
   const expectedCash = Number(live?.expectedCash ?? 0);
   const cashMovements = (data?.cashMovements ||
@@ -456,7 +479,9 @@ export default function PosShiftsPage() {
                 />
               </div>
               <div className="flex-1 min-w-[10rem]">
-                <label className="block text-xs text-slate-400 mb-1">{t.cashMovementReason}</label>
+                <label className="block text-xs text-slate-400 mb-1">
+                  {cashType === "OUT" ? t.cashMovementReasonRequired : t.cashMovementReason}
+                </label>
                 <input
                   value={cashReason}
                   onChange={(e) => setCashReason(e.target.value)}
@@ -465,13 +490,18 @@ export default function PosShiftsPage() {
               </div>
               <button
                 type="button"
-                disabled={cashMut.isPending || !(Number(cashAmount) > 0)}
+                disabled={
+                  cashMut.isPending ||
+                  !(Number(cashAmount) > 0) ||
+                  (cashType === "OUT" && !cashReason.trim())
+                }
                 onClick={() => cashMut.mutate()}
                 className="h-10 px-4 rounded-lg bg-sky-500/90 text-white text-sm font-semibold disabled:opacity-50"
               >
                 {cashMut.isPending ? "…" : cashType === "IN" ? t.cashIn : t.cashOut}
               </button>
             </div>
+            <p className="text-[11px] text-slate-500">{t.cashPostedToGl}</p>
             {cashMovements.length ? (
               <ul className="space-y-1.5 max-h-40 overflow-y-auto">
                 {cashMovements.map((m) => (
@@ -488,6 +518,9 @@ export default function PosShiftsPage() {
                         {m.type === "IN" ? t.cashIn : t.cashOut}
                       </span>
                       {m.reason ? ` · ${m.reason}` : ""}
+                      {m.journalId ? (
+                        <span className="ms-1 text-sky-400/90">· {t.cashPostedToGl}</span>
+                      ) : null}
                       <span className="block text-slate-500">
                         {new Date(m.createdAt).toLocaleString()}
                         {m.createdBy?.name ? ` · ${m.createdBy.name}` : ""}
@@ -604,6 +637,101 @@ export default function PosShiftsPage() {
             <Mail className="w-4 h-4" />
             {t.shareReportEmail}
           </button>
+        </div>
+      ) : null}
+
+      {isManagerView && shiftsToday ? (
+        <div className="rounded-2xl border border-sky-500/20 bg-sky-500/5 p-5 space-y-3">
+          <div>
+            <h2 className="text-sm font-semibold text-sky-200">{t.shiftsTodayTitle}</h2>
+            <p className="text-xs text-slate-500">
+              {t.shiftsTodayHint}
+              {shiftsToday.date ? ` · ${shiftsToday.date}` : ""}
+            </p>
+          </div>
+          {shiftsToday.warehouses?.length ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-slate-300">
+                <thead>
+                  <tr className="text-slate-500 border-b border-white/10">
+                    <th className="py-2 text-start font-medium">{t.warehouse}</th>
+                    <th className="py-2 text-start font-medium">{t.shiftOpen}</th>
+                    <th className="py-2 text-end font-medium">{t.zSales}</th>
+                    <th className="py-2 text-end font-medium">{t.zCashIn}</th>
+                    <th className="py-2 text-end font-medium">{t.zCashOut}</th>
+                    <th className="py-2 text-end font-medium">{t.zExpected}</th>
+                    <th className="py-2 text-end font-medium">X/Z</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {shiftsToday.warehouses.map((w) => (
+                    <tr
+                      key={w.warehouseId || "default"}
+                      className="border-b border-white/5"
+                    >
+                      <td className="py-2.5 pe-2">
+                        <span className="text-white font-medium">
+                          {w.warehouseCode ? `${w.warehouseCode} — ` : ""}
+                          {w.warehouseName}
+                        </span>
+                        <span className="block text-slate-500">
+                          {w.shifts.length} ·{" "}
+                          {w.openShift ? t.shiftStatusOpen : t.shiftStatusClosed}
+                        </span>
+                      </td>
+                      <td className="py-2.5 pe-2">
+                        {w.openShift
+                          ? w.openShift.openedBy?.name || t.shiftStatusOpen
+                          : "—"}
+                      </td>
+                      <td className="py-2.5 text-end font-semibold text-white">
+                        {w.salesTotal}
+                      </td>
+                      <td className="py-2.5 text-end">{w.cashIn}</td>
+                      <td className="py-2.5 text-end">{w.cashOut}</td>
+                      <td className="py-2.5 text-end text-emerald-300 font-semibold">
+                        {w.expectedCash}
+                      </td>
+                      <td className="py-2.5 text-end">
+                        {w.shifts[0] ? (
+                          <Link
+                            href={`/pos/shifts`}
+                            onClick={() => {
+                              if (w.warehouseId) onWarehouseChange(w.warehouseId);
+                              else onWarehouseChange("");
+                            }}
+                            className="text-sky-300 hover:underline"
+                          >
+                            {w.openShift ? t.xReport : t.printZReport}
+                          </Link>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="text-slate-400">
+                    <td className="pt-3 font-semibold text-white" colSpan={2}>
+                      {t.todaySales}
+                    </td>
+                    <td className="pt-3 text-end font-bold text-white">
+                      {shiftsToday.totals.salesTotal}
+                    </td>
+                    <td className="pt-3 text-end">{shiftsToday.totals.cashIn}</td>
+                    <td className="pt-3 text-end">{shiftsToday.totals.cashOut}</td>
+                    <td className="pt-3 text-end font-bold text-emerald-300">
+                      {shiftsToday.totals.expectedCash}
+                    </td>
+                    <td />
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          ) : (
+            <p className="text-sm text-slate-500">{t.shiftsTodayEmpty}</p>
+          )}
         </div>
       ) : null}
 

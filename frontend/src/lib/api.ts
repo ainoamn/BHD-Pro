@@ -1405,10 +1405,13 @@ class ApiClient {
         type: string;
         amount: number | string;
         reason?: string | null;
+        journalId?: string | null;
         createdAt: string;
       };
       live?: Record<string, unknown>;
       cashMovements?: unknown[];
+      journalId?: string | null;
+      postedToGl?: boolean;
     }>('/pos/shifts/current/cash-movements', data);
   }
 
@@ -1444,6 +1447,45 @@ class ApiClient {
       voidCount: number;
       from?: string;
     }>(`/pos/stats/today${q}`);
+  }
+
+  getPosShiftsToday() {
+    return this.get<{
+      date: string;
+      warehouses: {
+        warehouseId: string | null;
+        warehouseName: string;
+        warehouseCode: string | null;
+        openShift: {
+          id: string;
+          openedAt: string;
+          openedBy?: { id: string; name: string } | null;
+        } | null;
+        shifts: {
+          id: string;
+          status: string;
+          openedAt: string;
+          closedAt: string | null;
+          openedBy?: { id: string; name: string } | null;
+          salesTotal: number;
+          cashIn: number;
+          cashOut: number;
+          expectedCash: number;
+        }[];
+        salesTotal: number;
+        cashIn: number;
+        cashOut: number;
+        expectedCash: number;
+      }[];
+      totals: {
+        salesTotal: number;
+        cashIn: number;
+        cashOut: number;
+        expectedCash: number;
+        openCount: number;
+        shiftCount: number;
+      };
+    }>('/pos/stats/shifts-today');
   }
 
   listPosShifts() {

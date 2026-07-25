@@ -31,6 +31,7 @@ import {
   UpdatePosDraftDto,
 } from './dto/pos.dto';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
+import { GlPostingService } from '../journal/gl-posting.service';
 
 const WALK_IN_NAME = 'POS Walk-in / نقدي';
 
@@ -43,6 +44,7 @@ export class PosService {
     private periods: PeriodsService,
     private dualControl: DualControlService,
     private subscriptions: SubscriptionsService,
+    private glPosting: GlPostingService,
   ) {}
 
   private hashKey(secret: string) {
@@ -280,7 +282,7 @@ export class PosService {
       });
       if (whUpdated.count === 0) {
         throw new BadRequestException(
-          `Insufficient stock for ${product.name} at this warehouse (requested ${qty})`,
+          `Insufficient stock for "${product.name}" at this warehouse (on hand below requested ${qty}). Reduce quantity or restock before checkout.`,
         );
       }
 
@@ -297,7 +299,7 @@ export class PosService {
       });
       if (productUpdated.count === 0) {
         throw new BadRequestException(
-          `Insufficient stock for ${product.name} (requested ${qty})`,
+          `Insufficient stock for "${product.name}" (on hand below requested ${qty}). Reduce quantity or restock before checkout.`,
         );
       }
 
@@ -1073,19 +1075,49 @@ export class PosService {
     if (!(amount > 0)) {
       throw new BadRequestException('Amount must be greater than zero');
     }
-    const movement = await this.prisma.posCashMovement.create({
+    const reason = dto.reason?.trim() || null;
+    if (dto.type === 'OUT' && !reason) {
+      throw new BadRequestException('Reason is required for cash out');
+    }
+
+    let movement = await this.prisma.posCashMovement.create({
       data: {
         companyId,
         shiftId: shift.id,
         type: dto.type,
         amount,
-        reason: dto.reason?.trim() || null,
+        reason,
         createdById: userId,
       },
       include: {
         createdBy: { select: { id: true, name: true } },
       },
     });
+
+    const reference = `POS-CASH-${dto.type}:${movement.id}`;
+    const journal =
+      dto.type === 'OUT'
+        ? await this.glPosting.postPosCashOut(companyId, userId, {
+            amount,
+            reason: reason || undefined,
+            reference,
+          })
+        : await this.glPosting.postPosCashIn(companyId, userId, {
+            amount,
+            reason: reason || undefined,
+            reference,
+          });
+
+    if (journal?.id) {
+      movement = await this.prisma.posCashMovement.update({
+        where: { id: movement.id },
+        data: { journalId: journal.id },
+        include: {
+          createdBy: { select: { id: true, name: true } },
+        },
+      });
+    }
+
     const live = await this.buildZReport(
       companyId,
       shift.id,
@@ -1098,7 +1130,14 @@ export class PosService {
       orderBy: { createdAt: 'desc' },
       include: { createdBy: { select: { id: true, name: true } } },
     });
-    return { movement, live, cashMovements, shift: { id: shift.id } };
+    return {
+      movement,
+      live,
+      cashMovements,
+      shift: { id: shift.id },
+      journalId: movement.journalId || null,
+      postedToGl: !!movement.journalId,
+    };
   }
 
   async getCustomerRecentSales(companyId: string, contactId: string) {
@@ -1286,9 +1325,13 @@ export class PosService {
     return this.getXReport(companyId, shift.id);
   }
 
-  async listShifts(companyId: string) {
+  async listShifts(companyId: string, actor?: TokenPayload) {
+    const where: Prisma.PosShiftWhereInput = { companyId };
+    if (actor?.role === UserRole.CASHIER) {
+      where.openedById = actor.sub;
+    }
     return this.prisma.posShift.findMany({
-      where: { companyId },
+      where,
       orderBy: { openedAt: 'desc' },
       take: 30,
       include: {
@@ -1297,6 +1340,156 @@ export class PosService {
         warehouse: { select: { id: true, name: true, code: true } },
       },
     });
+  }
+
+  /**
+   * All warehouses' shifts for the current Asia/Muscat calendar day.
+   * ADMIN/MANAGER/ACCOUNTANT see every warehouse; CASHIER sees own opened shifts only.
+   */
+  async getShiftsToday(companyId: string, actor: TokenPayload) {
+    const from = this.startOfDayMuscat();
+    const dateStr = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Muscat',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(from);
+
+    const where: Prisma.PosShiftWhereInput = {
+      companyId,
+      OR: [
+        { status: 'OPEN' },
+        { openedAt: { gte: from } },
+        { closedAt: { gte: from } },
+      ],
+    };
+    if (actor.role === UserRole.CASHIER) {
+      where.openedById = actor.sub;
+    }
+
+    const shifts = await this.prisma.posShift.findMany({
+      where,
+      orderBy: { openedAt: 'asc' },
+      include: {
+        openedBy: { select: { id: true, name: true } },
+        closedBy: { select: { id: true, name: true } },
+        warehouse: { select: { id: true, name: true, code: true } },
+      },
+    });
+
+    type WarehouseRow = {
+      warehouseId: string | null;
+      warehouseName: string;
+      warehouseCode: string | null;
+      openShift: {
+        id: string;
+        openedAt: Date;
+        openedBy?: { id: string; name: string } | null;
+      } | null;
+      shifts: Array<{
+        id: string;
+        status: string;
+        openedAt: Date;
+        closedAt: Date | null;
+        openedBy?: { id: string; name: string } | null;
+        salesTotal: number;
+        cashIn: number;
+        cashOut: number;
+        expectedCash: number;
+      }>;
+      salesTotal: number;
+      cashIn: number;
+      cashOut: number;
+      expectedCash: number;
+    };
+
+    const byWh = new Map<string, WarehouseRow>();
+
+    for (const shift of shifts) {
+      const key = shift.warehouseId || '__default__';
+      if (!byWh.has(key)) {
+        byWh.set(key, {
+          warehouseId: shift.warehouseId,
+          warehouseName: shift.warehouse?.name || 'الصندوق الافتراضي',
+          warehouseCode: shift.warehouse?.code || null,
+          openShift: null,
+          shifts: [],
+          salesTotal: 0,
+          cashIn: 0,
+          cashOut: 0,
+          expectedCash: 0,
+        });
+      }
+      const row = byWh.get(key)!;
+
+      let salesTotal = 0;
+      let cashIn = 0;
+      let cashOut = 0;
+      let expectedCash = 0;
+
+      if (shift.status === 'CLOSED' && shift.zReportJson) {
+        const z = shift.zReportJson as Record<string, unknown>;
+        salesTotal = Number(z.salesTotal ?? 0);
+        cashIn = Number(z.cashIn ?? 0);
+        cashOut = Number(z.cashOut ?? 0);
+        expectedCash = Number(z.expectedCash ?? 0);
+      } else {
+        const live = await this.buildZReport(
+          companyId,
+          shift.id,
+          shift.openedAt,
+          shift.closedAt || new Date(),
+          Number(shift.openingFloat),
+          shift.closingCash != null ? Number(shift.closingCash) : undefined,
+        );
+        salesTotal = live.salesTotal;
+        cashIn = live.cashIn;
+        cashOut = live.cashOut;
+        expectedCash = live.expectedCash;
+      }
+
+      row.shifts.push({
+        id: shift.id,
+        status: shift.status,
+        openedAt: shift.openedAt,
+        closedAt: shift.closedAt,
+        openedBy: shift.openedBy,
+        salesTotal,
+        cashIn,
+        cashOut,
+        expectedCash,
+      });
+      row.salesTotal = Number((row.salesTotal + salesTotal).toFixed(3));
+      row.cashIn = Number((row.cashIn + cashIn).toFixed(3));
+      row.cashOut = Number((row.cashOut + cashOut).toFixed(3));
+      // Expected cash is per open drawer — use open shift's expected, else sum closed
+      if (shift.status === 'OPEN') {
+        row.openShift = {
+          id: shift.id,
+          openedAt: shift.openedAt,
+          openedBy: shift.openedBy,
+        };
+        row.expectedCash = expectedCash;
+      } else if (!row.openShift) {
+        row.expectedCash = Number((row.expectedCash + expectedCash).toFixed(3));
+      }
+    }
+
+    const warehouses = [...byWh.values()];
+    const totals = {
+      salesTotal: Number(
+        warehouses.reduce((s, w) => s + w.salesTotal, 0).toFixed(3),
+      ),
+      cashIn: Number(warehouses.reduce((s, w) => s + w.cashIn, 0).toFixed(3)),
+      cashOut: Number(warehouses.reduce((s, w) => s + w.cashOut, 0).toFixed(3)),
+      expectedCash: Number(
+        warehouses.reduce((s, w) => s + w.expectedCash, 0).toFixed(3),
+      ),
+      openCount: warehouses.filter((w) => w.openShift).length,
+      shiftCount: shifts.length,
+    };
+
+    return { date: dateStr, warehouses, totals };
   }
 
   private async buildZReport(
@@ -1426,6 +1619,7 @@ export class PosService {
         type: m.type,
         amount: Number(m.amount),
         reason: m.reason,
+        journalId: m.journalId,
         createdAt: m.createdAt,
         createdBy: m.createdBy,
       })),

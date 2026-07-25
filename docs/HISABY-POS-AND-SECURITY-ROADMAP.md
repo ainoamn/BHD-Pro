@@ -76,6 +76,9 @@ Public flags: `asyncApprovals: true`, `nfcBadgesConfigured`, `shiftVarianceLimit
 - [x] Cash change-due tender modal (amount tendered → change → confirm)
 - [x] Refund-by-receipt lookup (`GET /pos/sales/by-number?number=`)
 - [x] Cash in / cash out on open shift (`pos_cash_movements`, `POST /pos/shifts/current/cash-movements`; expected cash = opening + cash sales − cash refunds + in − out)
+- [x] Cash in/out → GL (`postPosCashIn` / `postPosCashOut`; Dr/Cr 1100 ↔ 4290/5290; `journalId` on movement)
+- [x] Soft-block checkout when cart qty exceeds on-hand stock (+ low-stock confirm)
+- [x] Manager today-all-shifts board (`GET /pos/stats/shifts-today` + «ورديات اليوم» on `/pos/shifts`)
 - [x] Customer recent purchases strip on checkout (`GET /pos/customers/:id/recent-sales`)
 - [x] Share X/Z report via WhatsApp + email (`pos-receipt-share` text summary from `/pos/shifts`)
 - [x] Split tender (multi-payment on one sale — `payments[]` sums to total; Cash+Card UI)
@@ -86,6 +89,7 @@ Public flags: `asyncApprovals: true`, `nfcBadgesConfigured`, `shiftVarianceLimit
 - [ ] Partner NFC tap-to-pay (gateway / wallet partners — not badge dual-control)
 - [ ] Native wrapper (Capacitor) if PWA limits hit
 - [ ] Reliable multi-vendor Web Bluetooth thermal (current BLE path is best-effort)
+- [ ] Optional dual-control for large cash-out (`SHIFT_CASH_OUT` above threshold)
 - [x] Contacts store-credit wallet UI + GL-backed adjust (`POST /contacts/:id/store-credit-adjust` → 2130)
 - [x] Full AR GL posting for store-credit (`PaymentMethod.STORE_CREDIT` → liability **2130** ائتمان عملاء; wallet `Contact.currentBalance` kept as operational balance)
 
@@ -123,3 +127,6 @@ Public flags: `asyncApprovals: true`, `nfcBadgesConfigured`, `shiftVarianceLimit
 21. Share X/Z: WhatsApp / email buttons on `/pos/shifts` using plain-text report summary (same pattern as receipt share).
 22. Alert → invoice deep-link (`/accounting?open=`), dashboard/notifications open-alert count, journal attachments.
 23. Deploy migration `20260725210000_pos_draft_notes`; split tender + tip on `POST /pos/sales`; Z-report aggregates payment amounts by method.
+24. Deploy migration `20260725220000_pos_cash_movement_journal`; cash in/out posts GL (`postPosCashIn`/`postPosCashOut`, accounts 4290/5290 ↔ 1100); reason required for OUT.
+25. Checkout soft-blocks when tracked qty > on-hand; confirms when stock would fall to/below `minQuantity`.
+26. Manager today board: `GET /pos/stats/shifts-today` + «ورديات اليوم» table on `/pos/shifts` (ADMIN/MANAGER/ACCOUNTANT).

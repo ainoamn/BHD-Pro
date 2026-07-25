@@ -244,6 +244,7 @@ model Journal {
   payrollPaymentPostings PayrollRun[] @relation("PayrollPaymentJournal")
   claimAccrualPostings EmployeeClaim[] @relation("ClaimAccrualJournal")
   claimPaymentPostings EmployeeClaim[] @relation("ClaimPaymentJournal")
+  posCashMovements PosCashMovement[] @relation("PosCashMovementJournal")
 
   @@index([companyId])
   @@index([date])
@@ -1555,12 +1556,16 @@ model PosCashMovement {
   type        String
   amount      Decimal  @db.Decimal(14, 3)
   reason      String?
+  /// GL journal posted for this drawer movement (cash in/out).
+  journalId   String?  @map("journal_id")
+  journal     Journal? @relation("PosCashMovementJournal", fields: [journalId], references: [id], onDelete: SetNull)
   createdById String   @map("created_by_id")
   createdBy   User     @relation("PosCashMovementCreatedBy", fields: [createdById], references: [id])
   createdAt   DateTime @default(now()) @map("created_at")
 
   @@index([companyId, shiftId])
   @@index([shiftId, createdAt])
+  @@index([journalId])
   @@map("pos_cash_movements")
 }
 

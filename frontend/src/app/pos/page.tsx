@@ -1032,6 +1032,79 @@ export default function PosCheckoutPage() {
       setCheckoutBusy(false);
       return;
     }
+
+    // Refresh on-hand stock from catalog / lookup before pay
+    let workingCart = cart;
+    const minByProduct = new Map<string, number>();
+    try {
+      const refreshed = await Promise.all(
+        cart.map(async (line) => {
+          try {
+            const res = await api.lookupPosProduct(line.sku, warehouseId || undefined);
+            const p = res.data as PosProduct;
+            const minQ =
+              p.minQuantity != null && p.minQuantity !== ""
+                ? Number(p.minQuantity)
+                : NaN;
+            if (Number.isFinite(minQ)) minByProduct.set(line.productId, minQ);
+            return {
+              ...line,
+              stock: Number(p.quantity),
+              isTracked: p.isTracked,
+            };
+          } catch {
+            const fromCatalog = catalog.find((c) => c.id === line.productId);
+            if (fromCatalog) {
+              const minQ =
+                fromCatalog.minQuantity != null && fromCatalog.minQuantity !== ""
+                  ? Number(fromCatalog.minQuantity)
+                  : NaN;
+              if (Number.isFinite(minQ)) minByProduct.set(line.productId, minQ);
+              return {
+                ...line,
+                stock: Number(fromCatalog.quantity),
+                isTracked: fromCatalog.isTracked,
+              };
+            }
+            return line;
+          }
+        }),
+      );
+      workingCart = refreshed;
+      setCart(refreshed);
+    } catch {
+      /* use cart as-is */
+    }
+
+    const overStock = workingCart.filter(
+      (l) => l.isTracked && l.quantity > l.stock,
+    );
+    if (overStock.length) {
+      toast.error(
+        `${t.stockExceedsBlock}: ${overStock.map((l) => `${l.name} (${l.stock})`).join(", ")}`,
+      );
+      setPendingCheckout(null);
+      setCheckoutBusy(false);
+      return;
+    }
+
+    const lowAfter = workingCart.filter((l) => {
+      if (!l.isTracked) return false;
+      const fromCatalog = catalog.find((c) => c.id === l.productId);
+      const minQ =
+        minByProduct.get(l.productId) ??
+        (fromCatalog?.minQuantity != null && fromCatalog.minQuantity !== ""
+          ? Number(fromCatalog.minQuantity)
+          : 5);
+      const threshold = Number.isFinite(minQ) ? minQ : 5;
+      return l.stock - l.quantity <= threshold;
+    });
+    if (lowAfter.length && !window.confirm(t.stockLowAfterSale)) {
+      setPendingCheckout(null);
+      setCheckoutBusy(false);
+      return;
+    }
+
     const usesStoreCredit =
       method === "STORE_CREDIT" ||
       !!payments?.some((p) => p.method === "STORE_CREDIT");
@@ -1055,7 +1128,7 @@ export default function PosCheckoutPage() {
     const tipLine =
       tipValue > 0.0005 ? [{ name: t.tip, qty: 1, lineTotal: tipValue }] : [];
     const snapshot = [
-      ...cart.map((l) => ({
+      ...workingCart.map((l) => ({
         name: l.name,
         qty: l.quantity,
         lineTotal: lineTotal(l),
@@ -1086,7 +1159,7 @@ export default function PosCheckoutPage() {
       warehouseId: warehouseId || undefined,
       contactId: contactId || undefined,
       approval,
-      items: cart.map((l) => ({
+      items: workingCart.map((l) => ({
         productId: l.productId,
         quantity: l.quantity,
         unitPrice: l.unitPrice,

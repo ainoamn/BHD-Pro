@@ -5,6 +5,7 @@ import {
   IsBoolean,
   IsEnum,
   IsIn,
+  IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
@@ -12,6 +13,7 @@ import {
   MaxLength,
   Min,
   MinLength,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 import { PaymentMethod } from '@prisma/client';
@@ -195,7 +197,9 @@ export class CreatePosCashMovementDto {
   @Min(0.001)
   amount: number;
 
-  @IsOptional()
+  /** Required for cash OUT (GL expense posting). Optional for IN. */
+  @ValidateIf((o: CreatePosCashMovementDto) => o.type === 'OUT')
+  @IsNotEmpty({ message: 'Reason is required for cash out' })
   @IsString()
   @MaxLength(500)
   reason?: string;
