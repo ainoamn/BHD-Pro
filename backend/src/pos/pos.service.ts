@@ -503,13 +503,6 @@ export class PosService {
     return user?.role;
   }
 
-  private static readonly SPLIT_PAYMENT_METHODS = new Set<PaymentMethod>([
-    PaymentMethod.CASH,
-    PaymentMethod.CREDIT_CARD,
-    PaymentMethod.BANK_TRANSFER,
-    PaymentMethod.STORE_CREDIT,
-  ]);
-
   async createSale(
     companyId: string,
     actor: TokenPayload,
@@ -524,29 +517,20 @@ export class PosService {
     const today = new Date().toISOString().slice(0, 10);
     const reserveRef = `POS-TEMP-${Date.now()}`;
 
-    const tipAmount = dto.tipAmount != null ? Number(dto.tipAmount) : 0;
-    if (tipAmount < 0) {
-      throw new BadRequestException('tipAmount must be >= 0');
-    }
+    const useStoreCredit = dto.useStoreCredit === true;
 
-    const splitPayments = Array.isArray(dto.payments) ? dto.payments : null;
-    const useSplit = !!splitPayments && splitPayments.length > 0;
-    const useStoreCredit =
-      !useSplit &&
-      (dto.useStoreCredit === true ||
-        dto.paymentMethod === PaymentMethod.STORE_CREDIT);
-
-    if (useStoreCredit && contact.name === WALK_IN_NAME) {
-      throw new BadRequestException('Store credit requires a non-walk-in contact');
+    if (useStoreCredit) {
+      if (contact.name === WALK_IN_NAME) {
+        throw new BadRequestException('Store credit requires a non-walk-in contact');
+      }
     }
 
     const lineItems: {
-      productId: string | null;
+      productId: string;
       description: string;
       quantity: number;
       unitPrice: number;
       discount: number;
-      taxRate?: number;
     }[] = [];
 
     let hasPriceOverride = false;
@@ -578,17 +562,6 @@ export class PosService {
       });
     }
 
-    if (tipAmount > 0.0005) {
-      lineItems.push({
-        productId: null,
-        description: 'Tip / بقشيش',
-        quantity: 1,
-        unitPrice: tipAmount,
-        discount: 0,
-        taxRate: 0,
-      });
-    }
-
     if (hasPriceOverride) {
       await this.dualControl.assertApproved(
         companyId,
@@ -611,55 +584,13 @@ export class PosService {
           ? taxCfg.vatRate
           : 5;
 
-    let estimatedSubtotal = 0;
-    let estimatedTax = 0;
-    for (const item of lineItems) {
-      const lineNet = item.unitPrice * item.quantity - (item.discount || 0);
-      estimatedSubtotal += lineNet;
-      const lineTaxRate = item.taxRate != null ? item.taxRate : taxRate;
-      estimatedTax += lineNet * (lineTaxRate / 100);
-    }
-    const estimatedTotal = Number((estimatedSubtotal + estimatedTax).toFixed(3));
-
-    let storeCreditPortion = 0;
-    if (useSplit) {
-      let paySum = 0;
-      for (const row of splitPayments!) {
-        if (!PosService.SPLIT_PAYMENT_METHODS.has(row.method)) {
-          throw new BadRequestException(
-            `Unsupported split payment method: ${row.method}`,
-          );
-        }
-        const amt = Number(row.amount);
-        if (!(amt > 0)) {
-          throw new BadRequestException('Each split payment amount must be > 0');
-        }
-        paySum += amt;
-        if (row.method === PaymentMethod.STORE_CREDIT) {
-          storeCreditPortion += amt;
-        }
+    if (useStoreCredit) {
+      let subtotal = 0;
+      for (const item of lineItems) {
+        subtotal += item.unitPrice * item.quantity - item.discount;
       }
-      paySum = Number(paySum.toFixed(3));
-      if (Math.abs(paySum - estimatedTotal) > 0.005) {
-        throw new BadRequestException(
-          `Split payments sum ${paySum.toFixed(3)} must equal total ${estimatedTotal.toFixed(3)}`,
-        );
-      }
-      if (storeCreditPortion > 0) {
-        if (contact.name === WALK_IN_NAME) {
-          throw new BadRequestException(
-            'Store credit split requires a non-walk-in contact',
-          );
-        }
-        const currentBalance = Number(contact.currentBalance || 0);
-        if (currentBalance + 0.0005 < storeCreditPortion) {
-          throw new BadRequestException(
-            `Insufficient store credit: balance ${currentBalance.toFixed(3)}, required ${storeCreditPortion.toFixed(3)}`,
-          );
-        }
-      }
-    } else if (useStoreCredit) {
-      storeCreditPortion = estimatedTotal;
+      const taxAmount = subtotal * (taxRate / 100);
+      const estimatedTotal = subtotal + taxAmount;
       const currentBalance = Number(contact.currentBalance || 0);
       if (currentBalance < estimatedTotal) {
         throw new BadRequestException(
@@ -680,7 +611,6 @@ export class PosService {
     let invoiceCreated = false;
     try {
       for (const item of lineItems) {
-        if (!item.productId) continue;
         const result = await this.reserveStockOut(
           companyId,
           item.productId,
@@ -697,65 +627,37 @@ export class PosService {
         }
       }
 
-      // 2) Create invoice — split: unpaid then record each payment; else payImmediately
+      // 2) Create paid cash invoice (attach to open shift for this warehouse)
+
       const paymentMethod = useStoreCredit
         ? PaymentMethod.STORE_CREDIT
         : (dto.paymentMethod ?? PaymentMethod.CASH);
-      const baseNotes = dto.notes?.trim() || 'Hisaby POS sale';
-      const notes =
-        useStoreCredit || storeCreditPortion > 0
-          ? `[STORE_CREDIT] ${baseNotes}`
-          : baseNotes;
+      const notes = useStoreCredit
+        ? `[STORE_CREDIT] ${dto.notes || 'Hisaby POS sale'}`
+        : (dto.notes || 'Hisaby POS sale');
 
-      let invoice = await this.invoices.create(companyId, userId, {
+      const invoice = await this.invoices.create(companyId, userId, {
         type: InvoiceType.SALES,
         contactId: contact.id,
         date: today,
         dueDate: today,
         taxRate,
         notes,
-        payImmediately: !useSplit,
-        paymentMethod: useSplit ? undefined : paymentMethod,
-        items: lineItems.map((li) => ({
-          productId: li.productId || undefined,
-          description: li.description,
-          quantity: li.quantity,
-          unitPrice: li.unitPrice,
-          discount: li.discount || 0,
-          ...(li.taxRate != null ? { taxRate: li.taxRate } : {}),
-        })),
+        payImmediately: true,
+        paymentMethod,
+        items: lineItems,
       });
       invoiceCreated = true;
 
-      if (useSplit) {
-        // Keep POS today-stats / cash filters working
-        await this.prisma.invoice.update({
-          where: { id: invoice.id },
-          data: { isCash: true },
-        });
-        for (const row of splitPayments!) {
-          invoice = await this.invoices.recordPayment(companyId, userId, invoice.id, {
-            method: row.method,
-            amount: Number(row.amount),
-            date: today,
-            notes: 'POS split payment',
-          });
-        }
-        const actualTotal = Number(invoice.total);
-        if (Math.abs(actualTotal - estimatedTotal) > 0.005) {
-          // Defensive — tip/tax rounding drift should be tiny; payments already validated vs estimate
-        }
-      }
-
-      if (storeCreditPortion > 0.0005) {
-        const debitAmount = Number(storeCreditPortion.toFixed(3));
+      if (useStoreCredit) {
+        const invoiceTotal = Number(invoice.total);
         const debited = await this.prisma.contact.updateMany({
           where: {
             id: contact.id,
             companyId,
-            currentBalance: { gte: debitAmount },
+            currentBalance: { gte: invoiceTotal },
           },
-          data: { currentBalance: { decrement: debitAmount } },
+          data: { currentBalance: { decrement: invoiceTotal } },
         });
         if (debited.count === 0) {
           try {
@@ -773,7 +675,7 @@ export class PosService {
           }
           invoiceCreated = false;
           throw new BadRequestException(
-            `Insufficient store credit: required ${debitAmount.toFixed(3)}`,
+            `Insufficient store credit: required ${invoiceTotal.toFixed(3)}`,
           );
         }
         try {
@@ -786,25 +688,7 @@ export class PosService {
               customFieldsJson: {
                 ...existingFields,
                 usedStoreCredit: true,
-                storeCreditAmount: debitAmount,
-                ...(tipAmount > 0.0005 ? { tipAmount } : {}),
-              },
-            },
-          });
-        } catch {
-          /* non-fatal */
-        }
-      } else if (tipAmount > 0.0005) {
-        try {
-          const existingFields =
-            ((invoice as { customFieldsJson?: Record<string, unknown> }).customFieldsJson ||
-              {}) as Record<string, unknown>;
-          await this.prisma.invoice.update({
-            where: { id: invoice.id },
-            data: {
-              customFieldsJson: {
-                ...existingFields,
-                tipAmount,
+                storeCreditAmount: invoiceTotal,
               },
             },
           });
