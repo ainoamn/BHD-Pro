@@ -77,7 +77,7 @@ export function DualControlSettings() {
   useEffect(() => {
     if (!data) return;
     setEnabled(data.dualControlEnabled !== false);
-    setActions({
+    const defaults: SecurityPublic["actions"] = {
       POS_VOID: true,
       POS_PRICE_OVERRIDE: true,
       POS_REFUND: true,
@@ -86,8 +86,8 @@ export function DualControlSettings() {
       INVOICE_CANCEL: true,
       PAYMENT_REVERSE: true,
       SHIFT_CLOSE_VARIANCE: true,
-      ...data.actions,
-    });
+    };
+    setActions({ ...defaults, ...data.actions });
     setVarianceLimit(String(data.shiftVarianceLimit ?? 1));
     setRequireOpenShift(data.requireOpenShift === true);
   }, [data]);

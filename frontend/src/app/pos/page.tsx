@@ -241,13 +241,13 @@ export default function PosCheckoutPage() {
           setCatalog(rows.slice(0, 80));
           setCatalogLoaded(true);
         }
-        toast.success(t.catalogSynced || t.refreshCatalog);
+        toast.success(t.catalogSynced);
       } else {
         await loadCatalog(search, warehouseId || undefined);
         toast.success(t.refreshCatalog);
       }
     } catch {
-      toast.error(t.catalogSyncFail || t.syncFail);
+      toast.error(t.catalogSyncFail);
     } finally {
       setCatalogRefreshing(false);
     }
@@ -256,7 +256,6 @@ export default function PosCheckoutPage() {
     search,
     t.catalogSynced,
     t.catalogSyncFail,
-    t.refreshCatalog,
     t.syncFail,
     warehouseId,
   ]);

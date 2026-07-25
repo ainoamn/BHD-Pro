@@ -26,6 +26,14 @@ type AlertItem = {
   type: "warning" | "error" | "info";
 };
 
+type AlertStats = {
+  overdueCount?: number;
+  pendingCollectionCount?: number;
+  lowStock?: number;
+  lowStockCount?: number;
+  vatPendingCount?: number;
+};
+
 export function NotificationsButton() {
   const t = useTranslations("notifications");
   const company = useAuthStore((s) => s.company);
@@ -45,7 +53,11 @@ export function NotificationsButton() {
         api.getDashboardStats().catch(() => null),
       ]);
 
-      const overdueSales = Number(salesStats?.data?.overdueCount ?? dash?.data?.overdueCount ?? 0);
+      const salesData = (salesStats?.data ?? {}) as AlertStats;
+      const purchaseData = (purchaseStats?.data ?? {}) as AlertStats;
+      const productData = (productStats?.data ?? {}) as AlertStats;
+      const dashDataEarly = (dash?.data ?? {}) as AlertStats;
+      const overdueSales = Number(salesData.overdueCount ?? dashDataEarly.overdueCount ?? 0);
       if (overdueSales > 0) {
         items.push({
           id: "overdue-sales",
@@ -57,7 +69,7 @@ export function NotificationsButton() {
       }
 
       const pendingCollection = Number(
-        salesStats?.data?.pendingCollectionCount ?? dash?.data?.pendingCollectionCount ?? 0
+        salesData.pendingCollectionCount ?? dashDataEarly.pendingCollectionCount ?? 0
       );
       if (pendingCollection > 0) {
         items.push({
@@ -69,7 +81,7 @@ export function NotificationsButton() {
         });
       }
 
-      const overduePurchases = Number(purchaseStats?.data?.overdueCount ?? 0);
+      const overduePurchases = Number(purchaseData.overdueCount ?? 0);
       if (overduePurchases > 0) {
         items.push({
           id: "overdue-purchases",
@@ -80,7 +92,7 @@ export function NotificationsButton() {
         });
       }
 
-      const lowStock = Number(productStats?.data?.lowStock ?? dash?.data?.lowStockCount ?? 0);
+      const lowStock = Number(productData.lowStock ?? dashDataEarly.lowStockCount ?? 0);
       if (lowStock > 0) {
         items.push({
           id: "low-stock",
@@ -91,7 +103,7 @@ export function NotificationsButton() {
         });
       }
 
-      const vatPending = Number(dash?.data?.vatPendingCount ?? 0);
+      const vatPending = Number(dashDataEarly.vatPendingCount ?? 0);
       if (vatPending > 0) {
         items.push({
           id: "vat-pending",
