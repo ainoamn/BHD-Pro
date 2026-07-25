@@ -46,6 +46,7 @@ type FloorZone = {
   id: string;
   name: string;
   nameEn: string | null;
+  sectionServer?: { id: string; name: string; assignmentId: string } | null;
   tables: FloorTable[];
 };
 
@@ -99,6 +100,10 @@ export default function RestoFloorPage() {
   const [stationId, setStationId] = useState("");
   const [itemNote, setItemNote] = useState("");
   const [tipAmount, setTipAmount] = useState("");
+  const [tipAssigneeId, setTipAssigneeId] = useState("");
+  const [staff, setStaff] = useState<
+    Array<{ id: string; name: string; email: string; role: string }>
+  >([]);
   const [serviceChargePct, setServiceChargePct] = useState("10");
   const [cashPart, setCashPart] = useState("");
   const [voidReason, setVoidReason] = useState("");
@@ -137,7 +142,19 @@ export default function RestoFloorPage() {
 
   useEffect(() => {
     void loadFloor();
+    void api
+      .getRestoStaff()
+      .then((res) => setStaff(res.data.staff || []))
+      .catch(() => undefined);
   }, [loadFloor]);
+
+  useEffect(() => {
+    if (!order) {
+      setTipAssigneeId("");
+      return;
+    }
+    setTipAssigneeId(order.tipAssigneeId || order.openedById || "");
+  }, [order?.id, order?.tipAssigneeId, order?.openedById]);
 
   useEffect(() => {
     void (async () => {
@@ -212,7 +229,22 @@ export default function RestoFloorPage() {
           tableId: table.id,
           guests,
         });
-        setOrder(res.data);
+        const zone = zones.find((z) =>
+          z.tables.some((tb) => tb.id === table.id),
+        );
+        const sectionId = zone?.sectionServer?.id;
+        if (sectionId && !res.data.tipAssigneeId) {
+          try {
+            const patched = await api.updateRestoOrder(res.data.id, {
+              tipAssigneeId: sectionId,
+            });
+            setOrder(patched.data);
+          } catch {
+            setOrder(res.data);
+          }
+        } else {
+          setOrder(res.data);
+        }
         await loadFloor();
       }
     } catch {
@@ -473,6 +505,7 @@ export default function RestoFloorPage() {
     if (!order) return;
     setBusy(true);
     try {
+      const tipTo = tipAssigneeId || undefined;
       if (method === "soft") {
         await api.closeRestoOrder(order.id, { soft: true });
       } else if (method === "SPLIT") {
@@ -493,17 +526,20 @@ export default function RestoFloorPage() {
             { method: "CREDIT_CARD", amount: card },
           ],
           tipAmount: tip || undefined,
+          tipAssigneeId: tipTo,
           serviceChargePct: pct || undefined,
         });
       } else {
         await api.closeRestoOrder(order.id, {
           paymentMethod: method,
           tipAmount: Number(tipAmount) || undefined,
+          tipAssigneeId: tipTo,
           serviceChargePct: Number(serviceChargePct) || undefined,
         });
       }
       setOrder(null);
       setTipAmount("");
+      setTipAssigneeId("");
       setCashPart("");
       await loadFloor();
     } catch {
@@ -520,6 +556,7 @@ export default function RestoFloorPage() {
     try {
       const res = await api.createRestoPayLink(order.id, {
         tipAmount: Number(tipAmount) || undefined,
+        tipAssigneeId: tipAssigneeId || undefined,
         serviceChargePct: Number(serviceChargePct) || undefined,
       });
       if (res.data.alreadyPaid) {
@@ -661,9 +698,19 @@ export default function RestoFloorPage() {
                 locale === "en" && zone.nameEn ? zone.nameEn : zone.name;
               return (
                 <section key={zone.id} className="space-y-3">
-                  <h2 className="text-sm font-bold text-stone-300 tracking-wide">
-                    {zoneLabel}
-                  </h2>
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <h2 className="text-sm font-bold text-stone-300 tracking-wide">
+                      {zoneLabel}
+                    </h2>
+                    {zone.sectionServer ? (
+                      <p className="text-[11px] text-amber-200/90">
+                        {t.sectionServer}:{" "}
+                        <span className="font-semibold">
+                          {zone.sectionServer.name}
+                        </span>
+                      </p>
+                    ) : null}
+                  </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                     {zone.tables.map((table) => {
                       const occupied = !!table.openOrder;
@@ -1054,6 +1101,28 @@ export default function RestoFloorPage() {
                     />
                   </label>
                 </div>
+                {staff.length > 0 ? (
+                  <label className="block space-y-1">
+                    <span className="text-[11px] text-stone-500">
+                      {t.tipAssignee}
+                    </span>
+                    <select
+                      value={tipAssigneeId}
+                      onChange={(e) => setTipAssigneeId(e.target.value)}
+                      className="w-full h-9 rounded-lg bg-black/30 border border-white/10 px-2 text-xs"
+                    >
+                      <option value="">{t.sectionUnassigned}</option>
+                      {staff.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="text-[10px] text-stone-500">
+                      {t.tipAssigneeHint}
+                    </span>
+                  </label>
+                ) : null}
                 <label className="block space-y-1">
                   <span className="text-[11px] text-stone-500">
                     {t.paySplit} — {t.cashPart}

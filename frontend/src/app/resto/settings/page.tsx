@@ -18,6 +18,16 @@ type Station = {
   isActive: boolean;
 };
 
+type SectionRow = {
+  zoneId: string;
+  zoneName: string;
+  zoneNameEn: string | null;
+  userId: string | null;
+  user: { id: string; name: string; email: string; role: string } | null;
+};
+
+type StaffRow = { id: string; name: string; email: string; role: string };
+
 export default function RestoSettingsPage() {
   const locale = useLocaleStore((s) => s.locale);
   const t = restoCopy[locale === "en" ? "en" : "ar"];
@@ -26,12 +36,17 @@ export default function RestoSettingsPage() {
     user?.role === "ADMIN" ||
     user?.role === "MANAGER" ||
     user?.role === "RESTO_MANAGER";
+  const canAssign = canManage || user?.role === "WAITER";
   const [stations, setStations] = useState<Station[]>([]);
   const [name, setName] = useState("");
   const [nameEn, setNameEn] = useState("");
   const [busy, setBusy] = useState(false);
   const [demoBusy, setDemoBusy] = useState(false);
   const [qrBusy, setQrBusy] = useState(false);
+  const [sectionBusy, setSectionBusy] = useState(false);
+  const [sections, setSections] = useState<SectionRow[]>([]);
+  const [staff, setStaff] = useState<StaffRow[]>([]);
+  const [pickByZone, setPickByZone] = useState<Record<string, string>>({});
   const [qrTables, setQrTables] = useState<
     Array<{
       id: string;
@@ -52,8 +67,27 @@ export default function RestoSettingsPage() {
     }
   };
 
+  const loadSections = async () => {
+    try {
+      const [sec, st] = await Promise.all([
+        api.getRestoSectionAssignments(),
+        api.getRestoStaff(),
+      ]);
+      setSections(sec.data.assignments || []);
+      setStaff(st.data.staff || []);
+      const picks: Record<string, string> = {};
+      for (const a of sec.data.assignments || []) {
+        picks[a.zoneId] = a.userId || "";
+      }
+      setPickByZone(picks);
+    } catch {
+      /* ignore */
+    }
+  };
+
   useEffect(() => {
     void loadStations();
+    void loadSections();
   }, []);
 
   const runDemoSeed = async () => {
@@ -78,6 +112,35 @@ export default function RestoSettingsPage() {
       toast.error(t.actionFail);
     } finally {
       setDemoBusy(false);
+    }
+  };
+
+  const assignZone = async (zoneId: string) => {
+    const userId = pickByZone[zoneId];
+    if (!userId) return;
+    setSectionBusy(true);
+    try {
+      const res = await api.assignRestoSection({ zoneId, userId });
+      setSections(res.data.assignments || []);
+      toast.success(t.sectionAssign);
+    } catch {
+      toast.error(t.actionFail);
+    } finally {
+      setSectionBusy(false);
+    }
+  };
+
+  const releaseZone = async (zoneId: string) => {
+    setSectionBusy(true);
+    try {
+      const res = await api.releaseRestoSection(zoneId);
+      setSections(res.data.assignments || []);
+      setPickByZone((prev) => ({ ...prev, [zoneId]: "" }));
+      toast.success(t.sectionRelease);
+    } catch {
+      toast.error(t.actionFail);
+    } finally {
+      setSectionBusy(false);
     }
   };
 
@@ -110,6 +173,74 @@ export default function RestoSettingsPage() {
       </div>
       <HisabyAppsLinkHub tone="resto" />
       <RestoLinkSettings variant="resto" />
+
+      {canAssign && sections.length > 0 ? (
+        <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/5 p-4 space-y-3">
+          <div>
+            <h2 className="font-bold">{t.sectionStaff}</h2>
+            <p className="text-xs text-stone-400 mt-1">{t.sectionStaffSub}</p>
+          </div>
+          <ul className="space-y-2">
+            {sections.map((row) => {
+              const zoneLabel =
+                locale === "en" && row.zoneNameEn
+                  ? row.zoneNameEn
+                  : row.zoneName;
+              return (
+                <li
+                  key={row.zoneId}
+                  className="rounded-xl border border-white/10 bg-black/20 p-3 space-y-2"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-semibold text-sm">{zoneLabel}</p>
+                    <p className="text-[11px] text-stone-400">
+                      {row.user?.name || t.sectionUnassigned}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <select
+                      value={pickByZone[row.zoneId] || ""}
+                      disabled={sectionBusy}
+                      onChange={(e) =>
+                        setPickByZone((prev) => ({
+                          ...prev,
+                          [row.zoneId]: e.target.value,
+                        }))
+                      }
+                      className="flex-1 min-w-[140px] h-9 rounded-lg bg-black/30 border border-white/10 px-2 text-xs"
+                    >
+                      <option value="">{t.sectionUnassigned}</option>
+                      {staff.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      disabled={sectionBusy || !pickByZone[row.zoneId]}
+                      onClick={() => void assignZone(row.zoneId)}
+                      className="h-9 px-3 rounded-lg bg-emerald-500/90 text-[#0b1220] text-xs font-bold disabled:opacity-40"
+                    >
+                      {t.sectionAssign}
+                    </button>
+                    {row.userId ? (
+                      <button
+                        type="button"
+                        disabled={sectionBusy}
+                        onClick={() => void releaseZone(row.zoneId)}
+                        className="h-9 px-3 rounded-lg border border-white/15 text-xs font-semibold disabled:opacity-40"
+                      >
+                        {t.sectionRelease}
+                      </button>
+                    ) : null}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : null}
 
       {canManage ? (
         <div className="rounded-2xl border border-violet-500/25 bg-violet-500/5 p-4 space-y-3">

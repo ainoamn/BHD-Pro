@@ -2151,6 +2151,94 @@ class ApiClient {
     });
   }
 
+  getRestoFlashReport() {
+    return this.get<
+      Awaited<ReturnType<ApiClient['getRestoReportsSummary']>>['data'] & {
+        flash: boolean;
+        printedAt: string;
+        sectionAssignments: Array<{
+          zoneId: string;
+          zoneName: string;
+          zoneNameEn: string | null;
+          userId: string | null;
+          user: { id: string; name: string; email: string; role: string } | null;
+          startsAt: string | null;
+        }>;
+      }
+    >('/resto/reports/flash');
+  }
+
+  getRestoStaff() {
+    return this.get<{
+      staff: Array<{
+        id: string;
+        name: string;
+        email: string;
+        role: string;
+      }>;
+    }>('/resto/staff');
+  }
+
+  getRestoSectionAssignments() {
+    return this.get<{
+      zones: Array<{ id: string; name: string; nameEn: string | null }>;
+      assignments: Array<{
+        zoneId: string;
+        zoneName: string;
+        zoneNameEn: string | null;
+        assignmentId: string | null;
+        userId: string | null;
+        user: {
+          id: string;
+          name: string;
+          email: string;
+          role: string;
+        } | null;
+        startsAt: string | null;
+      }>;
+    }>('/resto/sections/assignments');
+  }
+
+  assignRestoSection(data: { zoneId: string; userId: string }) {
+    return this.put<{
+      zones: Array<{ id: string; name: string; nameEn: string | null }>;
+      assignments: Array<{
+        zoneId: string;
+        zoneName: string;
+        zoneNameEn: string | null;
+        assignmentId: string | null;
+        userId: string | null;
+        user: {
+          id: string;
+          name: string;
+          email: string;
+          role: string;
+        } | null;
+        startsAt: string | null;
+      }>;
+    }>('/resto/sections/assignments', data);
+  }
+
+  releaseRestoSection(zoneId: string) {
+    return this.delete<{
+      zones: Array<{ id: string; name: string; nameEn: string | null }>;
+      assignments: Array<{
+        zoneId: string;
+        zoneName: string;
+        zoneNameEn: string | null;
+        assignmentId: string | null;
+        userId: string | null;
+        user: {
+          id: string;
+          name: string;
+          email: string;
+          role: string;
+        } | null;
+        startsAt: string | null;
+      }>;
+    }>(`/resto/sections/assignments/${zoneId}`);
+  }
+
   lookupPosProduct(code: string, warehouseId?: string) {
     return this.get(`/pos/products/lookup`, {
       params: { code, ...(warehouseId ? { warehouseId } : {}) },
