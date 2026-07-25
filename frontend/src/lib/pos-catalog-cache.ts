@@ -134,17 +134,25 @@ export function filterCachedCatalog(
 export async function lookupCachedProduct(
   code: string,
   warehouseId?: string,
-): Promise<CachedPosProduct | null> {
+): Promise<(CachedPosProduct & { scanQty?: number }) | null> {
   const products = await loadCatalogCache(warehouseId);
   const c = code.trim().toLowerCase();
   if (!c) return null;
-  return (
+  const exact =
     products.find(
       (p) =>
         String(p.barcode || "").toLowerCase() === c ||
         String(p.sku || "").toLowerCase() === c,
-    ) || null
-  );
+    ) || null;
+  if (exact) return exact;
+
+  const { parseVariableMeasureBarcode, pluWeightQty, productMatchesPluArticle } =
+    await import("@/lib/pos-plu");
+  const plu = parseVariableMeasureBarcode(code);
+  if (!plu) return null;
+  const hit = products.find((p) => productMatchesPluArticle(p, plu.articleCode));
+  if (!hit) return null;
+  return { ...hit, scanQty: pluWeightQty(plu.valueInt) };
 }
 
 /** Optimistic local stock decrement after an offline sale. */

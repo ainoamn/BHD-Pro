@@ -35,6 +35,11 @@ import { GlPostingService } from '../journal/gl-posting.service';
 import { CustomerNotifyService } from '../notifications/customer-notify.service';
 import { PosIncentivesService } from './pos-incentives.service';
 import { productWhereForWarehouse } from '../common/warehouse-product-scope';
+import {
+  parseVariableMeasureBarcode,
+  pluWeightQty,
+  productMatchesPluArticle,
+} from '../common/pos-plu';
 
 const WALK_IN_NAME = 'POS Walk-in / نقدي';
 
@@ -270,7 +275,9 @@ export class PosService {
     if (!q) throw new BadRequestException('Scan code is required');
 
     const scopeWh = await this.resolvePosWarehouseId(companyId, warehouseId);
-    const product = await this.prisma.product.findFirst({
+    const plu = parseVariableMeasureBarcode(q);
+
+    let product = await this.prisma.product.findFirst({
       where: scopeWh
         ? {
             AND: [
@@ -293,8 +300,35 @@ export class PosService {
           },
       include: { warehouse: { select: { id: true, code: true, name: true } } },
     });
+
+    // Variable-measure EAN-13 (prefix 2): match article code → qty from embedded weight
+    if (!product && plu) {
+      const candidates = await this.prisma.product.findMany({
+        where: scopeWh
+          ? productWhereForWarehouse(companyId, scopeWh)
+          : { companyId, isActive: true },
+        take: 5000,
+        include: { warehouse: { select: { id: true, code: true, name: true } } },
+      });
+      product =
+        candidates.find((p) => productMatchesPluArticle(p, plu.articleCode)) ||
+        null;
+    }
+
     if (!product) throw new NotFoundException('Product not found for this barcode/SKU');
     const [mapped] = await this.applyWarehouseQuantity([product], scopeWh || undefined);
+
+    if (plu && productMatchesPluArticle(product, plu.articleCode)) {
+      const qty = pluWeightQty(plu.valueInt);
+      return {
+        ...mapped,
+        scanQty: qty,
+        scanMode: 'weight' as const,
+        pluArticle: plu.articleCode,
+        pluRaw: q,
+      };
+    }
+
     return mapped;
   }
 

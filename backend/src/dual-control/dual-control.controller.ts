@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -54,6 +54,21 @@ export class DualControlController {
   @ApiOperation({ summary: 'List pending approval requests (ADMIN/MANAGER)' })
   listPending(@CurrentUser() user: TokenPayload) {
     return this.dualControl.listPending(user.companyId);
+  }
+
+  @Get('requests/history')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @ApiOperation({ summary: 'Recent decided approval requests (audit)' })
+  listHistory(
+    @CurrentUser() user: TokenPayload,
+    @Query('limit') limit?: string,
+  ) {
+    const n = limit ? Number(limit) : 40;
+    return this.dualControl.listHistory(
+      user.companyId,
+      Number.isFinite(n) ? n : 40,
+    );
   }
 
   @Get('requests/:id')

@@ -127,6 +127,7 @@ export default function PosCheckoutPage() {
   const user = useAuthStore((s) => s.user);
   const t = posCopy[locale === "en" ? "en" : "ar"];
   const scanRef = useRef<HTMLInputElement>(null);
+  const receiptLookupRef = useRef<HTMLInputElement>(null);
   const [scan, setScan] = useState("");
   const [search, setSearch] = useState("");
   const [catalog, setCatalog] = useState<PosProduct[]>([]);
@@ -138,6 +139,11 @@ export default function PosCheckoutPage() {
   const [warehouseId, setWarehouseId] = useState("");
   const [recentSales, setRecentSales] = useState<RecentCashSale[]>([]);
   const [parkedCarts, setParkedCarts] = useState<ParkedCart[]>([]);
+  const [parkEdit, setParkEdit] = useState<{
+    id: string;
+    name: string;
+    notes: string;
+  } | null>(null);
   const [customers, setCustomers] = useState<Contact[]>([]);
   const [contactId, setContactId] = useState("");
   const [customerRecentPurchases, setCustomerRecentPurchases] = useState<RecentCashSale[]>([]);
@@ -622,8 +628,12 @@ export default function PosCheckoutPage() {
       return;
     }
     try {
+      const cust = customers.find((c) => c.id === contactId);
+      const autoName = cust?.name
+        ? cust.name
+        : `${t.parkName} ${parkedCarts.length + 1}`;
       await api.createPosDraft({
-        name: `${t.parkName} ${parkedCarts.length + 1}`,
+        name: autoName,
         notes: cartNotes.trim() || undefined,
         warehouseId: warehouseId || undefined,
         contactId: contactId || undefined,
@@ -705,36 +715,53 @@ export default function PosCheckoutPage() {
   };
 
   const renameParked = async (parked: ParkedCart) => {
-    const next = window.prompt(t.renameParkedPrompt, parked.name);
-    if (next == null) return;
-    const name = next.trim();
-    if (!name || name === parked.name) return;
+    setParkEdit({
+      id: parked.id,
+      name: parked.name,
+      notes: parked.notes || "",
+    });
+  };
+
+  const editParkedNotes = async (parked: ParkedCart) => {
+    setParkEdit({
+      id: parked.id,
+      name: parked.name,
+      notes: parked.notes || "",
+    });
+  };
+
+  const saveParkEdit = async () => {
+    if (!parkEdit) return;
     try {
-      await api.updatePosDraft(parked.id, { name });
-      await loadParkedCarts();
+      await api.updatePosDraft(parkEdit.id, {
+        name: parkEdit.name.trim() || t.parkName,
+        notes: parkEdit.notes.trim(),
+      });
+      setParkEdit(null);
       toast.success(t.renameParkedOk);
+      await loadParkedCarts();
     } catch {
       toast.error(t.parkFail);
     }
   };
 
-  const editParkedNotes = async (parked: ParkedCart) => {
-    const next = window.prompt(t.parkNotes, parked.notes || "");
-    if (next == null) return;
-    try {
-      await api.updatePosDraft(parked.id, { notes: next.trim() });
-      await loadParkedCarts();
-      toast.success(t.renameParkedOk);
-    } catch {
-      toast.error(t.parkFail);
-    }
+  const parkAgeLabel = (createdAt: string) => {
+    const m = Math.max(
+      0,
+      Math.floor((Date.now() - new Date(createdAt).getTime()) / 60000),
+    );
+    if (m < 1) return `<1${locale === "en" ? "m" : "د"}`;
+    if (m < 60) return `${m}${locale === "en" ? "m" : "د"}`;
+    return `${Math.floor(m / 60)}${locale === "en" ? "h" : "س"}`;
   };
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement | null)?.tagName;
       const typing =
-        tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" ||
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        tag === "SELECT" ||
         (e.target as HTMLElement | null)?.isContentEditable;
 
       if (e.key === "?" && !typing && !e.ctrlKey && !e.metaKey && !e.altKey) {
@@ -743,9 +770,43 @@ export default function PosCheckoutPage() {
         return;
       }
 
+      if (e.key === "F2") {
+        e.preventDefault();
+        focusScan();
+        return;
+      }
+      if (e.key === "F4") {
+        e.preventDefault();
+        document.querySelector<HTMLButtonElement>("[data-pos-park]")?.click();
+        return;
+      }
+      if (e.key === "F8") {
+        e.preventDefault();
+        window.requestAnimationFrame(() => receiptLookupRef.current?.focus());
+        return;
+      }
+      if (e.key === "F9") {
+        e.preventDefault();
+        document
+          .querySelector<HTMLButtonElement>('[data-pos-pay="CASH"]')
+          ?.click();
+        return;
+      }
+      if (e.key === "F10") {
+        e.preventDefault();
+        document
+          .querySelector<HTMLButtonElement>('[data-pos-pay="CREDIT_CARD"]')
+          ?.click();
+        return;
+      }
+
       if (e.key !== "Escape") return;
       if (shortcutsOpen) {
         setShortcutsOpen(false);
+        return;
+      }
+      if (parkEdit) {
+        setParkEdit(null);
         return;
       }
       if (tag === "SELECT" || tag === "TEXTAREA") return;
@@ -761,7 +822,7 @@ export default function PosCheckoutPage() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [cart.length, t.clearConfirm, focusScan, shortcutsOpen]);
+  }, [cart.length, t.clearConfirm, focusScan, shortcutsOpen, parkEdit]);
 
   const onWarehouseChange = (id: string) => {
     setWarehouseId(id);
@@ -825,7 +886,13 @@ export default function PosCheckoutPage() {
     if (!trimmed) return;
     try {
       const res = await api.lookupPosProduct(trimmed, warehouseId || undefined);
-      addProduct(res.data as PosProduct, 1);
+      const data = res.data as PosProduct & { scanQty?: number };
+      const qty =
+        typeof data.scanQty === "number" && data.scanQty > 0
+          ? data.scanQty
+          : 1;
+      addProduct(data, qty);
+      if (qty !== 1) toast.success(`${t.pluWeightAdded}: ${qty}`);
       playPosScanBeep();
       setScan("");
       setCameraOpen(false);
@@ -833,9 +900,17 @@ export default function PosCheckoutPage() {
     } catch {
       try {
         const { lookupCachedProduct } = await import("@/lib/pos-catalog-cache");
-        const cached = await lookupCachedProduct(trimmed, warehouseId || undefined);
+        const cached = await lookupCachedProduct(
+          trimmed,
+          warehouseId || undefined,
+        );
         if (cached) {
-          addProduct(cached as PosProduct, 1);
+          const qty =
+            typeof cached.scanQty === "number" && cached.scanQty > 0
+              ? cached.scanQty
+              : 1;
+          addProduct(cached as PosProduct, qty);
+          if (qty !== 1) toast.success(`${t.pluWeightAdded}: ${qty}`);
           playPosScanBeep();
           setScan("");
           setCameraOpen(false);
@@ -1911,6 +1986,7 @@ export default function PosCheckoutPage() {
             className="flex gap-2"
           >
             <input
+              ref={receiptLookupRef}
               value={receiptLookup}
               onChange={(e) => setReceiptLookup(e.target.value)}
               placeholder={t.findReceipt}
@@ -2083,6 +2159,7 @@ export default function PosCheckoutPage() {
           <div className="flex items-center gap-2">
             <button
               type="button"
+              data-pos-park
               onClick={parkCart}
               className="text-xs text-slate-500 hover:text-amber-300"
             >
@@ -2105,15 +2182,23 @@ export default function PosCheckoutPage() {
               {t.parkedCarts}
             </p>
             <div className="space-y-1 max-h-28 overflow-y-auto">
-              {parkedCarts.map((p) => (
+              {parkedCarts.map((p) => {
+                const ageMin = Math.floor(
+                  (Date.now() - new Date(p.createdAt).getTime()) / 60000,
+                );
+                const stale = ageMin >= 60;
+                return (
                 <div
                   key={p.id}
-                  className="flex items-center gap-1.5 rounded-lg bg-black/20 px-2 py-1.5"
+                  className={`flex items-center gap-1.5 rounded-lg px-2 py-1.5 ${
+                    stale ? "bg-amber-500/10 border border-amber-500/20" : "bg-black/20"
+                  }`}
                 >
                   <div className="min-w-0 flex-1">
                     <p className="text-[11px] text-white truncate">{p.name}</p>
                     <p className="text-[10px] text-slate-500">
-                      {p.lines.length} · {new Date(p.createdAt).toLocaleTimeString()}
+                      {p.lines.length} · {t.parkAge} {parkAgeLabel(p.createdAt)}
+                      {stale ? ` · ${t.parkStale}` : ""}
                     </p>
                     {p.notes ? (
                       <p className="text-[10px] text-amber-200/80 truncate">{p.notes}</p>
@@ -2150,7 +2235,8 @@ export default function PosCheckoutPage() {
                     {t.deleteParked}
                   </button>
                 </div>
-              ))}
+              );
+              })}
             </div>
           </div>
         ) : null}
@@ -2398,6 +2484,7 @@ export default function PosCheckoutPage() {
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             <button
               type="button"
+              data-pos-pay="CASH"
               disabled={!cart.length || paying}
               onClick={() => checkout("CASH")}
               className="min-h-12 h-12 rounded-xl bg-emerald-500 text-white font-bold disabled:opacity-40 hover:bg-emerald-400 inline-flex items-center justify-center gap-2 text-sm"
@@ -2407,6 +2494,7 @@ export default function PosCheckoutPage() {
             </button>
             <button
               type="button"
+              data-pos-pay="CREDIT_CARD"
               disabled={!cart.length || paying}
               onClick={() => checkout("CREDIT_CARD")}
               className="min-h-12 h-12 rounded-xl bg-sky-500 text-white font-bold disabled:opacity-40 hover:bg-sky-400 text-sm"
@@ -3036,8 +3124,60 @@ export default function PosCheckoutPage() {
             <ul className="space-y-2 text-sm text-slate-300">
               <li>{t.shortcutEsc}</li>
               <li>{t.shortcutScan}</li>
+              <li>{t.shortcutF2}</li>
+              <li>{t.shortcutF4}</li>
+              <li>{t.shortcutF8}</li>
+              <li>{t.shortcutF9}</li>
+              <li>{t.shortcutF10}</li>
               <li>{t.shortcutHelp}</li>
             </ul>
+          </div>
+        </div>
+      ) : null}
+
+      {parkEdit ? (
+        <div
+          className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-black/60 p-3"
+          onClick={() => setParkEdit(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#121a2b] p-4 space-y-3 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="font-bold text-white">{t.parkEditTitle}</p>
+            <input
+              value={parkEdit.name}
+              onChange={(e) =>
+                setParkEdit((p) => (p ? { ...p, name: e.target.value } : p))
+              }
+              className="w-full h-10 rounded-xl bg-black/30 border border-white/10 px-3 text-sm text-white"
+              placeholder={t.renameParkedPrompt}
+            />
+            <textarea
+              value={parkEdit.notes}
+              onChange={(e) =>
+                setParkEdit((p) => (p ? { ...p, notes: e.target.value } : p))
+              }
+              rows={3}
+              className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-sm text-white"
+              placeholder={t.parkNotesPlaceholder}
+            />
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => void saveParkEdit()}
+                className="flex-1 h-10 rounded-xl bg-sky-500 font-bold text-white text-sm"
+              >
+                {t.parkSaveEdit}
+              </button>
+              <button
+                type="button"
+                onClick={() => setParkEdit(null)}
+                className="h-10 px-4 rounded-xl border border-white/15 text-sm text-slate-300"
+              >
+                ✕
+              </button>
+            </div>
           </div>
         </div>
       ) : null}

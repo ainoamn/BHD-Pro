@@ -301,6 +301,32 @@ export class DualControlService {
     return rows.map((r) => this.serializeApproval(r));
   }
 
+  /** Recent decided/consumed/expired approvals for manager audit on POS */
+  async listHistory(companyId: string, limit = 40) {
+    await this.expireStale(companyId);
+    const take = Math.min(Math.max(limit || 40, 1), 100);
+    const rows = await this.prisma.approvalRequest.findMany({
+      where: {
+        companyId,
+        status: {
+          in: [
+            APPROVAL_STATUSES.APPROVED,
+            APPROVAL_STATUSES.REJECTED,
+            APPROVAL_STATUSES.CONSUMED,
+            APPROVAL_STATUSES.EXPIRED,
+          ],
+        },
+      },
+      orderBy: { updatedAt: 'desc' },
+      take,
+      include: {
+        requestedBy: { select: { id: true, name: true, email: true } },
+        decidedBy: { select: { id: true, name: true, email: true } },
+      },
+    });
+    return rows.map((r) => this.serializeApproval(r));
+  }
+
   async getApprovalRequest(
     companyId: string,
     id: string,

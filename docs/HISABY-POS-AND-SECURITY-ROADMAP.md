@@ -100,6 +100,14 @@ Public flags: `asyncApprovals: true`, `nfcBadgesConfigured`, `shiftVarianceLimit
 - [x] Full AR GL posting for store-credit (`PaymentMethod.STORE_CREDIT` → liability **2130** ائتمان عملاء; wallet `Contact.currentBalance` kept as operational balance)
 
 ### Done (Wave 6)
+
+### Done (Wave 7 — Floor speed & trust)
+- Keyboard F-keys (scan / park / receipt / cash / card)
+- Parked cart inline edit + age/stale + customer auto-name
+- Approvals history tab (`/dual-control/requests/history`)
+- Variable-measure EAN-13 weight PLU (prefix `2`)
+- Doc: [`UPGRADE-POS-WAVE7-2026-07.md`](./UPGRADE-POS-WAVE7-2026-07.md)
+
 - [x] Full catalog sync API `GET /pos/catalog/sync` + offline IDB per warehouse
 - [x] Broader refunds + store-credit MVP (hardened debit / void restore / UI)
 - [x] Cash change due + receipt number lookup for refunds
