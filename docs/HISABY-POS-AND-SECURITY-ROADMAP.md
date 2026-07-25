@@ -118,5 +118,4 @@ Public flags: `asyncApprovals: true`, `nfcBadgesConfigured`, `shiftVarianceLimit
 19. Deploy migration `20260725200000_pos_cash_movements` for drawer paid-in/out audit; cash movements appear on current shift, X/Z print, and expected cash.
 20. Customer recent sales: `GET /pos/customers/:id/recent-sales` (last 5) under POS customer select; tap to reprint.
 21. Share X/Z: WhatsApp / email buttons on `/pos/shifts` using plain-text report summary (same pattern as receipt share).
-19. Alert → invoice deep-link (`/accounting?open=`), dashboard/notifications open-alert count, journal attachments.
-20. POS cash drawer paid-in / paid-out (`pos_cash_movements`) — adjusts expected cash on X/Z reports.
+22. Alert → invoice deep-link (`/accounting?open=`), dashboard/notifications open-alert count, journal attachments.
