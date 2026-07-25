@@ -10,6 +10,7 @@ import { NfcBadgeReader } from "@/components/security/nfc-badge-reader";
 export type DualControlAction =
   | "POS_VOID"
   | "POS_PRICE_OVERRIDE"
+  | "POS_LINE_DISCOUNT"
   | "POS_REFUND"
   | "STOCK_ADJUST"
   | "STOCK_TRANSFER"

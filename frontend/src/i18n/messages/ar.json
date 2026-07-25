@@ -58,6 +58,7 @@
     "action": {
       "POS_VOID": "إلغاء بيع الكاشير",
       "POS_PRICE_OVERRIDE": "تجاوز سعر الكاشير",
+      "POS_LINE_DISCOUNT": "خصم سطر يتجاوز الحد",
       "POS_REFUND": "استرداد جزئي للكاشير",
       "STOCK_ADJUST": "تعديل المخزون",
       "STOCK_TRANSFER": "تحويل المخزون",
@@ -100,6 +101,10 @@
     "voidAlertEnabledHint": "المديرون يسمعون/يرون تنبيهاً عند تجاوز إلغاءات اليوم للحد (مرة يومياً)",
     "voidAlertThreshold": "حد تنبيه الإلغاءات",
     "voidAlertThresholdHint": "تنبيه عندما يتجاوز عدد الإلغاءات هذا الحد (افتراضي 3) أو نسبة الإلغاء > 10%",
+    "maxLineDiscountAmount": "أقصى خصم سطر (مبلغ)",
+    "maxLineDiscountAmountHint": "الخصم فوق هذا المبلغ يتطلب موافقة مزدوجة (افتراضي 5)",
+    "maxLineDiscountPercent": "أقصى خصم سطر (%)",
+    "maxLineDiscountPercentHint": "الخصم فوق هذه النسبة من إجمالي السطر يتطلب موافقة مزدوجة (افتراضي 20)",
     "zReportNotifyEmails": "إيميلات تقرير Z",
     "zReportNotifyEmailsHint": "المديرون الذين يستلمون تقرير Z تلقائياً بعد الإغلاق",
     "zReportNotifyEmailsPlaceholder": "owner@example.com, manager@example.com",

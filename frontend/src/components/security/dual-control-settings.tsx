@@ -26,10 +26,13 @@ type SecurityPublic = {
   autoEmailZReportOnClose?: boolean;
   voidAlertEnabled?: boolean;
   voidAlertThreshold?: number;
+  maxLineDiscountAmount?: number;
+  maxLineDiscountPercent?: number;
   zReportNotifyEmails?: string[];
   actions: {
     POS_VOID: boolean;
     POS_PRICE_OVERRIDE: boolean;
+    POS_LINE_DISCOUNT: boolean;
     POS_REFUND: boolean;
     STOCK_ADJUST: boolean;
     STOCK_TRANSFER: boolean;
@@ -47,6 +50,7 @@ type SecurityPublic = {
 const ACTION_KEYS = [
   "POS_VOID",
   "POS_PRICE_OVERRIDE",
+  "POS_LINE_DISCOUNT",
   "POS_REFUND",
   "STOCK_ADJUST",
   "STOCK_TRANSFER",
@@ -71,6 +75,7 @@ export function DualControlSettings() {
   const [actions, setActions] = useState<SecurityPublic["actions"]>({
     POS_VOID: true,
     POS_PRICE_OVERRIDE: true,
+    POS_LINE_DISCOUNT: true,
     POS_REFUND: true,
     STOCK_ADJUST: true,
     STOCK_TRANSFER: true,
@@ -95,6 +100,8 @@ export function DualControlSettings() {
   const [autoEmailZReportOnClose, setAutoEmailZReportOnClose] = useState(false);
   const [voidAlertEnabled, setVoidAlertEnabled] = useState(true);
   const [voidAlertThreshold, setVoidAlertThreshold] = useState("3");
+  const [maxLineDiscountAmount, setMaxLineDiscountAmount] = useState("5");
+  const [maxLineDiscountPercent, setMaxLineDiscountPercent] = useState("20");
   const [zReportEmails, setZReportEmails] = useState("");
 
   const { data, isLoading } = useQuery({
@@ -111,6 +118,7 @@ export function DualControlSettings() {
     const defaults: SecurityPublic["actions"] = {
       POS_VOID: true,
       POS_PRICE_OVERRIDE: true,
+      POS_LINE_DISCOUNT: true,
       POS_REFUND: true,
       STOCK_ADJUST: true,
       STOCK_TRANSFER: true,
@@ -133,6 +141,8 @@ export function DualControlSettings() {
     setAutoEmailZReportOnClose(data.autoEmailZReportOnClose === true);
     setVoidAlertEnabled(data.voidAlertEnabled !== false);
     setVoidAlertThreshold(String(data.voidAlertThreshold ?? 3));
+    setMaxLineDiscountAmount(String(data.maxLineDiscountAmount ?? 5));
+    setMaxLineDiscountPercent(String(data.maxLineDiscountPercent ?? 20));
     setZReportEmails((data.zReportNotifyEmails || []).join(", "));
   }, [data]);
 
@@ -162,6 +172,8 @@ export function DualControlSettings() {
     autoEmailZReportOnClose,
     voidAlertEnabled,
     voidAlertThreshold: Number(voidAlertThreshold) || 0,
+    maxLineDiscountAmount: Number(maxLineDiscountAmount) || 0,
+    maxLineDiscountPercent: Number(maxLineDiscountPercent) || 0,
   });
 
   if (isLoading) {
@@ -346,6 +358,35 @@ export function DualControlSettings() {
               className="h-10 w-32 px-3 rounded-lg bg-slate-900/60 border border-white/10 text-sm text-white disabled:opacity-50"
             />
             <p className="text-[11px] text-slate-500 mt-1">{t("voidAlertThresholdHint")}</p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm text-slate-300 mb-1">{t("maxLineDiscountAmount")}</label>
+              <input
+                type="number"
+                min={0}
+                step={0.001}
+                value={maxLineDiscountAmount}
+                disabled={!isAdmin || saveMutation.isPending}
+                onChange={(e) => setMaxLineDiscountAmount(e.target.value)}
+                className="h-10 w-full px-3 rounded-lg bg-slate-900/60 border border-white/10 text-sm text-white disabled:opacity-50"
+              />
+              <p className="text-[11px] text-slate-500 mt-1">{t("maxLineDiscountAmountHint")}</p>
+            </div>
+            <div>
+              <label className="block text-sm text-slate-300 mb-1">{t("maxLineDiscountPercent")}</label>
+              <input
+                type="number"
+                min={0}
+                step={1}
+                value={maxLineDiscountPercent}
+                disabled={!isAdmin || saveMutation.isPending}
+                onChange={(e) => setMaxLineDiscountPercent(e.target.value)}
+                className="h-10 w-full px-3 rounded-lg bg-slate-900/60 border border-white/10 text-sm text-white disabled:opacity-50"
+              />
+              <p className="text-[11px] text-slate-500 mt-1">{t("maxLineDiscountPercentHint")}</p>
+            </div>
           </div>
 
           <div className="space-y-2">

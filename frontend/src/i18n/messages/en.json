@@ -58,6 +58,7 @@
     "action": {
       "POS_VOID": "POS void sale",
       "POS_PRICE_OVERRIDE": "POS price override",
+      "POS_LINE_DISCOUNT": "POS line discount over limit",
       "POS_REFUND": "POS partial refund",
       "STOCK_ADJUST": "Stock adjustment",
       "STOCK_TRANSFER": "Stock transfer",
@@ -100,6 +101,10 @@
     "voidAlertEnabledHint": "Managers hear/see an alert when today's voids exceed the threshold (once per day)",
     "voidAlertThreshold": "Void alert threshold",
     "voidAlertThresholdHint": "Alert when void count is greater than this (default 3), or void rate > 10%",
+    "maxLineDiscountAmount": "Max line discount (amount)",
+    "maxLineDiscountAmountHint": "Discounts above this amount need dual-control (default 5)",
+    "maxLineDiscountPercent": "Max line discount (%)",
+    "maxLineDiscountPercentHint": "Discounts above this % of line gross need dual-control (default 20)",
     "zReportNotifyEmails": "Z-report notify emails",
     "zReportNotifyEmailsHint": "Managers who receive the Z-report automatically after close",
     "zReportNotifyEmailsPlaceholder": "owner@example.com, manager@example.com",
