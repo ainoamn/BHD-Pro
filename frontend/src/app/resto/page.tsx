@@ -95,6 +95,7 @@ export default function RestoFloorPage() {
   const [itemNote, setItemNote] = useState("");
   const [tipAmount, setTipAmount] = useState("");
   const [serviceChargePct, setServiceChargePct] = useState("10");
+  const [cashPart, setCashPart] = useState("");
   const [voidReason, setVoidReason] = useState("");
   const [modifiers, setModifiers] = useState<
     Array<{ id: string; name: string; nameEn: string | null; priceDelta: number }>
@@ -447,13 +448,33 @@ export default function RestoFloorPage() {
   };
 
   const closeOrder = async (
-    method: "CASH" | "CREDIT_CARD" | "soft" = "CASH",
+    method: "CASH" | "CREDIT_CARD" | "soft" | "SPLIT" = "CASH",
   ) => {
     if (!order) return;
     setBusy(true);
     try {
       if (method === "soft") {
         await api.closeRestoOrder(order.id, { soft: true });
+      } else if (method === "SPLIT") {
+        const tip = Number(tipAmount) || 0;
+        const pct = Number(serviceChargePct) || 0;
+        const due =
+          Number((order.subtotal + tip + (order.subtotal * pct) / 100).toFixed(3));
+        const cash = Number(cashPart) || 0;
+        if (cash <= 0 || cash >= due) {
+          setError(t.actionFail);
+          setBusy(false);
+          return;
+        }
+        const card = Number((due - cash).toFixed(3));
+        await api.closeRestoOrder(order.id, {
+          payments: [
+            { method: "CASH", amount: cash },
+            { method: "CREDIT_CARD", amount: card },
+          ],
+          tipAmount: tip || undefined,
+          serviceChargePct: pct || undefined,
+        });
       } else {
         await api.closeRestoOrder(order.id, {
           paymentMethod: method,
@@ -463,6 +484,7 @@ export default function RestoFloorPage() {
       }
       setOrder(null);
       setTipAmount("");
+      setCashPart("");
       await loadFloor();
     } catch {
       setError(t.actionFail);
@@ -979,6 +1001,19 @@ export default function RestoFloorPage() {
                     />
                   </label>
                 </div>
+                <label className="block space-y-1">
+                  <span className="text-[11px] text-stone-500">
+                    {t.paySplit} — {t.cashPart}
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.001"
+                    value={cashPart}
+                    onChange={(e) => setCashPart(e.target.value)}
+                    className="w-full h-9 rounded-lg bg-black/30 border border-white/10 px-2 text-sm tabular-nums"
+                  />
+                </label>
                 <input
                   value={voidReason}
                   onChange={(e) => setVoidReason(e.target.value)}
@@ -1045,6 +1080,21 @@ export default function RestoFloorPage() {
                       {t.payCard}
                     </button>
                   </div>
+                  <button
+                    type="button"
+                    disabled={
+                      busy ||
+                      (order?.itemCount ?? 0) === 0 ||
+                      !(Number(cashPart) > 0)
+                    }
+                    onClick={() => void closeOrder("SPLIT")}
+                    className="w-full rounded-xl border border-violet-400/35 bg-violet-500/10 px-3 py-2 text-xs font-bold text-violet-100 disabled:opacity-50"
+                  >
+                    {t.paySplit}
+                    {Number(cashPart) > 0 && order
+                      ? ` · ${t.cashPart} ${Number(cashPart).toFixed(3)} + ${t.cardPart}`
+                      : ""}
+                  </button>
                   <button
                     type="button"
                     disabled={busy}

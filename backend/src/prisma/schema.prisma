@@ -1962,6 +1962,11 @@ model RestoOrder {
   guestName   String?          @map("guest_name")
   guestPhone  String?          @map("guest_phone")
   deliveryAddress String?      @map("delivery_address")
+  /// QUEUED | KITCHEN | READY | OUT | DELIVERED — delivery channel ops
+  deliveryStatus String?       @map("delivery_status")
+  driverName  String?          @map("driver_name")
+  driverPhone String?          @map("driver_phone")
+  deliveredAt DateTime?        @map("delivered_at")
   openedById  String?          @map("opened_by_id")
   openedBy    User?            @relation("RestoOrderOpenedBy", fields: [openedById], references: [id], onDelete: SetNull)
   /// POS/Accounting invoice created on paid close (R4)

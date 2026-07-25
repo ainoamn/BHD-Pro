@@ -21,6 +21,10 @@ export type RestoOrderPayload = {
   guestName?: string | null;
   guestPhone?: string | null;
   deliveryAddress?: string | null;
+  deliveryStatus?: string | null;
+  driverName?: string | null;
+  driverPhone?: string | null;
+  deliveredAt?: string | null;
   invoiceId?: string | null;
   sentAt: string | null;
   closedAt: string | null;
@@ -1940,6 +1944,10 @@ class ApiClient {
     data?: {
       soft?: boolean;
       paymentMethod?: 'CASH' | 'CREDIT_CARD' | 'BANK_TRANSFER' | 'OTHER';
+      payments?: Array<{
+        method: 'CASH' | 'CREDIT_CARD' | 'BANK_TRANSFER' | 'OTHER';
+        amount: number;
+      }>;
       warehouseId?: string;
       contactId?: string;
       tipAmount?: number;
@@ -1951,6 +1959,17 @@ class ApiClient {
       `/resto/orders/${orderId}/close`,
       data || {},
     );
+  }
+
+  updateRestoDelivery(
+    orderId: string,
+    data: {
+      deliveryStatus: 'QUEUED' | 'KITCHEN' | 'READY' | 'OUT' | 'DELIVERED';
+      driverName?: string;
+      driverPhone?: string;
+    },
+  ) {
+    return this.patch<RestoOrderPayload>(`/resto/orders/${orderId}/delivery`, data);
   }
 
   cancelRestoOrder(orderId: string) {
@@ -2403,7 +2422,16 @@ class ApiClient {
       redeemEnabled?: boolean;
       redeemPointsPerUnit?: number;
       receiptFooter?: string;
+      favoriteProductIds?: string[];
     }>("/pos/incentives/config");
+  }
+
+  getPosFavorites() {
+    return this.get<{ productIds: string[] }>("/pos/favorites");
+  }
+
+  putPosFavorites(productIds: string[]) {
+    return this.put<{ productIds: string[] }>("/pos/favorites", { productIds });
   }
 
   updatePosIncentivesConfig(data: {

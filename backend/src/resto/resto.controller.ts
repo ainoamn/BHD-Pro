@@ -44,6 +44,7 @@ import {
   TransferRestoOrderDto,
   UpdateRestoOrderDto,
   UpdateRestoOrderItemDto,
+  UpdateRestoDeliveryDto,
   UpdateRestoWaitlistStatusDto,
   UpsertRestoRecipeDto,
   UpdateRestoReservationStatusDto,
@@ -361,6 +362,17 @@ export class RestoController {
     @Body() dto: CloseRestoOrderDto,
   ) {
     return this.resto.closeOrder(user.companyId, user, id, dto || {});
+  }
+
+  @Patch('orders/:id/delivery')
+  @Roles(...RESTO_STAFF)
+  @ApiOperation({ summary: 'Update delivery dispatch status / driver' })
+  updateDelivery(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+    @Body() dto: UpdateRestoDeliveryDto,
+  ) {
+    return this.resto.updateDeliveryStatus(user.companyId, id, dto);
   }
 
   @Post('orders/:id/cancel')

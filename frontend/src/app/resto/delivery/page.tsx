@@ -8,6 +8,8 @@ import api from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
 import { restoCopy } from "@/lib/resto-copy";
 
+type DeliveryStatus = "QUEUED" | "KITCHEN" | "READY" | "OUT" | "DELIVERED";
+
 type DeliveryOrder = {
   id: string;
   number: string;
@@ -17,11 +19,22 @@ type DeliveryOrder = {
   guestName?: string | null;
   guestPhone?: string | null;
   deliveryAddress?: string | null;
+  deliveryStatus?: string | null;
+  driverName?: string | null;
+  driverPhone?: string | null;
   createdAt: string;
   itemCount: number;
   total: number;
   items: Array<{ id: string; name: string; qty: number; status: string }>;
 };
+
+const FLOW: DeliveryStatus[] = [
+  "QUEUED",
+  "KITCHEN",
+  "READY",
+  "OUT",
+  "DELIVERED",
+];
 
 export default function RestoDeliveryPage() {
   const router = useRouter();
@@ -33,6 +46,9 @@ export default function RestoDeliveryPage() {
   const [guestName, setGuestName] = useState("");
   const [guestPhone, setGuestPhone] = useState("");
   const [address, setAddress] = useState("");
+  const [drivers, setDrivers] = useState<
+    Record<string, { name: string; phone: string }>
+  >({});
 
   const load = useCallback(async () => {
     try {
@@ -83,6 +99,68 @@ export default function RestoDeliveryPage() {
     return map[s] || s;
   };
 
+  const deliveryLabel = (s?: string | null) => {
+    const map: Record<string, string> = {
+      QUEUED: t.deliveryQueued,
+      KITCHEN: t.deliveryKitchen,
+      READY: t.deliveryReady,
+      OUT: t.deliveryOut,
+      DELIVERED: t.deliveryDelivered,
+    };
+    return (s && map[s]) || t.deliveryQueued;
+  };
+
+  const driverFor = (o: DeliveryOrder) =>
+    drivers[o.id] || {
+      name: o.driverName || "",
+      phone: o.driverPhone || "",
+    };
+
+  const setDriverField = (
+    id: string,
+    field: "name" | "phone",
+    value: string,
+    fallback: DeliveryOrder,
+  ) => {
+    const cur = drivers[id] || {
+      name: fallback.driverName || "",
+      phone: fallback.driverPhone || "",
+    };
+    setDrivers((prev) => ({
+      ...prev,
+      [id]: { ...cur, [field]: value },
+    }));
+  };
+
+  const advance = async (o: DeliveryOrder, next: DeliveryStatus) => {
+    setBusy(true);
+    try {
+      const d = driverFor(o);
+      await api.updateRestoDelivery(o.id, {
+        deliveryStatus: next,
+        ...(next === "OUT" || next === "DELIVERED"
+          ? {
+              driverName: d.name.trim() || undefined,
+              driverPhone: d.phone.trim() || undefined,
+            }
+          : {}),
+      });
+      await load();
+    } catch (err) {
+      const msg = (err as { response?: { data?: { message?: string } } })
+        ?.response?.data?.message;
+      toast.error(typeof msg === "string" ? msg : t.actionFail);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const nextStatus = (cur?: string | null): DeliveryStatus | null => {
+    const i = FLOW.indexOf((cur as DeliveryStatus) || "QUEUED");
+    if (i < 0 || i >= FLOW.length - 1) return null;
+    return FLOW[i + 1];
+  };
+
   return (
     <div className="p-4 sm:p-6 max-w-3xl mx-auto space-y-5">
       <div>
@@ -131,35 +209,85 @@ export default function RestoDeliveryPage() {
       ) : orders.length === 0 ? (
         <p className="text-center text-sm text-stone-400 py-16">{t.deliveryEmpty}</p>
       ) : (
-        <ul className="space-y-2">
-          {orders.map((o) => (
-            <li key={o.id}>
-              <button
-                type="button"
-                onClick={() => router.push(`/resto/orders/${o.id}`)}
-                className="w-full text-start rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 hover:border-amber-500/30 hover:bg-amber-500/5"
+        <ul className="space-y-3">
+          {orders.map((o) => {
+            const next = nextStatus(o.deliveryStatus);
+            const d = driverFor(o);
+            return (
+              <li
+                key={o.id}
+                className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 space-y-3"
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-bold">{o.number}</p>
-                    <p className="text-xs text-stone-500 mt-0.5">
-                      {o.guestName || "—"}
-                      {o.guestPhone ? ` · ${o.guestPhone}` : ""} ·{" "}
-                      {statusLabel(o.status)} · {o.itemCount}
-                    </p>
-                    {o.deliveryAddress ? (
-                      <p className="text-xs text-amber-200/80 mt-1">
-                        {o.deliveryAddress}
+                <button
+                  type="button"
+                  onClick={() => router.push(`/resto/orders/${o.id}`)}
+                  className="w-full text-start"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-bold">{o.number}</p>
+                      <p className="text-xs text-stone-500 mt-0.5">
+                        {o.guestName || "—"}
+                        {o.guestPhone ? ` · ${o.guestPhone}` : ""} ·{" "}
+                        {statusLabel(o.status)} · {o.itemCount}
                       </p>
-                    ) : null}
+                      {o.deliveryAddress ? (
+                        <p className="text-xs text-amber-200/80 mt-1">
+                          {o.deliveryAddress}
+                        </p>
+                      ) : null}
+                    </div>
+                    <div className="text-end shrink-0">
+                      <span className="tabular-nums font-bold text-amber-200 block">
+                        {o.total.toFixed(3)}
+                      </span>
+                      <span className="text-[10px] font-bold text-emerald-300/90 mt-1 inline-block rounded-md bg-emerald-500/10 px-1.5 py-0.5">
+                        {deliveryLabel(o.deliveryStatus)}
+                      </span>
+                    </div>
                   </div>
-                  <span className="tabular-nums font-bold text-amber-200">
-                    {o.total.toFixed(3)}
-                  </span>
-                </div>
-              </button>
-            </li>
-          ))}
+                </button>
+
+                {(next === "OUT" ||
+                  o.deliveryStatus === "OUT" ||
+                  o.deliveryStatus === "READY") && (
+                  <div className="grid sm:grid-cols-2 gap-2">
+                    <input
+                      value={d.name}
+                      onChange={(e) =>
+                        setDriverField(o.id, "name", e.target.value, o)
+                      }
+                      placeholder={t.driverName}
+                      className="h-9 rounded-lg bg-[#1a1614] border border-white/10 px-3 text-xs"
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                    <input
+                      value={d.phone}
+                      onChange={(e) =>
+                        setDriverField(o.id, "phone", e.target.value, o)
+                      }
+                      placeholder={t.driverPhone}
+                      className="h-9 rounded-lg bg-[#1a1614] border border-white/10 px-3 text-xs"
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </div>
+                )}
+
+                {next ? (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void advance(o, next)}
+                    className="w-full rounded-xl border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-xs font-bold text-amber-100 disabled:opacity-50"
+                  >
+                    {next === "OUT"
+                      ? t.deliveryDispatch
+                      : `${deliveryLabel(o.deliveryStatus)} → ${deliveryLabel(next)}`}
+                  </button>
+                ) : null}
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

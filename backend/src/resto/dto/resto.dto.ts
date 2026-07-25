@@ -349,6 +349,16 @@ export class VoidRestoOrderItemDto {
   comp?: boolean;
 }
 
+export class CloseRestoPaymentLineDto {
+  @IsEnum(PaymentMethod)
+  method: PaymentMethod;
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.001)
+  amount: number;
+}
+
 export class CloseRestoOrderDto {
   /**
    * When true: free table only (no invoice). Default false = paid close via POS.
@@ -361,6 +371,13 @@ export class CloseRestoOrderDto {
   @IsOptional()
   @IsEnum(PaymentMethod)
   paymentMethod?: PaymentMethod;
+
+  /** Split tender — amounts should cover subtotal + tip + service charge */
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CloseRestoPaymentLineDto)
+  payments?: CloseRestoPaymentLineDto[];
 
   @IsOptional()
   @IsUUID()
@@ -387,6 +404,21 @@ export class CloseRestoOrderDto {
   @Min(0)
   @Max(30)
   serviceChargePct?: number;
+}
+
+export class UpdateRestoDeliveryDto {
+  @IsIn(['QUEUED', 'KITCHEN', 'READY', 'OUT', 'DELIVERED'])
+  deliveryStatus: 'QUEUED' | 'KITCHEN' | 'READY' | 'OUT' | 'DELIVERED';
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  driverName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  driverPhone?: string;
 }
 
 export class SetRestoProductStationDto {

@@ -33,6 +33,7 @@ import {
   TransferRestoOrderDto,
   UpdateRestoOrderDto,
   UpdateRestoOrderItemDto,
+  UpdateRestoDeliveryDto,
   UpsertRestoRecipeDto,
   PublicGuestOrderDto,
   PublicGuestCallDto,
@@ -659,6 +660,10 @@ export class RestoService {
     guestName?: string | null;
     guestPhone?: string | null;
     deliveryAddress?: string | null;
+    deliveryStatus?: string | null;
+    driverName?: string | null;
+    driverPhone?: string | null;
+    deliveredAt?: Date | null;
     tableId: string | null;
     invoiceId?: string | null;
     sentAt: Date | null;
@@ -716,6 +721,10 @@ export class RestoService {
       guestName: order.guestName ?? null,
       guestPhone: order.guestPhone ?? null,
       deliveryAddress: order.deliveryAddress ?? null,
+      deliveryStatus: order.deliveryStatus ?? null,
+      driverName: order.driverName ?? null,
+      driverPhone: order.driverPhone ?? null,
+      deliveredAt: order.deliveredAt ?? null,
       tableId: order.tableId,
       invoiceId: order.invoiceId ?? null,
       table: order.table
@@ -816,6 +825,8 @@ export class RestoService {
         guestName: dto.guestName?.trim() || null,
         guestPhone: dto.guestPhone?.trim() || null,
         deliveryAddress: dto.deliveryAddress?.trim() || null,
+        deliveryStatus:
+          channel === RestoOrderChannel.DELIVERY ? 'QUEUED' : null,
         openedById: userId || null,
         status: RestoOrderStatus.OPEN,
         channel,
@@ -1378,6 +1389,9 @@ export class RestoService {
       data: {
         sentAt: order.sentAt ?? now,
         status: RestoOrderStatus.SENT,
+        ...(order.channel === RestoOrderChannel.DELIVERY
+          ? { deliveryStatus: 'KITCHEN' }
+          : {}),
       },
     });
     await this.refreshOrderStatus(companyId, orderId);
@@ -1432,7 +1446,26 @@ export class RestoService {
     if (next !== order.status) {
       await this.prisma.restoOrder.update({
         where: { id: orderId },
-        data: { status: next },
+        data: {
+          status: next,
+          ...(next === RestoOrderStatus.READY &&
+          order.channel === RestoOrderChannel.DELIVERY &&
+          order.deliveryStatus !== 'OUT' &&
+          order.deliveryStatus !== 'DELIVERED'
+            ? { deliveryStatus: 'READY' }
+            : {}),
+        },
+      });
+    } else if (
+      next === RestoOrderStatus.READY &&
+      order.channel === RestoOrderChannel.DELIVERY &&
+      order.deliveryStatus !== 'READY' &&
+      order.deliveryStatus !== 'OUT' &&
+      order.deliveryStatus !== 'DELIVERED'
+    ) {
+      await this.prisma.restoOrder.update({
+        where: { id: orderId },
+        data: { deliveryStatus: 'READY' },
       });
     }
   }
@@ -1481,6 +1514,10 @@ export class RestoService {
           guestName: o.guestName,
           guestPhone: o.guestPhone,
           deliveryAddress: o.deliveryAddress,
+          deliveryStatus: o.deliveryStatus,
+          driverName: o.driverName,
+          driverPhone: o.driverPhone,
+          deliveredAt: o.deliveredAt,
           createdAt: o.createdAt,
           table: o.table,
           itemCount: o.items.length,
@@ -1686,6 +1723,14 @@ export class RestoService {
           : '',
       ].filter(Boolean);
 
+      const split =
+        Array.isArray(dto.payments) && dto.payments.length > 0
+          ? dto.payments.map((p) => ({
+              method: p.method,
+              amount: Number(p.amount),
+            }))
+          : null;
+
       const invoice = await this.pos.createSale(companyId, actor, {
         items: lines.map((i) => ({
           productId: i.productId as string,
@@ -1693,6 +1738,7 @@ export class RestoService {
           unitPrice: Number(i.unitPrice),
         })),
         paymentMethod: dto.paymentMethod ?? PaymentMethod.CASH,
+        ...(split ? { payments: split } : {}),
         warehouseId,
         contactId: dto.contactId,
         tipAmount: tip > 0.0005 ? tip : undefined,
@@ -1709,6 +1755,12 @@ export class RestoService {
           status: RestoOrderStatus.CLOSED,
           closedAt: new Date(),
           ...(invoiceId ? { invoiceId } : {}),
+          ...(order.channel === RestoOrderChannel.DELIVERY && !dto.soft
+            ? {
+                deliveryStatus: 'DELIVERED',
+                deliveredAt: new Date(),
+              }
+            : {}),
         },
       });
       if (order.tableId) {
@@ -1724,6 +1776,46 @@ export class RestoService {
       ...mapped,
       invoice: invoiceId ? { id: invoiceId } : null,
     };
+  }
+
+  async updateDeliveryStatus(
+    companyId: string,
+    orderId: string,
+    dto: UpdateRestoDeliveryDto,
+  ) {
+    const order = await this.prisma.restoOrder.findFirst({
+      where: { id: orderId, companyId },
+    });
+    if (!order) throw new NotFoundException('Order not found');
+    if (order.channel !== RestoOrderChannel.DELIVERY) {
+      throw new BadRequestException('Order is not a delivery order');
+    }
+    if (
+      order.status === RestoOrderStatus.CLOSED ||
+      order.status === RestoOrderStatus.CANCELLED
+    ) {
+      throw new BadRequestException('Order is closed');
+    }
+    if (dto.deliveryStatus === 'OUT' && !dto.driverName?.trim() && !order.driverName) {
+      throw new BadRequestException('driverName is required when dispatching OUT');
+    }
+
+    await this.prisma.restoOrder.update({
+      where: { id: orderId },
+      data: {
+        deliveryStatus: dto.deliveryStatus,
+        ...(dto.driverName !== undefined
+          ? { driverName: dto.driverName?.trim() || null }
+          : {}),
+        ...(dto.driverPhone !== undefined
+          ? { driverPhone: dto.driverPhone?.trim() || null }
+          : {}),
+        ...(dto.deliveryStatus === 'DELIVERED'
+          ? { deliveredAt: new Date() }
+          : {}),
+      },
+    });
+    return this.getOrder(companyId, orderId);
   }
 
   async cancelOrder(companyId: string, orderId: string) {
