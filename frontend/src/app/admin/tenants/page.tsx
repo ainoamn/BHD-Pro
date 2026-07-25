@@ -24,6 +24,8 @@ type Tenant = {
   usersCount: number;
   invoicesCount: number;
   createdAt: string;
+  posLinked?: boolean;
+  restoLinked?: boolean;
 };
 
 function fmt(d?: string | null, en?: boolean) {
@@ -115,11 +117,12 @@ export default function AdminTenantsPage() {
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
-        <table className="w-full text-sm min-w-[900px]">
+        <table className="w-full text-sm min-w-[980px]">
           <thead className="bg-slate-50 text-slate-500 text-xs">
             <tr>
               <th className="text-start p-3">{t.company}</th>
               <th className="text-start p-3">{t.plan}</th>
+              <th className="text-start p-3">{t.apps}</th>
               <th className="text-start p-3">{t.started}</th>
               <th className="text-start p-3">{t.expires}</th>
               <th className="text-start p-3">{t.usersLimit}</th>
@@ -138,6 +141,14 @@ export default function AdminTenantsPage() {
                   </div>
                 </td>
                 <td className="p-3 font-semibold">{row.plan}</td>
+                <td className="p-3 text-xs space-y-1">
+                  <div className={row.posLinked ? "text-sky-700 font-semibold" : "text-slate-400"}>
+                    POS {row.posLinked ? "✓" : "—"}
+                  </div>
+                  <div className={row.restoLinked ? "text-amber-700 font-semibold" : "text-slate-400"}>
+                    Resto {row.restoLinked ? "✓" : "—"}
+                  </div>
+                </td>
                 <td className="p-3 text-xs">{fmt(row.planStartedAt || row.createdAt, en)}</td>
                 <td className="p-3 text-xs">{fmt(row.planExpiry, en)}</td>
                 <td className="p-3">

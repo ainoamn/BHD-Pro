@@ -10,6 +10,7 @@ import {
   PieChart,
   Shield,
   ShoppingCart,
+  UtensilsCrossed,
 } from "lucide-react";
 import { useLocaleStore } from "@/store/locale";
 import { useAuthStore } from "@/store/auth";
@@ -18,7 +19,7 @@ import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useCountUp } from "@/hooks/use-count-up";
 
-const featureIcons = [FileText, ShoppingCart, Package, PieChart, Building2, Shield];
+const featureIcons = [FileText, ShoppingCart, UtensilsCrossed, Package, PieChart, Shield];
 
 type PlatformStats = {
   companies: number;
@@ -175,6 +176,9 @@ export function LandingPage() {
             <span className="text-lg font-extrabold tracking-tight text-emerald-950">{t.brand}</span>
           </Link>
           <nav className="hidden items-center gap-8 text-[13px] font-medium text-slate-500 md:flex">
+            <a href="#products" className="transition-colors hover:text-emerald-900">
+              {t.navProducts}
+            </a>
             <a href="#stats" className="transition-colors hover:text-emerald-900">
               {t.statsTitle}
             </a>
@@ -286,6 +290,12 @@ export function LandingPage() {
                       className="rounded-2xl border border-emerald-950/10 bg-white/80 px-7 py-3 text-[15px] font-bold text-emerald-950 transition hover:bg-white"
                     >
                       {t.openPos}
+                    </Link>
+                    <Link
+                      href="/resto"
+                      className="rounded-2xl border border-amber-900/20 bg-[#14110f] px-7 py-3 text-[15px] font-bold text-amber-100 transition hover:bg-[#1c1815]"
+                    >
+                      {t.openResto}
                     </Link>
                   </>
                 ) : (

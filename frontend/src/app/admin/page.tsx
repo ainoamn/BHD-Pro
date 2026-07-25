@@ -6,7 +6,7 @@ import { useLocaleStore } from "@/store/locale";
 import { adminCopy } from "@/lib/admin-copy";
 
 type Overview = {
-  companies: { total: number; active: number };
+  companies: { total: number; active: number; posLinked?: number; restoLinked?: number };
   users: { total: number; active: number; registeredThisMonth: number; avgPerCompany: number };
   visits: { today: number; last7Days: number; uniqueIps7d: number };
   subscriptions: {
@@ -47,6 +47,16 @@ export default function AdminHomePage() {
       value: data.subscriptions.revenueTotalOmr.toFixed(3),
       hint: `${locale === "en" ? "This month" : "هذا الشهر"}: ${data.subscriptions.revenueThisMonthOmr.toFixed(3)}`,
     },
+    {
+      label: t.posLinked,
+      value: data.companies.posLinked ?? 0,
+      hint: t.apps,
+    },
+    {
+      label: t.restoLinked,
+      value: data.companies.restoLinked ?? 0,
+      hint: t.apps,
+    },
   ];
 
   return (
@@ -55,7 +65,7 @@ export default function AdminHomePage() {
         <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">{t.overview}</h1>
         <p className="text-sm text-slate-500 mt-1">{t.overviewHint}</p>
       </div>
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 xl:grid-cols-3 gap-3">
         {cards.map((c) => (
           <div key={c.label} className="rounded-2xl border border-slate-200 bg-white p-4">
             <p className="text-xs text-slate-500">{c.label}</p>

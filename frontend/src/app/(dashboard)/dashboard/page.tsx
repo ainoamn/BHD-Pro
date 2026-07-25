@@ -12,6 +12,7 @@ import { PageHeader, LoadingSpinner } from "@/components/ui/page-shell";
 import { QuickActions } from "@/components/dashboard/quick-actions";
 import { SmartKpis } from "@/components/dashboard/smart-kpis";
 import { OnboardingChecklist, OnboardingState } from "@/components/dashboard/onboarding-checklist";
+import { HisabyAppsPanel } from "@/components/dashboard/hisaby-apps-panel";
 import { RecordPaymentModal } from "@/components/invoices/record-payment-modal";
 
 interface DashboardData {
@@ -87,6 +88,8 @@ export default function DashboardPage() {
       <PageHeader title={t("title")} subtitle={t("subtitle")} />
 
       {data?.onboarding && <OnboardingChecklist data={data.onboarding} />}
+
+      <HisabyAppsPanel />
 
       <QuickActions
         todayReceived={data?.todayReceived ?? 0}

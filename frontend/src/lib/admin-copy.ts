@@ -40,6 +40,9 @@ export const adminCopy = {
     tenantsHint: "إدارة الشركات والحدود والاشتراكات",
     usersHint: "كل المستخدمين مع الشركة والدفعات والـ IP",
     billingHint: "مدفوعات اشتراك كل شركة مع التواريخ",
+    posLinked: "كاشير مربوط",
+    restoLinked: "مطاعم مربوط",
+    apps: "الأنظمة",
     lang: "EN",
   },
   en: {
@@ -83,6 +86,9 @@ export const adminCopy = {
     tenantsHint: "Manage companies, limits, and subscriptions",
     usersHint: "All users with company, payments, and IP",
     billingHint: "Subscription payments with dates per company",
+    posLinked: "POS linked",
+    restoLinked: "Resto linked",
+    apps: "Apps",
     lang: "ع",
   },
 } as const;

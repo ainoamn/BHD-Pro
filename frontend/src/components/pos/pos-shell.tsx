@@ -14,6 +14,7 @@ import {
   Settings2,
   ShieldCheck,
   Users,
+  UtensilsCrossed,
   Wallet,
 } from "lucide-react";
 import toast from "react-hot-toast";
@@ -178,6 +179,14 @@ export function PosShell({ children }: { children: React.ReactNode }) {
               {linked === true ? <Calculator className="w-4 h-4" /> : <Wallet className="w-4 h-4" />}
               <span>{linked === true ? t.toAccounting : t.posBooksNav}</span>
             </button>
+            <Link
+              href="/resto"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500/15 px-2.5 py-1.5 text-xs font-bold text-amber-200 hover:bg-amber-500/25 shrink-0"
+              title={locale === "en" ? "Restaurants" : "المطاعم"}
+            >
+              <UtensilsCrossed className="w-4 h-4" />
+              <span className="hidden sm:inline">{locale === "en" ? "Resto" : "مطاعم"}</span>
+            </Link>
             <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto max-w-[46vw] sm:max-w-none scrollbar-none">
               <PosCommissionChip />
               {pendingCount > 0 ? (

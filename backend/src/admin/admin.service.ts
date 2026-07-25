@@ -267,6 +267,8 @@ export class AdminService {
       planGroups,
       countryGroups,
       paidThisMonth,
+      posLinkedCount,
+      restoLinkedCount,
     ] = await Promise.all([
       this.prisma.company.count({ where: { deletedAt: null } }),
       this.prisma.company.count({ where: { deletedAt: null, isActive: true } }),
@@ -310,6 +312,12 @@ export class AdminService {
         _sum: { amount: true },
         _count: true,
       }),
+      this.prisma.company.count({
+        where: { deletedAt: null, posLinkedAt: { not: null } },
+      }),
+      this.prisma.company.count({
+        where: { deletedAt: null, restoLinkedAt: { not: null } },
+      }),
     ]);
 
     const companiesWithUsers = await this.prisma.company.findMany({
@@ -323,7 +331,12 @@ export class AdminService {
         : 0;
 
     return {
-      companies: { total: companiesTotal, active: companiesActive },
+      companies: {
+        total: companiesTotal,
+        active: companiesActive,
+        posLinked: posLinkedCount,
+        restoLinked: restoLinkedCount,
+      },
       users: {
         total: usersTotal,
         active: usersActive,
@@ -424,6 +437,10 @@ export class AdminService {
         createdAt: c.createdAt,
         usersCount: c._count.users,
         invoicesCount: c._count.invoices,
+        posLinked: !!c.posLinkedAt,
+        restoLinked: !!c.restoLinkedAt,
+        posLinkedAt: c.posLinkedAt,
+        restoLinkedAt: c.restoLinkedAt,
         sampleUsers: c.users.map((u) => ({
           id: u.id,
           name: u.name,

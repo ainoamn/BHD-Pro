@@ -7,15 +7,16 @@ export const landingCopy = {
     navFeatures: "الخدمات",
     navPricing: "الباقات",
     navCompany: "الشركة",
+    navProducts: "الأنظمة",
     login: "تسجيل الدخول",
     register: "ابدأ مجاناً",
     dashboard: "لوحة التحكم",
     headline: "محاسبة سحابية واضحة لأعمال الخليج والمنطقة",
     subhead:
-      "فواتير، كاشير، مخزون، ضريبة، وتقارير مالية من منصة واحدة — عربية أولاً، سريعة، وجاهزة للنمو.",
+      "فواتير، كاشير، مطاعم، مخزون، ضريبة، وتقارير مالية من منصة واحدة — عربية أولاً، سريعة، وجاهزة للنمو.",
     trustLine: "يشغّله فريق شركة بن حمود للتطوير",
     featuresTitle: "خدمات مصمّمة لنمو أعمالك",
-    featuresSub: "من الفوترة إلى الكاشير والتقارير — كل ما تحتاجه في تجربة واضحة وموثوقة.",
+    featuresSub: "من الفوترة إلى الكاشير والمطاعم والتقارير — كل ما تحتاجه في تجربة واضحة وموثوقة.",
     features: [
       {
         title: "الفوترة وعروض الأسعار",
@@ -26,16 +27,16 @@ export const landingCopy = {
         body: "بيع سريع بالباركود، خصم مخزون فوري، وإيصالات جاهزة للمحلات والمتاجر.",
       },
       {
+        title: "حسابي للمطاعم",
+        body: "صالة وقائمة مربوطة بمنتجات شركتك — مع مسار للمطبخ والطلبات في الموجات التالية.",
+      },
+      {
         title: "المخزون والمستودعات",
         body: "تتبع الكميات حسب المستودع، أوامر الشراء، والجرد بدقة من مكان واحد.",
       },
       {
         title: "الضريبة والتقارير",
         body: "تقارير مالية وضريبة قيمة مضافة جاهزة لمتابعة الأداء والامتثال.",
-      },
-      {
-        title: "الفروع ومراكز التكلفة",
-        body: "إدارة فروع ومشاريع ومراكز تكلفة مع صلاحيات واضحة لكل عضو.",
       },
       {
         title: "أمان ومرونة الاشتراك",
@@ -96,15 +97,16 @@ export const landingCopy = {
     navFeatures: "Services",
     navPricing: "Plans",
     navCompany: "Company",
+    navProducts: "Systems",
     login: "Sign in",
     register: "Start free",
     dashboard: "Dashboard",
     headline: "Clear cloud accounting for Gulf & regional businesses",
     subhead:
-      "Invoices, POS, inventory, VAT, and financial reports in one fast Arabic-first platform — ready to grow with you.",
+      "Invoices, POS, restaurants, inventory, VAT, and reports in one fast Arabic-first platform — ready to grow with you.",
     trustLine: "Built and operated by Bin Hamood Development",
     featuresTitle: "Services built for growing businesses",
-    featuresSub: "From invoicing to POS and reports — everything you need in a clear, reliable experience.",
+    featuresSub: "From invoicing to POS, restaurants, and reports — everything you need in a clear, reliable experience.",
     features: [
       {
         title: "Invoicing & quotes",
@@ -115,16 +117,16 @@ export const landingCopy = {
         body: "Fast barcode checkout, instant stock deduction, and store-ready receipts.",
       },
       {
+        title: "Hisaby Restaurants",
+        body: "Floor and menu from your products — kitchen and tickets in upcoming waves.",
+      },
+      {
         title: "Inventory & warehouses",
         body: "Track quantities by warehouse, purchasing, and stock counts in one place.",
       },
       {
         title: "VAT & reports",
         body: "Financial and VAT reports ready to monitor performance and compliance.",
-      },
-      {
-        title: "Branches & cost centers",
-        body: "Manage branches, projects, and cost centers with clear team roles.",
       },
       {
         title: "Secure, flexible plans",

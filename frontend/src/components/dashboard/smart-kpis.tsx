@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   ShoppingCart,
   ShieldAlert,
+  UtensilsCrossed,
 } from "lucide-react";
 import { formatMoney } from "@/lib/utils";
 import { cn } from "@/lib/utils";
@@ -59,6 +60,14 @@ export function SmartKpis({ data, currency = "OMR" }: SmartKpisProps) {
         voids: data.todayPosVoidedCount || 0,
       }),
       tone: "text-sky-400 bg-sky-500/10",
+    },
+    {
+      key: "appResto",
+      href: "/resto",
+      icon: UtensilsCrossed,
+      value: t("appOpen"),
+      hint: t("appRestoDesc"),
+      tone: "text-amber-400 bg-amber-500/10",
     },
     {
       key: "pendingApprovals",
