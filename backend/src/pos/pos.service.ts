@@ -419,6 +419,7 @@ export class PosService {
     reference: string,
     notes = 'POS sale rollback',
   ) {
+    if (qty <= 0.0005) return;
     await this.prisma.$transaction(async (tx) => {
       await tx.warehouseStock.upsert({
         where: {
@@ -427,9 +428,13 @@ export class PosService {
         create: { productId, warehouseId, quantity: qty },
         update: { quantity: { increment: qty } },
       });
+      const agg = await tx.warehouseStock.aggregate({
+        where: { productId },
+        _sum: { quantity: true },
+      });
       await tx.product.updateMany({
         where: { id: productId, companyId },
-        data: { quantity: { increment: qty } },
+        data: { quantity: agg._sum.quantity ?? 0 },
       });
       await tx.stockMovement.create({
         data: {
@@ -443,6 +448,30 @@ export class PosService {
         },
       });
     });
+  }
+
+  /** Units already returned to stock for this sale (refunds / prior voids). */
+  private async stockAlreadyRestoredByProduct(
+    companyId: string,
+    invoiceNumber: string,
+  ): Promise<Map<string, number>> {
+    const moves = await this.prisma.stockMovement.findMany({
+      where: {
+        type: MovementType.IN,
+        product: { companyId },
+        OR: [
+          { reference: `${invoiceNumber}-VOID` },
+          { reference: { startsWith: `${invoiceNumber}-REFUND` } },
+          { notes: { contains: `POS refund of ${invoiceNumber}` } },
+        ],
+      },
+      select: { productId: true, quantity: true },
+    });
+    const map = new Map<string, number>();
+    for (const m of moves) {
+      map.set(m.productId, (map.get(m.productId) || 0) + Number(m.quantity));
+    }
+    return map;
   }
 
   /** Void a POS cash sale: reverse payments, restore warehouse stock, cancel invoice */
@@ -484,6 +513,11 @@ export class PosService {
     }
 
     if (!alreadyRestored) {
+      const restoredByProduct = await this.stockAlreadyRestoredByProduct(
+        companyId,
+        invoice.number,
+      );
+
       const outMoves = await this.prisma.stockMovement.findMany({
         where: {
           reference: invoice.number,
@@ -499,14 +533,18 @@ export class PosService {
 
       if (outMoves.length) {
         for (const m of outMoves) {
+          const already = restoredByProduct.get(m.productId) || 0;
+          const need = Number((Number(m.quantity) - already).toFixed(3));
+          if (need <= 0.0005) continue;
           await this.releaseStockIn(
             companyId,
             m.productId,
-            Number(m.quantity),
+            need,
             m.warehouseId,
             `${invoice.number}-VOID`,
             'POS sale void',
           );
+          restoredByProduct.set(m.productId, already + need);
         }
       } else {
         // Fallback if movement refs were not renamed after sale
@@ -527,14 +565,19 @@ export class PosService {
             whId = wh.id;
           }
 
+          const already = restoredByProduct.get(product.id) || 0;
+          const need = Number((Number(item.quantity) - already).toFixed(3));
+          if (need <= 0.0005) continue;
+
           await this.releaseStockIn(
             companyId,
             product.id,
-            Number(item.quantity),
+            need,
             whId,
             `${invoice.number}-VOID`,
             'POS sale void',
           );
+          restoredByProduct.set(product.id, already + need);
         }
       }
     }

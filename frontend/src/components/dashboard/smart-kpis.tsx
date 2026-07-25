@@ -26,6 +26,7 @@ export interface SmartKpisData {
   pendingApprovalsCount?: number;
   todayPosSales?: number;
   todayPosSalesCount?: number;
+  todayPosVoidedCount?: number;
   openPosShiftsCount?: number;
   openManagementAlertsCount?: number;
 }
@@ -55,6 +56,7 @@ export function SmartKpis({ data, currency = "OMR" }: SmartKpisProps) {
       hint: t("todayPosHint", {
         count: data.todayPosSalesCount || 0,
         shifts: data.openPosShiftsCount || 0,
+        voids: data.todayPosVoidedCount || 0,
       }),
       tone: "text-sky-400 bg-sky-500/10",
     },

@@ -169,7 +169,7 @@
     "todaySales": "مبيعات اليوم",
     "todaySalesHint": "{count} فاتورة اليوم",
     "todayPos": "كاشير اليوم",
-    "todayPosHint": "{count} بيع · {shifts} وردية مفتوحة",
+    "todayPosHint": "{count} بيع نشط · {voids} ملغى · {shifts} وردية مفتوحة",
     "pendingApprovals": "موافقات معلّقة",
     "pendingApprovalsHint": "طلبات حماية مزدوجة بانتظار المدير",
     "overdueAr": "مستحقات متأخرة",

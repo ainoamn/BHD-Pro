@@ -66,6 +66,7 @@ export class DashboardService {
       hasLogo,
       pendingApprovals,
       todayPosSalesAgg,
+      todayPosVoidAgg,
       openPosShifts,
       openManagementAlerts,
     ] = await Promise.all([
@@ -186,6 +187,19 @@ export class DashboardService {
           type: 'SALES',
           isCash: true,
           notes: { contains: 'Hisaby POS' },
+          status: { not: InvoiceStatus.CANCELLED },
+          createdAt: { gte: startOfDay, lte: endOfDay },
+        },
+        _sum: { total: true },
+        _count: true,
+      }),
+      this.prisma.invoice.aggregate({
+        where: {
+          companyId,
+          type: 'SALES',
+          isCash: true,
+          notes: { contains: 'Hisaby POS' },
+          status: InvoiceStatus.CANCELLED,
           createdAt: { gte: startOfDay, lte: endOfDay },
         },
         _sum: { total: true },
@@ -280,6 +294,8 @@ export class DashboardService {
       pendingApprovalsCount: pendingApprovals,
       todayPosSales: Number(todayPosSalesAgg._sum.total || 0),
       todayPosSalesCount: todayPosSalesAgg._count || 0,
+      todayPosVoidedCount: todayPosVoidAgg._count || 0,
+      todayPosVoidedTotal: Number(todayPosVoidAgg._sum.total || 0),
       openPosShiftsCount: openPosShifts,
       openManagementAlertsCount: openManagementAlerts,
       alerts: {

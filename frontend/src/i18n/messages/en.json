@@ -169,7 +169,7 @@
     "todaySales": "Today's sales",
     "todaySalesHint": "{count} invoices today",
     "todayPos": "POS today",
-    "todayPosHint": "{count} sales · {shifts} open shifts",
+    "todayPosHint": "{count} active · {voids} voided · {shifts} open shifts",
     "pendingApprovals": "Pending approvals",
     "pendingApprovalsHint": "Dual-control requests waiting for a manager",
     "overdueAr": "Overdue receivables",

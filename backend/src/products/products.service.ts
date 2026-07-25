@@ -9,11 +9,12 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { AdjustStockDto, StockAdjustMode } from './dto/adjust-stock.dto';
 import { TransferStockDto } from './dto/transfer-stock.dto';
-import { MovementType, Prisma } from '@prisma/client';
+import { MovementType, Prisma, InvoiceStatus, InvoiceType } from '@prisma/client';
 import { PeriodsService } from '../periods/periods.service';
 import { DualControlService } from '../dual-control/dual-control.service';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
+import { ManagementAlertsService } from '../management-alerts/management-alerts.service';
 
 const warehouseStockInclude = {
   warehouseStocks: {
@@ -29,6 +30,7 @@ export class ProductsService {
     private periods: PeriodsService,
     private dualControl: DualControlService,
     private subscriptions: SubscriptionsService,
+    private managementAlerts: ManagementAlertsService,
   ) {}
 
   async findAll(companyId: string) {
@@ -278,6 +280,57 @@ export class ProductsService {
     return this.prisma.product.update({ where: { id }, data: { isActive: false } });
   }
 
+  /**
+   * Net POS units sold today for a product (active sales − refunds).
+   * Used to flag inventory recounts that conflict with collected sales.
+   */
+  private async netPosSoldToday(companyId: string, productId: string): Promise<number> {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+
+    const sales = await this.prisma.invoiceItem.findMany({
+      where: {
+        productId,
+        invoice: {
+          companyId,
+          type: InvoiceType.SALES,
+          isCash: true,
+          notes: { contains: 'Hisaby POS' },
+          status: { not: InvoiceStatus.CANCELLED },
+          createdAt: { gte: start },
+        },
+      },
+      select: { quantity: true, invoice: { select: { number: true } } },
+    });
+
+    let sold = 0;
+    const saleNumbers = new Set<string>();
+    for (const row of sales) {
+      sold += Number(row.quantity);
+      saleNumbers.add(row.invoice.number);
+    }
+    if (sold <= 0) return 0;
+
+    let refunded = 0;
+    for (const num of saleNumbers) {
+      const cns = await this.prisma.invoice.findMany({
+        where: {
+          companyId,
+          type: InvoiceType.CREDIT_NOTE,
+          notes: { contains: `Hisaby POS refund of ${num}` },
+          status: { not: InvoiceStatus.CANCELLED },
+          createdAt: { gte: start },
+        },
+        include: { items: { where: { productId }, select: { quantity: true } } },
+      });
+      for (const cn of cns) {
+        for (const it of cn.items) refunded += Number(it.quantity);
+      }
+    }
+
+    return Number(Math.max(0, sold - refunded).toFixed(3));
+  }
+
   async adjustStock(
     companyId: string,
     id: string,
@@ -318,6 +371,52 @@ export class ProductsService {
     } else {
       const wh = await this.ensureDefaultWarehouse(companyId);
       warehouseId = wh.id;
+    }
+
+    const currentPreview = await this.prisma.warehouseStock.findUnique({
+      where: {
+        productId_warehouseId: { productId: id, warehouseId: warehouseId! },
+      },
+    });
+    const currentWhPreview = Number(currentPreview?.quantity ?? 0);
+    const nextWhPreview =
+      dto.mode === StockAdjustMode.IN
+        ? currentWhPreview + qty
+        : dto.mode === StockAdjustMode.OUT
+          ? currentWhPreview - qty
+          : Number(qty.toFixed(3));
+    const isIncrease = nextWhPreview > currentWhPreview + 0.0005;
+
+    if (isIncrease) {
+      const netSold = await this.netPosSoldToday(companyId, id);
+      if (netSold > 0.0005) {
+        const reason = (dto.notes || dto.reference || '').trim();
+        if (reason.length < 12) {
+          throw new BadRequestException(
+            `لا يمكن زيادة المخزون بينما هناك مبيعات كاشير اليوم (${netSold} وحدة) دون ملاحظات تحقيق (12 حرفاً على الأقل). اشرح: جرد فعلي / بضاعة وصلت / خطأ سابق — وإلا ارفض التعديل.`,
+          );
+        }
+        await this.managementAlerts.createAlert({
+          companyId,
+          type: 'STOCK_VS_SALES_INVESTIGATION',
+          severity: 'HIGH',
+          title: 'تحقيق: مخزون يتعارض مع مبيعات الكاشير',
+          message: `المنتج «${product.name}» زيد مخزونه من ${currentWhPreview} إلى ${nextWhPreview} بينما صافي مبيعات اليوم ${netSold} وحدة. تحقق كيف حُصّل مبلغ البيع مع بقاء كمية في المخزن.`,
+          entityType: 'PRODUCT',
+          entityId: id,
+          payloadJson: {
+            productId: id,
+            productName: product.name,
+            sku: product.sku,
+            fromQty: currentWhPreview,
+            toQty: nextWhPreview,
+            netPosSoldToday: netSold,
+            mode: dto.mode,
+            notes: reason,
+            actorUserId: actor.sub,
+          },
+        });
+      }
     }
 
     return this.prisma.$transaction(async (tx) => {

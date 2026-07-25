@@ -4,9 +4,10 @@ import { ProductsController } from './products.controller';
 import { PeriodsModule } from '../periods/periods.module';
 import { DualControlModule } from '../dual-control/dual-control.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
+import { ManagementAlertsModule } from '../management-alerts/management-alerts.module';
 
 @Module({
-  imports: [PeriodsModule, DualControlModule, SubscriptionsModule],
+  imports: [PeriodsModule, DualControlModule, SubscriptionsModule, ManagementAlertsModule],
   controllers: [ProductsController],
   providers: [ProductsService],
   exports: [ProductsService],

@@ -33,6 +33,7 @@ interface DashboardData {
   pendingApprovalsCount?: number;
   todayPosSales?: number;
   todayPosSalesCount?: number;
+  todayPosVoidedCount?: number;
   openPosShiftsCount?: number;
   openManagementAlertsCount?: number;
   onboarding?: OnboardingState;
@@ -111,6 +112,7 @@ export default function DashboardPage() {
               pendingApprovalsCount: data.pendingApprovalsCount ?? 0,
               todayPosSales: data.todayPosSales ?? 0,
               todayPosSalesCount: data.todayPosSalesCount ?? 0,
+              todayPosVoidedCount: data.todayPosVoidedCount ?? 0,
               openPosShiftsCount: data.openPosShiftsCount ?? 0,
               openManagementAlertsCount: data.openManagementAlertsCount ?? 0,
             }}
