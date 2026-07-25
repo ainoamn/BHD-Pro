@@ -20,7 +20,16 @@ interface TeamUser {
   createdAt: string;
 }
 
-const ROLES = ["ADMIN", "ACCOUNTANT", "MANAGER", "CASHIER", "VIEWER"] as const;
+const ROLES = [
+  "ADMIN",
+  "ACCOUNTANT",
+  "MANAGER",
+  "CASHIER",
+  "WAITER",
+  "KITCHEN",
+  "RESTO_MANAGER",
+  "VIEWER",
+] as const;
 
 export default function UsersPage() {
   const t = useTranslations("users");
@@ -67,6 +76,9 @@ export default function UsersPage() {
       ACCOUNTANT: "bg-emerald-500/10 text-emerald-400",
       MANAGER: "bg-blue-500/10 text-blue-400",
       CASHIER: "bg-amber-500/10 text-amber-400",
+      WAITER: "bg-orange-500/10 text-orange-400",
+      KITCHEN: "bg-yellow-500/10 text-yellow-400",
+      RESTO_MANAGER: "bg-amber-600/15 text-amber-300",
       VIEWER: "bg-slate-500/10 text-slate-400",
     };
     return map[role] || "bg-slate-500/10 text-slate-400";

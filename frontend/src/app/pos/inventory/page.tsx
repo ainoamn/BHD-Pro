@@ -172,6 +172,7 @@ export default function PosInventoryPage() {
             {t.posInventoryTitle}
           </h1>
           <p className="text-sm text-slate-400 mt-1">{t.posInventorySub}</p>
+          <p className="text-xs text-emerald-300/80 mt-1">{t.sharedRecordsNote}</p>
         </div>
         <div className="flex gap-2">
           <Link

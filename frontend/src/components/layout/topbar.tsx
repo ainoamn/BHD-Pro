@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { Search, Moon, Sun, Building2, Globe, LogOut, Menu, Store } from "lucide-react";
+import { Search, Moon, Sun, Building2, Globe, LogOut, Menu, Store, UtensilsCrossed } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -129,6 +129,15 @@ export function Topbar() {
         >
           <Store className="w-4 h-4" />
           <span>{locale === "en" ? "POS" : "الكاشير"}</span>
+        </Link>
+
+        <Link
+          href="/resto"
+          title={locale === "en" ? "Switch to Restaurants" : "التبديل إلى المطاعم"}
+          className="inline-flex items-center gap-1.5 h-9 px-2.5 sm:px-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 hover:bg-amber-500/20 text-xs font-bold transition-all shrink-0"
+        >
+          <UtensilsCrossed className="w-4 h-4" />
+          <span className="hidden sm:inline">{locale === "en" ? "Resto" : "مطاعم"}</span>
         </Link>
 
         <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 rounded-lg max-w-[140px] lg:max-w-none">

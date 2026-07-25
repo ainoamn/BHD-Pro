@@ -17,6 +17,7 @@ import { TwoFactorSettings } from "@/components/auth/two-factor-settings";
 import { DualControlSettings } from "@/components/security/dual-control-settings";
 import { CompanyLogoUpload } from "@/components/company/company-logo-upload";
 import { PosLinkSettings } from "@/components/pos/pos-link-settings";
+import { RestoLinkSettings } from "@/components/resto/resto-link-settings";
 import {
   DOCUMENT_COLOR_PRESETS,
   normalizeDocumentColor,
@@ -429,6 +430,10 @@ export default function SettingsPage() {
 
       <GlassCard className="p-6">
         <PosLinkSettings variant="accounting" />
+      </GlassCard>
+
+      <GlassCard className="p-6">
+        <RestoLinkSettings variant="accounting" />
       </GlassCard>
 
       <GlassCard className="p-6">

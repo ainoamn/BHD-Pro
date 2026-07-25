@@ -13,6 +13,7 @@ import {
   Package,
   Settings2,
   ShieldCheck,
+  Users,
   Wallet,
 } from "lucide-react";
 import toast from "react-hot-toast";
@@ -208,6 +209,14 @@ export function PosShell({ children }: { children: React.ReactNode }) {
                 <span className="hidden sm:inline">{t.inventory}</span>
               </Link>
               <Link
+                href="/pos/contacts"
+                className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-300 hover:bg-white/5 shrink-0"
+                title={t.posContactsTitle}
+              >
+                <Users className="w-4 h-4" />
+                <span className="hidden lg:inline">{t.posContactsNav}</span>
+              </Link>
+              <Link
                 href="/pos/books"
                 className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-300 hover:bg-white/5 shrink-0"
                 title={t.posBooksTitle}
@@ -260,6 +269,10 @@ export function PosShell({ children }: { children: React.ReactNode }) {
             <span>{t.unlinked}</span>
             <Link href="/pos/inventory" className="font-bold underline underline-offset-2">
               {t.inventory}
+            </Link>
+            <span>·</span>
+            <Link href="/pos/contacts" className="font-bold underline underline-offset-2">
+              {t.posContactsNav}
             </Link>
             <span>·</span>
             <Link href="/pos/books" className="font-bold underline underline-offset-2">

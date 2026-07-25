@@ -3,14 +3,14 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import toast from "react-hot-toast";
-import { Copy, KeyRound, Link2, ShoppingCart } from "lucide-react";
+import { Copy, KeyRound, Link2, UtensilsCrossed } from "lucide-react";
 import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 import { useLocaleStore } from "@/store/locale";
-import { posCopy } from "@/lib/pos-copy";
+import { restoCopy } from "@/lib/resto-copy";
 import { cn } from "@/lib/utils";
 
-type Variant = "pos" | "accounting";
+type Variant = "resto" | "accounting";
 
 function errMessage(err: unknown, fallback: string) {
   const msg = (err as { response?: { data?: { message?: string | string[] } } })?.response?.data
@@ -20,15 +20,15 @@ function errMessage(err: unknown, fallback: string) {
   return fallback;
 }
 
-export function PosLinkSettings({
-  variant = "pos",
+export function RestoLinkSettings({
+  variant = "resto",
   className,
 }: {
   variant?: Variant;
   className?: string;
 }) {
   const locale = useLocaleStore((s) => s.locale);
-  const t = posCopy[locale === "en" ? "en" : "ar"];
+  const t = restoCopy[locale === "en" ? "en" : "ar"];
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role === "ADMIN";
   const [linked, setLinked] = useState(false);
@@ -39,7 +39,7 @@ export function PosLinkSettings({
   const [busy, setBusy] = useState(false);
 
   const refresh = async () => {
-    const res = await api.getPosLinkStatus();
+    const res = await api.getRestoLinkStatus();
     setLinked(!!res.data.linked);
     setPrefix(res.data.keyPrefix);
     setCompanyName(res.data.companyName);
@@ -61,7 +61,7 @@ export function PosLinkSettings({
   const activate = async () => {
     setBusy(true);
     try {
-      await api.activatePosLink();
+      await api.activateRestoLink();
       toast.success(t.linked);
       await refresh();
     } catch (err) {
@@ -75,7 +75,7 @@ export function PosLinkSettings({
     if (!window.confirm(t.unlinkConfirm)) return;
     setBusy(true);
     try {
-      await api.deactivatePosLink();
+      await api.deactivateRestoLink();
       setGeneratedKey(null);
       toast.success(t.unlinkOk);
       await refresh();
@@ -89,7 +89,7 @@ export function PosLinkSettings({
   const generate = async () => {
     setBusy(true);
     try {
-      const res = await api.generatePosLinkKey();
+      const res = await api.generateRestoLinkKey();
       setGeneratedKey(res.data.key);
       toast.success(t.keyHint);
       await refresh();
@@ -103,7 +103,7 @@ export function PosLinkSettings({
   const confirmKey = async () => {
     setBusy(true);
     try {
-      await api.confirmPosLinkKey(pasteKey);
+      await api.confirmRestoLinkKey(pasteKey);
       toast.success(t.linked);
       setPasteKey("");
       await refresh();
@@ -125,14 +125,14 @@ export function PosLinkSettings({
     ? "border-amber-500/40 bg-amber-500/10"
     : "border-amber-500/30 bg-amber-500/10";
   const btnPrimary = isAccounting
-    ? "w-full h-10 rounded-lg bg-emerald-600 font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
-    : "w-full h-11 rounded-xl bg-emerald-500 font-bold text-white hover:bg-emerald-400 disabled:opacity-50";
+    ? "w-full h-10 rounded-lg bg-amber-600 font-semibold text-white hover:bg-amber-500 disabled:opacity-50"
+    : "w-full h-11 rounded-xl bg-amber-500 font-bold text-white hover:bg-amber-400 disabled:opacity-50";
   const btnSky = isAccounting
     ? "w-full h-10 rounded-lg bg-sky-600 font-semibold text-white hover:bg-sky-500 disabled:opacity-50 inline-flex items-center justify-center gap-2"
     : "w-full h-11 rounded-xl bg-sky-500 font-bold text-white hover:bg-sky-400 disabled:opacity-50 inline-flex items-center justify-center gap-2";
   const inputCls = isAccounting
-    ? "w-full h-10 rounded-lg bg-slate-900 border border-slate-700 px-3 font-mono text-sm text-white focus:outline-none focus:border-emerald-500"
-    : "w-full h-11 rounded-xl bg-[#0b1220] border border-white/10 px-3 font-mono text-sm";
+    ? "w-full h-10 rounded-lg bg-slate-900 border border-slate-700 px-3 font-mono text-sm text-white focus:outline-none focus:border-amber-500"
+    : "w-full h-11 rounded-xl bg-[#1a1614] border border-white/10 px-3 font-mono text-sm";
   const secondaryBtn = isAccounting
     ? "w-full h-10 rounded-lg border border-slate-600 font-semibold text-slate-200 hover:bg-slate-800 disabled:opacity-40"
     : "w-full h-10 rounded-xl border border-white/15 font-semibold hover:bg-white/5 disabled:opacity-40";
@@ -142,106 +142,96 @@ export function PosLinkSettings({
       {isAccounting && (
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="flex items-start gap-3 min-w-0">
-            <ShoppingCart className="w-6 h-6 text-emerald-400 shrink-0 mt-0.5" />
+            <UtensilsCrossed className="w-6 h-6 text-amber-400 shrink-0 mt-0.5" />
             <div className="min-w-0">
-              <h2 className="text-lg font-semibold text-white">{t.posLinkTitle}</h2>
-              <p className="text-sm text-slate-400 mt-1">{t.posLinkDesc}</p>
+              <h2 className="text-lg font-semibold text-white">{t.linkTitle}</h2>
+              <p className="text-sm text-slate-400 mt-1">{t.linkDesc}</p>
               {companyName ? (
                 <p className="text-xs text-slate-500 mt-1 truncate">{companyName}</p>
               ) : null}
             </div>
           </div>
           <Link
-            href="/pos"
-            className="text-sm px-4 py-2 rounded-lg bg-slate-800 text-emerald-400 hover:bg-slate-700 shrink-0"
+            href="/resto"
+            className="text-sm font-semibold text-amber-400 hover:underline shrink-0"
           >
-            {t.openPos}
+            {t.openResto} →
           </Link>
         </div>
       )}
 
-      <div className={cn("rounded-xl border p-4", linked ? statusOk : statusWarn)}>
-        <p className="font-bold flex items-center gap-2 text-sm sm:text-base">
-          <Link2 className="w-4 h-4" />
-          {linked ? t.linked : t.unlinked}
+      {!isAccounting && (
+        <div>
+          <h2 className="text-base font-bold flex items-center gap-2">
+            <Link2 className="w-5 h-5 text-amber-400" />
+            {t.linkTitle}
+          </h2>
+          <p className="text-sm text-stone-400 mt-1">{t.linkDesc}</p>
+        </div>
+      )}
+
+      <div className={cn(panel, linked ? statusOk : statusWarn)}>
+        <p className="text-sm font-semibold">
+          {linked ? t.linked : t.notLinked}
+          {prefix ? (
+            <span className="ms-2 font-mono text-xs opacity-70">({prefix}…)</span>
+          ) : null}
         </p>
-        <p className="text-xs text-slate-400 mt-2 leading-relaxed">{t.sharedRecordsNote}</p>
-        {prefix && (
-          <p className="text-xs text-slate-500 mt-2">
-            Key prefix: {prefix}…
-          </p>
-        )}
       </div>
 
-      <div className={panel}>
-        {linked ? (
-          <button
-            type="button"
-            disabled={busy || (!isAdmin && user?.role !== "MANAGER")}
-            onClick={deactivate}
-            className={
-              isAccounting
-                ? "w-full h-10 rounded-lg border border-rose-500/40 bg-rose-500/10 font-semibold text-rose-200 hover:bg-rose-500/20 disabled:opacity-50"
-                : "w-full h-11 rounded-xl border border-rose-500/40 bg-rose-500/10 font-bold text-rose-200 hover:bg-rose-500/20 disabled:opacity-50"
-            }
-          >
-            {t.unlinkSystems}
+      <div className="space-y-2">
+        {!linked ? (
+          <button type="button" disabled={busy} onClick={() => void activate()} className={btnPrimary}>
+            {t.activateLink}
           </button>
         ) : (
-          <button type="button" disabled={busy} onClick={activate} className={btnPrimary}>
-            {t.activateLink}
+          <button type="button" disabled={busy} onClick={() => void deactivate()} className={secondaryBtn}>
+            {t.unlink}
           </button>
         )}
 
         {isAdmin ? (
           <>
-            <button type="button" disabled={busy} onClick={generate} className={btnSky}>
+            <button type="button" disabled={busy} onClick={() => void generate()} className={btnSky}>
               <KeyRound className="w-4 h-4" />
               {t.generateKey}
             </button>
-            {generatedKey && (
-              <div
-                className={cn(
-                  "rounded-xl p-3 text-xs break-all space-y-2",
-                  isAccounting ? "bg-slate-950/80" : "bg-black/40",
-                )}
-              >
-                <p className="text-amber-200">{t.keyHint}</p>
-                <p className="font-mono text-sky-200">{generatedKey}</p>
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-1 text-slate-300"
-                  onClick={() => {
-                    navigator.clipboard.writeText(generatedKey);
-                    toast.success("OK");
-                  }}
-                >
-                  <Copy className="w-3.5 h-3.5" />
-                  Copy
-                </button>
+            {generatedKey ? (
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 space-y-2">
+                <p className="text-xs text-amber-100">{t.keyHint}</p>
+                <div className="flex gap-2">
+                  <code className="flex-1 break-all text-xs font-mono">{generatedKey}</code>
+                  <button
+                    type="button"
+                    className="shrink-0 rounded-lg border border-white/20 px-2 py-1 text-xs"
+                    onClick={() => {
+                      void navigator.clipboard.writeText(generatedKey);
+                      toast.success(t.copy);
+                    }}
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
-            )}
-            <div className="pt-1 space-y-2">
-              <label className="text-xs text-slate-400">{t.pasteKey}</label>
+            ) : null}
+            <div className="flex gap-2">
               <input
                 value={pasteKey}
                 onChange={(e) => setPasteKey(e.target.value)}
+                placeholder={t.pasteKey}
                 className={inputCls}
-                placeholder="hpos_…"
               />
               <button
                 type="button"
                 disabled={busy || !pasteKey.trim()}
-                onClick={confirmKey}
-                className={secondaryBtn}
+                onClick={() => void confirmKey()}
+                className={cn(secondaryBtn, "w-auto px-4 shrink-0")}
               >
-                {t.saveKey}
+                {t.confirmKey}
               </button>
             </div>
           </>
-        ) : (
-          <p className="text-xs text-slate-500">{t.adminOnlyKeys}</p>
-        )}
+        ) : null}
       </div>
     </div>
   );

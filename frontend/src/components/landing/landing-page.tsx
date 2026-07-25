@@ -407,7 +407,7 @@ export function LandingPage() {
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
           <h2 className="text-2xl font-extrabold tracking-tight text-emerald-950 sm:text-3xl">{t.chooseTitle}</h2>
           <p className="mt-3 max-w-2xl text-[15px] text-slate-500">{t.chooseSub}</p>
-          <div className="mt-10 grid gap-5 md:grid-cols-2">
+          <div className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
             <Link
               href={isAuthenticated ? "/dashboard" : "/login?next=/dashboard&app=accounting"}
               className="group rounded-2xl border border-emerald-950/10 bg-emerald-50/50 p-6 transition hover:border-emerald-700/30 hover:shadow-md"
@@ -428,6 +428,17 @@ export function LandingPage() {
               <p className="mt-2 text-sm leading-relaxed text-white/65">{t.posDesc}</p>
               <span className="mt-5 inline-block text-sm font-bold text-sky-300 group-hover:underline">
                 {t.openPos} →
+              </span>
+            </Link>
+            <Link
+              href={isAuthenticated ? "/resto" : "/resto/login"}
+              className="group rounded-2xl border border-amber-900/20 bg-[#14110f] p-6 text-white transition hover:border-amber-400/40 hover:shadow-md md:col-span-2 lg:col-span-1"
+            >
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-amber-300/80">Restaurants</p>
+              <h3 className="mt-2 text-xl font-extrabold">{t.restoCard}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-white/65">{t.restoDesc}</p>
+              <span className="mt-5 inline-block text-sm font-bold text-amber-300 group-hover:underline">
+                {t.openResto} →
               </span>
             </Link>
           </div>

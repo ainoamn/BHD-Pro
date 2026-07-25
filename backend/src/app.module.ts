@@ -33,6 +33,7 @@ import { ExchangeRatesModule } from './exchange-rates/exchange-rates.module';
 import { FxRevaluationModule } from './fx-revaluation/fx-revaluation.module';
 import { AdminModule } from './admin/admin.module';
 import { PosModule } from './pos/pos.module';
+import { RestoModule } from './resto/resto.module';
 import { DualControlModule } from './dual-control/dual-control.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { CommitmentsModule } from './commitments/commitments.module';
@@ -81,6 +82,7 @@ import { DenyViewerMutationsGuard } from './common/guards/deny-viewer-mutations.
     FxRevaluationModule,
     AdminModule,
     PosModule,
+    RestoModule,
     DualControlModule,
     NotificationsModule,
     CommitmentsModule,

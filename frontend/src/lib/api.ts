@@ -1363,6 +1363,63 @@ class ApiClient {
     return this.post('/pos/link', { key });
   }
 
+  // Hisaby Restaurants
+  getRestoLinkStatus() {
+    return this.get<{
+      linked: boolean;
+      companyId: string;
+      companyName: string;
+      keyPrefix: string | null;
+      posLinked: boolean;
+      apps: { accounting: boolean; pos: boolean; resto: boolean };
+    }>('/resto/link-status');
+  }
+
+  activateRestoLink() {
+    return this.post('/resto/link/activate');
+  }
+
+  deactivateRestoLink() {
+    return this.post('/resto/link/deactivate');
+  }
+
+  generateRestoLinkKey() {
+    return this.post<{ key: string; prefix: string; linked: boolean; warning: string }>(
+      '/resto/link/generate',
+    );
+  }
+
+  confirmRestoLinkKey(key: string) {
+    return this.post('/resto/link', { key });
+  }
+
+  getRestoMenu(q?: string) {
+    return this.get<{
+      items: Array<{
+        id: string;
+        name: string;
+        nameEn: string | null;
+        sku: string;
+        barcode: string | null;
+        price: string | number;
+        unit: string;
+        category: string;
+      }>;
+      count: number;
+    }>('/resto/menu', { params: q ? { q } : undefined });
+  }
+
+  getRestoFloor() {
+    return this.get<{
+      companyId: string;
+      companyName: string;
+      linked: boolean;
+      zones: unknown[];
+      tables: unknown[];
+      message: string;
+    }>('/resto/floor');
+  }
+
   lookupPosProduct(code: string, warehouseId?: string) {
     return this.get(`/pos/products/lookup`, {
       params: { code, ...(warehouseId ? { warehouseId } : {}) },

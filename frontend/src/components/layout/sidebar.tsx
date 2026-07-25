@@ -39,6 +39,7 @@ import {
   MessageCircle,
   Brain,
   Store,
+  UtensilsCrossed,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUIStore } from "@/store/ui";
@@ -156,7 +157,7 @@ export function Sidebar() {
         )}
       </div>
 
-      <div className="px-3 pt-3 shrink-0">
+      <div className="px-3 pt-3 shrink-0 space-y-2">
         <Link
           href="/pos"
           onClick={() => {
@@ -170,6 +171,21 @@ export function Sidebar() {
           <Store className="w-5 h-5 flex-shrink-0" />
           {!sidebarCollapsed && (
             <span className="text-sm font-bold">الكاشير / POS</span>
+          )}
+        </Link>
+        <Link
+          href="/resto"
+          onClick={() => {
+            closeMobile();
+          }}
+          className={cn(
+            "flex items-center gap-3 px-3 py-2.5 rounded-lg bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-500/20 hover:bg-amber-500/20 transition-all",
+            sidebarCollapsed && "justify-center px-2"
+          )}
+        >
+          <UtensilsCrossed className="w-5 h-5 flex-shrink-0" />
+          {!sidebarCollapsed && (
+            <span className="text-sm font-bold">المطاعم</span>
           )}
         </Link>
       </div>
