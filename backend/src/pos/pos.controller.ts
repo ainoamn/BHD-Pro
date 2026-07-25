@@ -25,8 +25,9 @@ import { GATEWAY_META } from '../payments/gateway.constants';
 import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
 
 class PartnerCheckoutDto {
+  @IsOptional()
   @IsEnum(PaymentGatewaySlug)
-  gatewaySlug: PaymentGatewaySlug;
+  gatewaySlug?: PaymentGatewaySlug;
 
   @IsOptional()
   @IsString()
