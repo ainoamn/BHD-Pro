@@ -149,6 +149,24 @@ export class JournalService {
         });
       }
 
+      // Keep BankAccount.currentBalance aligned with manual journals on bank GL accounts
+      const bankRows = await tx.bankAccount.findMany({
+        where: { companyId, accountId: { in: accountIds }, isActive: true },
+      });
+      for (const bank of bankRows) {
+        if (!bank.accountId) continue;
+        const related = dto.lines.filter((l) => l.accountId === bank.accountId);
+        const bankDelta = related.reduce(
+          (s, l) => s + (Number(l.debit) - Number(l.credit)),
+          0,
+        );
+        if (Math.abs(bankDelta) < 0.0005) continue;
+        await tx.bankAccount.update({
+          where: { id: bank.id },
+          data: { currentBalance: { increment: bankDelta } },
+        });
+      }
+
       return journal;
     });
   }

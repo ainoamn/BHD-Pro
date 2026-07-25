@@ -65,7 +65,8 @@
       "PAYMENT_REVERSE": "عكس جميع الدفعات",
       "SHIFT_CLOSE_VARIANCE": "فارق نقد إغلاق الوردية",
       "PAYROLL_PAY": "صرف مسير الرواتب",
-      "CLAIM_PAY": "صرف مطالبة موظف"
+      "CLAIM_PAY": "صرف مطالبة موظف",
+      "BANK_INTERNAL_TRANSFER": "تحويل بين الحسابات البنكية"
     },
     "pinSet": "رمز المشرف مضبوط",
     "pinUnset": "لا يوجد رمز مشرف بعد",

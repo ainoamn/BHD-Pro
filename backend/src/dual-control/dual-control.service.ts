@@ -95,6 +95,7 @@ export class DualControlService {
       SHIFT_CLOSE_VARIANCE: config.actions?.SHIFT_CLOSE_VARIANCE !== false,
       PAYROLL_PAY: config.actions?.PAYROLL_PAY !== false,
       CLAIM_PAY: config.actions?.CLAIM_PAY !== false,
+      BANK_INTERNAL_TRANSFER: config.actions?.BANK_INTERNAL_TRANSFER !== false,
     };
     const whatsappReady = this.whatsapp.isConfigured();
     const nfcBadgesConfigured = (config.nfcBadgeHashes || []).length > 0;

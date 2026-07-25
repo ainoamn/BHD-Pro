@@ -11,6 +11,10 @@ import { ErpCrudPage, formatMoney } from "@/components/erp/erp-crud-page";
 import { useAuthStore } from "@/store/auth";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { GlassCard } from "@/components/ui/page-shell";
+import {
+  DualApprovalModal,
+  type DualApprovalPayload,
+} from "@/components/security/dual-approval-modal";
 
 interface BankRow {
   id: string;
@@ -24,7 +28,8 @@ export default function BankAccountsPage() {
   const t = useTranslations("erp");
   const tRecon = useTranslations("bankRecon");
   const tCommon = useTranslations("common");
-  const { company } = useAuthStore();
+  const tDual = useTranslations("dualControl");
+  const { company, user } = useAuthStore();
   const currency = company?.currency || "OMR";
   const queryClient = useQueryClient();
 
@@ -33,6 +38,7 @@ export default function BankAccountsPage() {
   const [amount, setAmount] = useState(0);
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [description, setDescription] = useState("");
+  const [dualOpen, setDualOpen] = useState(false);
 
   const { data: branches = [] } = useQuery({
     queryKey: ["branches"],
@@ -45,24 +51,29 @@ export default function BankAccountsPage() {
   });
 
   const transferMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (approval?: DualApprovalPayload) =>
       api.transferBetweenBanks({
         fromBankAccountId: fromId,
         toBankAccountId: toId,
         amount,
         date,
         description: description.trim() || undefined,
+        approval,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bank-accounts"] });
       toast.success(t("transferSuccess"));
       setAmount(0);
       setDescription("");
+      setDualOpen(false);
     },
     onError: (err: { response?: { data?: { message?: string } } }) => {
       toast.error(err.response?.data?.message || tCommon("error"));
     },
   });
+
+  const canTransfer =
+    !!fromId && !!toId && fromId !== toId && amount > 0 && !transferMutation.isPending;
 
   return (
     <div className="space-y-4">
@@ -122,10 +133,8 @@ export default function BankAccountsPage() {
           </div>
           <button
             type="button"
-            disabled={
-              !fromId || !toId || fromId === toId || amount <= 0 || transferMutation.isPending
-            }
-            onClick={() => transferMutation.mutate()}
+            disabled={!canTransfer}
+            onClick={() => setDualOpen(true)}
             className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm disabled:opacity-50"
           >
             {transferMutation.isPending ? (
@@ -175,6 +184,20 @@ export default function BankAccountsPage() {
             options: branches.map((b) => ({ value: b.id, label: b.name })),
           },
         ]}
+      />
+
+      <DualApprovalModal
+        open={dualOpen}
+        action="BANK_INTERNAL_TRANSFER"
+        actionLabel={tDual("action.BANK_INTERNAL_TRANSFER")}
+        payload={{ fromBankAccountId: fromId, toBankAccountId: toId, amount }}
+        summary={`${formatMoney(amount, currency)}`}
+        actorRole={user?.role}
+        busy={transferMutation.isPending}
+        onCancel={() => setDualOpen(false)}
+        onConfirm={async (approval) => {
+          await transferMutation.mutateAsync(approval);
+        }}
       />
     </div>
   );

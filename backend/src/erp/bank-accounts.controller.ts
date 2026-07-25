@@ -1,4 +1,4 @@
-import {
+﻿import {
   Controller,
   Get,
   Post,
@@ -15,13 +15,17 @@ import { BankAccountDto, BankStatementLineDto, BankTransferDto } from './dto/erp
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
+import { DualControlService } from '../dual-control/dual-control.service';
 
 @ApiTags('Bank Accounts')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('bank-accounts')
 export class BankAccountsController {
-  constructor(private erp: ErpService) {}
+  constructor(
+    private erp: ErpService,
+    private dualControl: DualControlService,
+  ) {}
 
   @Get() findAll(@CurrentUser() u: TokenPayload) {
     return this.erp.findBankAccounts(u.companyId);
@@ -33,7 +37,13 @@ export class BankAccountsController {
 
   @Post('transfer')
   @ApiOperation({ summary: 'Internal transfer between two bank accounts (GL + balances)' })
-  transfer(@CurrentUser() u: TokenPayload, @Body() dto: BankTransferDto) {
+  async transfer(@CurrentUser() u: TokenPayload, @Body() dto: BankTransferDto) {
+    await this.dualControl.assertApproved(
+      u.companyId,
+      u,
+      'BANK_INTERNAL_TRANSFER',
+      dto.approval,
+    );
     return this.erp.transferBetweenBanks(u.companyId, u.sub, dto);
   }
 

@@ -65,7 +65,8 @@
       "PAYMENT_REVERSE": "Reverse all payments",
       "SHIFT_CLOSE_VARIANCE": "Shift close cash variance",
       "PAYROLL_PAY": "Payroll payout",
-      "CLAIM_PAY": "Employee claim payout"
+      "CLAIM_PAY": "Employee claim payout",
+      "BANK_INTERNAL_TRANSFER": "Internal bank transfer"
     },
     "pinSet": "Supervisor PIN is set",
     "pinUnset": "No supervisor PIN yet",

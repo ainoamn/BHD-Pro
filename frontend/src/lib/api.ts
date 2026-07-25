@@ -781,6 +781,7 @@ class ApiClient {
     date?: string;
     description?: string;
     reference?: string;
+    approval?: DualApprovalPayload;
   }) {
     return this.post('/bank-accounts/transfer', data);
   }

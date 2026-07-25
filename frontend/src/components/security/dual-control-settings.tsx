@@ -30,6 +30,7 @@ type SecurityPublic = {
     SHIFT_CLOSE_VARIANCE: boolean;
     PAYROLL_PAY: boolean;
     CLAIM_PAY: boolean;
+    BANK_INTERNAL_TRANSFER: boolean;
   };
 };
 
@@ -44,6 +45,7 @@ const ACTION_KEYS = [
   "SHIFT_CLOSE_VARIANCE",
   "PAYROLL_PAY",
   "CLAIM_PAY",
+  "BANK_INTERNAL_TRANSFER",
 ] as const;
 
 export function DualControlSettings() {
@@ -65,6 +67,7 @@ export function DualControlSettings() {
     SHIFT_CLOSE_VARIANCE: true,
     PAYROLL_PAY: true,
     CLAIM_PAY: true,
+    BANK_INTERNAL_TRANSFER: true,
   });
   const [pin, setPin] = useState("");
   const [whatsappPhones, setWhatsappPhones] = useState("");
@@ -94,6 +97,7 @@ export function DualControlSettings() {
       SHIFT_CLOSE_VARIANCE: true,
       PAYROLL_PAY: true,
       CLAIM_PAY: true,
+      BANK_INTERNAL_TRANSFER: true,
     };
     setActions({ ...defaults, ...data.actions });
     setVarianceLimit(String(data.shiftVarianceLimit ?? 1));

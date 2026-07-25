@@ -76,6 +76,7 @@ export const DUAL_CONTROL_ACTIONS = [
   'SHIFT_CLOSE_VARIANCE',
   'PAYROLL_PAY',
   'CLAIM_PAY',
+  'BANK_INTERNAL_TRANSFER',
 ] as const;
 export type DualControlAction = (typeof DUAL_CONTROL_ACTIONS)[number];
 
@@ -119,6 +120,10 @@ export class DualControlActionsDto {
   @IsOptional()
   @IsBoolean()
   CLAIM_PAY?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  BANK_INTERNAL_TRANSFER?: boolean;
 }
 
 export class UpdateSecurityConfigDto {
