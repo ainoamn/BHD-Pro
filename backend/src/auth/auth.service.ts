@@ -572,6 +572,7 @@ export class AuthService {
       { code: '1510', name: 'مجمع الإهلاك', type: 'ASSET', category: 'FIXED_ASSET' },
       { code: '2000', name: 'الخصوم', type: 'LIABILITY', category: 'CURRENT_LIABILITY' },
       { code: '2100', name: 'الموردين', type: 'LIABILITY', category: 'CURRENT_LIABILITY' },
+      { code: '2130', name: 'ائتمان عملاء (رصيد متجر)', type: 'LIABILITY', category: 'CURRENT_LIABILITY' },
       { code: '2150', name: 'رواتب مستحقة', type: 'LIABILITY', category: 'CURRENT_LIABILITY' },
       { code: '2160', name: 'مطالبات موظفين مستحقة', type: 'LIABILITY', category: 'CURRENT_LIABILITY' },
       { code: '2200', name: 'ضريبة القيمة المضافة', type: 'LIABILITY', category: 'CURRENT_LIABILITY' },

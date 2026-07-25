@@ -938,7 +938,7 @@ export default function PosCheckoutPage() {
     }));
     const useStoreCredit = method === "STORE_CREDIT";
     const payload = {
-      paymentMethod: useStoreCredit ? "OTHER" : method,
+      paymentMethod: useStoreCredit ? "STORE_CREDIT" : method,
       useStoreCredit: useStoreCredit || undefined,
       warehouseId: warehouseId || undefined,
       contactId: contactId || undefined,

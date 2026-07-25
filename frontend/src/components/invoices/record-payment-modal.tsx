@@ -40,6 +40,7 @@ const PAYMENT_METHODS = [
   "CHECK",
   "ONLINE",
   "OTHER",
+  "STORE_CREDIT",
 ] as const;
 
 type DistributionMode = "auto" | "manual";

@@ -122,10 +122,39 @@ export class GlPostingService {
     accounts: Awaited<ReturnType<GlPostingService['resolveAccounts']>>,
     method: PaymentMethod,
   ) {
+    if (method === PaymentMethod.STORE_CREDIT) {
+      return null;
+    }
     if (method === PaymentMethod.BANK_TRANSFER || method === PaymentMethod.CREDIT_CARD) {
       return accounts.bank || accounts.cash;
     }
     return accounts.cash || accounts.bank;
+  }
+
+  /** Customer store-credit liability 2130 */
+  async ensureStoreCreditAccount(companyId: string) {
+    const existing = await this.prisma.account.findFirst({
+      where: { companyId, code: '2130' },
+    });
+    if (existing) return existing;
+    return this.prisma.account.create({
+      data: {
+        companyId,
+        code: '2130',
+        name: 'ائتمان عملاء (رصيد متجر)',
+        type: AccountType.LIABILITY,
+        category: AccountCategory.CURRENT_LIABILITY,
+        isActive: true,
+      },
+    });
+  }
+
+  private isStoreCreditPayment(payment: {
+    method: PaymentMethod;
+    notes?: string | null;
+  }) {
+    if (payment.method === PaymentMethod.STORE_CREDIT) return true;
+    return (payment.notes || '').includes('[STORE_CREDIT]');
   }
 
   private async createEntry(
@@ -334,6 +363,7 @@ export class GlPostingService {
       date: Date;
       glJournalId?: string | null;
       bankAccountId?: string | null;
+      notes?: string | null;
     },
     invoice: {
       id: string;
@@ -345,41 +375,65 @@ export class GlPostingService {
 
     const accounts = await this.resolveAccounts(companyId);
     const amount = Number(payment.amount);
-    let cash = this.cashAccount(accounts, payment.method);
-    if (payment.bankAccountId) {
-      const bank = await this.prisma.bankAccount.findFirst({
-        where: { id: payment.bankAccountId, companyId },
-      });
-      if (bank?.accountId) {
-        const linked = await this.prisma.account.findFirst({
-          where: { id: bank.accountId, companyId, isActive: true },
-        });
-        if (linked) cash = linked;
-      }
-    }
-    if (!cash) return null;
+    const storeCredit = this.isStoreCreditPayment(payment);
 
     let lines: JournalLineInput[] = [];
     const salesSide =
       invoice.type === InvoiceType.SALES || invoice.type === InvoiceType.CREDIT_NOTE;
 
-    if (salesSide) {
+    if (storeCredit) {
       if (!accounts.ar) return null;
-      lines = [
-        { accountId: cash.id, description: invoice.number, debit: amount, credit: 0 },
-        { accountId: accounts.ar.id, description: invoice.number, debit: 0, credit: amount },
-      ];
+      const liability = await this.ensureStoreCreditAccount(companyId);
+      // SALES: settle AR by reducing customer credit liability.
+      // CREDIT_NOTE: settle AR credit by increasing customer credit liability.
+      if (invoice.type === InvoiceType.CREDIT_NOTE) {
+        lines = [
+          { accountId: accounts.ar.id, description: invoice.number, debit: amount, credit: 0 },
+          { accountId: liability.id, description: invoice.number, debit: 0, credit: amount },
+        ];
+      } else if (invoice.type === InvoiceType.SALES) {
+        lines = [
+          { accountId: liability.id, description: invoice.number, debit: amount, credit: 0 },
+          { accountId: accounts.ar.id, description: invoice.number, debit: 0, credit: amount },
+        ];
+      } else {
+        return null;
+      }
     } else {
-      if (!accounts.ap) return null;
-      lines = [
-        { accountId: accounts.ap.id, description: invoice.number, debit: amount, credit: 0 },
-        { accountId: cash.id, description: invoice.number, debit: 0, credit: amount },
-      ];
+      let cash = this.cashAccount(accounts, payment.method);
+      if (payment.bankAccountId) {
+        const bank = await this.prisma.bankAccount.findFirst({
+          where: { id: payment.bankAccountId, companyId },
+        });
+        if (bank?.accountId) {
+          const linked = await this.prisma.account.findFirst({
+            where: { id: bank.accountId, companyId, isActive: true },
+          });
+          if (linked) cash = linked;
+        }
+      }
+      if (!cash) return null;
+
+      if (salesSide) {
+        if (!accounts.ar) return null;
+        lines = [
+          { accountId: cash.id, description: invoice.number, debit: amount, credit: 0 },
+          { accountId: accounts.ar.id, description: invoice.number, debit: 0, credit: amount },
+        ];
+      } else {
+        if (!accounts.ap) return null;
+        lines = [
+          { accountId: accounts.ap.id, description: invoice.number, debit: amount, credit: 0 },
+          { accountId: cash.id, description: invoice.number, debit: 0, credit: amount },
+        ];
+      }
     }
 
     const journal = await this.createEntry(companyId, userId, {
       date: payment.date,
-      description: `ترحيل دفعة ${invoice.number}`,
+      description: storeCredit
+        ? `ترحيل ائتمان متجر ${invoice.number}`
+        : `ترحيل دفعة ${invoice.number}`,
       reference: `PAY:${payment.id}`,
     }, lines);
 
@@ -401,6 +455,7 @@ export class GlPostingService {
       method: PaymentMethod;
       date: Date;
       glJournalId?: string | null;
+      notes?: string | null;
     },
     invoice: { id: string; number: string; type: InvoiceType },
   ) {
@@ -408,30 +463,52 @@ export class GlPostingService {
 
     const accounts = await this.resolveAccounts(companyId);
     const amount = Number(payment.amount);
-    const cash = this.cashAccount(accounts, payment.method);
-    if (!cash) return null;
-
-    const salesSide =
-      invoice.type === InvoiceType.SALES || invoice.type === InvoiceType.CREDIT_NOTE;
+    const storeCredit = this.isStoreCreditPayment(payment);
     let lines: JournalLineInput[] = [];
 
-    if (salesSide) {
+    if (storeCredit) {
       if (!accounts.ar) return null;
-      lines = [
-        { accountId: cash.id, description: `عكس ${invoice.number}`, debit: 0, credit: amount },
-        { accountId: accounts.ar.id, description: `عكس ${invoice.number}`, debit: amount, credit: 0 },
-      ];
+      const liability = await this.ensureStoreCreditAccount(companyId);
+      if (invoice.type === InvoiceType.CREDIT_NOTE) {
+        lines = [
+          { accountId: accounts.ar.id, description: `عكس ${invoice.number}`, debit: 0, credit: amount },
+          { accountId: liability.id, description: `عكس ${invoice.number}`, debit: amount, credit: 0 },
+        ];
+      } else if (invoice.type === InvoiceType.SALES) {
+        lines = [
+          { accountId: liability.id, description: `عكس ${invoice.number}`, debit: 0, credit: amount },
+          { accountId: accounts.ar.id, description: `عكس ${invoice.number}`, debit: amount, credit: 0 },
+        ];
+      } else {
+        return null;
+      }
     } else {
-      if (!accounts.ap) return null;
-      lines = [
-        { accountId: accounts.ap.id, description: `عكس ${invoice.number}`, debit: 0, credit: amount },
-        { accountId: cash.id, description: `عكس ${invoice.number}`, debit: amount, credit: 0 },
-      ];
+      const cash = this.cashAccount(accounts, payment.method);
+      if (!cash) return null;
+
+      const salesSide =
+        invoice.type === InvoiceType.SALES || invoice.type === InvoiceType.CREDIT_NOTE;
+
+      if (salesSide) {
+        if (!accounts.ar) return null;
+        lines = [
+          { accountId: cash.id, description: `عكس ${invoice.number}`, debit: 0, credit: amount },
+          { accountId: accounts.ar.id, description: `عكس ${invoice.number}`, debit: amount, credit: 0 },
+        ];
+      } else {
+        if (!accounts.ap) return null;
+        lines = [
+          { accountId: accounts.ap.id, description: `عكس ${invoice.number}`, debit: 0, credit: amount },
+          { accountId: cash.id, description: `عكس ${invoice.number}`, debit: amount, credit: 0 },
+        ];
+      }
     }
 
     return this.createEntry(companyId, userId, {
       date: new Date(),
-      description: `عكس دفعة ${invoice.number}`,
+      description: storeCredit
+        ? `عكس ائتمان متجر ${invoice.number}`
+        : `عكس دفعة ${invoice.number}`,
       reference: `REV-PAY:${payment.id}`,
     }, lines);
   }

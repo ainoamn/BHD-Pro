@@ -1285,6 +1285,7 @@ enum PaymentMethod {
   CHECK
   ONLINE
   OTHER
+  STORE_CREDIT
 }
 
 enum PurchaseOrderStatus {

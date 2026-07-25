@@ -453,7 +453,9 @@ export class PosService {
 
     const fields = (invoice.customFieldsJson || {}) as Record<string, unknown>;
     const usedStoreCredit =
-      notes.includes('STORE_CREDIT') || fields.usedStoreCredit === true;
+      notes.includes('STORE_CREDIT') ||
+      fields.usedStoreCredit === true ||
+      invoice.payments?.some((p) => p.method === PaymentMethod.STORE_CREDIT);
     if (usedStoreCredit && invoice.contactId) {
       const restoreAmount =
         typeof fields.storeCreditAmount === 'number'
@@ -626,7 +628,9 @@ export class PosService {
 
       // 2) Create paid cash invoice (attach to open shift for this warehouse)
 
-      const paymentMethod = useStoreCredit ? PaymentMethod.OTHER : (dto.paymentMethod ?? PaymentMethod.CASH);
+      const paymentMethod = useStoreCredit
+        ? PaymentMethod.STORE_CREDIT
+        : (dto.paymentMethod ?? PaymentMethod.CASH);
       const notes = useStoreCredit
         ? `[STORE_CREDIT] ${dto.notes || 'Hisaby POS sale'}`
         : (dto.notes || 'Hisaby POS sale');
@@ -1300,19 +1304,32 @@ export class PosService {
     const reason = dto.reason?.trim();
     const refundMethod = dto.refundMethod || 'ORIGINAL';
 
+    const saleNotes = invoice.notes || '';
+    const saleFields = (invoice.customFieldsJson || {}) as Record<string, unknown>;
+    const originalMethod = invoice.payments?.[0]?.method || PaymentMethod.CASH;
+    const originalWasStoreCredit =
+      originalMethod === PaymentMethod.STORE_CREDIT ||
+      saleNotes.includes('STORE_CREDIT') ||
+      saleFields.usedStoreCredit === true;
+
     let paymentMethod: PaymentMethod;
+    let isStoreCreditRefund = false;
     if (refundMethod === 'STORE_CREDIT') {
-      paymentMethod = PaymentMethod.OTHER;
+      paymentMethod = PaymentMethod.STORE_CREDIT;
+      isStoreCreditRefund = true;
     } else if (refundMethod === 'CASH') {
       paymentMethod = PaymentMethod.CASH;
+    } else if (refundMethod === 'ORIGINAL' && originalWasStoreCredit) {
+      paymentMethod = PaymentMethod.STORE_CREDIT;
+      isStoreCreditRefund = true;
     } else {
-      // ORIGINAL: use original sale payment method, but OTHER→CASH
-      const originalMethod = invoice.payments?.[0]?.method || PaymentMethod.CASH;
-      paymentMethod = originalMethod === PaymentMethod.OTHER ? PaymentMethod.CASH : originalMethod;
+      // ORIGINAL: keep original method; legacy OTHER→CASH
+      paymentMethod =
+        originalMethod === PaymentMethod.OTHER ? PaymentMethod.CASH : originalMethod;
     }
 
     const notesBase = `${marker}${reason ? `: ${reason}` : ''}`;
-    const notes = refundMethod === 'STORE_CREDIT' ? `${notesBase} [STORE_CREDIT]` : notesBase;
+    const notes = isStoreCreditRefund ? `${notesBase} [STORE_CREDIT]` : notesBase;
 
     const creditNote = await this.invoices.create(companyId, actor.sub, {
       type: InvoiceType.CREDIT_NOTE,
@@ -1326,7 +1343,7 @@ export class PosService {
       items: cnItems,
     });
 
-    if (refundMethod === 'STORE_CREDIT') {
+    if (isStoreCreditRefund) {
       const creditNoteTotal = Number(creditNote.total);
       await this.prisma.contact.update({
         where: { id: invoice.contactId },

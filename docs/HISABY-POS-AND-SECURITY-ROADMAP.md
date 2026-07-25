@@ -80,7 +80,7 @@ Public flags: `asyncApprovals: true`, `nfcBadgesConfigured`, `shiftVarianceLimit
 - [ ] Partner NFC tap-to-pay (gateway / wallet partners — not badge dual-control)
 - [ ] Native wrapper (Capacitor) if PWA limits hit
 - [ ] Reliable multi-vendor Web Bluetooth thermal (current BLE path is best-effort)
-- [ ] Full AR GL posting for store-credit (MVP uses Contact.currentBalance)
+- [x] Full AR GL posting for store-credit (`PaymentMethod.STORE_CREDIT` → liability **2130** ائتمان عملاء; wallet `Contact.currentBalance` kept as operational balance)
 
 ### Done (Wave 6)
 - [x] Full catalog sync API `GET /pos/catalog/sync` + offline IDB per warehouse
@@ -108,4 +108,4 @@ Public flags: `asyncApprovals: true`, `nfcBadgesConfigured`, `shiftVarianceLimit
 13. `requireOpenShift` (default **false**) blocks `POST /pos/sales` and checkout UI when no open shift; enable in Dual Control / POS settings.
 14. Floor polish: qty keypad, scan beep (`hisaby-pos-mute-beep`), favorites (`hisaby-pos-favorites:{companyId}`), receipt WhatsApp/email share, refund reason chips, draft rename, `?` shortcuts help.
 15. X-report: mid-shift live totals via `GET /pos/shifts/current/x-report?warehouseId=` (or `/pos/shifts/:id/x-report`); print from `/pos/shifts` without closing.
-16. Bank internal transfer dual-control (`BANK_INTERNAL_TRANSFER`) + statement match suggestions UI on `/bank-reconciliation`.
+17. Store-credit GL: `PaymentMethod.STORE_CREDIT` posts Dr/Cr liability **2130** against AR (not cash 1100); wallet `Contact.currentBalance` remains operational.
