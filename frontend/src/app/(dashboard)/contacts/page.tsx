@@ -18,6 +18,7 @@ import {
   Phone,
   MapPin,
   MessageCircle,
+  Wallet,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
@@ -35,6 +36,7 @@ import { openExternalUrl } from "@/lib/open-external-url";
 import { useAuthStore } from "@/store/auth";
 import { PageHeader, EmptyState, LoadingSpinner, GlassCard } from "@/components/ui/page-shell";
 import { FormLabel } from "@/components/ui/form-field";
+import { DecimalInput } from "@/components/ui/decimal-input";
 import {
   CustomFieldsInputs,
   type CustomFieldDef,
@@ -57,6 +59,10 @@ interface ContactRow {
   outstandingBalance?: number;
   receivableBalance?: number;
   payableBalance?: number;
+  currentBalance?: number;
+  storeCreditBalance?: number;
+  creditLimit?: number;
+  openingBalance?: number;
 }
 
 const emptyContact = (type: TabType) => ({
@@ -70,6 +76,8 @@ const emptyContact = (type: TabType) => ({
   taxId: "",
   address: "",
   city: "",
+  creditLimit: 0,
+  openingBalance: 0,
   customFields: {} as Record<string, string | number>,
 });
 
@@ -88,11 +96,13 @@ function contactToForm(contact: ContactRow, tab: TabType): ContactForm {
     taxId: contact.taxId || "",
     address: contact.address || "",
     city: contact.city || "",
+    creditLimit: Number(contact.creditLimit || 0),
+    openingBalance: Number(contact.openingBalance || 0),
     customFields: (contact.customFieldsJson as Record<string, string | number>) || {},
   };
 }
 
-function formToPayload(form: ContactForm) {
+function formToPayload(form: ContactForm, isCreate: boolean) {
   const phone = combinePhone(form.phoneDialCode, form.phoneLocal);
   const payload: Record<string, unknown> = {
     type: form.type,
@@ -104,10 +114,23 @@ function formToPayload(form: ContactForm) {
   if (form.taxId?.trim()) payload.taxId = form.taxId.trim();
   if (form.address?.trim()) payload.address = form.address.trim();
   if (form.city?.trim()) payload.city = form.city.trim();
+  if (form.type === "CUSTOMER" || form.type === "SUPPLIER") {
+    // credit limit meaningful for customers (and BOTH); still send for customers tab
+  }
+  if (form.type !== "SUPPLIER") {
+    payload.creditLimit = Number(form.creditLimit) || 0;
+    if (isCreate && Number(form.openingBalance) > 0) {
+      payload.openingBalance = Number(form.openingBalance);
+    }
+  }
   if (form.customFields && Object.keys(form.customFields).length > 0) {
     payload.customFieldsJson = form.customFields;
   }
   return payload;
+}
+
+function storeCreditOf(c: ContactRow) {
+  return Number(c.storeCreditBalance ?? c.currentBalance ?? 0);
 }
 
 function openWhatsApp(contact: ContactRow, t: (key: string) => string) {
@@ -132,6 +155,11 @@ function ContactsContent() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyContact("CUSTOMER"));
+  const [adjustContact, setAdjustContact] = useState<ContactRow | null>(null);
+  const [adjustAmount, setAdjustAmount] = useState(0);
+  const [adjustNotes, setAdjustNotes] = useState("");
+  const [adjustBankId, setAdjustBankId] = useState("");
+  const currency = company?.currency || "OMR";
 
   useEffect(() => {
     const action = searchParams.get("action");
@@ -157,6 +185,13 @@ function ContactsContent() {
       const res = await api.getCustomFields("CONTACT");
       return res.data as CustomFieldDef[];
     },
+  });
+
+  const { data: banks = [] } = useQuery({
+    queryKey: ["bank-accounts"],
+    queryFn: async () =>
+      (await api.getBankAccounts()).data as { id: string; name: string; bankName: string }[],
+    enabled: tab === "CUSTOMER",
   });
 
   const filtered = useMemo(() => {
@@ -191,7 +226,7 @@ function ContactsContent() {
 
   const saveMutation = useMutation({
     mutationFn: () => {
-      const payload = formToPayload(form);
+      const payload = formToPayload(form, !editingId);
       if (editingId) return api.updateContact(editingId, payload);
       return api.createContact(payload);
     },
@@ -200,6 +235,31 @@ function ContactsContent() {
       toast.success(t("saved"));
       setModalOpen(false);
       resetForm();
+    },
+    onError: (err: unknown) => {
+      const axiosErr = err as { response?: { data?: { message?: string | string[] } } };
+      const apiMsg = axiosErr?.response?.data?.message;
+      const detail = Array.isArray(apiMsg) ? apiMsg.join(" — ") : apiMsg;
+      toast.error(detail || t("saveError"));
+    },
+  });
+
+  const adjustMutation = useMutation({
+    mutationFn: () => {
+      if (!adjustContact) throw new Error("no contact");
+      return api.adjustContactStoreCredit(adjustContact.id, {
+        amount: adjustAmount,
+        notes: adjustNotes.trim() || undefined,
+        bankAccountId: adjustBankId || undefined,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["contacts"] });
+      toast.success(t("storeCreditAdjusted"));
+      setAdjustContact(null);
+      setAdjustAmount(0);
+      setAdjustNotes("");
+      setAdjustBankId("");
     },
     onError: (err: unknown) => {
       const axiosErr = err as { response?: { data?: { message?: string | string[] } } };
@@ -362,6 +422,40 @@ function ContactsContent() {
                   )}
                 </div>
 
+                {tab === "CUSTOMER" && (
+                  <div className="mt-3 pt-3 border-t border-slate-700 space-y-1 text-sm">
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400 flex items-center gap-1">
+                        <Wallet className="w-3.5 h-3.5" />
+                        {t("storeCredit")}
+                      </span>
+                      <span className="text-sky-300 font-medium">
+                        {formatMoney(storeCreditOf(contact), currency)}
+                      </span>
+                    </div>
+                    {Number(contact.creditLimit || 0) > 0 && (
+                      <div className="flex justify-between text-xs">
+                        <span className="text-slate-500">{t("creditLimit")}</span>
+                        <span className="text-slate-400">
+                          {formatMoney(Number(contact.creditLimit), currency)}
+                        </span>
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAdjustContact(contact);
+                        setAdjustAmount(0);
+                        setAdjustNotes("");
+                        setAdjustBankId("");
+                      }}
+                      className="mt-1 text-xs text-emerald-400 hover:text-emerald-300"
+                    >
+                      {t("adjustStoreCredit")}
+                    </button>
+                  </div>
+                )}
+
                 {((contact.receivableBalance ?? 0) > 0 ||
                   (contact.payableBalance ?? 0) > 0) && (
                   <div className="mt-3 pt-3 border-t border-slate-700 space-y-1 text-sm">
@@ -412,6 +506,9 @@ function ContactsContent() {
                   <th className="text-right p-4 font-medium">{t("address")}</th>
                   <th className="text-right p-4 font-medium">{t("city")}</th>
                   <th className="text-right p-4 font-medium">{t("balance")}</th>
+                  {tab === "CUSTOMER" && (
+                    <th className="text-right p-4 font-medium">{t("storeCredit")}</th>
+                  )}
                   <th className="text-right p-4 font-medium">{tCommon("actions")}</th>
                 </tr>
               </thead>
@@ -429,12 +526,12 @@ function ContactsContent() {
                       <div className="space-y-0.5 text-xs">
                         {(contact.receivableBalance ?? 0) > 0 && (
                           <div className="text-emerald-400">
-                            {t("receivable")}: {formatMoney(contact.receivableBalance || 0, company?.currency || "OMR")}
+                            {t("receivable")}: {formatMoney(contact.receivableBalance || 0, currency)}
                           </div>
                         )}
                         {(contact.payableBalance ?? 0) > 0 && (
                           <div className="text-rose-400">
-                            {t("payable")}: {formatMoney(contact.payableBalance || 0, company?.currency || "OMR")}
+                            {t("payable")}: {formatMoney(contact.payableBalance || 0, currency)}
                           </div>
                         )}
                         {(contact.receivableBalance ?? 0) === 0 &&
@@ -443,8 +540,34 @@ function ContactsContent() {
                           )}
                       </div>
                     </td>
+                    {tab === "CUSTOMER" && (
+                      <td className="p-4">
+                        <div className="text-sky-300 text-xs font-medium">
+                          {formatMoney(storeCreditOf(contact), currency)}
+                        </div>
+                        {Number(contact.creditLimit || 0) > 0 && (
+                          <div className="text-[10px] text-slate-500">
+                            {t("creditLimit")}: {formatMoney(Number(contact.creditLimit), currency)}
+                          </div>
+                        )}
+                      </td>
+                    )}
                     <td className="p-4">
                       <div className="flex items-center gap-2">
+                        {tab === "CUSTOMER" && (
+                          <button
+                            onClick={() => {
+                              setAdjustContact(contact);
+                              setAdjustAmount(0);
+                              setAdjustNotes("");
+                              setAdjustBankId("");
+                            }}
+                            className="p-1.5 rounded-lg hover:bg-sky-500/10 text-sky-400"
+                            title={t("adjustStoreCredit")}
+                          >
+                            <Wallet className="w-4 h-4" />
+                          </button>
+                        )}
                         {contact.phone && formatPhoneForWhatsApp(contact.phone) && (
                           <button
                             onClick={() => openWhatsApp(contact, t)}
@@ -571,6 +694,60 @@ function ContactsContent() {
                   className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
+              {tab === "CUSTOMER" && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-800">
+                  <div>
+                    <label className="block text-sm text-slate-400 mb-1">{t("creditLimit")}</label>
+                    <DecimalInput
+                      value={form.creditLimit}
+                      onChange={(v) => setForm({ ...form, creditLimit: v })}
+                    />
+                  </div>
+                  {!editingId ? (
+                    <div>
+                      <label className="block text-sm text-slate-400 mb-1">
+                        {t("openingStoreCredit")}
+                      </label>
+                      <DecimalInput
+                        value={form.openingBalance}
+                        onChange={(v) => setForm({ ...form, openingBalance: v })}
+                      />
+                      <p className="text-[11px] text-slate-500 mt-1">{t("openingStoreCreditHint")}</p>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-sm text-slate-400 mb-1">{t("storeCredit")}</label>
+                      <p className="h-10 flex items-center text-sky-300 text-sm font-medium">
+                        {formatMoney(
+                          storeCreditOf(
+                            contacts.find((c) => c.id === editingId) || {
+                              id: editingId,
+                              type: "CUSTOMER",
+                              name: form.name,
+                            },
+                          ),
+                          currency,
+                        )}
+                      </p>
+                      <button
+                        type="button"
+                        className="text-xs text-emerald-400 mt-1"
+                        onClick={() => {
+                          const row = contacts.find((c) => c.id === editingId);
+                          if (row) {
+                            setAdjustContact(row);
+                            setAdjustAmount(0);
+                            setAdjustNotes("");
+                            setAdjustBankId("");
+                          }
+                        }}
+                      >
+                        {t("adjustStoreCredit")}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
               <CustomFieldsInputs
                 fields={contactFields}
                 values={form.customFields}
@@ -588,6 +765,75 @@ function ContactsContent() {
                 className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 disabled:opacity-50"
               >
                 {saveMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                {tCommon("save")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {adjustContact && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center pt-16 bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl">
+            <div className="flex items-center justify-between p-5 border-b border-slate-800">
+              <div>
+                <h2 className="text-lg font-semibold text-white">{t("adjustStoreCredit")}</h2>
+                <p className="text-sm text-slate-400 mt-0.5">
+                  {adjustContact.name} · {formatMoney(storeCreditOf(adjustContact), currency)}
+                </p>
+              </div>
+              <button
+                onClick={() => setAdjustContact(null)}
+                className="text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-5 space-y-3">
+              <div>
+                <label className="block text-sm text-slate-400 mb-1">{t("adjustAmount")}</label>
+                <DecimalInput value={adjustAmount} onChange={setAdjustAmount} />
+                <p className="text-[11px] text-slate-500 mt-1">{t("adjustAmountHint")}</p>
+              </div>
+              <div>
+                <label className="block text-sm text-slate-400 mb-1">{t("adjustBank")}</label>
+                <select
+                  value={adjustBankId}
+                  onChange={(e) => setAdjustBankId(e.target.value)}
+                  className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
+                >
+                  <option value="">{t("adjustCash")}</option>
+                  {banks.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name} — {b.bankName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm text-slate-400 mb-1">{t("adjustNotes")}</label>
+                <input
+                  value={adjustNotes}
+                  onChange={(e) => setAdjustNotes(e.target.value)}
+                  className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 p-5 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setAdjustContact(null)}
+                className="px-4 py-2 text-slate-400 hover:text-white"
+              >
+                {tCommon("cancel")}
+              </button>
+              <button
+                type="button"
+                disabled={Math.abs(adjustAmount) < 0.001 || adjustMutation.isPending}
+                onClick={() => adjustMutation.mutate()}
+                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg disabled:opacity-50"
+              >
+                {adjustMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
                 {tCommon("save")}
               </button>
             </div>

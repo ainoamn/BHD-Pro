@@ -660,7 +660,18 @@
     "phoneHint": "اختر رمز الدولة ثم أدخل الرقم بدون الصفر الأول — مطلوب لإرسال واتساب",
     "phonePreview": "الرقم الكامل",
     "sendWhatsApp": "إرسال واتساب",
-    "whatsappNeedPhone": "أضف رقم الهاتف مع رمز الدولة أولاً"
+    "whatsappNeedPhone": "أضف رقم الهاتف مع رمز الدولة أولاً",
+    "storeCredit": "رصيد متجر",
+    "creditLimit": "حد الائتمان",
+    "openingStoreCredit": "رصيد افتتاحي (متجر)",
+    "openingStoreCreditHint": "يُرحَّل إلى حساب 2130 عند الإنشاء",
+    "adjustStoreCredit": "تعديل رصيد المتجر",
+    "adjustAmount": "المبلغ (+ زيادة / − تخفيض)",
+    "adjustAmountHint": "موجب لشحن المحفظة، سالب لتخفيضها",
+    "adjustBank": "مصدر/وجهة النقد",
+    "adjustCash": "الصندوق (1100)",
+    "adjustNotes": "ملاحظة",
+    "storeCreditAdjusted": "تم تحديث رصيد المتجر"
   },
   "reports": {
     "title": "التقارير المالية",

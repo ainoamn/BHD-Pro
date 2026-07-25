@@ -685,6 +685,58 @@ export class GlPostingService {
     return cash;
   }
 
+  /**
+   * Fund / defund customer store-credit liability (2130) against cash/bank.
+   * Positive amount = increase liability (wallet top-up). Negative = decrease.
+   */
+  async postStoreCreditFunding(
+    companyId: string,
+    userId: string,
+    opts: {
+      contactId: string;
+      contactName: string;
+      amount: number;
+      notes?: string;
+      bankAccountId?: string | null;
+      reference: string;
+    },
+  ) {
+    const amount = Number(opts.amount);
+    if (Math.abs(amount) < 0.0005) return null;
+
+    const liability = await this.ensureStoreCreditAccount(companyId);
+    const cash = await this.resolveCashOrBank(
+      companyId,
+      opts.bankAccountId ? PaymentMethod.BANK_TRANSFER : PaymentMethod.CASH,
+      opts.bankAccountId,
+    );
+    if (!cash) return null;
+
+    const abs = Math.abs(amount);
+    const desc = opts.notes || `ائتمان متجر — ${opts.contactName}`;
+    const lines: JournalLineInput[] =
+      amount > 0
+        ? [
+            { accountId: cash.id, description: desc, debit: abs, credit: 0 },
+            { accountId: liability.id, description: desc, debit: 0, credit: abs },
+          ]
+        : [
+            { accountId: liability.id, description: desc, debit: abs, credit: 0 },
+            { accountId: cash.id, description: desc, debit: 0, credit: abs },
+          ];
+
+    return this.createEntry(
+      companyId,
+      userId,
+      {
+        date: new Date(),
+        description: desc,
+        reference: opts.reference,
+      },
+      lines,
+    );
+  }
+
   async postPayrollAccrual(
     companyId: string,
     userId: string,

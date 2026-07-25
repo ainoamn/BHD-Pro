@@ -1,15 +1,22 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateContactDto } from './dto/create-contact.dto';
 import { UpdateContactDto } from './dto/update-contact.dto';
+import { AdjustStoreCreditDto } from './dto/adjust-store-credit.dto';
 import { ContactType, InvoiceStatus, PaymentStatus } from '@prisma/client';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
+import { GlPostingService } from '../journal/gl-posting.service';
 
 @Injectable()
 export class ContactsService {
   constructor(
     private prisma: PrismaService,
     private subscriptions: SubscriptionsService,
+    private glPosting: GlPostingService,
   ) {}
 
   async findAll(companyId: string, type?: ContactType) {
@@ -74,23 +81,52 @@ export class ContactsService {
         receivableBalance: bal.receivable,
         payableBalance: bal.payable,
         outstandingBalance: net,
+        storeCreditBalance: Number(c.currentBalance || 0),
       };
     });
   }
 
-  async create(companyId: string, dto: CreateContactDto) {
+  async create(companyId: string, userId: string, dto: CreateContactDto) {
     await this.subscriptions.assertSubscriptionActive(companyId);
-    const { customFieldsJson, ...rest } = dto;
-    return this.prisma.contact.create({
+    const { customFieldsJson, openingBalance, creditLimit, ...rest } = dto;
+    const opening = Number(openingBalance || 0);
+    const limit =
+      creditLimit !== undefined && creditLimit !== null
+        ? Number(creditLimit)
+        : 0;
+
+    if (opening < -0.0005) {
+      throw new BadRequestException('Opening balance cannot be negative');
+    }
+    if (limit > 0 && opening > limit + 0.001) {
+      throw new BadRequestException('Opening balance exceeds credit limit');
+    }
+
+    const contact = await this.prisma.contact.create({
       data: {
         ...rest,
         companyId,
         country: 'OM',
+        openingBalance: opening,
+        currentBalance: opening,
+        creditLimit: limit,
         ...(customFieldsJson !== undefined
           ? { customFieldsJson: customFieldsJson as object }
           : {}),
       },
     });
+
+    if (opening > 0.0005) {
+      await this.glPosting.postStoreCreditFunding(companyId, userId, {
+        contactId: contact.id,
+        contactName: contact.name,
+        amount: opening,
+        notes: 'Opening store credit',
+        reference: `SC-OPEN:${contact.id}`,
+      });
+    }
+
+    return contact;
   }
 
   async findOne(companyId: string, id: string) {
@@ -103,7 +139,13 @@ export class ContactsService {
 
   async update(companyId: string, id: string, dto: UpdateContactDto) {
     await this.findOne(companyId, id);
-    const { customFieldsJson, ...rest } = dto;
+    // Wallet balance must change via adjustStoreCredit (keeps GL in sync)
+    const {
+      customFieldsJson,
+      currentBalance: _ignoredBalance,
+      openingBalance: _ignoredOpening,
+      ...rest
+    } = dto;
     return this.prisma.contact.update({
       where: { id },
       data: {
@@ -115,8 +157,66 @@ export class ContactsService {
     });
   }
 
+  async adjustStoreCredit(
+    companyId: string,
+    userId: string,
+    id: string,
+    dto: AdjustStoreCreditDto,
+  ) {
+    const contact = await this.findOne(companyId, id);
+    if (contact.type === 'SUPPLIER') {
+      throw new BadRequestException('Store credit applies to customers only');
+    }
+
+    const amount = Number(dto.amount);
+    if (!Number.isFinite(amount) || Math.abs(amount) < 0.0005) {
+      throw new BadRequestException('Amount must be non-zero');
+    }
+
+    const current = Number(contact.currentBalance || 0);
+    const next = Number((current + amount).toFixed(3));
+    if (next < -0.0005) {
+      throw new BadRequestException(
+        `Insufficient store credit: balance ${current.toFixed(3)}`,
+      );
+    }
+
+    const limit = Number(contact.creditLimit || 0);
+    if (limit > 0 && next > limit + 0.001) {
+      throw new BadRequestException(
+        `Exceeds credit limit ${limit.toFixed(3)} (would be ${next.toFixed(3)})`,
+      );
+    }
+
+    if (dto.bankAccountId) {
+      const bank = await this.prisma.bankAccount.findFirst({
+        where: { id: dto.bankAccountId, companyId },
+      });
+      if (!bank) throw new BadRequestException('Bank account not found');
+    }
+
+    const updated = await this.prisma.contact.update({
+      where: { id },
+      data: { currentBalance: next },
+    });
+
+    await this.glPosting.postStoreCreditFunding(companyId, userId, {
+      contactId: id,
+      contactName: contact.name,
+      amount,
+      notes: dto.notes,
+      bankAccountId: dto.bankAccountId,
+      reference: `SC-ADJ:${id}:${Date.now()}`,
+    });
+
+    return updated;
+  }
+
   async remove(companyId: string, id: string) {
     await this.findOne(companyId, id);
-    return this.prisma.contact.update({ where: { id }, data: { isActive: false } });
+    return this.prisma.contact.update({
+      where: { id },
+      data: { isActive: false },
+    });
   }
 }

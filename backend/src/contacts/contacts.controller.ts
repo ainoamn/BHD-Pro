@@ -1,8 +1,19 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import { ApiTags, ApiBearerAuth, ApiQuery, ApiOperation } from '@nestjs/swagger';
 import { ContactsService } from './contacts.service';
 import { CreateContactDto } from './dto/create-contact.dto';
 import { UpdateContactDto } from './dto/update-contact.dto';
+import { AdjustStoreCreditDto } from './dto/adjust-store-credit.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
@@ -28,11 +39,27 @@ export class ContactsController {
 
   @Post()
   create(@CurrentUser() user: TokenPayload, @Body() dto: CreateContactDto) {
-    return this.contactsService.create(user.companyId, dto);
+    return this.contactsService.create(user.companyId, user.sub, dto);
+  }
+
+  @Post(':id/store-credit-adjust')
+  @ApiOperation({
+    summary: 'Top up or reduce customer store-credit wallet with GL posting to 2130',
+  })
+  adjustStoreCredit(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+    @Body() dto: AdjustStoreCreditDto,
+  ) {
+    return this.contactsService.adjustStoreCredit(user.companyId, user.sub, id, dto);
   }
 
   @Put(':id')
-  update(@CurrentUser() user: TokenPayload, @Param('id') id: string, @Body() dto: UpdateContactDto) {
+  update(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+    @Body() dto: UpdateContactDto,
+  ) {
     return this.contactsService.update(user.companyId, id, dto);
   }
 

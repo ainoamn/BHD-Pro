@@ -660,7 +660,18 @@
     "phoneHint": "Select country code then enter the number without leading zero — required for WhatsApp",
     "phonePreview": "Full number",
     "sendWhatsApp": "Send WhatsApp",
-    "whatsappNeedPhone": "Add phone number with country code first"
+    "whatsappNeedPhone": "Add phone number with country code first",
+    "storeCredit": "Store credit",
+    "creditLimit": "Credit limit",
+    "openingStoreCredit": "Opening store credit",
+    "openingStoreCreditHint": "Posts to GL account 2130 on create",
+    "adjustStoreCredit": "Adjust store credit",
+    "adjustAmount": "Amount (+ top up / − reduce)",
+    "adjustAmountHint": "Positive tops up the wallet; negative reduces it",
+    "adjustBank": "Cash/bank side",
+    "adjustCash": "Cash drawer (1100)",
+    "adjustNotes": "Notes",
+    "storeCreditAdjusted": "Store credit updated"
   },
   "reports": {
     "title": "Financial Reports",
