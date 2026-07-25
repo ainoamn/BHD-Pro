@@ -21,6 +21,8 @@ type SecurityPublic = {
   cashOutApprovalLimit?: number;
   requireOpenShift?: boolean;
   autoSendPosReceipts?: boolean;
+  autoEmailZReportOnClose?: boolean;
+  zReportNotifyEmails?: string[];
   actions: {
     POS_VOID: boolean;
     POS_PRICE_OVERRIDE: boolean;
@@ -84,6 +86,8 @@ export function DualControlSettings() {
   const [cashOutLimit, setCashOutLimit] = useState("20");
   const [requireOpenShift, setRequireOpenShift] = useState(false);
   const [autoSendPosReceipts, setAutoSendPosReceipts] = useState(true);
+  const [autoEmailZReportOnClose, setAutoEmailZReportOnClose] = useState(false);
+  const [zReportEmails, setZReportEmails] = useState("");
 
   const { data, isLoading } = useQuery({
     queryKey: ["company-security"],
@@ -116,6 +120,8 @@ export function DualControlSettings() {
     setCashOutLimit(String(data.cashOutApprovalLimit ?? 20));
     setRequireOpenShift(data.requireOpenShift === true);
     setAutoSendPosReceipts(data.autoSendPosReceipts !== false);
+    setAutoEmailZReportOnClose(data.autoEmailZReportOnClose === true);
+    setZReportEmails((data.zReportNotifyEmails || []).join(", "));
   }, [data]);
 
   const saveMutation = useMutation({

@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  IsArray,
   IsBoolean,
   IsIn,
   IsNumber,
@@ -208,6 +209,20 @@ export class UpdateSecurityConfigDto {
   @IsOptional()
   @IsBoolean()
   autoSendPosReceipts?: boolean;
+
+  /** Auto-email Z-report to managers when a shift closes (default false) */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  autoEmailZReportOnClose?: boolean;
+
+  /** Manager emails that receive Z-report on shift close */
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @MaxLength(200, { each: true })
+  zReportNotifyEmails?: string[];
 }
 
 export class CreateApprovalRequestDto {

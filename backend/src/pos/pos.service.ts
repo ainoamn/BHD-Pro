@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { createHash, randomBytes } from 'crypto';
@@ -33,6 +34,7 @@ import {
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { GlPostingService } from '../journal/gl-posting.service';
 import { CustomerNotifyService } from '../notifications/customer-notify.service';
+import { EmailNotifyService } from '../notifications/email-notify.service';
 import { PosIncentivesService } from './pos-incentives.service';
 import { productWhereForWarehouse } from '../common/warehouse-product-scope';
 import {
@@ -45,6 +47,8 @@ const WALK_IN_NAME = 'POS Walk-in / نقدي';
 
 @Injectable()
 export class PosService {
+  private readonly logger = new Logger(PosService.name);
+
   constructor(
     private prisma: PrismaService,
     private invoices: InvoicesService,
@@ -54,6 +58,7 @@ export class PosService {
     private subscriptions: SubscriptionsService,
     private glPosting: GlPostingService,
     private customerNotify: CustomerNotifyService,
+    private emailNotify: EmailNotifyService,
     private incentives: PosIncentivesService,
   ) {}
 
@@ -1889,7 +1894,97 @@ export class PosService {
       },
     });
 
-    return { shift: updated, zReport };
+    const zEmail = await this.emailZReportBestEffort(companyId, updated, zReport);
+
+    return { shift: updated, zReport, zEmail };
+  }
+
+  private formatZReportPlainText(
+    companyName: string,
+    z: Record<string, unknown>,
+    shiftMeta?: {
+      warehouse?: { code?: string; name?: string } | null;
+      openedBy?: { name?: string } | null;
+      closedBy?: { name?: string } | null;
+    },
+  ): string {
+    const money = (n: unknown) =>
+      n == null || Number.isNaN(Number(n)) ? '—' : Number(n).toFixed(3);
+    const wh = shiftMeta?.warehouse
+      ? `${shiftMeta.warehouse.code || ''} ${shiftMeta.warehouse.name || ''}`.trim()
+      : '';
+    return [
+      `Z-Report · ${companyName}`,
+      wh ? `Warehouse: ${wh}` : '',
+      shiftMeta?.openedBy?.name ? `Opened by: ${shiftMeta.openedBy.name}` : '',
+      shiftMeta?.closedBy?.name ? `Closed by: ${shiftMeta.closedBy.name}` : '',
+      new Date().toISOString(),
+      '',
+      `Opening: ${money(z.openingCash ?? z.openingFloat)}`,
+      `Sales: ${money(z.salesTotal)} (${z.salesCount ?? 0})`,
+      `Cash sales: ${money(z.cashSales)}`,
+      `Card sales: ${money(z.cardSales)}`,
+      `Cash in: ${money(z.cashIn)}`,
+      `Cash out: ${money(z.cashOut)}`,
+      `Refunds: ${money(z.refundTotal ?? z.refundsTotal)}`,
+      `Voids: ${money(z.voidedTotal ?? z.voidsTotal)}`,
+      `Expected cash: ${money(z.expectedCash)}`,
+      `Closing cash: ${money(z.closingCash)}`,
+      `Variance: ${money(z.variance)}`,
+      z.varianceStatus ? `Variance status: ${z.varianceStatus}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  /** Best-effort — never throws / never blocks shift close. */
+  private async emailZReportBestEffort(
+    companyId: string,
+    shift: {
+      id: string;
+      warehouse?: { code?: string; name?: string } | null;
+      openedBy?: { name?: string } | null;
+      closedBy?: { name?: string } | null;
+    },
+    zReport: Record<string, unknown>,
+  ): Promise<{ sent: number; skipped: boolean; error?: string }> {
+    try {
+      const settings = await this.dualControl.getZReportEmailSettings(companyId);
+      if (!settings.enabled) {
+        return { sent: 0, skipped: true };
+      }
+      if (!this.emailNotify.isConfigured()) {
+        return { sent: 0, skipped: true, error: 'Email not configured' };
+      }
+      const company = await this.prisma.company.findUnique({
+        where: { id: companyId },
+        select: { name: true },
+      });
+      const text = this.formatZReportPlainText(
+        company?.name || 'Hisaby POS',
+        zReport,
+        shift,
+      );
+      const subject = `Z-Report · ${company?.name || 'Hisaby'} · ${shift.id.slice(0, 8)}`;
+      let sent = 0;
+      for (const to of settings.emails) {
+        const res = await this.emailNotify.sendText({ to, subject, text });
+        if (res.ok) sent += 1;
+        else {
+          this.logger.warn(`Z-report email to ${to} failed: ${res.error || 'unknown'}`);
+        }
+      }
+      return { sent, skipped: false };
+    } catch (err) {
+      this.logger.warn(
+        `Z-report email failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return {
+        sent: 0,
+        skipped: false,
+        error: err instanceof Error ? err.message : 'email failed',
+      };
+    }
   }
 
   async getZReport(companyId: string, shiftId: string) {

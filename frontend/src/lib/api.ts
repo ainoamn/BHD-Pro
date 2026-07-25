@@ -2018,8 +2018,12 @@ class ApiClient {
         sentAt: string | null;
         stationId?: string | null;
         stationName?: string | null;
+        allergens?: string[];
         orderId: string;
         orderNumber: string;
+        orderNotes?: string | null;
+        guestName?: string | null;
+        channel?: string;
         table: { id: string; code: string; name: string | null } | null;
       }>;
       stations?: Array<{
@@ -2051,10 +2055,33 @@ class ApiClient {
       closed: number;
       cancelled: number;
       openNow: number;
+      paidCloses: number;
       revenue: number;
+      avgTicket: number;
       avgPrepMinutes: number;
-      byHour: Array<{ hour: number; orders: number }>;
-      byTable: Array<{ label: string; orders: number; revenue: number }>;
+      prepP50: number;
+      prepP90: number;
+      avgTableTurnMinutes: number;
+      voidLines: number;
+      compLines: number;
+      sentLines: number;
+      voidRate: number;
+      compRate: number;
+      byHour: Array<{ hour: number; orders: number; revenue: number }>;
+      byTable: Array<{
+        label: string;
+        orders: number;
+        revenue: number;
+        avgTurnMinutes: number | null;
+      }>;
+      byStationPrep: Array<{
+        stationId: string | null;
+        name: string;
+        count: number;
+        avg: number;
+        p90: number;
+      }>;
+      voidReasons: Array<{ reason: string; count: number }>;
       topItems: Array<{ name: string; qty: number; revenue: number }>;
     }>('/resto/reports/summary', {
       params: days ? { days } : undefined,

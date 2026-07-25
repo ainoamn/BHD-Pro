@@ -1614,12 +1614,33 @@ export class RestoService {
           select: {
             id: true,
             number: true,
+            notes: true,
+            guestName: true,
+            channel: true,
             table: { select: { id: true, code: true, name: true } },
           },
         },
       },
       take: 200,
     });
+
+    const productIds = [
+      ...new Set(
+        items
+          .map((i) => i.productId)
+          .filter((id): id is string => !!id),
+      ),
+    ];
+    const products =
+      productIds.length > 0
+        ? await this.prisma.product.findMany({
+            where: { companyId, id: { in: productIds } },
+            select: { id: true, allergens: true },
+          })
+        : [];
+    const allergenByProduct = new Map(
+      products.map((p) => [p.id, p.allergens || []]),
+    );
 
     return {
       count: items.length,
@@ -1636,8 +1657,14 @@ export class RestoService {
         sentAt: it.sentAt,
         stationId: it.stationId,
         stationName: it.station?.name ?? null,
+        allergens: it.productId
+          ? allergenByProduct.get(it.productId) || []
+          : [],
         orderId: it.order.id,
         orderNumber: it.order.number,
+        orderNotes: it.order.notes,
+        guestName: it.order.guestName,
+        channel: it.order.channel,
         table: it.order.table
           ? {
               id: it.order.table.id,
@@ -1917,9 +1944,7 @@ export class RestoService {
       },
       include: {
         table: { select: { id: true, code: true, name: true } },
-        items: {
-          where: { status: { not: RestoOrderItemStatus.CANCELLED } },
-        },
+        items: true,
       },
       orderBy: { createdAt: 'asc' },
       take: 5000,
@@ -1929,10 +1954,33 @@ export class RestoService {
     let closed = 0;
     let cancelled = 0;
     let openNow = 0;
+    let paidCloses = 0;
     const prepSamples: number[] = [];
-    const byHour = new Map<number, number>();
-    const byTable = new Map<string, { label: string; orders: number; revenue: number }>();
+    const turnSamples: number[] = [];
+    const byHour = new Map<number, { orders: number; revenue: number }>();
+    const byTable = new Map<
+      string,
+      { label: string; orders: number; revenue: number; turnSum: number; turnN: number }
+    >();
     const byItem = new Map<string, { name: string; qty: number; revenue: number }>();
+    const byStationPrep = new Map<
+      string,
+      { name: string; samples: number[] }
+    >();
+    const voidReasons = new Map<string, number>();
+
+    let sentLines = 0;
+    let voidLines = 0;
+    let compLines = 0;
+
+    const percentile = (sorted: number[], p: number) => {
+      if (!sorted.length) return 0;
+      const idx = Math.min(
+        sorted.length - 1,
+        Math.max(0, Math.ceil((p / 100) * sorted.length) - 1),
+      );
+      return Number(sorted[idx].toFixed(1));
+    };
 
     for (const order of orders) {
       if (order.status === RestoOrderStatus.CLOSED) closed += 1;
@@ -1940,38 +1988,90 @@ export class RestoService {
       else if (ACTIVE_ORDER.includes(order.status)) openNow += 1;
 
       const hour = order.createdAt.getHours();
-      byHour.set(hour, (byHour.get(hour) || 0) + 1);
+      const hourRow = byHour.get(hour) || { orders: 0, revenue: 0 };
+      hourRow.orders += 1;
 
-      const orderRevenue = order.items.reduce(
+      const activeItems = order.items.filter(
+        (i) => i.status !== RestoOrderItemStatus.CANCELLED,
+      );
+      const billableItems = activeItems.filter((i) => !i.isComp);
+      const orderRevenue = billableItems.reduce(
         (s, i) => s + Number(i.qty) * Number(i.unitPrice),
         0,
       );
-      /** Paid close only — soft closes have no invoiceId */
+
       const paidClose =
         order.status === RestoOrderStatus.CLOSED && !!order.invoiceId;
       if (paidClose) {
         revenue += orderRevenue;
+        paidCloses += 1;
+        hourRow.revenue += orderRevenue;
+
+        if (
+          order.channel === RestoOrderChannel.DINE_IN &&
+          order.closedAt &&
+          order.tableId
+        ) {
+          const turnMin =
+            (order.closedAt.getTime() - order.createdAt.getTime()) / 60000;
+          if (turnMin >= 5 && turnMin <= 360) {
+            turnSamples.push(turnMin);
+          }
+        }
       }
+      byHour.set(hour, hourRow);
 
       const tableKey = order.table?.id || 'none';
       const tableLabel = order.table
         ? order.table.code
         : order.channel === 'TAKEAWAY'
           ? 'TAKEAWAY'
-          : '—';
+          : order.channel === 'DELIVERY'
+            ? 'DELIVERY'
+            : '—';
       const tableRow = byTable.get(tableKey) || {
         label: tableLabel,
         orders: 0,
         revenue: 0,
+        turnSum: 0,
+        turnN: 0,
       };
       tableRow.orders += 1;
       if (paidClose) {
         tableRow.revenue += orderRevenue;
+        if (
+          order.channel === RestoOrderChannel.DINE_IN &&
+          order.closedAt
+        ) {
+          const turnMin =
+            (order.closedAt.getTime() - order.createdAt.getTime()) / 60000;
+          if (turnMin >= 5 && turnMin <= 360) {
+            tableRow.turnSum += turnMin;
+            tableRow.turnN += 1;
+          }
+        }
       }
       byTable.set(tableKey, tableRow);
 
       for (const item of order.items) {
+        const wasSent =
+          !!item.sentAt ||
+          item.status !== RestoOrderItemStatus.PENDING;
+        if (wasSent) sentLines += 1;
+        if (item.status === RestoOrderItemStatus.CANCELLED && item.voidedAt) {
+          voidLines += 1;
+          const reason = (item.voidReason || '—').trim().slice(0, 80) || '—';
+          voidReasons.set(reason, (voidReasons.get(reason) || 0) + 1);
+        }
+        if (item.isComp) {
+          compLines += 1;
+        }
+
         if (!paidClose) continue;
+        if (item.status === RestoOrderItemStatus.CANCELLED || item.isComp) {
+          continue;
+        }
+
         const key = item.productId || item.name;
         const row = byItem.get(key) || {
           name: item.name,
@@ -1985,11 +2085,33 @@ export class RestoService {
         if (item.sentAt && item.readyAt) {
           const mins =
             (item.readyAt.getTime() - item.sentAt.getTime()) / 60000;
-          if (mins >= 0 && mins < 240) prepSamples.push(mins);
+          if (mins >= 0 && mins < 240) {
+            prepSamples.push(mins);
+            const stationKey = item.stationId || 'none';
+            const stationName = item.stationId || '—';
+            const st = byStationPrep.get(stationKey) || {
+              name: stationName,
+              samples: [],
+            };
+            st.samples.push(mins);
+            byStationPrep.set(stationKey, st);
+          }
         }
       }
     }
 
+    // Resolve station names for prep-by-station
+    const stationIds = [...byStationPrep.keys()].filter((id) => id !== 'none');
+    const stationRows =
+      stationIds.length > 0
+        ? await this.prisma.restoStation.findMany({
+            where: { companyId, id: { in: stationIds } },
+            select: { id: true, name: true },
+          })
+        : [];
+    const stationNameById = new Map(stationRows.map((s) => [s.id, s.name]));
+
+    const prepSorted = [...prepSamples].sort((a, b) => a - b);
     const avgPrepMinutes =
       prepSamples.length > 0
         ? Number(
@@ -1997,6 +2119,24 @@ export class RestoService {
               prepSamples.reduce((s, n) => s + n, 0) / prepSamples.length
             ).toFixed(1),
           )
+        : 0;
+    const avgTableTurnMinutes =
+      turnSamples.length > 0
+        ? Number(
+            (
+              turnSamples.reduce((s, n) => s + n, 0) / turnSamples.length
+            ).toFixed(1),
+          )
+        : 0;
+    const avgTicket =
+      paidCloses > 0 ? Number((revenue / paidCloses).toFixed(3)) : 0;
+    const voidRate =
+      sentLines > 0
+        ? Number(((voidLines / sentLines) * 100).toFixed(1))
+        : 0;
+    const compRate =
+      sentLines > 0
+        ? Number(((compLines / sentLines) * 100).toFixed(1))
         : 0;
 
     return {
@@ -2007,15 +2147,60 @@ export class RestoService {
       closed,
       cancelled,
       openNow,
+      paidCloses,
       revenue: Number(revenue.toFixed(3)),
+      avgTicket,
       avgPrepMinutes,
-      byHour: Array.from({ length: 24 }, (_, h) => ({
-        hour: h,
-        orders: byHour.get(h) || 0,
-      })),
+      prepP50: percentile(prepSorted, 50),
+      prepP90: percentile(prepSorted, 90),
+      avgTableTurnMinutes,
+      voidLines,
+      compLines,
+      sentLines,
+      voidRate,
+      compRate,
+      byHour: Array.from({ length: 24 }, (_, h) => {
+        const row = byHour.get(h) || { orders: 0, revenue: 0 };
+        return {
+          hour: h,
+          orders: row.orders,
+          revenue: Number(row.revenue.toFixed(3)),
+        };
+      }),
       byTable: Array.from(byTable.values())
+        .map((r) => ({
+          label: r.label,
+          orders: r.orders,
+          revenue: Number(r.revenue.toFixed(3)),
+          avgTurnMinutes:
+            r.turnN > 0 ? Number((r.turnSum / r.turnN).toFixed(1)) : null,
+        }))
         .sort((a, b) => b.revenue - a.revenue || b.orders - a.orders)
         .slice(0, 20),
+      byStationPrep: Array.from(byStationPrep.entries())
+        .map(([id, row]) => {
+          const samples = [...row.samples].sort((a, b) => a - b);
+          const avg =
+            samples.length > 0
+              ? Number(
+                  (
+                    samples.reduce((s, n) => s + n, 0) / samples.length
+                  ).toFixed(1),
+                )
+              : 0;
+          return {
+            stationId: id === 'none' ? null : id,
+            name: id === 'none' ? '—' : stationNameById.get(id) || row.name,
+            count: samples.length,
+            avg,
+            p90: percentile(samples, 90),
+          };
+        })
+        .sort((a, b) => b.count - a.count),
+      voidReasons: Array.from(voidReasons.entries())
+        .map(([reason, count]) => ({ reason, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10),
       topItems: Array.from(byItem.values())
         .sort((a, b) => b.qty - a.qty)
         .slice(0, 15),

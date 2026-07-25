@@ -17,6 +17,7 @@ export default function RestoReportsPage() {
   const [days, setDays] = useState(7);
   const [data, setData] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [hourMode, setHourMode] = useState<"orders" | "revenue">("orders");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -34,7 +35,12 @@ export default function RestoReportsPage() {
     void load();
   }, [load]);
 
-  const maxHour = Math.max(1, ...(data?.byHour.map((h) => h.orders) || [1]));
+  const maxHour = Math.max(
+    1,
+    ...((data?.byHour || []).map((h) =>
+      hourMode === "orders" ? h.orders : h.revenue,
+    ) || [1]),
+  );
 
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-5">
@@ -77,20 +83,39 @@ export default function RestoReportsPage() {
         <p className="text-center text-sm text-stone-400 py-16">{t.reportEmpty}</p>
       ) : (
         <>
-          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
             {[
               { label: t.reportOrders, value: data.orders },
               { label: t.reportClosed, value: data.closed },
-              { label: t.reportCancelled, value: data.cancelled },
-              { label: t.reportOpenNow, value: data.openNow },
               {
                 label: t.reportRevenue,
                 value: data.revenue.toFixed(3),
               },
               {
+                label: t.reportAvgTicket,
+                value: data.avgTicket.toFixed(3),
+              },
+              {
+                label: t.reportTurn,
+                value: data.avgTableTurnMinutes || "—",
+              },
+              {
                 label: t.reportAvgPrep,
                 value: data.avgPrepMinutes,
               },
+              {
+                label: t.reportPrepP90,
+                value: data.prepP90,
+              },
+              {
+                label: t.reportVoidRate,
+                value: `${data.voidRate}%`,
+              },
+              {
+                label: t.reportCompRate,
+                value: `${data.compRate}%`,
+              },
+              { label: t.reportOpenNow, value: data.openNow },
             ].map((c) => (
               <div
                 key={c.label}
@@ -106,29 +131,62 @@ export default function RestoReportsPage() {
 
           <div className="grid lg:grid-cols-2 gap-4">
             <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-3">
-              <h2 className="text-sm font-bold text-stone-200">{t.reportByHour}</h2>
-              <div className="flex items-end gap-1 h-28">
-                {data.byHour.map((h) => (
-                  <div
-                    key={h.hour}
-                    className="flex-1 flex flex-col items-center justify-end gap-1 min-w-0"
-                    title={`${h.hour}:00 — ${h.orders}`}
-                  >
-                    <div
-                      className="w-full rounded-t bg-amber-500/70"
-                      style={{
-                        height: `${Math.max(4, (h.orders / maxHour) * 100)}%`,
-                      }}
-                    />
-                    {h.hour % 3 === 0 ? (
-                      <span className="text-[9px] text-stone-500 tabular-nums">
-                        {h.hour}
-                      </span>
-                    ) : (
-                      <span className="text-[9px] opacity-0">·</span>
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="text-sm font-bold text-stone-200">
+                  {hourMode === "orders" ? t.reportByHour : t.reportByHourRev}
+                </h2>
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setHourMode("orders")}
+                    className={cn(
+                      "rounded-md px-2 py-0.5 text-[10px] font-bold",
+                      hourMode === "orders"
+                        ? "bg-amber-500/20 text-amber-100"
+                        : "text-stone-500",
                     )}
-                  </div>
-                ))}
+                  >
+                    {t.reportOrders}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHourMode("revenue")}
+                    className={cn(
+                      "rounded-md px-2 py-0.5 text-[10px] font-bold",
+                      hourMode === "revenue"
+                        ? "bg-amber-500/20 text-amber-100"
+                        : "text-stone-500",
+                    )}
+                  >
+                    {t.reportRevenue}
+                  </button>
+                </div>
+              </div>
+              <div className="flex items-end gap-1 h-28">
+                {data.byHour.map((h) => {
+                  const val = hourMode === "orders" ? h.orders : h.revenue;
+                  return (
+                    <div
+                      key={h.hour}
+                      className="flex-1 flex flex-col items-center justify-end gap-1 min-w-0"
+                      title={`${h.hour}:00 — ${hourMode === "orders" ? h.orders : h.revenue.toFixed(3)}`}
+                    >
+                      <div
+                        className="w-full rounded-t bg-amber-500/70"
+                        style={{
+                          height: `${Math.max(4, (val / maxHour) * 100)}%`,
+                        }}
+                      />
+                      {h.hour % 3 === 0 ? (
+                        <span className="text-[9px] text-stone-500 tabular-nums">
+                          {h.hour}
+                        </span>
+                      ) : (
+                        <span className="text-[9px] opacity-0">·</span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </section>
 
@@ -149,6 +207,52 @@ export default function RestoReportsPage() {
               </ul>
             </section>
 
+            <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-3">
+              <h2 className="text-sm font-bold text-stone-200">
+                {t.reportStationPrep}
+              </h2>
+              {(data.byStationPrep || []).length === 0 ? (
+                <p className="text-sm text-stone-500">—</p>
+              ) : (
+                <ul className="space-y-2">
+                  {data.byStationPrep.map((row) => (
+                    <li
+                      key={row.stationId || row.name}
+                      className="flex items-center justify-between gap-3 text-sm"
+                    >
+                      <span className="truncate font-semibold">{row.name}</span>
+                      <span className="tabular-nums text-amber-200 shrink-0 text-xs">
+                        n={row.count} · avg {row.avg} · p90 {row.p90}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
+            <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-3">
+              <h2 className="text-sm font-bold text-stone-200">
+                {t.reportVoidReasons}
+              </h2>
+              {(data.voidReasons || []).length === 0 ? (
+                <p className="text-sm text-stone-500">—</p>
+              ) : (
+                <ul className="space-y-2 max-h-56 overflow-y-auto">
+                  {data.voidReasons.map((row) => (
+                    <li
+                      key={row.reason}
+                      className="flex items-center justify-between gap-3 text-sm"
+                    >
+                      <span className="truncate">{row.reason}</span>
+                      <span className="tabular-nums text-rose-200 shrink-0">
+                        {row.count}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
             <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-3 lg:col-span-2">
               <h2 className="text-sm font-bold text-stone-200">{t.reportByTable}</h2>
               <div className="overflow-x-auto">
@@ -156,8 +260,15 @@ export default function RestoReportsPage() {
                   <thead className="text-xs text-stone-500">
                     <tr>
                       <th className="text-start py-2 font-medium">{t.table}</th>
-                      <th className="text-start py-2 font-medium">{t.reportOrders}</th>
-                      <th className="text-start py-2 font-medium">{t.reportRevenue}</th>
+                      <th className="text-start py-2 font-medium">
+                        {t.reportOrders}
+                      </th>
+                      <th className="text-start py-2 font-medium">
+                        {t.reportRevenue}
+                      </th>
+                      <th className="text-start py-2 font-medium">
+                        {t.reportTurnCol}
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -167,6 +278,11 @@ export default function RestoReportsPage() {
                         <td className="py-2 tabular-nums">{row.orders}</td>
                         <td className="py-2 tabular-nums text-amber-200">
                           {row.revenue.toFixed(3)}
+                        </td>
+                        <td className="py-2 tabular-nums text-stone-300">
+                          {row.avgTurnMinutes != null
+                            ? row.avgTurnMinutes
+                            : "—"}
                         </td>
                       </tr>
                     ))}

@@ -31,6 +31,10 @@ export type CompanySecurityConfig = {
   requireOpenShift?: boolean;
   /** Auto WhatsApp POS receipts to customer (default true when WA configured) */
   autoSendPosReceipts?: boolean;
+  /** Auto-email Z-report when shift closes (default false) */
+  autoEmailZReportOnClose?: boolean;
+  /** Manager emails for Z-report on close */
+  zReportNotifyEmails?: string[];
   methods?: Array<'SELF_CONFIRM' | 'PASSWORD' | 'PIN' | 'WHATSAPP_OTP' | 'NFC' | 'APPROVAL_REQUEST'>;
   actions?: DualControlActionsDto;
 };
@@ -137,6 +141,10 @@ export class DualControlService {
       requireOpenShift: config.requireOpenShift === true,
       /** Default on when WhatsApp is configured; false only when explicitly disabled */
       autoSendPosReceipts: config.autoSendPosReceipts === false ? false : true,
+      autoEmailZReportOnClose: config.autoEmailZReportOnClose === true,
+      zReportNotifyEmails: (config.zReportNotifyEmails || [])
+        .map((e) => String(e || '').trim().toLowerCase())
+        .filter((e) => e.includes('@')),
       actions,
       asyncApprovals: true,
     };
@@ -165,6 +173,20 @@ export class DualControlService {
   async isRequireOpenShift(companyId: string): Promise<boolean> {
     const config = await this.loadConfig(companyId);
     return config.requireOpenShift === true;
+  }
+
+  async getZReportEmailSettings(companyId: string): Promise<{
+    enabled: boolean;
+    emails: string[];
+  }> {
+    const config = await this.loadConfig(companyId);
+    const emails = (config.zReportNotifyEmails || [])
+      .map((e) => String(e || '').trim().toLowerCase())
+      .filter((e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
+    return {
+      enabled: config.autoEmailZReportOnClose === true && emails.length > 0,
+      emails,
+    };
   }
 
   async getPublicConfig(companyId: string) {
@@ -870,6 +892,15 @@ export class DualControlService {
     }
     if (dto.autoSendPosReceipts !== undefined) {
       next.autoSendPosReceipts = !!dto.autoSendPosReceipts;
+    }
+    if (dto.autoEmailZReportOnClose !== undefined) {
+      next.autoEmailZReportOnClose = !!dto.autoEmailZReportOnClose;
+    }
+    if (dto.zReportNotifyEmails !== undefined) {
+      next.zReportNotifyEmails = dto.zReportNotifyEmails
+        .map((e) => String(e || '').trim().toLowerCase())
+        .filter((e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e))
+        .slice(0, 20);
     }
 
     await this.prisma.company.update({

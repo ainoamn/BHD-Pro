@@ -17,8 +17,12 @@ type KitchenItem = {
   sentAt: string | null;
   stationId?: string | null;
   stationName?: string | null;
+  allergens?: string[];
   orderId: string;
   orderNumber: string;
+  orderNotes?: string | null;
+  guestName?: string | null;
+  channel?: string;
   table: { id: string; code: string; name: string | null } | null;
 };
 
@@ -345,8 +349,18 @@ export default function RestoKitchenPage() {
                     <p className="text-lg font-extrabold mt-0.5">
                       {it.qty}× {it.name}
                     </p>
+                    {(it.allergens || []).length > 0 ? (
+                      <p className="text-[11px] font-bold text-rose-200 mt-1">
+                        {t.kdsAllergens}: {(it.allergens || []).join(", ")}
+                      </p>
+                    ) : null}
                     {it.notes ? (
                       <p className="text-xs text-amber-200/90 mt-1">{it.notes}</p>
+                    ) : null}
+                    {it.orderNotes ? (
+                      <p className="text-[11px] text-stone-400 mt-0.5">
+                        {it.orderNotes}
+                      </p>
                     ) : null}
                   </div>
                   <span className="text-xs font-bold tabular-nums text-stone-300 shrink-0">

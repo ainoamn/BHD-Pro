@@ -62,6 +62,15 @@ export async function saveCatalogCache(
   db.close();
 }
 
+export async function upsertProductInCatalogCache(
+  product: CachedPosProduct,
+  warehouseId?: string,
+): Promise<void> {
+  const existing = await loadCatalogCache(warehouseId);
+  const next = [product, ...existing.filter((p) => p.id !== product.id)];
+  await saveCatalogCache(next, warehouseId);
+}
+
 async function readSnapshot(warehouseId?: string): Promise<CatalogSnapshot | undefined> {
   const db = await openDb();
   const key = snapshotKey(warehouseId);

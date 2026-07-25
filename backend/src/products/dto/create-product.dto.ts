@@ -5,6 +5,7 @@ import {
   IsNumber,
   IsObject,
   IsArray,
+  IsBoolean,
   IsUUID,
   Min,
   ValidateIf,
@@ -71,6 +72,11 @@ export class CreateProductDto {
   @IsArray()
   @IsString({ each: true })
   allergens?: string[];
+
+  /** When false, POS does not enforce on-hand stock (default true in DB) */
+  @IsOptional()
+  @IsBoolean()
+  isTracked?: boolean;
 
   /** Home / sector warehouse — scopes POS & resto catalogs */
   @IsOptional()

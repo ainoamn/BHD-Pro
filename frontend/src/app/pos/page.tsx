@@ -190,6 +190,12 @@ export default function PosCheckoutPage() {
   const [newCustomerLocal, setNewCustomerLocal] = useState("");
   const [newCustomerEmail, setNewCustomerEmail] = useState("");
   const [savingCustomer, setSavingCustomer] = useState(false);
+  const [quickProductOpen, setQuickProductOpen] = useState(false);
+  const [quickBarcode, setQuickBarcode] = useState("");
+  const [quickName, setQuickName] = useState("");
+  const [quickPrice, setQuickPrice] = useState("");
+  const [quickCategory, setQuickCategory] = useState("General");
+  const [savingProduct, setSavingProduct] = useState(false);
   const [webSerialOk, setWebSerialOk] = useState(false);
   const [qtyKeypadLineId, setQtyKeypadLineId] = useState<string | null>(null);
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
@@ -980,8 +986,74 @@ export default function PosCheckoutPage() {
         /* ignore */
       }
       toast.error(t.notFound);
+      setQuickBarcode(trimmed);
+      setQuickName("");
+      setQuickPrice("");
+      setQuickCategory("General");
+      setQuickProductOpen(true);
       setScan("");
       focusScan();
+    }
+  };
+
+  const saveQuickProduct = async () => {
+    const name = quickName.trim();
+    const price = Number(quickPrice);
+    const barcode = quickBarcode.trim();
+    if (!name || !barcode) return;
+    if (Number.isNaN(price) || price < 0) {
+      toast.error(t.quickProductPrice);
+      return;
+    }
+    setSavingProduct(true);
+    try {
+      const res = await api.createProduct({
+        name,
+        category: quickCategory.trim() || "General",
+        barcode,
+        salePrice: price,
+        costPrice: 0,
+        quantity: 0,
+        isTracked: false,
+        unit: "pcs",
+        warehouseId: warehouseId || undefined,
+      });
+      const created = res.data as PosProduct & {
+        id: string;
+        sku?: string;
+        salePrice?: number | string;
+        quantity?: number | string;
+        isTracked?: boolean;
+        barcode?: string | null;
+        name?: string;
+      };
+      const asPos: PosProduct = {
+        id: created.id,
+        name: created.name || name,
+        sku: created.sku || "",
+        barcode: created.barcode || barcode,
+        salePrice: Number(created.salePrice ?? price),
+        quantity: Number(created.quantity ?? 0),
+        isTracked: created.isTracked === true,
+      };
+      try {
+        const { upsertProductInCatalogCache } = await import("@/lib/pos-catalog-cache");
+        await upsertProductInCatalogCache(asPos, warehouseId || undefined);
+      } catch {
+        /* ignore cache */
+      }
+      setCatalog((prev) => [asPos, ...prev.filter((p) => p.id !== asPos.id)]);
+      addProduct(asPos, 1);
+      playPosScanBeep();
+      setQuickProductOpen(false);
+      toast.success(t.quickProductOk);
+      focusScan();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response
+        ?.data?.message;
+      toast.error(typeof msg === "string" ? msg : t.saleFail);
+    } finally {
+      setSavingProduct(false);
     }
   };
 
@@ -2980,6 +3052,71 @@ export default function PosCheckoutPage() {
             >
               {savingCustomer && <Loader2 className="w-4 h-4 animate-spin" />}
               {t.addCustomer}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {quickProductOpen ? (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 p-3">
+          <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#121a2b] p-4 space-y-3 shadow-xl">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="font-bold text-white">{t.quickCreateProduct}</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">{t.quickCreateHint}</p>
+              </div>
+              <button
+                type="button"
+                className="text-slate-400 text-sm"
+                onClick={() => !savingProduct && setQuickProductOpen(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <label className="block space-y-1">
+              <span className="text-[11px] text-slate-400">{t.quickProductBarcode}</span>
+              <input
+                value={quickBarcode}
+                readOnly
+                className="w-full h-10 rounded-xl bg-black/30 border border-white/10 px-3 text-sm text-amber-200 font-mono"
+              />
+            </label>
+            <label className="block space-y-1">
+              <span className="text-[11px] text-slate-400">{t.quickProductName}</span>
+              <input
+                value={quickName}
+                onChange={(e) => setQuickName(e.target.value)}
+                className="w-full h-10 rounded-xl bg-white/5 border border-white/10 px-3 text-sm text-white"
+                autoFocus
+              />
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="block space-y-1">
+                <span className="text-[11px] text-slate-400">{t.quickProductPrice}</span>
+                <input
+                  value={quickPrice}
+                  onChange={(e) => setQuickPrice(e.target.value)}
+                  inputMode="decimal"
+                  className="w-full h-10 rounded-xl bg-white/5 border border-white/10 px-3 text-sm text-white"
+                />
+              </label>
+              <label className="block space-y-1">
+                <span className="text-[11px] text-slate-400">{t.quickProductCategory}</span>
+                <input
+                  value={quickCategory}
+                  onChange={(e) => setQuickCategory(e.target.value)}
+                  className="w-full h-10 rounded-xl bg-white/5 border border-white/10 px-3 text-sm text-white"
+                />
+              </label>
+            </div>
+            <button
+              type="button"
+              disabled={!quickName.trim() || !quickBarcode.trim() || savingProduct}
+              onClick={() => void saveQuickProduct()}
+              className="w-full h-11 rounded-xl bg-emerald-500 text-slate-950 font-bold disabled:opacity-40 inline-flex items-center justify-center gap-2"
+            >
+              {savingProduct && <Loader2 className="w-4 h-4 animate-spin" />}
+              {t.quickProductSave}
             </button>
           </div>
         </div>
