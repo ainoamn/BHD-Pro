@@ -25,7 +25,8 @@ const nextConfig = {
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
           {
             key: 'Permissions-Policy',
-            value: 'camera=(), microphone=(), geolocation=()',
+            // camera=(self) required for POS barcode scanning on /pos
+            value: 'camera=(self), microphone=(), geolocation=()',
           },
           {
             key: 'Strict-Transport-Security',

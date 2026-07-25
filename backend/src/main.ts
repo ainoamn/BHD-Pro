@@ -33,11 +33,14 @@ async function bootstrap() {
     origin: (origin, callback) => {
       const raw = process.env.CORS_ORIGIN || 'http://localhost:3000';
       const allowed = raw.split(',').map((s) => s.trim()).filter(Boolean);
+      const allowVercelPreviews =
+        process.env.CORS_ALLOW_VERCEL_PREVIEWS === '1' ||
+        process.env.CORS_ALLOW_VERCEL_PREVIEWS === 'true';
       if (
         !origin ||
         allowed.includes('*') ||
         allowed.includes(origin) ||
-        /\.vercel\.app$/i.test(origin)
+        (allowVercelPreviews && /\.vercel\.app$/i.test(origin))
       ) {
         callback(null, true);
         return;

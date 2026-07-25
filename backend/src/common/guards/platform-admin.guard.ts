@@ -5,18 +5,22 @@ import {
   Injectable,
 } from '@nestjs/common';
 
-/** Bootstrap operators — always allowed, plus any emails in PLATFORM_ADMIN_EMAILS */
-const DEFAULT_PLATFORM_ADMINS = [
-  'admin@bhd.om',
-  'ammar89555200@gmail.com',
-];
-
+/**
+ * Platform operators for `/admin` gateways.
+ * Production: ONLY emails listed in PLATFORM_ADMIN_EMAILS (comma-separated).
+ * Non-production: also allows bootstrap admin@bhd.om for local/dev.
+ */
 export function getPlatformAdminEmails(): string[] {
   const fromEnv = (process.env.PLATFORM_ADMIN_EMAILS || '')
     .split(',')
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
-  return Array.from(new Set([...DEFAULT_PLATFORM_ADMINS, ...fromEnv]));
+
+  if (process.env.NODE_ENV === 'production') {
+    return Array.from(new Set(fromEnv));
+  }
+
+  return Array.from(new Set(['admin@bhd.om', ...fromEnv]));
 }
 
 export function isPlatformAdminEmail(email?: string | null): boolean {

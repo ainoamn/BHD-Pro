@@ -38,10 +38,20 @@ After the hardening commit, the app is **closer to production-ready** for a cont
 
 ## Remaining (recommended next)
 
-- Full 2FA for admins → **Done** (TOTP via authenticator apps)
-- WAF / bot protection in front of login
-- Dependency audit (`npm audit`) and lock Next.js to patched releases
-## Cookie auth notes
+- Enforce 2FA for ADMIN/MANAGER via company security policy (TOTP UI already exists)
+- WAF / bot protection in front of login (Cloudflare)
+- Dependency audit (`npm audit`) and lock Next.js / Nest to patched releases
+- Object storage (S3) for attachments instead of data URLs
+- Narrow API-key scopes below full ACCOUNTANT where possible
+
+## Hardening — 25 Jul 2026
+
+| Area | Change |
+|------|--------|
+| CORS | No default `*.vercel.app`; opt-in via `CORS_ALLOW_VERCEL_PREVIEWS=1` |
+| Platform admins | Production uses **only** `PLATFORM_ADMIN_EMAILS` (no hardcoded personal emails) |
+| Attachments | Max ~2MB + MIME allowlist on create |
+| Next Permissions-Policy | `camera=(self)` so POS barcode works |
 
 - Browser sessions use **httpOnly** cookies (`bhd_access`, `bhd_refresh`).
 - Frontend calls `/backend-api/*` (Next rewrite → Nest) so cookies are same-site.

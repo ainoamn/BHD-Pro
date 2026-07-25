@@ -104,6 +104,7 @@ BHD Pro يساعد الشركات الصغيرة والمتوسطة على:
 - مسح باركود: قارئ أجهزة + **كاميرا** (مع احتياطي ZXing)
 - حماية مزدوجة + موافقات أونلاين غير متزامنة
 - توثيق الحالة والفجوات: [`docs/HISABY-STATUS-AND-GAPS.md`](./docs/HISABY-STATUS-AND-GAPS.md)
+- التقرير الشامل + خطة الطريق (25 يوليو 2026): [`docs/HISABY-MASTER-STATUS-AND-PLAN-2026-07-25.md`](./docs/HISABY-MASTER-STATUS-AND-PLAN-2026-07-25.md)
 - خارطة POS والأمان: [`docs/HISABY-POS-AND-SECURITY-ROADMAP.md`](./docs/HISABY-POS-AND-SECURITY-ROADMAP.md)
 
 ### التراجع وتصحيح الأخطاء
