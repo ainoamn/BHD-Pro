@@ -93,6 +93,13 @@ export class CreatePosSaleDto {
   @Min(0)
   tipAmount?: number;
 
+  /** Tax-free service charge line (separate from tip) */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  serviceChargeAmount?: number;
+
   @IsOptional()
   @IsString()
   notes?: string;

@@ -2087,6 +2087,18 @@ class ApiClient {
       sentLines: number;
       voidRate: number;
       compRate: number;
+      tipsTotal: number;
+      serviceChargesTotal: number;
+      tippedCloses: number;
+      avgTip: number;
+      equalPoolShare: number;
+      poolStaffCount: number;
+      byServer: Array<{
+        userId: string | null;
+        name: string;
+        tips: number;
+        orders: number;
+      }>;
       byHour: Array<{ hour: number; orders: number; revenue: number }>;
       byTable: Array<{
         label: string;
@@ -2205,6 +2217,35 @@ class ApiClient {
     return this.get('/pos/sales/by-number', {
       params: { number },
     });
+  }
+
+  listRecentPosSales(opts?: { take?: number; warehouseId?: string }) {
+    const params = new URLSearchParams();
+    if (opts?.take) params.set('take', String(opts.take));
+    if (opts?.warehouseId) params.set('warehouseId', opts.warehouseId);
+    const q = params.toString();
+    return this.get<
+      {
+        id: string;
+        number: string;
+        total: number | string;
+        date?: string;
+        createdAt?: string;
+        status?: string;
+        notes?: string | null;
+        warehouseId?: string | null;
+        contact?: { id: string; name: string; phone?: string | null } | null;
+        items?: {
+          productId?: string | null;
+          description: string;
+          quantity: number | string;
+          unitPrice?: number | string;
+          total: number | string;
+          product?: { barcode?: string | null; sku?: string | null } | null;
+        }[];
+        payments?: { method?: string; amount?: number | string }[];
+      }[]
+    >(`/pos/sales/recent${q ? `?${q}` : ''}`);
   }
 
   voidPosSale(id: string, body?: { approval?: DualApprovalPayload }) {

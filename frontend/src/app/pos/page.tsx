@@ -214,7 +214,7 @@ export default function PosCheckoutPage() {
   const defaultDial =
     PHONE_DIAL_CODES.find((d) => d.country === company?.country)?.code ??
     DEFAULT_DIAL_CODE;
-  const canOverridePrice = user?.role === "ADMIN" || user?.role === "MANAGER";
+  const canOverridePrice = true; // any POS staff; dual-control required at checkout
   const taxRate =
     company?.applyVat === false
       ? 0
@@ -407,19 +407,23 @@ export default function PosCheckoutPage() {
     }
   }, [warehouseId]);
 
+  const [receiptsOpen, setReceiptsOpen] = useState(false);
+  const [receiptsLoading, setReceiptsLoading] = useState(false);
+
   const loadRecentSales = useCallback(async () => {
     try {
-      const res = await api.getInvoices({ isCash: true, type: "SALES" });
+      const res = await api.listRecentPosSales({
+        take: 20,
+        warehouseId: warehouseId || undefined,
+      });
       const rows = ((res.data as RecentCashSale[]) || []).filter(
-        (inv) =>
-          String(inv.notes || "").includes("Hisaby POS") &&
-          String(inv.status || "").toUpperCase() !== "CANCELLED",
+        (inv) => String(inv.status || "").toUpperCase() !== "CANCELLED",
       );
-      setRecentSales(rows.slice(0, 5));
+      setRecentSales(rows);
     } catch {
       /* ignore */
     }
-  }, []);
+  }, [warehouseId]);
 
   useEffect(() => {
     if (!awaitingPayId) return;
@@ -812,6 +816,12 @@ export default function PosCheckoutPage() {
       if (e.key === "F4") {
         e.preventDefault();
         document.querySelector<HTMLButtonElement>("[data-pos-park]")?.click();
+        return;
+      }
+      if (e.key === "F7") {
+        e.preventDefault();
+        setReceiptsOpen(true);
+        void loadRecentSales();
         return;
       }
       if (e.key === "F8") {

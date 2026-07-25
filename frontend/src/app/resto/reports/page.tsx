@@ -115,6 +115,22 @@ export default function RestoReportsPage() {
                 label: t.reportCompRate,
                 value: `${data.compRate}%`,
               },
+              {
+                label: t.reportTips,
+                value: (data.tipsTotal ?? 0).toFixed(3),
+              },
+              {
+                label: t.reportAvgTip,
+                value: (data.avgTip ?? 0).toFixed(3),
+              },
+              {
+                label: t.reportServiceCharges,
+                value: (data.serviceChargesTotal ?? 0).toFixed(3),
+              },
+              {
+                label: t.reportTipPool,
+                value: (data.equalPoolShare ?? 0).toFixed(3),
+              },
               { label: t.reportOpenNow, value: data.openNow },
             ].map((c) => (
               <div
@@ -250,6 +266,55 @@ export default function RestoReportsPage() {
                     </li>
                   ))}
                 </ul>
+              )}
+            </section>
+
+            <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-3 lg:col-span-2">
+              <div className="flex flex-wrap items-end justify-between gap-2">
+                <h2 className="text-sm font-bold text-stone-200">
+                  {t.reportByServer}
+                </h2>
+                <p className="text-[11px] text-stone-500">
+                  {t.reportTipPool}: {(data.equalPoolShare ?? 0).toFixed(3)}
+                  {data.poolStaffCount
+                    ? ` × ${data.poolStaffCount}`
+                    : ""}
+                </p>
+              </div>
+              {(data.byServer || []).length === 0 ? (
+                <p className="text-sm text-stone-500">—</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="text-xs text-stone-500">
+                      <tr>
+                        <th className="text-start py-2 font-medium">
+                          {locale === "en" ? "Server" : "النادل"}
+                        </th>
+                        <th className="text-start py-2 font-medium">
+                          {t.reportOrders}
+                        </th>
+                        <th className="text-start py-2 font-medium">
+                          {t.reportTips}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.byServer.map((row) => (
+                        <tr
+                          key={row.userId || row.name}
+                          className="border-t border-white/5"
+                        >
+                          <td className="py-2 font-semibold">{row.name}</td>
+                          <td className="py-2 tabular-nums">{row.orders}</td>
+                          <td className="py-2 tabular-nums text-amber-200">
+                            {row.tips.toFixed(3)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </section>
 

@@ -1822,7 +1822,7 @@ export class RestoService {
       if (dto.serviceChargePct != null && dto.serviceChargePct > 0) {
         serviceCharge += (subtotal * Number(dto.serviceChargePct)) / 100;
       }
-      const tip = (Number(dto.tipAmount) || 0) + serviceCharge;
+      const tip = Number(dto.tipAmount) || 0;
       const noteParts = [
         `Hisaby Resto ${order.number} [${order.channel}]`,
         order.guestName ? `Guest: ${order.guestName}` : '',
@@ -1831,6 +1831,7 @@ export class RestoService {
         serviceCharge > 0.0005
           ? `Service charge ${serviceCharge.toFixed(3)}`
           : '',
+        tip > 0.0005 ? `Tip ${tip.toFixed(3)}` : '',
       ].filter(Boolean);
 
       const split =
@@ -1852,6 +1853,8 @@ export class RestoService {
         warehouseId,
         contactId: dto.contactId,
         tipAmount: tip > 0.0005 ? tip : undefined,
+        serviceChargeAmount:
+          serviceCharge > 0.0005 ? serviceCharge : undefined,
         notes: noteParts.join(' · '),
         clientSaleId: `resto-${order.id}`,
       });
@@ -2047,7 +2050,7 @@ export class RestoService {
     if (dto.serviceChargePct != null && dto.serviceChargePct > 0) {
       serviceCharge += (subtotal * Number(dto.serviceChargePct)) / 100;
     }
-    const tip = (Number(dto.tipAmount) || 0) + serviceCharge;
+    const tip = Number(dto.tipAmount) || 0;
     const noteParts = [
       `Hisaby Resto ${order.number} [${order.channel}]`,
       'PARTNER_PAY table QR',
@@ -2056,6 +2059,7 @@ export class RestoService {
       serviceCharge > 0.0005
         ? `Service charge ${serviceCharge.toFixed(3)}`
         : '',
+      tip > 0.0005 ? `Tip ${tip.toFixed(3)}` : '',
     ].filter(Boolean);
 
     const invoice = await this.pos.createSale(companyId, actor, {
@@ -2068,6 +2072,8 @@ export class RestoService {
       warehouseId,
       contactId: dto.contactId,
       tipAmount: tip > 0.0005 ? tip : undefined,
+      serviceChargeAmount:
+        serviceCharge > 0.0005 ? serviceCharge : undefined,
       notes: noteParts.join(' · '),
       clientSaleId: `resto-${order.id}`,
     });
@@ -2425,6 +2431,128 @@ export class RestoService {
         ? Number(((compLines / sentLines) * 100).toFixed(1))
         : 0;
 
+    // Tips / service charge from linked POS invoices
+    const paidInvoiceIds = orders
+      .filter(
+        (o) =>
+          o.status === RestoOrderStatus.CLOSED &&
+          !!o.invoiceId,
+      )
+      .map((o) => o.invoiceId as string);
+    const invoices =
+      paidInvoiceIds.length > 0
+        ? await this.prisma.invoice.findMany({
+            where: { companyId, id: { in: paidInvoiceIds } },
+            select: {
+              id: true,
+              customFieldsJson: true,
+              items: { select: { description: true, unitPrice: true, quantity: true } },
+            },
+          })
+        : [];
+    const tipByInvoice = new Map<string, number>();
+    const serviceByInvoice = new Map<string, number>();
+    for (const inv of invoices) {
+      const fields =
+        inv.customFieldsJson &&
+        typeof inv.customFieldsJson === 'object' &&
+        !Array.isArray(inv.customFieldsJson)
+          ? (inv.customFieldsJson as Record<string, unknown>)
+          : {};
+      let tip =
+        typeof fields.tipAmount === 'number'
+          ? fields.tipAmount
+          : Number(fields.tipAmount) || 0;
+      let service =
+        typeof fields.serviceChargeAmount === 'number'
+          ? fields.serviceChargeAmount
+          : Number(fields.serviceChargeAmount) || 0;
+      if (!(tip > 0.0005)) {
+        for (const li of inv.items || []) {
+          const d = String(li.description || '').toLowerCase();
+          if (d.includes('tip') || d.includes('بقشيش')) {
+            tip += Number(li.unitPrice) * Number(li.quantity);
+          }
+        }
+      }
+      if (!(service > 0.0005)) {
+        for (const li of inv.items || []) {
+          const d = String(li.description || '').toLowerCase();
+          if (d.includes('service charge') || d.includes('رسوم خدمة')) {
+            service += Number(li.unitPrice) * Number(li.quantity);
+          }
+        }
+      }
+      tipByInvoice.set(inv.id, tip);
+      serviceByInvoice.set(inv.id, service);
+    }
+
+    let tipsTotal = 0;
+    let serviceChargesTotal = 0;
+    let tippedCloses = 0;
+    const byServerTips = new Map<
+      string,
+      { userId: string | null; tips: number; orders: number }
+    >();
+
+    for (const order of orders) {
+      if (
+        order.status !== RestoOrderStatus.CLOSED ||
+        !order.invoiceId
+      ) {
+        continue;
+      }
+      const tip = tipByInvoice.get(order.invoiceId) || 0;
+      const service = serviceByInvoice.get(order.invoiceId) || 0;
+      tipsTotal += tip;
+      serviceChargesTotal += service;
+      if (tip > 0.0005) tippedCloses += 1;
+
+      const key = order.openedById || 'none';
+      const row = byServerTips.get(key) || {
+        userId: order.openedById || null,
+        tips: 0,
+        orders: 0,
+      };
+      row.orders += 1;
+      row.tips += tip;
+      byServerTips.set(key, row);
+    }
+
+    const serverIds = [...byServerTips.values()]
+      .map((r) => r.userId)
+      .filter((id): id is string => !!id);
+    const servers =
+      serverIds.length > 0
+        ? await this.prisma.user.findMany({
+            where: { companyId, id: { in: serverIds } },
+            select: { id: true, name: true, email: true },
+          })
+        : [];
+    const serverNameById = new Map(
+      servers.map((u) => [u.id, u.name || u.email || u.id]),
+    );
+
+    const byServer = Array.from(byServerTips.values())
+      .map((r) => ({
+        userId: r.userId,
+        name: r.userId
+          ? serverNameById.get(r.userId) || r.userId
+          : '—',
+        tips: Number(r.tips.toFixed(3)),
+        orders: r.orders,
+      }))
+      .sort((a, b) => b.tips - a.tips || b.orders - a.orders);
+
+    const poolStaff = byServer.filter((s) => s.tips > 0.0005 || s.orders > 0);
+    const poolCount = Math.max(1, poolStaff.filter((s) => s.userId).length || poolStaff.length);
+    const equalPoolShare =
+      tipsTotal > 0.0005 && poolCount > 0
+        ? Number((tipsTotal / poolCount).toFixed(3))
+        : 0;
+    const avgTip =
+      tippedCloses > 0 ? Number((tipsTotal / tippedCloses).toFixed(3)) : 0;
+
     return {
       from: from.toISOString(),
       to: new Date().toISOString(),
@@ -2445,6 +2573,13 @@ export class RestoService {
       sentLines,
       voidRate,
       compRate,
+      tipsTotal: Number(tipsTotal.toFixed(3)),
+      serviceChargesTotal: Number(serviceChargesTotal.toFixed(3)),
+      tippedCloses,
+      avgTip,
+      equalPoolShare,
+      poolStaffCount: poolCount,
+      byServer,
       byHour: Array.from({ length: 24 }, (_, h) => {
         const row = byHour.get(h) || { orders: 0, revenue: 0 };
         return {

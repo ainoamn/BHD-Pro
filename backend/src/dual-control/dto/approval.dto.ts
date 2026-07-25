@@ -228,6 +228,20 @@ export class UpdateSecurityConfigDto {
   @IsBoolean()
   autoEmailZReportOnClose?: boolean;
 
+  /** Alert managers when today's POS void count exceeds this (default 3) */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  voidAlertThreshold?: number;
+
+  /** Enable live void-threshold alerts on POS shell (default true) */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  voidAlertEnabled?: boolean;
+
   /** Manager emails that receive Z-report on shift close */
   @ApiPropertyOptional({ type: [String] })
   @IsOptional()

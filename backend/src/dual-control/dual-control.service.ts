@@ -37,6 +37,10 @@ export type CompanySecurityConfig = {
   autoSendPosReceiptSms?: boolean;
   /** Auto-email Z-report when shift closes (default false) */
   autoEmailZReportOnClose?: boolean;
+  /** Live void alert threshold (default 3) */
+  voidAlertThreshold?: number;
+  /** Live void alerts on POS shell (default true) */
+  voidAlertEnabled?: boolean;
   /** Manager emails for Z-report on close */
   zReportNotifyEmails?: string[];
   methods?: Array<'SELF_CONFIRM' | 'PASSWORD' | 'PIN' | 'WHATSAPP_OTP' | 'NFC' | 'APPROVAL_REQUEST'>;
@@ -149,6 +153,12 @@ export class DualControlService {
         config.autoSendPosReceiptEmail === false ? false : true,
       autoSendPosReceiptSms: config.autoSendPosReceiptSms === false ? false : true,
       autoEmailZReportOnClose: config.autoEmailZReportOnClose === true,
+      voidAlertEnabled: config.voidAlertEnabled === false ? false : true,
+      voidAlertThreshold:
+        typeof config.voidAlertThreshold === 'number' &&
+        config.voidAlertThreshold >= 0
+          ? Number(config.voidAlertThreshold)
+          : 3,
       zReportNotifyEmails: (config.zReportNotifyEmails || [])
         .map((e) => String(e || '').trim().toLowerCase())
         .filter((e) => e.includes('@')),
@@ -908,6 +918,12 @@ export class DualControlService {
     }
     if (dto.autoEmailZReportOnClose !== undefined) {
       next.autoEmailZReportOnClose = !!dto.autoEmailZReportOnClose;
+    }
+    if (dto.voidAlertEnabled !== undefined) {
+      next.voidAlertEnabled = !!dto.voidAlertEnabled;
+    }
+    if (dto.voidAlertThreshold !== undefined) {
+      next.voidAlertThreshold = Math.max(0, Number(dto.voidAlertThreshold));
     }
     if (dto.zReportNotifyEmails !== undefined) {
       next.zReportNotifyEmails = dto.zReportNotifyEmails

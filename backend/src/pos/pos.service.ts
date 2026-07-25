@@ -901,15 +901,17 @@ export class PosService {
     }
 
     const contact = await this.resolveSaleContact(companyId, dto.contactId);
-    const role = await this.resolveUserRole(userId, actor.role);
-    const canOverridePrice =
-      role === UserRole.ADMIN || role === UserRole.MANAGER;
     const today = new Date().toISOString().slice(0, 10);
     const reserveRef = `POS-TEMP-${Date.now()}`;
 
     const tipAmount = dto.tipAmount != null ? Number(dto.tipAmount) : 0;
     if (tipAmount < 0) {
       throw new BadRequestException('tipAmount must be >= 0');
+    }
+    const serviceChargeAmount =
+      dto.serviceChargeAmount != null ? Number(dto.serviceChargeAmount) : 0;
+    if (serviceChargeAmount < 0) {
+      throw new BadRequestException('serviceChargeAmount must be >= 0');
     }
 
     const splitPayments = Array.isArray(dto.payments) ? dto.payments : null;
@@ -944,11 +946,7 @@ export class PosService {
       const overridden =
         item.unitPrice != null && Math.abs(unitPrice - catalogPrice) > 0.001;
       if (overridden) {
-        if (!canOverridePrice) {
-          throw new ForbiddenException(
-            'Only ADMIN or MANAGER can override unit price',
-          );
-        }
+        // Any POS role may request an override; dual-control approval is required below
         hasPriceOverride = true;
       }
       lineItems.push({
@@ -966,6 +964,16 @@ export class PosService {
         description: 'Tip / بقشيش',
         quantity: 1,
         unitPrice: tipAmount,
+        discount: 0,
+        taxRate: 0,
+      });
+    }
+    if (serviceChargeAmount > 0.0005) {
+      lineItems.push({
+        productId: null,
+        description: 'Service charge / رسوم خدمة',
+        quantity: 1,
+        unitPrice: serviceChargeAmount,
         discount: 0,
         taxRate: 0,
       });
@@ -1267,13 +1275,16 @@ export class PosService {
                 usedStoreCredit: true,
                 storeCreditAmount: debitAmount,
                 ...(tipAmount > 0.0005 ? { tipAmount } : {}),
+                ...(serviceChargeAmount > 0.0005
+                  ? { serviceChargeAmount }
+                  : {}),
               },
             },
           });
         } catch {
           /* non-fatal */
         }
-      } else if (tipAmount > 0.0005) {
+      } else if (tipAmount > 0.0005 || serviceChargeAmount > 0.0005) {
         try {
           const existingFields =
             ((invoice as { customFieldsJson?: Record<string, unknown> })
@@ -1283,7 +1294,10 @@ export class PosService {
             data: {
               customFieldsJson: {
                 ...existingFields,
-                tipAmount,
+                ...(tipAmount > 0.0005 ? { tipAmount } : {}),
+                ...(serviceChargeAmount > 0.0005
+                  ? { serviceChargeAmount }
+                  : {}),
               },
             },
           });
@@ -1832,6 +1846,55 @@ export class PosService {
         payments: inv.payments,
       })),
     };
+  }
+
+  /** Recent Hisaby POS cash sales for reprint / void / refund drawer. */
+  async listRecentSales(
+    companyId: string,
+    opts?: { take?: number; warehouseId?: string },
+  ) {
+    const take = Math.min(Math.max(opts?.take ?? 20, 1), 50);
+    const warehouseId = opts?.warehouseId?.trim() || undefined;
+
+    const sales = await this.prisma.invoice.findMany({
+      where: {
+        companyId,
+        type: InvoiceType.SALES,
+        isCash: true,
+        notes: { contains: 'Hisaby POS' },
+        ...(warehouseId
+          ? {
+              posShift: { warehouseId },
+            }
+          : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+      take,
+      include: {
+        items: {
+          include: {
+            product: { select: { id: true, sku: true, barcode: true } },
+          },
+        },
+        payments: { select: { method: true, amount: true } },
+        contact: { select: { id: true, name: true, phone: true } },
+        posShift: { select: { warehouseId: true } },
+      },
+    });
+
+    return sales.map((inv) => ({
+      id: inv.id,
+      number: inv.number,
+      total: inv.total,
+      date: inv.date,
+      createdAt: inv.createdAt,
+      status: inv.status,
+      notes: inv.notes,
+      warehouseId: inv.posShift?.warehouseId || null,
+      contact: inv.contact,
+      items: inv.items,
+      payments: inv.payments,
+    }));
   }
 
   async openShift(companyId: string, userId: string, dto: OpenPosShiftDto) {

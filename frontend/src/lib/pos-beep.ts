@@ -66,7 +66,7 @@ export function playPosScanBeep(): void {
   playTone({ frequency: 880, durationMs: 90 });
 }
 
-/** Soft warning — at or under min stock after add. */
+  /** Soft warning — at or under min stock after add. */
 export function playPosWarnBeep(): void {
   playTone({
     frequency: 660,
@@ -86,4 +86,24 @@ export function playPosDenyBeep(): void {
     type: "square",
     volume: 0.07,
   });
+}
+
+/** Manager alert — elevated voids / ops threshold. */
+export function playPosAlertBeep(): void {
+  playTone({
+    frequency: 480,
+    secondFrequency: 720,
+    durationMs: 280,
+    type: "sawtooth",
+    volume: 0.08,
+  });
+  window.setTimeout(() => {
+    playTone({
+      frequency: 720,
+      secondFrequency: 480,
+      durationMs: 220,
+      type: "sawtooth",
+      volume: 0.07,
+    });
+  }, 300);
 }

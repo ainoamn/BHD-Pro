@@ -311,6 +311,21 @@ export class PosController {
     return this.pos.findSaleByNumber(user.companyId, number);
   }
 
+  @Get('sales/recent')
+  @Roles(...POS_STAFF)
+  @ApiOperation({ summary: 'Recent Hisaby POS cash sales (reprint / void drawer)' })
+  recentSales(
+    @CurrentUser() user: TokenPayload,
+    @Query('take') take?: string,
+    @Query('warehouseId') warehouseId?: string,
+  ) {
+    const n = take ? parseInt(take, 10) : 20;
+    return this.pos.listRecentSales(user.companyId, {
+      take: Number.isFinite(n) ? n : 20,
+      warehouseId: warehouseId || undefined,
+    });
+  }
+
   @Post('sales/:id/notify')
   @Roles(...POS_STAFF)
   @Throttle({ default: { limit: 20, ttl: 60000 } })
