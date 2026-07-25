@@ -8,6 +8,8 @@ import {
   Receipt,
   FileWarning,
   ArrowLeft,
+  ShieldCheck,
+  ShoppingCart,
 } from "lucide-react";
 import { formatMoney } from "@/lib/utils";
 import { cn } from "@/lib/utils";
@@ -20,6 +22,10 @@ export interface SmartKpisData {
   lowStockCount: number;
   vatPendingCount: number;
   pendingCollectionCount: number;
+  pendingApprovalsCount?: number;
+  todayPosSales?: number;
+  todayPosSalesCount?: number;
+  openPosShiftsCount?: number;
 }
 
 interface SmartKpisProps {
@@ -38,6 +44,28 @@ export function SmartKpis({ data, currency = "OMR" }: SmartKpisProps) {
       value: formatMoney(data.todaySales, currency),
       hint: t("todaySalesHint", { count: data.todaySalesCount }),
       tone: "text-emerald-400 bg-emerald-500/10",
+    },
+    {
+      key: "todayPos",
+      href: "/pos",
+      icon: ShoppingCart,
+      value: formatMoney(data.todayPosSales || 0, currency),
+      hint: t("todayPosHint", {
+        count: data.todayPosSalesCount || 0,
+        shifts: data.openPosShiftsCount || 0,
+      }),
+      tone: "text-sky-400 bg-sky-500/10",
+    },
+    {
+      key: "pendingApprovals",
+      href: "/pos/approvals",
+      icon: ShieldCheck,
+      value: String(data.pendingApprovalsCount || 0),
+      hint: t("pendingApprovalsHint"),
+      tone:
+        (data.pendingApprovalsCount || 0) > 0
+          ? "text-amber-400 bg-amber-500/10"
+          : "text-slate-300 bg-slate-500/10",
     },
     {
       key: "overdueAr",
@@ -66,7 +94,7 @@ export function SmartKpis({ data, currency = "OMR" }: SmartKpisProps) {
   ] as const;
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+    <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
       {cards.map((c) => {
         const Icon = c.icon;
         return (

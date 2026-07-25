@@ -451,6 +451,28 @@ export class PosService {
       InvoiceStatus.CANCELLED,
     );
 
+    const fields = (invoice.customFieldsJson || {}) as Record<string, unknown>;
+    const usedStoreCredit =
+      notes.includes('STORE_CREDIT') || fields.usedStoreCredit === true;
+    if (usedStoreCredit && invoice.contactId) {
+      const restoreAmount =
+        typeof fields.storeCreditAmount === 'number'
+          ? fields.storeCreditAmount
+          : Number(fields.storeCreditAmount) > 0
+            ? Number(fields.storeCreditAmount)
+            : Number(invoice.total);
+      if (restoreAmount > 0) {
+        try {
+          await this.prisma.contact.updateMany({
+            where: { id: invoice.contactId, companyId },
+            data: { currentBalance: { increment: restoreAmount } },
+          });
+        } catch {
+          /* non-fatal — void already applied */
+        }
+      }
+    }
+
     return {
       voided: true,
       invoice: cancelled,
@@ -492,7 +514,7 @@ export class PosService {
     const today = new Date().toISOString().slice(0, 10);
     const reserveRef = `POS-TEMP-${Date.now()}`;
 
-    const useStoreCredit = dto.useStoreCredit || dto.paymentMethod === PaymentMethod.OTHER;
+    const useStoreCredit = dto.useStoreCredit === true;
 
     if (useStoreCredit) {
       if (contact.name === WALK_IN_NAME) {
@@ -624,15 +646,42 @@ export class PosService {
 
       if (useStoreCredit) {
         const invoiceTotal = Number(invoice.total);
-        await this.prisma.contact.update({
-          where: { id: contact.id },
+        const debited = await this.prisma.contact.updateMany({
+          where: {
+            id: contact.id,
+            companyId,
+            currentBalance: { gte: invoiceTotal },
+          },
           data: { currentBalance: { decrement: invoiceTotal } },
         });
+        if (debited.count === 0) {
+          try {
+            if (Number(invoice.paidAmount) > 0.0005) {
+              await this.invoices.reverseAllPayments(companyId, userId, invoice.id);
+            }
+            await this.invoices.updateStatus(
+              companyId,
+              userId,
+              invoice.id,
+              InvoiceStatus.CANCELLED,
+            );
+          } catch {
+            /* best-effort reverse of unpaid wallet sale */
+          }
+          invoiceCreated = false;
+          throw new BadRequestException(
+            `Insufficient store credit: required ${invoiceTotal.toFixed(3)}`,
+          );
+        }
         try {
+          const existingFields =
+            ((invoice as { customFieldsJson?: Record<string, unknown> }).customFieldsJson ||
+              {}) as Record<string, unknown>;
           await this.prisma.invoice.update({
             where: { id: invoice.id },
             data: {
               customFieldsJson: {
+                ...existingFields,
                 usedStoreCredit: true,
                 storeCreditAmount: invoiceTotal,
               },
@@ -1296,5 +1345,35 @@ export class PosService {
       originalInvoiceId: invoice.id,
       originalNumber: invoice.number,
     };
+  }
+
+  /** Lookup a company Hisaby POS cash sale by invoice number (for refund-by-receipt). */
+  async findSaleByNumber(companyId: string, number?: string) {
+    const trimmed = String(number || '').trim();
+    if (!trimmed) {
+      throw new BadRequestException('Receipt number is required');
+    }
+    const invoice = await this.prisma.invoice.findFirst({
+      where: {
+        companyId,
+        number: { equals: trimmed, mode: 'insensitive' },
+        type: InvoiceType.SALES,
+        isCash: true,
+        notes: { contains: 'Hisaby POS' },
+        status: { not: InvoiceStatus.CANCELLED },
+      },
+      include: {
+        contact: true,
+        items: { include: { product: true } },
+        payments: true,
+      },
+    });
+    if (!invoice) {
+      throw new NotFoundException('Receipt not found');
+    }
+    if (!String(invoice.notes || '').includes('Hisaby POS')) {
+      throw new NotFoundException('Receipt not found');
+    }
+    return invoice;
   }
 }

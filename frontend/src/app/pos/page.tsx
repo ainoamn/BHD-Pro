@@ -133,6 +133,10 @@ export default function PosCheckoutPage() {
   );
   const [refundAwaitingApproval, setRefundAwaitingApproval] = useState(false);
   const [refundBusy, setRefundBusy] = useState(false);
+  const [cashTenderOpen, setCashTenderOpen] = useState(false);
+  const [cashTendered, setCashTendered] = useState("");
+  const [receiptLookup, setReceiptLookup] = useState("");
+  const [receiptLookupBusy, setReceiptLookupBusy] = useState(false);
   const [pendingCheckout, setPendingCheckout] = useState<CheckoutMethod | null>(null);
   const [checkoutBusy, setCheckoutBusy] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
@@ -826,6 +830,7 @@ export default function PosCheckoutPage() {
       await api.refundPosSale(refundTarget.id, {
         items,
         reason: refundReason.trim() || undefined,
+        refundMethod,
         approval,
       });
       toast.success(t.refundOk);
@@ -915,13 +920,27 @@ export default function PosCheckoutPage() {
       setCheckoutBusy(false);
       return;
     }
+    if (method === "STORE_CREDIT") {
+      if (!contactId) {
+        toast.error(t.storeCreditNeedCustomer);
+        return;
+      }
+      const cust = customers.find((c) => c.id === contactId);
+      const bal = Number(cust?.currentBalance ?? 0);
+      if (bal + 0.0005 < total) {
+        toast.error(t.storeCreditLow);
+        return;
+      }
+    }
     const snapshot = cart.map((l) => ({
       name: l.name,
       qty: l.quantity,
       lineTotal: lineTotal(l),
     }));
+    const useStoreCredit = method === "STORE_CREDIT";
     const payload = {
-      paymentMethod: method,
+      paymentMethod: useStoreCredit ? "OTHER" : method,
+      useStoreCredit: useStoreCredit || undefined,
       warehouseId: warehouseId || undefined,
       contactId: contactId || undefined,
       approval,
@@ -936,6 +955,10 @@ export default function PosCheckoutPage() {
     try {
       const offline = typeof navigator !== "undefined" && navigator.onLine === false;
       if (offline) {
+        if (useStoreCredit) {
+          toast.error(t.storeCreditOffline);
+          return;
+        }
         const { enqueuePendingSale } = await import("@/lib/pos-offline-queue");
         const { adjustCachedStock } = await import("@/lib/pos-catalog-cache");
         const localNumber = `OFF-${Date.now().toString(36).toUpperCase()}`;
@@ -984,6 +1007,16 @@ export default function PosCheckoutPage() {
       setPendingCheckout(null);
       toast.success(t.saleOk);
       void maybeKickDrawer(method);
+      if (useStoreCredit) {
+        try {
+          const cres = await api.getContacts("CUSTOMER");
+          setCustomers(
+            ((cres.data as Contact[]) || []).filter((c) => c.isActive !== false),
+          );
+        } catch {
+          /* ignore */
+        }
+      }
       loadCatalog(search);
       loadRecentSales();
       loadOpsStrip();
@@ -994,6 +1027,10 @@ export default function PosCheckoutPage() {
         (err as { code?: string; message?: string }).code === "ERR_NETWORK" ||
         /network/i.test(String((err as { message?: string }).message || ""));
       if (networkFail) {
+        if (useStoreCredit) {
+          toast.error(t.storeCreditOffline);
+          return;
+        }
         try {
           const { enqueuePendingSale } = await import("@/lib/pos-offline-queue");
           const { adjustCachedStock } = await import("@/lib/pos-catalog-cache");
@@ -1060,6 +1097,11 @@ export default function PosCheckoutPage() {
       );
       return;
     }
+    if (method === "CASH") {
+      setCashTendered(total > 0 ? String(Number(total.toFixed(3))) : "");
+      setCashTenderOpen(true);
+      return;
+    }
     const needsPriceApproval = cart.some(
       (l) => Math.abs(l.unitPrice - (l.catalogPrice ?? l.unitPrice)) > 0.001,
     );
@@ -1068,6 +1110,39 @@ export default function PosCheckoutPage() {
       return;
     }
     await runCheckout(method);
+  };
+
+  const confirmCashTender = async () => {
+    const tendered = parseFloat(cashTendered);
+    if (!Number.isFinite(tendered) || tendered + 0.0005 < total) {
+      toast.error(t.amountTendered);
+      return;
+    }
+    setCashTenderOpen(false);
+    const needsPriceApproval = cart.some(
+      (l) => Math.abs(l.unitPrice - (l.catalogPrice ?? l.unitPrice)) > 0.001,
+    );
+    if (needsPriceApproval) {
+      setPendingCheckout("CASH");
+      return;
+    }
+    await runCheckout("CASH");
+  };
+
+  const findReceiptForRefund = async () => {
+    const num = receiptLookup.trim();
+    if (!num || receiptLookupBusy) return;
+    setReceiptLookupBusy(true);
+    try {
+      const res = await api.getPosSaleByNumber(num);
+      const sale = res.data as RecentCashSale;
+      setReceiptLookup("");
+      await openRefund(sale);
+    } catch {
+      toast.error(t.receiptNotFound);
+    } finally {
+      setReceiptLookupBusy(false);
+    }
   };
 
   const showEmptyCatalog = catalogLoaded && catalog.length === 0 && !search.trim();
@@ -1134,11 +1209,15 @@ export default function PosCheckoutPage() {
               <option value="" className="bg-[#111827] text-white">
                 {t.walkIn}
               </option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id} className="bg-[#111827] text-white">
-                  {c.name}
-                </option>
-              ))}
+              {customers.map((c) => {
+                const bal = Number(c.currentBalance ?? 0);
+                return (
+                  <option key={c.id} value={c.id} className="bg-[#111827] text-white">
+                    {c.name}
+                    {bal > 0 ? ` · ${t.creditBalance} ${bal}` : ""}
+                  </option>
+                );
+              })}
             </select>
             <button
               type="button"
@@ -1257,6 +1336,28 @@ export default function PosCheckoutPage() {
             </div>
             <p className="text-xs font-bold text-slate-300">{t.recentSales}</p>
           </div>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void findReceiptForRefund();
+            }}
+            className="flex gap-2"
+          >
+            <input
+              value={receiptLookup}
+              onChange={(e) => setReceiptLookup(e.target.value)}
+              placeholder={t.findReceipt}
+              className="flex-1 min-w-0 h-9 rounded-lg bg-white/5 border border-white/10 px-3 text-sm text-white placeholder:text-slate-500"
+            />
+            <button
+              type="submit"
+              disabled={!receiptLookup.trim() || receiptLookupBusy}
+              className="shrink-0 h-9 px-3 rounded-lg border border-amber-400/30 text-[11px] font-semibold text-amber-100 hover:bg-amber-500/15 disabled:opacity-40 inline-flex items-center gap-1.5"
+            >
+              {receiptLookupBusy && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+              {t.refundSale}
+            </button>
+          </form>
           {!recentSales.length ? (
             <p className="text-[11px] text-slate-500">{t.noRecentSales}</p>
           ) : null}
@@ -1601,7 +1702,7 @@ export default function PosCheckoutPage() {
               <span>{formatMoney(total, currency)}</span>
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             <button
               type="button"
               disabled={!cart.length || paying}
@@ -1626,6 +1727,15 @@ export default function PosCheckoutPage() {
               className="min-h-12 h-12 rounded-xl bg-teal-600 text-white font-bold disabled:opacity-40 hover:bg-teal-500 text-sm"
             >
               {t.payBank}
+            </button>
+            <button
+              type="button"
+              disabled={!cart.length || paying || !contactId}
+              onClick={() => checkout("STORE_CREDIT")}
+              className="min-h-12 h-12 rounded-xl bg-amber-500 text-slate-950 font-bold disabled:opacity-40 hover:bg-amber-400 text-sm"
+              title={!contactId ? t.storeCreditNeedCustomer : undefined}
+            >
+              {t.payStoreCredit}
             </button>
           </div>
           {lastInvoice && (
@@ -1771,6 +1881,71 @@ export default function PosCheckoutPage() {
         onDetected={(code) => void applyScanCode(code)}
       />
 
+      {cashTenderOpen ? (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 p-3">
+          <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#121a2b] p-4 space-y-3 shadow-xl">
+            <div className="flex items-center justify-between gap-2">
+              <p className="font-bold text-white">{t.payCash}</p>
+              <button
+                type="button"
+                className="text-slate-400 text-sm"
+                onClick={() => !paying && setCashTenderOpen(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="flex justify-between text-sm text-slate-300">
+              <span>{t.total}</span>
+              <span className="font-semibold text-white">{formatMoney(total, currency)}</span>
+            </div>
+            <label className="space-y-1.5 block">
+              <span className="text-[11px] text-slate-400">{t.amountTendered}</span>
+              <input
+                type="number"
+                min={0}
+                step={0.001}
+                autoFocus
+                value={cashTendered}
+                onChange={(e) => setCashTendered(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    void confirmCashTender();
+                  }
+                }}
+                className="w-full h-11 rounded-xl bg-white/5 border border-white/10 px-3 text-base text-white"
+              />
+            </label>
+            {(() => {
+              const tendered = parseFloat(cashTendered);
+              const ok = Number.isFinite(tendered) && tendered + 0.0005 >= total;
+              const change = ok ? tendered - total : 0;
+              return (
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-400">{t.changeDue}</span>
+                  <span className={`font-bold ${ok ? "text-emerald-300" : "text-slate-500"}`}>
+                    {ok ? formatMoney(change, currency) : "—"}
+                  </span>
+                </div>
+              );
+            })()}
+            <button
+              type="button"
+              disabled={
+                paying ||
+                !Number.isFinite(parseFloat(cashTendered)) ||
+                parseFloat(cashTendered) + 0.0005 < total
+              }
+              onClick={() => void confirmCashTender()}
+              className="w-full h-11 rounded-xl bg-emerald-500 text-white font-bold disabled:opacity-40 inline-flex items-center justify-center gap-2"
+            >
+              {paying && <Loader2 className="w-4 h-4 animate-spin" />}
+              {t.confirmCash}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       <DualApprovalModal
         open={!!voidTarget}
         action="POS_VOID"
@@ -1856,6 +2031,26 @@ export default function PosCheckoutPage() {
                 className="w-full h-10 rounded-xl bg-white/5 border border-white/10 px-3 text-sm text-white placeholder:text-slate-500"
               />
             </div>
+            <label className="space-y-1.5 block">
+              <span className="text-[11px] text-slate-400">{t.refundMethod}</span>
+              <select
+                value={refundMethod}
+                onChange={(e) =>
+                  setRefundMethod(e.target.value as "ORIGINAL" | "CASH" | "STORE_CREDIT")
+                }
+                className="w-full h-10 rounded-xl bg-white/5 border border-white/10 px-3 text-sm text-white"
+              >
+                <option value="ORIGINAL" className="bg-[#111827] text-white">
+                  {t.refundOriginal}
+                </option>
+                <option value="CASH" className="bg-[#111827] text-white">
+                  {t.refundCash}
+                </option>
+                <option value="STORE_CREDIT" className="bg-[#111827] text-white">
+                  {t.refundStoreCredit}
+                </option>
+              </select>
+            </label>
             <button
               type="button"
               disabled={!refundItemsPayload().length}

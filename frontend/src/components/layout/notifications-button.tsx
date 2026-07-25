@@ -116,6 +116,29 @@ export function NotificationsButton() {
         }
       }
 
+      const dashData = (dash?.data || {}) as Record<string, unknown>;
+      const pendingApprovals = Number(dashData.pendingApprovalsCount ?? 0);
+      if (pendingApprovals > 0) {
+        items.push({
+          id: "pending-approvals",
+          title: t("pendingApprovalsTitle"),
+          message: t("pendingApprovalsMsg", { count: pendingApprovals }),
+          href: "/pos/approvals",
+          type: "warning",
+        });
+      }
+
+      const openPosShifts = Number(dashData.openPosShiftsCount ?? 0);
+      if (openPosShifts > 0) {
+        items.push({
+          id: "open-pos-shifts",
+          title: t("openShiftsTitle"),
+          message: t("openShiftsMsg", { count: openPosShifts }),
+          href: "/pos/shifts",
+          type: "info",
+        });
+      }
+
       return items;
     },
     enabled: open,
@@ -133,8 +156,8 @@ export function NotificationsButton() {
     (async () => {
       try {
         const sales = await api.getInvoiceStats("SALES");
-        const overdue = Number(sales?.data?.overdueCount ?? 0);
-        const pending = Number(sales?.data?.pendingCollectionCount ?? 0);
+        const overdue = Number((sales?.data as any)?.overdueCount ?? 0);
+        const pending = Number((sales?.data as any)?.pendingCollectionCount ?? 0);
         if (!cancelled && (overdue > 0 || pending > 0)) setHasAlerts(true);
       } catch {
         /* ignore */

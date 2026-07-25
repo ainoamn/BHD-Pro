@@ -1265,6 +1265,12 @@ class ApiClient {
     return this.post('/pos/sales', data);
   }
 
+  getPosSaleByNumber(number: string) {
+    return this.get('/pos/sales/by-number', {
+      params: { number },
+    });
+  }
+
   voidPosSale(id: string, body?: { approval?: DualApprovalPayload }) {
     return this.post(`/pos/sales/${id}/void`, body || {});
   }

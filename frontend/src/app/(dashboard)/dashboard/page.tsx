@@ -30,6 +30,10 @@ interface DashboardData {
   overdueAmount?: number;
   lowStockCount?: number;
   vatPendingCount?: number;
+  pendingApprovalsCount?: number;
+  todayPosSales?: number;
+  todayPosSalesCount?: number;
+  openPosShiftsCount?: number;
   onboarding?: OnboardingState;
   recentInvoices: {
     id: string;
@@ -103,6 +107,10 @@ export default function DashboardPage() {
               lowStockCount: data.lowStockCount ?? 0,
               vatPendingCount: data.vatPendingCount ?? 0,
               pendingCollectionCount: data.pendingCollectionCount ?? 0,
+              pendingApprovalsCount: data.pendingApprovalsCount ?? 0,
+              todayPosSales: data.todayPosSales ?? 0,
+              todayPosSalesCount: data.todayPosSalesCount ?? 0,
+              openPosShiftsCount: data.openPosShiftsCount ?? 0,
             }}
             currency={currency}
           />

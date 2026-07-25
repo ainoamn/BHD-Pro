@@ -64,6 +64,9 @@ export class DashboardService {
       lowStockProducts,
       vatPending,
       hasLogo,
+      pendingApprovals,
+      todayPosSalesAgg,
+      openPosShifts,
     ] = await Promise.all([
       this.prisma.invoice.aggregate({
         where: { ...notCancelled, type: 'SALES', date: { gte: startOfMonth } },
@@ -169,6 +172,30 @@ export class DashboardService {
           phone: true,
         },
       }),
+      this.prisma.approvalRequest.count({
+        where: {
+          companyId,
+          status: 'PENDING',
+          expiresAt: { gt: new Date() },
+        },
+      }),
+      this.prisma.invoice.aggregate({
+        where: {
+          companyId,
+          type: 'SALES',
+          isCash: true,
+          notes: { contains: 'Hisaby POS' },
+          createdAt: { gte: startOfDay, lte: endOfDay },
+        },
+        _sum: { total: true },
+        _count: true,
+      }),
+      this.prisma.posShift.count({
+        where: {
+          companyId,
+          status: 'OPEN',
+        },
+      }),
     ]);
 
     const revenue = Number(monthSales._sum.total || 0);
@@ -243,11 +270,17 @@ export class DashboardService {
       overdueAmount,
       lowStockCount,
       vatPendingCount: vatPending,
+      pendingApprovalsCount: pendingApprovals,
+      todayPosSales: Number(todayPosSalesAgg._sum.total || 0),
+      todayPosSalesCount: todayPosSalesAgg._count || 0,
+      openPosShiftsCount: openPosShifts,
       alerts: {
         overdue: overdueCount > 0,
         lowStock: lowStockCount > 0,
         vatPending: vatPending > 0,
         pendingCollection: pendingCollection > 0,
+        pendingApprovals: pendingApprovals > 0,
+        openPosShifts: openPosShifts > 0,
       },
       onboarding,
       recentInvoices: recentInvoices.map((inv) => ({

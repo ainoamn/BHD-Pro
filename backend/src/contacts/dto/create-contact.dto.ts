@@ -1,5 +1,6 @@
-import { IsString, IsNotEmpty, IsOptional, IsEmail, IsEnum, IsObject, ValidateIf } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsEmail, IsEnum, IsObject, IsNumber, Min, ValidateIf } from 'class-validator';
 import { ContactType } from '@prisma/client';
+import { Type } from 'class-transformer';
 
 export class CreateContactDto {
   @IsEnum(ContactType)
@@ -36,4 +37,15 @@ export class CreateContactDto {
   @IsOptional()
   @IsObject()
   customFieldsJson?: Record<string, unknown>;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  openingBalance?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  creditLimit?: number;
 }

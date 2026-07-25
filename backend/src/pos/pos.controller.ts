@@ -129,6 +129,13 @@ export class PosController {
     return this.pos.createSale(user.companyId, user, dto);
   }
 
+  @Get('sales/by-number')
+  @Roles(...POS_STAFF)
+  @ApiOperation({ summary: 'Find Hisaby POS cash sale by invoice/receipt number' })
+  saleByNumber(@CurrentUser() user: TokenPayload, @Query('number') number?: string) {
+    return this.pos.findSaleByNumber(user.companyId, number);
+  }
+
   @Post('sales/:id/void')
   @Roles(...POS_STAFF)
   @Throttle({ default: { limit: 30, ttl: 60000 } })

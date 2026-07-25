@@ -71,12 +71,22 @@ Public flags: `asyncApprovals: true`, `nfcBadgesConfigured`, `shiftVarianceLimit
 - [x] Parked cart rename (`PATCH /pos/drafts/:id`)
 - [x] Product favorites strip (localStorage per company)
 - [x] Shortcuts help overlay (`?` key + header button)
+- [x] Store credit pay + void restore (`useStoreCredit`, atomic wallet debit, `Contact.currentBalance`)
+- [x] Cash change-due tender modal (amount tendered → change → confirm)
+- [x] Refund-by-receipt lookup (`GET /pos/sales/by-number?number=`)
 
 ### Planned
-- [ ] Full offline-first catalog/stock sync (beyond per-warehouse snapshot cache)
 - [ ] Partner NFC tap-to-pay (gateway / wallet partners — not badge dual-control)
 - [ ] Native wrapper (Capacitor) if PWA limits hit
 - [ ] Reliable multi-vendor Web Bluetooth thermal (current BLE path is best-effort)
+- [ ] Full AR GL posting for store-credit (MVP uses Contact.currentBalance)
+
+### Done (Wave 6)
+- [x] Full catalog sync API `GET /pos/catalog/sync` + offline IDB per warehouse
+- [x] Broader refunds + store-credit MVP (hardened debit / void restore / UI)
+- [x] Cash change due + receipt number lookup for refunds
+- [x] Dashboard POS today / pending approvals / open shifts
+- [x] WhatsApp notify on approval request (best-effort)
 
 ---
 
