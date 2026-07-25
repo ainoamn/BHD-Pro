@@ -27,7 +27,7 @@ export function savePosFavorites(companyId: string, ids: string[]): void {
 }
 
 function mergeFavoriteIds(a: string[], b: string[]): string[] {
-  return [...new Set([...a, ...b].map(String).filter(Boolean))].slice(0, 200);
+  return Array.from(new Set([...a, ...b].map(String).filter(Boolean))).slice(0, 200);
 }
 
 /** Pull cloud favorites, merge with local cache, push if local had extras. */
