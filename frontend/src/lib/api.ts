@@ -11,6 +11,30 @@ export type DualApprovalPayload = {
   badgeSecret?: string;
 };
 
+export type RestoOrderPayload = {
+  id: string;
+  number: string;
+  status: string;
+  guests: number;
+  notes: string | null;
+  sentAt: string | null;
+  closedAt: string | null;
+  createdAt: string;
+  table: { id: string; code: string; name: string | null } | null;
+  items: Array<{
+    id: string;
+    productId: string | null;
+    name: string;
+    qty: number;
+    unitPrice: number;
+    lineTotal: number;
+    notes: string | null;
+    status: string;
+  }>;
+  subtotal: number;
+  itemCount: number;
+};
+
 /** Prefer same-origin Next rewrite so httpOnly cookies work on localhost + production */
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
@@ -1414,10 +1438,114 @@ class ApiClient {
       companyId: string;
       companyName: string;
       linked: boolean;
-      zones: unknown[];
-      tables: unknown[];
-      message: string;
+      empty: boolean;
+      zones: Array<{
+        id: string;
+        name: string;
+        nameEn: string | null;
+        tables: Array<{
+          id: string;
+          code: string;
+          name: string | null;
+          seats: number;
+          status: string;
+          openOrder: {
+            id: string;
+            number: string;
+            status: string;
+            guests: number;
+            itemCount: number;
+            createdAt: string;
+          } | null;
+        }>;
+      }>;
+      tables: Array<{
+        id: string;
+        code: string;
+        name: string | null;
+        seats: number;
+        status: string;
+        zoneId: string;
+        zoneName: string;
+        openOrder: {
+          id: string;
+          number: string;
+          status: string;
+          guests: number;
+          itemCount: number;
+        } | null;
+      }>;
     }>('/resto/floor');
+  }
+
+  seedRestoFloor(tableCount?: number) {
+    return this.post('/resto/floor/seed', { tableCount });
+  }
+
+  createRestoZone(data: { name: string; nameEn?: string }) {
+    return this.post('/resto/zones', data);
+  }
+
+  createRestoTable(data: {
+    zoneId: string;
+    code: string;
+    name?: string;
+    seats?: number;
+  }) {
+    return this.post('/resto/tables', data);
+  }
+
+  openRestoOrder(data: { tableId: string; guests?: number; notes?: string }) {
+    return this.post<RestoOrderPayload>('/resto/orders', data);
+  }
+
+  getRestoOrder(id: string) {
+    return this.get<RestoOrderPayload>(`/resto/orders/${id}`);
+  }
+
+  addRestoOrderItem(
+    orderId: string,
+    data: { productId: string; qty?: number; notes?: string },
+  ) {
+    return this.post<RestoOrderPayload>(`/resto/orders/${orderId}/items`, data);
+  }
+
+  removeRestoOrderItem(orderId: string, itemId: string) {
+    return this.delete<RestoOrderPayload>(
+      `/resto/orders/${orderId}/items/${itemId}`,
+    );
+  }
+
+  sendRestoOrder(orderId: string) {
+    return this.post<RestoOrderPayload>(`/resto/orders/${orderId}/send`, {});
+  }
+
+  closeRestoOrder(orderId: string) {
+    return this.post<RestoOrderPayload>(`/resto/orders/${orderId}/close`, {});
+  }
+
+  getRestoKitchen() {
+    return this.get<{
+      items: Array<{
+        id: string;
+        name: string;
+        qty: number;
+        notes: string | null;
+        status: string;
+        sentAt: string | null;
+        orderId: string;
+        orderNumber: string;
+        table: { id: string; code: string; name: string | null } | null;
+      }>;
+      count: number;
+    }>('/resto/kitchen');
+  }
+
+  setRestoKitchenItemStatus(
+    itemId: string,
+    status: 'PREPARING' | 'READY' | 'SERVED',
+  ) {
+    return this.post(`/resto/kitchen/items/${itemId}/status`, { status });
   }
 
   lookupPosProduct(code: string, warehouseId?: string) {

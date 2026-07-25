@@ -1,30 +1,24 @@
-# حسابي للمطاعم — دليل التشغيل السريع (R1)
+# حسابي للمطاعم — دليل سريع (R1+R2)
 
-**التاريخ:** 25 يوليو 2026  
 **المسار:** `/resto`
 
-## ماذا يعمل الآن؟
+## التدفق التشغيلي
 
-| الميزة | المسار / الـ API |
-|--------|------------------|
-| دخول | `/resto/login` (نفس حساب الشركة) |
-| الصالة (فارغة حتى R2) | `/resto` · `GET /resto/floor` |
-| قائمة الأصناف | `/resto/menu` · `GET /resto/menu?q=` |
-| ربط الشركة | `/resto/settings` أو إعدادات المحاسبة · `/resto/link*` |
-| الانتقال للمحاسبة / الكاشير | من شريط المطاعم |
+1. فعّل الربط من `/resto/settings`  
+2. من الصالة `/resto` اضغط **تهيئة صالة افتراضية** إن لم توجد طاولات  
+3. اضغط طاولة فارغة → يفتح طلب  
+4. أضف أصنافاً من القائمة → **إرسال للمطبخ**  
+5. تابع البنود في `/resto/kitchen` (بدء / جاهز / تسليم)  
+6. **إغلاق الطلب** يحرّر الطاولة (الدفع المحاسبي في R4)
 
-## تفعيل الربط
+## API مختصر
 
-1. سجّل دخولاً كـ ADMIN (أو أي مستخدم مصادق لتفعيل SSO).  
-2. من `/resto/settings` اضغط **تفعيل الربط الآن** — يضبط `restoLinkedAt`.  
-3. اختياري (ADMIN): توليد مفتاح `hresto_…` وتأكيده عبر `POST /resto/link`.
+| العملية | المسار |
+|---------|--------|
+| الصالة | `GET /resto/floor` · `POST /resto/floor/seed` |
+| طلب | `POST /resto/orders` · `GET /resto/orders/:id` |
+| بنود | `POST .../items` · `DELETE .../items/:itemId` |
+| إرسال | `POST /resto/orders/:id/send` |
+| مطبخ | `GET /resto/kitchen` · `POST /resto/kitchen/items/:id/status` |
 
-## الأدوار الجديدة
-
-`WAITER` · `KITCHEN` · `RESTO_MANAGER` — تُختار من صفحة المستخدمين في المحاسبة.
-
-## ما لم يُبنَ بعد (R2+)
-
-طاولات · طلب مفتوح · KDS · وصفات · إغلاق مالي كامل.
-
-المرجع الكامل: [`HISABY-RESTAURANT-KITCHEN-PLAN.md`](./HISABY-RESTAURANT-KITCHEN-PLAN.md)
+المرجع: [`HISABY-RESTAURANT-KITCHEN-PLAN.md`](./HISABY-RESTAURANT-KITCHEN-PLAN.md)

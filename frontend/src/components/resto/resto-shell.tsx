@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Calculator,
+  ChefHat,
   LayoutGrid,
   Link2,
   Link2Off,
@@ -82,9 +83,10 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
   }
 
   const nav = [
-    { href: "/resto", label: t.floor, icon: LayoutGrid },
-    { href: "/resto/menu", label: t.menu, icon: UtensilsCrossed },
-    { href: "/resto/settings", label: t.settings, icon: Settings2 },
+    { href: "/resto", label: t.floor, icon: LayoutGrid, exact: true },
+    { href: "/resto/menu", label: t.menu, icon: UtensilsCrossed, exact: false },
+    { href: "/resto/kitchen", label: t.kitchen, icon: ChefHat, exact: false },
+    { href: "/resto/settings", label: t.settings, icon: Settings2, exact: false },
   ];
 
   return (
@@ -127,10 +129,9 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
             </button>
             {nav.map((item) => {
               const Icon = item.icon;
-              const active =
-                item.href === "/resto"
-                  ? pathname === "/resto"
-                  : pathname?.startsWith(item.href);
+              const active = item.exact
+                ? pathname === "/resto"
+                : pathname?.startsWith(item.href);
               return (
                 <Link
                   key={item.href}

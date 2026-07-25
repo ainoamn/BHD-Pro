@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -7,7 +17,21 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
 import { RestoService } from './resto.service';
-import { LinkRestoDto } from './dto/resto.dto';
+import {
+  AddRestoOrderItemDto,
+  CreateRestoTableDto,
+  CreateRestoZoneDto,
+  LinkRestoDto,
+  OpenRestoOrderDto,
+  SeedRestoFloorDto,
+  UpdateRestoOrderItemDto,
+} from './dto/resto.dto';
+import { IsIn } from 'class-validator';
+
+class KitchenStatusDto {
+  @IsIn(['PREPARING', 'READY', 'SERVED'])
+  status!: 'PREPARING' | 'READY' | 'SERVED';
+}
 
 const RESTO_STAFF = [
   UserRole.ADMIN,
@@ -17,6 +41,12 @@ const RESTO_STAFF = [
   UserRole.KITCHEN,
   UserRole.CASHIER,
   UserRole.ACCOUNTANT,
+] as const;
+
+const RESTO_FLOOR_MGR = [
+  UserRole.ADMIN,
+  UserRole.MANAGER,
+  UserRole.RESTO_MANAGER,
 ] as const;
 
 @ApiTags('resto')
@@ -39,7 +69,7 @@ export class RestoController {
   }
 
   @Post('link/deactivate')
-  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.RESTO_MANAGER)
+  @Roles(...RESTO_FLOOR_MGR)
   @ApiOperation({ summary: 'Deactivate restaurant link' })
   deactivate(@CurrentUser() user: TokenPayload) {
     return this.resto.deactivateLink(user.companyId);
@@ -68,8 +98,110 @@ export class RestoController {
 
   @Get('floor')
   @Roles(...RESTO_STAFF)
-  @ApiOperation({ summary: 'Floor layout (empty until R2)' })
+  @ApiOperation({ summary: 'Floor zones and tables with open orders' })
   floor(@CurrentUser() user: TokenPayload) {
     return this.resto.getFloor(user.companyId);
+  }
+
+  @Post('floor/seed')
+  @Roles(...RESTO_FLOOR_MGR)
+  @ApiOperation({ summary: 'Seed default zone + tables if empty' })
+  seedFloor(
+    @CurrentUser() user: TokenPayload,
+    @Body() dto: SeedRestoFloorDto,
+  ) {
+    return this.resto.seedFloor(user.companyId, dto.tableCount ?? 8);
+  }
+
+  @Post('zones')
+  @Roles(...RESTO_FLOOR_MGR)
+  createZone(
+    @CurrentUser() user: TokenPayload,
+    @Body() dto: CreateRestoZoneDto,
+  ) {
+    return this.resto.createZone(user.companyId, dto);
+  }
+
+  @Post('tables')
+  @Roles(...RESTO_FLOOR_MGR)
+  createTable(
+    @CurrentUser() user: TokenPayload,
+    @Body() dto: CreateRestoTableDto,
+  ) {
+    return this.resto.createTable(user.companyId, dto);
+  }
+
+  @Post('orders')
+  @Roles(...RESTO_STAFF)
+  openOrder(
+    @CurrentUser() user: TokenPayload,
+    @Body() dto: OpenRestoOrderDto,
+  ) {
+    return this.resto.openOrder(user.companyId, user.sub, dto);
+  }
+
+  @Get('orders/:id')
+  @Roles(...RESTO_STAFF)
+  getOrder(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
+    return this.resto.getOrder(user.companyId, id);
+  }
+
+  @Post('orders/:id/items')
+  @Roles(...RESTO_STAFF)
+  addItem(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+    @Body() dto: AddRestoOrderItemDto,
+  ) {
+    return this.resto.addItem(user.companyId, id, dto);
+  }
+
+  @Patch('orders/:id/items/:itemId')
+  @Roles(...RESTO_STAFF)
+  updateItem(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+    @Body() dto: UpdateRestoOrderItemDto,
+  ) {
+    return this.resto.updateItem(user.companyId, id, itemId, dto);
+  }
+
+  @Delete('orders/:id/items/:itemId')
+  @Roles(...RESTO_STAFF)
+  removeItem(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+  ) {
+    return this.resto.removeItem(user.companyId, id, itemId);
+  }
+
+  @Post('orders/:id/send')
+  @Roles(...RESTO_STAFF)
+  send(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
+    return this.resto.sendToKitchen(user.companyId, id);
+  }
+
+  @Post('orders/:id/close')
+  @Roles(...RESTO_STAFF)
+  close(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
+    return this.resto.closeOrder(user.companyId, id);
+  }
+
+  @Get('kitchen')
+  @Roles(...RESTO_STAFF)
+  kitchen(@CurrentUser() user: TokenPayload) {
+    return this.resto.getKitchenQueue(user.companyId);
+  }
+
+  @Post('kitchen/items/:itemId/status')
+  @Roles(...RESTO_STAFF)
+  kitchenStatus(
+    @CurrentUser() user: TokenPayload,
+    @Param('itemId') itemId: string,
+    @Body() dto: KitchenStatusDto,
+  ) {
+    return this.resto.setKitchenItemStatus(user.companyId, itemId, dto.status);
   }
 }
