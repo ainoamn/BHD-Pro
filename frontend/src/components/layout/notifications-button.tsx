@@ -179,8 +179,9 @@ export function NotificationsButton() {
     (async () => {
       try {
         const sales = await api.getInvoiceStats("SALES");
-        const overdue = Number((sales?.data as any)?.overdueCount ?? 0);
-        const pending = Number((sales?.data as any)?.pendingCollectionCount ?? 0);
+        const salesData = (sales?.data ?? {}) as AlertStats;
+        const overdue = Number(salesData.overdueCount ?? 0);
+        const pending = Number(salesData.pendingCollectionCount ?? 0);
         if (!cancelled && (overdue > 0 || pending > 0)) setHasAlerts(true);
       } catch {
         /* ignore */
