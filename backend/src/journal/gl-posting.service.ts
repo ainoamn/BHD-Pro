@@ -409,6 +409,49 @@ export class GlPostingService {
     }, lines);
   }
 
+  async reverseInvoiceEntry(
+    companyId: string,
+    userId: string,
+    invoice: { id: string; number: string; glJournalId?: string | null },
+  ) {
+    if (!invoice.glJournalId) return null;
+
+    const revRef = `REV-INV:${invoice.id}`;
+    const existing = await this.prisma.journal.findFirst({
+      where: { companyId, reference: revRef },
+    });
+    if (existing) return existing;
+
+    const original = await this.prisma.journal.findFirst({
+      where: { id: invoice.glJournalId, companyId },
+      include: { lines: true },
+    });
+    if (!original || !original.lines.length) return null;
+
+    const lines: JournalLineInput[] = original.lines.map((line) => ({
+      accountId: line.accountId,
+      description: `عكس ${invoice.number}`,
+      debit: Number(line.credit),
+      credit: Number(line.debit),
+      ...(line.costCenterId ? { costCenterId: line.costCenterId } : {}),
+      ...(line.projectId ? { projectId: line.projectId } : {}),
+    }));
+
+    const journal = await this.createEntry(companyId, userId, {
+      date: new Date(),
+      description: `عكس فاتورة ${invoice.number}`,
+      reference: revRef,
+    }, lines);
+
+    if (journal) {
+      await this.prisma.invoice.update({
+        where: { id: invoice.id },
+        data: { glJournalId: null },
+      });
+    }
+    return journal;
+  }
+
   async postAssetDepreciation(
     companyId: string,
     userId: string,

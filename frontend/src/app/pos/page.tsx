@@ -33,6 +33,20 @@ type CartLine = {
   isTracked: boolean;
 };
 
+type ParkedCart = {
+  id: string;
+  name: string;
+  createdAt: string;
+  warehouseId: string;
+  lines: CartLine[];
+};
+
+type CheckoutMethod = "CASH" | "CREDIT_CARD" | "BANK_TRANSFER";
+
+function parkedStorageKey(companyId?: string | null) {
+  return `hisaby-pos-parked:${companyId || "default"}`;
+}
+
 type PosWarehouse = {
   id: string;
   code: string;
@@ -77,8 +91,10 @@ export default function PosCheckoutPage() {
   const [warehouses, setWarehouses] = useState<PosWarehouse[]>([]);
   const [warehouseId, setWarehouseId] = useState("");
   const [recentSales, setRecentSales] = useState<RecentCashSale[]>([]);
+  const [parkedCarts, setParkedCarts] = useState<ParkedCart[]>([]);
 
   const currency = company?.currency || "OMR";
+  const companyId = company?.id;
   const taxRate =
     company?.applyVat === false
       ? 0
@@ -122,6 +138,13 @@ export default function PosCheckoutPage() {
     try {
       saved = localStorage.getItem(POS_WAREHOUSE_KEY) || "";
       if (saved) setWarehouseId(saved);
+      const raw = localStorage.getItem(parkedStorageKey(companyId));
+      if (raw) {
+        const parsed = JSON.parse(raw) as ParkedCart[];
+        if (Array.isArray(parsed)) setParkedCarts(parsed);
+      } else {
+        setParkedCarts([]);
+      }
     } catch {
       /* ignore */
     }
@@ -149,12 +172,57 @@ export default function PosCheckoutPage() {
         /* ignore */
       }
     })();
-  }, [loadRecentSales, focusScan]);
+  }, [loadRecentSales, focusScan, companyId]);
 
   useEffect(() => {
     const id = window.setTimeout(() => loadCatalog(search), 220);
     return () => window.clearTimeout(id);
   }, [search, warehouseId, loadCatalog]);
+
+  const persistParked = useCallback(
+    (next: ParkedCart[]) => {
+      setParkedCarts(next);
+      try {
+        localStorage.setItem(parkedStorageKey(companyId), JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+    },
+    [companyId],
+  );
+
+  const parkCart = () => {
+    if (!cart.length) {
+      toast.error(t.parkEmpty);
+      return;
+    }
+    const id =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `park-${Date.now()}`;
+    const entry: ParkedCart = {
+      id,
+      name: `${t.parkName} ${parkedCarts.length + 1}`,
+      createdAt: new Date().toISOString(),
+      warehouseId,
+      lines: cart.map((l) => ({ ...l })),
+    };
+    persistParked([entry, ...parkedCarts]);
+    setCart([]);
+    toast.success(t.parkOk);
+    focusScan();
+  };
+
+  const recallParked = (parked: ParkedCart) => {
+    setCart(parked.lines.map((l) => ({ ...l })));
+    if (parked.warehouseId) onWarehouseChange(parked.warehouseId);
+    persistParked(parkedCarts.filter((p) => p.id !== parked.id));
+    focusScan();
+  };
+
+  const deleteParked = (id: string) => {
+    persistParked(parkedCarts.filter((p) => p.id !== id));
+  };
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -296,6 +364,7 @@ export default function PosCheckoutPage() {
     const m = method.toUpperCase();
     if (m === "CASH") return t.payCash;
     if (m === "CREDIT_CARD" || m === "CARD") return t.payCard;
+    if (m === "BANK_TRANSFER") return t.payBank;
     return method;
   };
 
@@ -327,7 +396,7 @@ export default function PosCheckoutPage() {
     }
   };
 
-  const checkout = async (method: "CASH" | "CREDIT_CARD") => {
+  const checkout = async (method: CheckoutMethod) => {
     if (!cart.length || paying) return;
     const snapshot = cart.map((l) => ({
       name: l.name,
@@ -351,7 +420,7 @@ export default function PosCheckoutPage() {
         number: inv.number,
         total: Number(inv.total),
         lines: snapshot,
-        paymentMethod: method === "CASH" ? t.payCash : t.payCard,
+        paymentMethod: paymentLabel(method),
       });
       setCart([]);
       toast.success(t.saleOk);
@@ -518,20 +587,66 @@ export default function PosCheckoutPage() {
       </section>
 
       <aside className="lg:col-span-5 xl:col-span-4 mt-4 lg:mt-0 rounded-3xl border border-white/10 bg-[#111827] flex flex-col min-h-[420px]">
-        <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
+        <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 font-bold">
             <ShoppingCart className="w-4 h-4 text-sky-400" />
             {t.cart}
           </div>
-          <button
-            type="button"
-            onClick={clearCart}
-            className="text-xs text-slate-500 hover:text-rose-300 inline-flex items-center gap-1"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            {t.clear}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={parkCart}
+              className="text-xs text-slate-500 hover:text-amber-300"
+            >
+              {t.parkCart}
+            </button>
+            <button
+              type="button"
+              onClick={clearCart}
+              className="text-xs text-slate-500 hover:text-rose-300 inline-flex items-center gap-1"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              {t.clear}
+            </button>
+          </div>
         </div>
+
+        {parkedCarts.length > 0 ? (
+          <div className="px-3 pt-2 space-y-1.5 border-b border-white/5 pb-2">
+            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
+              {t.parkedCarts}
+            </p>
+            <div className="space-y-1 max-h-28 overflow-y-auto">
+              {parkedCarts.map((p) => (
+                <div
+                  key={p.id}
+                  className="flex items-center gap-1.5 rounded-lg bg-black/20 px-2 py-1.5"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] text-white truncate">{p.name}</p>
+                    <p className="text-[10px] text-slate-500">
+                      {p.lines.length} · {new Date(p.createdAt).toLocaleTimeString()}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => recallParked(p)}
+                    className="h-7 px-2 rounded-md text-[10px] font-semibold text-sky-300 hover:bg-sky-500/15"
+                  >
+                    {t.recallCart}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => deleteParked(p.id)}
+                    className="h-7 px-2 rounded-md text-[10px] font-semibold text-rose-300/80 hover:bg-rose-500/15"
+                  >
+                    {t.deleteParked}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
 
         <div className="flex-1 overflow-y-auto p-3 space-y-2">
           {!cart.length && (
@@ -588,9 +703,24 @@ export default function PosCheckoutPage() {
                     <Plus className="w-3.5 h-3.5" />
                   </button>
                 </div>
-                <span className="text-xs text-slate-500">
-                  {t.price} {formatMoney(l.unitPrice, currency)}
-                </span>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-2">
+                <label className="text-[11px] text-slate-500 shrink-0">{t.price}</label>
+                <input
+                  type="number"
+                  min={0}
+                  step={0.001}
+                  value={l.unitPrice}
+                  onChange={(e) => {
+                    const next = Math.max(0, parseFloat(e.target.value) || 0);
+                    setCart((prev) =>
+                      prev.map((x) =>
+                        x.productId === l.productId ? { ...x, unitPrice: next } : x,
+                      ),
+                    );
+                  }}
+                  className="w-24 h-8 px-2 rounded-md bg-black/30 border border-white/10 text-sm text-end text-white"
+                />
               </div>
               <div className="mt-2 flex items-center justify-between gap-2">
                 <label className="text-[11px] text-slate-500 shrink-0">{t.discount}</label>
@@ -631,12 +761,12 @@ export default function PosCheckoutPage() {
               <span>{formatMoney(total, currency)}</span>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             <button
               type="button"
               disabled={!cart.length || paying}
               onClick={() => checkout("CASH")}
-              className="h-12 rounded-xl bg-emerald-500 text-white font-bold disabled:opacity-40 hover:bg-emerald-400 inline-flex items-center justify-center gap-2"
+              className="h-12 rounded-xl bg-emerald-500 text-white font-bold disabled:opacity-40 hover:bg-emerald-400 inline-flex items-center justify-center gap-2 text-sm"
             >
               {paying && <Loader2 className="w-4 h-4 animate-spin" />}
               {t.payCash}
@@ -645,9 +775,17 @@ export default function PosCheckoutPage() {
               type="button"
               disabled={!cart.length || paying}
               onClick={() => checkout("CREDIT_CARD")}
-              className="h-12 rounded-xl bg-sky-500 text-white font-bold disabled:opacity-40 hover:bg-sky-400"
+              className="h-12 rounded-xl bg-sky-500 text-white font-bold disabled:opacity-40 hover:bg-sky-400 text-sm"
             >
               {t.payCard}
+            </button>
+            <button
+              type="button"
+              disabled={!cart.length || paying}
+              onClick={() => checkout("BANK_TRANSFER")}
+              className="h-12 rounded-xl bg-teal-600 text-white font-bold disabled:opacity-40 hover:bg-teal-500 text-sm"
+            >
+              {t.payBank}
             </button>
           </div>
           {lastInvoice && (

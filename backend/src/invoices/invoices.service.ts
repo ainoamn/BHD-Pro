@@ -428,6 +428,11 @@ export class InvoicesService {
       include: { contact: true, items: true, payments: true },
     });
 
+    if (status === InvoiceStatus.CANCELLED) {
+      // Use pre-update invoice so glJournalId is still available (even after payment reversal)
+      await this.glPosting.reverseInvoiceEntry(companyId, userId, invoice);
+    }
+
     if (
       ([InvoiceStatus.SENT, InvoiceStatus.VIEWED, InvoiceStatus.OVERDUE, InvoiceStatus.PAID] as InvoiceStatus[]).includes(
         status,
