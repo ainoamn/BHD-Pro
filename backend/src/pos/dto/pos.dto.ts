@@ -139,6 +139,10 @@ export class ClosePosShiftDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @IsOptional()
+  @IsUUID()
+  warehouseId?: string;
 }
 
 export class LinkPosDto {

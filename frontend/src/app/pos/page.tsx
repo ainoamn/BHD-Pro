@@ -440,7 +440,26 @@ export default function PosCheckoutPage() {
   const total = useMemo(() => Number((subtotal + tax).toFixed(3)), [subtotal, tax]);
 
   const printReceiptSnapshot = useCallback(
-    (receipt: ReceiptSnapshot) => {
+    async (receipt: ReceiptSnapshot) => {
+      try {
+        const { tryPrintEscPos } = await import("@/lib/pos-escpos");
+        const ok = await tryPrintEscPos({
+          brand: t.brand,
+          companyName: company?.name || "",
+          vatNumber: company?.vatNumber || undefined,
+          warehouseLabel: receipt.warehouseLabel,
+          number: receipt.number,
+          paymentMethod: receipt.paymentMethod,
+          totalLabel: t.total,
+          total: receipt.total || 0,
+          currency,
+          lines: receipt.lines || [],
+        });
+        if (ok) return;
+      } catch {
+        /* fall through to browser print */
+      }
+
       const w = window.open("", "_blank", "width=360,height=640");
       if (!w) return;
       const linesHtml = (receipt.lines || [])
@@ -529,15 +548,25 @@ export default function PosCheckoutPage() {
     setVoidTarget(sale);
   };
 
-  const openRefund = (sale: RecentCashSale) => {
+  const openRefund = async (sale: RecentCashSale) => {
+    let detail = sale;
+    const missingIds = !(sale.items || []).some((i) => i.productId);
+    if (missingIds) {
+      try {
+        const res = await api.getInvoice(sale.id);
+        detail = res.data as RecentCashSale;
+      } catch {
+        /* use list payload */
+      }
+    }
     const qtys: Record<string, string> = {};
-    for (const item of sale.items || []) {
+    for (const item of detail.items || []) {
       if (item.productId) qtys[item.productId] = "";
     }
     setRefundQtys(qtys);
     setRefundReason("");
     setRefundAwaitingApproval(false);
-    setRefundTarget(sale);
+    setRefundTarget(detail);
   };
 
   const refundItemsPayload = () => {
@@ -604,20 +633,56 @@ export default function PosCheckoutPage() {
       qty: l.quantity,
       lineTotal: lineTotal(l),
     }));
+    const payload = {
+      paymentMethod: method,
+      warehouseId: warehouseId || undefined,
+      contactId: contactId || undefined,
+      approval,
+      items: cart.map((l) => ({
+        productId: l.productId,
+        quantity: l.quantity,
+        unitPrice: l.unitPrice,
+        discount: l.discount || 0,
+      })),
+    };
     setPaying(true);
     try {
-      const res = await api.createPosSale({
-        paymentMethod: method,
-        warehouseId: warehouseId || undefined,
-        contactId: contactId || undefined,
-        approval,
-        items: cart.map((l) => ({
-          productId: l.productId,
-          quantity: l.quantity,
-          unitPrice: l.unitPrice,
-          discount: l.discount || 0,
-        })),
-      });
+      const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+      if (offline) {
+        const { enqueuePendingSale } = await import("@/lib/pos-offline-queue");
+        const localNumber = `OFF-${Date.now().toString(36).toUpperCase()}`;
+        await enqueuePendingSale({
+          id: crypto.randomUUID(),
+          createdAt: new Date().toISOString(),
+          payload: {
+            items: payload.items,
+            paymentMethod: method,
+            warehouseId: warehouseId || undefined,
+            contactId: contactId || undefined,
+          },
+          receipt: {
+            number: localNumber,
+            total,
+            lines: snapshot,
+            paymentMethod: paymentLabel(method),
+            warehouseLabel: warehouseLabel || undefined,
+          },
+        });
+        setLastInvoice({
+          number: localNumber,
+          total,
+          lines: snapshot,
+          paymentMethod: paymentLabel(method),
+          warehouseLabel: warehouseLabel || undefined,
+        });
+        setCart([]);
+        setPendingCheckout(null);
+        toast.success(t.saleQueued);
+        focusScan();
+        return;
+      }
+
+      const res = await api.createPosSale(payload);
       const inv = res.data as { number?: string; total?: number | string };
       setLastInvoice({
         number: inv.number,
@@ -633,6 +698,47 @@ export default function PosCheckoutPage() {
       loadRecentSales();
       focusScan();
     } catch (err: unknown) {
+      const networkFail =
+        !err ||
+        (err as { code?: string; message?: string }).code === "ERR_NETWORK" ||
+        /network/i.test(String((err as { message?: string }).message || ""));
+      if (networkFail) {
+        try {
+          const { enqueuePendingSale } = await import("@/lib/pos-offline-queue");
+          const localNumber = `OFF-${Date.now().toString(36).toUpperCase()}`;
+          await enqueuePendingSale({
+            id: crypto.randomUUID(),
+            createdAt: new Date().toISOString(),
+            payload: {
+              items: payload.items,
+              paymentMethod: method,
+              warehouseId: warehouseId || undefined,
+              contactId: contactId || undefined,
+            },
+            receipt: {
+              number: localNumber,
+              total,
+              lines: snapshot,
+              paymentMethod: paymentLabel(method),
+              warehouseLabel: warehouseLabel || undefined,
+            },
+          });
+          setLastInvoice({
+            number: localNumber,
+            total,
+            lines: snapshot,
+            paymentMethod: paymentLabel(method),
+            warehouseLabel: warehouseLabel || undefined,
+          });
+          setCart([]);
+          setPendingCheckout(null);
+          toast.success(t.saleQueued);
+          focusScan();
+          return;
+        } catch {
+          /* fall through */
+        }
+      }
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       toast.error(typeof msg === "string" ? msg : t.saleFail);
     } finally {

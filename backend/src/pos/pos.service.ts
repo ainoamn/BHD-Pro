@@ -541,11 +541,8 @@ export class PosService {
         }
       }
 
-      // 2) Create paid cash invoice (attach to this user's open shift when present)
-      const openShift = await this.prisma.posShift.findFirst({
-        where: { companyId, openedById: userId, status: 'OPEN' },
-        orderBy: { openedAt: 'desc' },
-      });
+      // 2) Create paid cash invoice (attach to open shift for this warehouse)
+      const openShift = await this.findOpenShift(companyId, dto.warehouseId || null);
 
       const invoice = await this.invoices.create(companyId, userId, {
         type: InvoiceType.SALES,
@@ -662,15 +659,8 @@ export class PosService {
     return { deleted: true, id };
   }
 
-  async getCurrentShift(companyId: string, userId: string) {
-    const shift = await this.prisma.posShift.findFirst({
-      where: { companyId, openedById: userId, status: 'OPEN' },
-      orderBy: { openedAt: 'desc' },
-      include: {
-        openedBy: { select: { id: true, name: true, email: true } },
-        warehouse: { select: { id: true, name: true, code: true } },
-      },
-    });
+  async getCurrentShift(companyId: string, warehouseId?: string | null) {
+    const shift = await this.findOpenShift(companyId, warehouseId);
     if (!shift) return { shift: null };
     const live = await this.buildZReport(
       companyId,
@@ -682,16 +672,35 @@ export class PosService {
     return { shift, live };
   }
 
-  async openShift(companyId: string, userId: string, dto: OpenPosShiftDto) {
-    const existing = await this.prisma.posShift.findFirst({
-      where: { companyId, openedById: userId, status: 'OPEN' },
+  /** One OPEN shift per company+warehouse (null warehouse = company default drawer). */
+  private async findOpenShift(companyId: string, warehouseId?: string | null) {
+    return this.prisma.posShift.findFirst({
+      where: {
+        companyId,
+        status: 'OPEN',
+        warehouseId: warehouseId ? warehouseId : null,
+      },
+      orderBy: { openedAt: 'desc' },
+      include: {
+        openedBy: { select: { id: true, name: true, email: true } },
+        warehouse: { select: { id: true, name: true, code: true } },
+      },
     });
+  }
+
+  async openShift(companyId: string, userId: string, dto: OpenPosShiftDto) {
+    const warehouseId = dto.warehouseId || null;
+    const existing = await this.findOpenShift(companyId, warehouseId);
     if (existing) {
-      throw new BadRequestException('You already have an open shift — close it first');
+      throw new BadRequestException(
+        warehouseId
+          ? 'This warehouse already has an open shift — close it first'
+          : 'An open shift already exists for the default drawer — close it first',
+      );
     }
-    if (dto.warehouseId) {
+    if (warehouseId) {
       const wh = await this.prisma.warehouse.findFirst({
-        where: { id: dto.warehouseId, companyId, isActive: true },
+        where: { id: warehouseId, companyId, isActive: true },
       });
       if (!wh) throw new BadRequestException('Warehouse not found');
     }
@@ -702,7 +711,7 @@ export class PosService {
       data: {
         companyId,
         openedById: userId,
-        warehouseId: dto.warehouseId || null,
+        warehouseId,
         openingFloat,
         notes: dto.notes?.trim() || null,
         status: 'OPEN',
@@ -715,11 +724,12 @@ export class PosService {
     return { shift };
   }
 
-  async closeShift(companyId: string, userId: string, dto: ClosePosShiftDto) {
-    const shift = await this.prisma.posShift.findFirst({
-      where: { companyId, openedById: userId, status: 'OPEN' },
-      orderBy: { openedAt: 'desc' },
-    });
+  async closeShift(
+    companyId: string,
+    userId: string,
+    dto: ClosePosShiftDto & { warehouseId?: string },
+  ) {
+    const shift = await this.findOpenShift(companyId, dto.warehouseId || null);
     if (!shift) throw new BadRequestException('No open shift to close');
 
     const closedAt = new Date();
@@ -1034,18 +1044,21 @@ export class PosService {
       items: cnItems,
     });
 
-    const openShift = await this.prisma.posShift.findFirst({
-      where: { companyId, openedById: actor.sub, status: 'OPEN' },
-      orderBy: { openedAt: 'desc' },
-    });
+    const openShift = await this.findOpenShift(
+      companyId,
+      (
+        await this.prisma.posShift.findFirst({
+          where: { id: invoice.posShiftId || '__none__' },
+          select: { warehouseId: true },
+        })
+      )?.warehouseId ?? null,
+    );
 
     try {
       await this.prisma.invoice.update({
         where: { id: creditNote.id },
         data: {
-          ...(openShift || invoice.posShiftId
-            ? { posShiftId: openShift?.id || invoice.posShiftId }
-            : {}),
+          posShiftId: openShift?.id || invoice.posShiftId || undefined,
           customFieldsJson: {
             refundOfInvoiceId: invoice.id,
             refundOfNumber: invoice.number,

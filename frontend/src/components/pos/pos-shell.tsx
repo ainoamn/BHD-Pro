@@ -18,6 +18,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
   const { user, company, isAuthenticated, logout } = useAuthStore();
   const t = posCopy[locale === "en" ? "en" : "ar"];
   const [linked, setLinked] = useState<boolean | null>(null);
+  const [shiftOpen, setShiftOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const isLogin = pathname?.startsWith("/pos/login");
   const canSeeApprovals = user?.role === "ADMIN" || user?.role === "MANAGER";
@@ -47,11 +48,23 @@ export function PosShell({ children }: { children: React.ReactNode }) {
       } catch {
         if (!cancelled) setLinked(false);
       }
+      try {
+        let wh = "";
+        try {
+          wh = localStorage.getItem("hisaby-pos-warehouse-id") || "";
+        } catch {
+          /* ignore */
+        }
+        const shiftRes = await api.getCurrentPosShift(wh || undefined);
+        if (!cancelled) setShiftOpen(!!shiftRes.data.shift);
+      } catch {
+        if (!cancelled) setShiftOpen(false);
+      }
     })();
     return () => {
       cancelled = true;
     };
-  }, [hydrated, isAuthenticated, isLogin, router]);
+  }, [hydrated, isAuthenticated, isLogin, router, pathname]);
 
   const handleLogout = async () => {
     try {
@@ -115,11 +128,15 @@ export function PosShell({ children }: { children: React.ReactNode }) {
             </Link>
             <Link
               href="/pos/shifts"
-              className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-sky-200/90 hover:bg-sky-500/10"
+              className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold hover:bg-sky-500/10 ${
+                shiftOpen ? "text-emerald-300" : "text-sky-200/90"
+              }`}
               title={t.shifts}
             >
               <Clock3 className="w-4 h-4" />
-              <span className="hidden sm:inline">{t.shifts}</span>
+              <span className="hidden sm:inline">
+                {shiftOpen ? t.shiftOpen : t.shifts}
+              </span>
             </Link>
             {canSeeApprovals ? (
               <Link

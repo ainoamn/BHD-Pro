@@ -136,9 +136,12 @@ export class PosController {
 
   @Get('shifts/current')
   @Roles(...POS_STAFF)
-  @ApiOperation({ summary: 'Get open POS shift + live Z totals' })
-  currentShift(@CurrentUser() user: TokenPayload) {
-    return this.pos.getCurrentShift(user.companyId, user.sub);
+  @ApiOperation({ summary: 'Get open POS shift + live Z totals (per warehouse)' })
+  currentShift(
+    @CurrentUser() user: TokenPayload,
+    @Query('warehouseId') warehouseId?: string,
+  ) {
+    return this.pos.getCurrentShift(user.companyId, warehouseId || null);
   }
 
   @Get('shifts')
@@ -150,7 +153,7 @@ export class PosController {
 
   @Post('shifts/open')
   @Roles(...POS_STAFF)
-  @ApiOperation({ summary: 'Open a POS cash-drawer shift' })
+  @ApiOperation({ summary: 'Open a POS cash-drawer shift for a warehouse' })
   openShift(@CurrentUser() user: TokenPayload, @Body() dto: OpenPosShiftDto) {
     return this.pos.openShift(user.companyId, user.sub, dto);
   }
