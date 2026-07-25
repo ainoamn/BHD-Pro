@@ -110,3 +110,4 @@ Public flags: `asyncApprovals: true`, `nfcBadgesConfigured`, `shiftVarianceLimit
 15. X-report: mid-shift live totals via `GET /pos/shifts/current/x-report?warehouseId=` (or `/pos/shifts/:id/x-report`); print from `/pos/shifts` without closing.
 16. Bank internal transfer dual-control (`BANK_INTERNAL_TRANSFER`) + statement match suggestions UI on `/bank-reconciliation`.
 17. Store-credit GL: `PaymentMethod.STORE_CREDIT` posts Dr/Cr liability **2130** against AR (not cash 1100); wallet `Contact.currentBalance` remains operational.
+18. Management alerts polish: status tabs + acknowledge/dismiss/resolve + severity; commitments edit with GL accounts + attachments open.

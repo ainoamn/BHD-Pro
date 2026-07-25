@@ -95,7 +95,12 @@ export class ManagementAlertsService {
           message: `المرجع "${payment.reference}" مستخدم أيضاً على فاتورة ${dupRef.invoice.number}`,
           entityType: 'PAYMENT',
           entityId: payment.id,
-          payloadJson: { otherPaymentId: dupRef.id, reference: payment.reference },
+          payloadJson: {
+            otherPaymentId: dupRef.id,
+            reference: payment.reference,
+            invoiceId: payment.invoiceId,
+            invoiceNumber: dupRef.invoice.number,
+          },
         });
       }
     }
@@ -129,6 +134,7 @@ export class ManagementAlertsService {
         payloadJson: {
           similarIds: similar.map((s) => s.id),
           invoices: similar.map((s) => s.invoice.number),
+          invoiceId: payment.invoiceId,
         },
       });
     }

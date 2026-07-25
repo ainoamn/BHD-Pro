@@ -708,7 +708,7 @@
     "title": "E-Invoicing (OTA)",
     "subtitle": "Oman Tax Authority electronic invoicing compliance",
     "totalInvoices": "Total Sales Invoices",
-    "submitted": "Submitted to OTA",
+    "submitted": "Submitted to OTA successfully",
     "pending": "Pending Submission",
     "number": "Invoice Number",
     "customer": "Customer",
@@ -720,7 +720,6 @@
     "submitOta": "Submit to OTA",
     "cleared": "Cleared",
     "sendFirst": "Send invoice first",
-    "submitted": "Submitted to OTA successfully",
     "submitError": "Failed to submit to OTA",
     "noInvoices": "No sales invoices",
     "noInvoicesDesc": "Create sales invoices to submit to OTA"
@@ -1488,14 +1487,42 @@
     "pauseMonth": "Defer one month",
     "paused": "Paused / deferred",
     "runDue": "Post due now",
-    "ran": "Posted"
+    "ran": "Posted",
+    "edit": "Edit commitment",
+    "expenseAccount": "Expense account (optional — default 5200)",
+    "payableAccount": "Payable account (optional — default 2100)",
+    "notes": "Notes",
+    "pause": "Defer",
+    "deferUnit": "Defer by",
+    "attachments": "Attachments",
+    "defer": {
+      "DAY": "Day",
+      "MONTH": "Month",
+      "YEAR": "Year"
+    }
   },
   "managementAlerts": {
     "title": "Management alerts",
     "subtitle": "Duplicate references and similar transactions — managers only",
-    "empty": "No open alerts",
-    "resolve": "Acknowledge",
-    "forbidden": "This page is for owner / admin / accountant only"
+    "empty": "No alerts in this filter",
+    "resolve": "Resolve",
+    "forbidden": "This page is for owner / admin / accountant only",
+    "acknowledge": "Acknowledge",
+    "dismiss": "Dismiss",
+    "openInvoices": "Open invoices",
+    "relatedInvoice": "Related invoice",
+    "status": {
+      "OPEN": "Open",
+      "ACKNOWLEDGED": "Acknowledged",
+      "RESOLVED": "Resolved",
+      "DISMISSED": "Dismissed",
+      "ALL": "All"
+    },
+    "severity": {
+      "HIGH": "High",
+      "MEDIUM": "Medium",
+      "LOW": "Low"
+    }
   },
   "attachments": {
     "title": "Attachments",

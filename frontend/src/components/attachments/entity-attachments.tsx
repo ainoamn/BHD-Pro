@@ -12,6 +12,7 @@ interface AttachmentRow {
   fileName: string;
   mimeType?: string | null;
   sizeBytes: number;
+  storageKey?: string | null;
   createdAt: string;
 }
 
@@ -119,7 +120,18 @@ export function EntityAttachments({ entityType, entityId, className }: EntityAtt
               className="flex items-center justify-between gap-2 text-sm text-slate-300 bg-slate-800/50 rounded-lg px-2 py-1.5"
             >
               <span className="truncate" title={row.fileName}>
-                {row.fileName}
+                {row.storageKey ? (
+                  <a
+                    href={row.storageKey}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-sky-300 hover:text-sky-200"
+                  >
+                    {row.fileName}
+                  </a>
+                ) : (
+                  row.fileName
+                )}
               </span>
               <button
                 type="button"
