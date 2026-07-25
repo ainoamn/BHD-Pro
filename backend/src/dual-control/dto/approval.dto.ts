@@ -163,6 +163,12 @@ export class UpdateSecurityConfigDto {
   @IsNumber()
   @Min(0)
   shiftVarianceLimit?: number;
+
+  /** When true, block POS sales without an open shift (default false) */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  requireOpenShift?: boolean;
 }
 
 export class CreateApprovalRequestDto {

@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { UserRole } from '@prisma/client';
@@ -15,6 +15,7 @@ import {
   LinkPosDto,
   OpenPosShiftDto,
   RefundPosSaleDto,
+  UpdatePosDraftDto,
   VoidPosSaleDto,
 } from './dto/pos.dto';
 
@@ -80,6 +81,13 @@ export class PosController {
     return this.pos.searchProducts(user.companyId, q || '', warehouseId);
   }
 
+  @Get('catalog/sync')
+  @Roles(...POS_STAFF)
+  @ApiOperation({ summary: 'Full active catalog + stock for offline cache' })
+  syncCatalog(@CurrentUser() user: TokenPayload, @Query('warehouseId') warehouseId?: string) {
+    return this.pos.syncCatalog(user.companyId, warehouseId);
+  }
+
   @Get('drafts')
   @Roles(...POS_STAFF)
   @ApiOperation({ summary: 'List POS parked carts (newest 50)' })
@@ -93,6 +101,17 @@ export class PosController {
   @ApiOperation({ summary: 'Park POS cart as server-backed draft' })
   createDraft(@CurrentUser() user: TokenPayload, @Body() dto: CreatePosDraftDto) {
     return this.pos.createDraft(user.companyId, user.sub, dto);
+  }
+
+  @Patch('drafts/:id')
+  @Roles(...POS_STAFF)
+  @ApiOperation({ summary: 'Rename a parked POS cart' })
+  updateDraft(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+    @Body() dto: UpdatePosDraftDto,
+  ) {
+    return this.pos.updateDraftName(user.companyId, id, dto);
   }
 
   @Delete('drafts/:id')

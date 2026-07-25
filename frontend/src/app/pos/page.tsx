@@ -1,10 +1,11 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, MouseEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Loader2,
   Camera,
+  CircleHelp,
   Minus,
   PackagePlus,
   Plus,
@@ -12,6 +13,7 @@ import {
   RefreshCw,
   ScanBarcode,
   ShoppingCart,
+  Star,
   Trash2,
   UserPlus,
   Warehouse,
@@ -28,6 +30,11 @@ import {
   type DualApprovalPayload,
 } from "@/components/security/dual-approval-modal";
 import { BarcodeCameraScanner } from "@/components/pos/barcode-camera-scanner";
+import { QtyKeypadModal } from "@/components/pos/qty-keypad-modal";
+import { playPosScanBeep } from "@/lib/pos-beep";
+import { openPosReceiptEmail, openPosReceiptWhatsApp } from "@/lib/pos-receipt-share";
+import { loadPosFavorites, togglePosFavorite } from "@/lib/pos-favorites";
+import { useQuery } from "@tanstack/react-query";
 
 const POS_WAREHOUSE_KEY = "hisaby-pos-warehouse-id";
 
@@ -63,7 +70,7 @@ type ParkedCart = {
   lines: CartLine[];
 };
 
-type CheckoutMethod = "CASH" | "CREDIT_CARD" | "BANK_TRANSFER";
+type CheckoutMethod = "CASH" | "CREDIT_CARD" | "BANK_TRANSFER" | "STORE_CREDIT";
 
 type PosWarehouse = {
   id: string;
@@ -121,6 +128,9 @@ export default function PosCheckoutPage() {
   const [refundTarget, setRefundTarget] = useState<RecentCashSale | null>(null);
   const [refundQtys, setRefundQtys] = useState<Record<string, string>>({});
   const [refundReason, setRefundReason] = useState("");
+  const [refundMethod, setRefundMethod] = useState<"ORIGINAL" | "CASH" | "STORE_CREDIT">(
+    "ORIGINAL",
+  );
   const [refundAwaitingApproval, setRefundAwaitingApproval] = useState(false);
   const [refundBusy, setRefundBusy] = useState(false);
   const [pendingCheckout, setPendingCheckout] = useState<CheckoutMethod | null>(null);
@@ -140,6 +150,9 @@ export default function PosCheckoutPage() {
   const [newCustomerPhone, setNewCustomerPhone] = useState("");
   const [savingCustomer, setSavingCustomer] = useState(false);
   const [webSerialOk, setWebSerialOk] = useState(false);
+  const [qtyKeypadLineId, setQtyKeypadLineId] = useState<string | null>(null);
+  const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
   const currency = company?.currency || "OMR";
   const companyId = company?.id;
@@ -150,6 +163,20 @@ export default function PosCheckoutPage() {
       : typeof company?.vatRate === "number"
         ? company.vatRate
         : 5;
+
+  const { data: securityConfig } = useQuery({
+    queryKey: ["company-security"],
+    queryFn: async () => {
+      const res = await api.getCompanySecurity();
+      return res.data as { requireOpenShift?: boolean };
+    },
+    staleTime: 60_000,
+  });
+  const requireOpenShift = securityConfig?.requireOpenShift === true;
+
+  useEffect(() => {
+    setFavoriteIds(loadPosFavorites(companyId));
+  }, [companyId]);
 
   const selectedWarehouse = useMemo(
     () => warehouses.find((w) => w.id === warehouseId),
@@ -197,12 +224,38 @@ export default function PosCheckoutPage() {
     }
     setCatalogRefreshing(true);
     try {
-      await loadCatalog(search, warehouseId || undefined);
-      toast.success(t.refreshCatalog);
+      if (typeof api.syncPosCatalog === "function") {
+        const wh = warehouseId || undefined;
+        const res = await api.syncPosCatalog(wh);
+        const rows = (res.data?.products as PosProduct[]) || [];
+        const { saveCatalogCache } = await import("@/lib/pos-catalog-cache");
+        await saveCatalogCache(rows, wh);
+        setCatalogStale(false);
+        if (search.trim()) {
+          await loadCatalog(search, wh);
+        } else {
+          setCatalog(rows.slice(0, 80));
+          setCatalogLoaded(true);
+        }
+        toast.success(t.catalogSynced || t.refreshCatalog);
+      } else {
+        await loadCatalog(search, warehouseId || undefined);
+        toast.success(t.refreshCatalog);
+      }
+    } catch {
+      toast.error(t.catalogSyncFail || t.syncFail);
     } finally {
       setCatalogRefreshing(false);
     }
-  }, [loadCatalog, search, t.refreshCatalog, t.syncFail, warehouseId]);
+  }, [
+    loadCatalog,
+    search,
+    t.catalogSynced,
+    t.catalogSyncFail,
+    t.refreshCatalog,
+    t.syncFail,
+    warehouseId,
+  ]);
 
   const loadOpsStrip = useCallback(async () => {
     const wh = warehouseId || undefined;
@@ -464,10 +517,38 @@ export default function PosCheckoutPage() {
     }
   };
 
+  const renameParked = async (parked: ParkedCart) => {
+    const next = window.prompt(t.renameParkedPrompt, parked.name);
+    if (next == null) return;
+    const name = next.trim();
+    if (!name || name === parked.name) return;
+    try {
+      await api.updatePosDraft(parked.id, { name });
+      await loadParkedCarts();
+      toast.success(t.renameParkedOk);
+    } catch {
+      toast.error(t.parkFail);
+    }
+  };
+
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
       const tag = (e.target as HTMLElement | null)?.tagName;
+      const typing =
+        tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" ||
+        (e.target as HTMLElement | null)?.isContentEditable;
+
+      if (e.key === "?" && !typing && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        setShortcutsOpen(true);
+        return;
+      }
+
+      if (e.key !== "Escape") return;
+      if (shortcutsOpen) {
+        setShortcutsOpen(false);
+        return;
+      }
       if (tag === "SELECT" || tag === "TEXTAREA") return;
       if (!cart.length) {
         focusScan();
@@ -481,7 +562,7 @@ export default function PosCheckoutPage() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [cart.length, t.clearConfirm, focusScan]);
+  }, [cart.length, t.clearConfirm, focusScan, shortcutsOpen]);
 
   const onWarehouseChange = (id: string) => {
     setWarehouseId(id);
@@ -545,6 +626,7 @@ export default function PosCheckoutPage() {
     try {
       const res = await api.lookupPosProduct(trimmed, warehouseId || undefined);
       addProduct(res.data as PosProduct, 1);
+      playPosScanBeep();
       setScan("");
       setCameraOpen(false);
       focusScan();
@@ -554,6 +636,7 @@ export default function PosCheckoutPage() {
         const cached = await lookupCachedProduct(trimmed, warehouseId || undefined);
         if (cached) {
           addProduct(cached as PosProduct, 1);
+          playPosScanBeep();
           setScan("");
           setCameraOpen(false);
           focusScan();
@@ -677,6 +760,7 @@ export default function PosCheckoutPage() {
     if (m === "CASH") return t.payCash;
     if (m === "CREDIT_CARD" || m === "CARD") return t.payCard;
     if (m === "BANK_TRANSFER") return t.payBank;
+    if (m === "STORE_CREDIT" || m === "OTHER") return t.payStoreCredit;
     return method;
   };
 
@@ -715,6 +799,7 @@ export default function PosCheckoutPage() {
     }
     setRefundQtys(qtys);
     setRefundReason("");
+    setRefundMethod("ORIGINAL");
     setRefundAwaitingApproval(false);
     setRefundTarget(detail);
   };
@@ -810,6 +895,26 @@ export default function PosCheckoutPage() {
 
   const runCheckout = async (method: CheckoutMethod, approval?: DualApprovalPayload) => {
     if (!cart.length || paying) return;
+    if (requireOpenShift && !shiftOpen) {
+      toast(
+        (toastId) => (
+          <span className="text-sm">
+            {t.requireOpenShiftToast}{" "}
+            <Link
+              href="/pos/shifts"
+              className="underline font-semibold text-sky-300"
+              onClick={() => toast.dismiss(toastId.id)}
+            >
+              {t.openShiftsLink}
+            </Link>
+          </span>
+        ),
+        { duration: 5000 },
+      );
+      setPendingCheckout(null);
+      setCheckoutBusy(false);
+      return;
+    }
     const snapshot = cart.map((l) => ({
       name: l.name,
       qty: l.quantity,
@@ -937,6 +1042,24 @@ export default function PosCheckoutPage() {
 
   const checkout = async (method: CheckoutMethod) => {
     if (!cart.length || paying) return;
+    if (requireOpenShift && !shiftOpen) {
+      toast(
+        (toastId) => (
+          <span className="text-sm">
+            {t.requireOpenShiftToast}{" "}
+            <Link
+              href="/pos/shifts"
+              className="underline font-semibold text-sky-300"
+              onClick={() => toast.dismiss(toastId.id)}
+            >
+              {t.openShiftsLink}
+            </Link>
+          </span>
+        ),
+        { duration: 5000 },
+      );
+      return;
+    }
     const needsPriceApproval = cart.some(
       (l) => Math.abs(l.unitPrice - (l.catalogPrice ?? l.unitPrice)) > 0.001,
     );
@@ -948,6 +1071,28 @@ export default function PosCheckoutPage() {
   };
 
   const showEmptyCatalog = catalogLoaded && catalog.length === 0 && !search.trim();
+  const favoriteProducts = useMemo(
+    () => catalog.filter((p) => favoriteIds.includes(p.id)),
+    [catalog, favoriteIds],
+  );
+  const qtyKeypadLine = useMemo(
+    () => cart.find((l) => l.productId === qtyKeypadLineId) || null,
+    [cart, qtyKeypadLineId],
+  );
+
+  const toggleFavorite = (productId: string, e?: MouseEvent) => {
+    e?.stopPropagation();
+    e?.preventDefault();
+    if (!companyId) return;
+    setFavoriteIds(togglePosFavorite(companyId, productId));
+  };
+
+  const REFUND_REASON_CHIPS = [
+    { key: "damaged", label: t.refundReasonDamaged },
+    { key: "wrong_item", label: t.refundReasonWrongItem },
+    { key: "customer_return", label: t.refundReasonCustomerReturn },
+    { key: "other", label: t.refundReasonOther },
+  ] as const;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-0 lg:gap-4 p-3 sm:p-4 min-h-[calc(100vh-3.5rem)]">
@@ -1030,6 +1175,15 @@ export default function PosCheckoutPage() {
               >
                 <Camera className="w-5 h-5" />
                 <span className="sm:hidden text-sm">{t.scanCamera}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShortcutsOpen(true)}
+                className="h-14 min-w-14 px-3 rounded-2xl border border-white/15 text-slate-300 font-bold hover:bg-white/5 transition inline-flex items-center justify-center"
+                title={t.shortcutsTitle}
+                aria-label={t.shortcutsTitle}
+              >
+                <CircleHelp className="w-5 h-5" />
               </button>
               <button
                 type="submit"
@@ -1161,49 +1315,94 @@ export default function PosCheckoutPage() {
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2 max-h-[52vh] overflow-y-auto pe-1">
-            {catalog.map((p) => {
-              const qty = Number(p.quantity);
-              const minQ =
-                p.minQuantity != null && p.minQuantity !== ""
-                  ? Number(p.minQuantity)
-                  : 5;
-              const threshold = Number.isFinite(minQ) ? minQ : 5;
-              const showLow = p.isTracked && qty <= threshold;
-              return (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => addProduct(p)}
-                className="relative text-start rounded-2xl border border-white/10 bg-white/[0.03] hover:bg-sky-500/10 hover:border-sky-400/40 p-3 transition"
-              >
-                {showLow ? (
-                  <span className="absolute top-2 end-2 rounded-md bg-amber-500/20 border border-amber-400/40 px-1.5 py-0.5 text-[9px] font-bold text-amber-200">
-                    {t.lowStock}
-                  </span>
-                ) : null}
-                <p className="font-semibold text-sm line-clamp-2 pe-10">{p.name}</p>
-                <p className="text-[11px] text-slate-500 mt-1">{p.sku}</p>
-                {p.barcode ? (
-                  <p className="text-[10px] text-slate-600 font-mono mt-0.5 truncate">{p.barcode}</p>
-                ) : null}
-                <div className="mt-2 flex items-center justify-between gap-2">
-                  <span className="text-sky-300 font-bold text-sm">
-                    {formatMoney(Number(p.salePrice), currency)}
-                  </span>
-                  <span
-                    className={`text-[10px] ${showLow ? "text-amber-300 font-semibold" : "text-slate-500"}`}
-                  >
-                    {t.stock} {qty}
-                  </span>
+          <>
+            {favoriteProducts.length > 0 ? (
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-semibold text-amber-300/90 uppercase tracking-wide px-1">
+                  {t.favorites}
+                </p>
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {favoriteProducts.map((p) => (
+                    <button
+                      key={`fav-${p.id}`}
+                      type="button"
+                      onClick={() => addProduct(p)}
+                      className="shrink-0 max-w-[10rem] text-start rounded-xl border border-amber-400/30 bg-amber-500/10 hover:bg-amber-500/20 px-3 py-2 transition"
+                    >
+                      <p className="text-xs font-semibold text-white truncate">{p.name}</p>
+                      <p className="text-[11px] text-sky-300 font-bold mt-0.5">
+                        {formatMoney(Number(p.salePrice), currency)}
+                      </p>
+                    </button>
+                  ))}
                 </div>
-              </button>
-              );
-            })}
-            {catalogLoaded && catalog.length === 0 && search.trim() ? (
-              <p className="col-span-full text-center text-sm text-slate-500 py-8">{t.notFound}</p>
+              </div>
             ) : null}
-          </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2 max-h-[52vh] overflow-y-auto pe-1">
+              {catalog.map((p) => {
+                const qty = Number(p.quantity);
+                const minQ =
+                  p.minQuantity != null && p.minQuantity !== ""
+                    ? Number(p.minQuantity)
+                    : 5;
+                const threshold = Number.isFinite(minQ) ? minQ : 5;
+                const showLow = p.isTracked && qty <= threshold;
+                const isFav = favoriteIds.includes(p.id);
+                return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => addProduct(p)}
+                  className="relative text-start rounded-2xl border border-white/10 bg-white/[0.03] hover:bg-sky-500/10 hover:border-sky-400/40 p-3 transition"
+                >
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    title={isFav ? t.unpinFavorite : t.pinFavorite}
+                    aria-label={isFav ? t.unpinFavorite : t.pinFavorite}
+                    onClick={(e) => toggleFavorite(p.id, e)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        toggleFavorite(p.id);
+                      }
+                    }}
+                    className="absolute top-2 start-2 z-10 p-1 rounded-md hover:bg-black/30"
+                  >
+                    <Star
+                      className={`w-4 h-4 ${
+                        isFav ? "fill-amber-400 text-amber-400" : "text-slate-500"
+                      }`}
+                    />
+                  </span>
+                  {showLow ? (
+                    <span className="absolute top-2 end-2 rounded-md bg-amber-500/20 border border-amber-400/40 px-1.5 py-0.5 text-[9px] font-bold text-amber-200">
+                      {t.lowStock}
+                    </span>
+                  ) : null}
+                  <p className="font-semibold text-sm line-clamp-2 pe-10 ps-6">{p.name}</p>
+                  <p className="text-[11px] text-slate-500 mt-1">{p.sku}</p>
+                  {p.barcode ? (
+                    <p className="text-[10px] text-slate-600 font-mono mt-0.5 truncate">{p.barcode}</p>
+                  ) : null}
+                  <div className="mt-2 flex items-center justify-between gap-2">
+                    <span className="text-sky-300 font-bold text-sm">
+                      {formatMoney(Number(p.salePrice), currency)}
+                    </span>
+                    <span
+                      className={`text-[10px] ${showLow ? "text-amber-300 font-semibold" : "text-slate-500"}`}
+                    >
+                      {t.stock} {qty}
+                    </span>
+                  </div>
+                </button>
+                );
+              })}
+              {catalogLoaded && catalog.length === 0 && search.trim() ? (
+                <p className="col-span-full text-center text-sm text-slate-500 py-8">{t.notFound}</p>
+              ) : null}
+            </div>
+          </>
         )}
       </section>
 
@@ -1249,6 +1448,14 @@ export default function PosCheckoutPage() {
                       {p.lines.length} · {new Date(p.createdAt).toLocaleTimeString()}
                     </p>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => void renameParked(p)}
+                    className="h-7 px-2 rounded-md text-[10px] font-semibold text-slate-400 hover:bg-white/10"
+                    title={t.renameParked}
+                  >
+                    {t.renameParked}
+                  </button>
                   <button
                     type="button"
                     onClick={() => recallParked(p)}
@@ -1303,7 +1510,14 @@ export default function PosCheckoutPage() {
                   >
                     <Minus className="w-3.5 h-3.5" />
                   </button>
-                  <span className="w-8 text-center text-sm font-bold">{l.quantity}</span>
+                  <button
+                    type="button"
+                    className="w-8 h-8 grid place-items-center rounded-md hover:bg-white/10 text-sm font-bold tabular-nums"
+                    onClick={() => setQtyKeypadLineId(l.productId)}
+                    title={t.qty}
+                  >
+                    {l.quantity}
+                  </button>
                   <button
                     type="button"
                     className="w-8 h-8 grid place-items-center rounded-md hover:bg-white/10"
@@ -1423,6 +1637,42 @@ export default function PosCheckoutPage() {
               >
                 {t.printReceipt} · {lastInvoice.number}
               </button>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    openPosReceiptWhatsApp({
+                      companyName: company?.name,
+                      number: lastInvoice.number,
+                      warehouseLabel: lastInvoice.warehouseLabel,
+                      paymentMethod: lastInvoice.paymentMethod,
+                      total: lastInvoice.total,
+                      currency,
+                      lines: lastInvoice.lines,
+                    })
+                  }
+                  className="min-h-10 h-10 rounded-xl border border-emerald-500/30 text-sm text-emerald-200 hover:bg-emerald-500/10"
+                >
+                  {t.shareWhatsApp}
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    openPosReceiptEmail({
+                      companyName: company?.name,
+                      number: lastInvoice.number,
+                      warehouseLabel: lastInvoice.warehouseLabel,
+                      paymentMethod: lastInvoice.paymentMethod,
+                      total: lastInvoice.total,
+                      currency,
+                      lines: lastInvoice.lines,
+                    })
+                  }
+                  className="min-h-10 h-10 rounded-xl border border-sky-500/30 text-sm text-sky-200 hover:bg-sky-500/10"
+                >
+                  {t.shareEmail}
+                </button>
+              </div>
               <button
                 type="button"
                 onClick={async () => {
@@ -1581,12 +1831,31 @@ export default function PosCheckoutPage() {
                   </div>
                 ))}
             </div>
-            <input
-              value={refundReason}
-              onChange={(e) => setRefundReason(e.target.value)}
-              placeholder={t.refundReason}
-              className="w-full h-10 rounded-xl bg-white/5 border border-white/10 px-3 text-sm text-white placeholder:text-slate-500"
-            />
+            <div className="space-y-1.5">
+              <p className="text-[11px] text-slate-400">{t.refundReason}</p>
+              <div className="flex flex-wrap gap-1.5">
+                {REFUND_REASON_CHIPS.map((chip) => (
+                  <button
+                    key={chip.key}
+                    type="button"
+                    onClick={() => setRefundReason(chip.label)}
+                    className={`h-8 px-2.5 rounded-lg text-[11px] font-semibold border transition ${
+                      refundReason === chip.label
+                        ? "border-amber-400/50 bg-amber-500/20 text-amber-100"
+                        : "border-white/10 text-slate-300 hover:bg-white/5"
+                    }`}
+                  >
+                    {chip.label}
+                  </button>
+                ))}
+              </div>
+              <input
+                value={refundReason}
+                onChange={(e) => setRefundReason(e.target.value)}
+                placeholder={t.refundReason}
+                className="w-full h-10 rounded-xl bg-white/5 border border-white/10 px-3 text-sm text-white placeholder:text-slate-500"
+              />
+            </div>
             <button
               type="button"
               disabled={!refundItemsPayload().length}
@@ -1637,6 +1906,62 @@ export default function PosCheckoutPage() {
           await runCheckout(pendingCheckout, approval);
         }}
       />
+
+      <QtyKeypadModal
+        open={!!qtyKeypadLine}
+        title={qtyKeypadLine?.name || t.qty}
+        initialQty={qtyKeypadLine?.quantity || 1}
+        maxQty={qtyKeypadLine?.isTracked ? qtyKeypadLine.stock : null}
+        stockLabel={t.stock}
+        okLabel={t.keypadOk}
+        clearLabel={t.keypadClear}
+        onCancel={() => setQtyKeypadLineId(null)}
+        onConfirm={(qty) => {
+          if (!qtyKeypadLineId) return;
+          setCart((prev) =>
+            prev
+              .map((x) => {
+                if (x.productId !== qtyKeypadLineId) return x;
+                if (x.isTracked && qty > x.stock) {
+                  toast.error(`${t.stock}: ${x.stock}`);
+                  return { ...x, quantity: x.stock };
+                }
+                return { ...x, quantity: qty };
+              })
+              .filter((x) => x.quantity > 0),
+          );
+          setQtyKeypadLineId(null);
+          focusScan();
+        }}
+      />
+
+      {shortcutsOpen ? (
+        <div
+          className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-black/60 p-3"
+          onClick={() => setShortcutsOpen(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#121a2b] p-4 space-y-3 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <p className="font-bold text-white">{t.shortcutsTitle}</p>
+              <button
+                type="button"
+                className="text-slate-400 text-sm px-2"
+                onClick={() => setShortcutsOpen(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <ul className="space-y-2 text-sm text-slate-300">
+              <li>{t.shortcutEsc}</li>
+              <li>{t.shortcutScan}</li>
+              <li>{t.shortcutHelp}</li>
+            </ul>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

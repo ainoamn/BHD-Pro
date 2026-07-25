@@ -21,7 +21,14 @@ import { PeriodsService } from '../periods/periods.service';
 import { DualControlService } from '../dual-control/dual-control.service';
 import { DualApprovalDto } from '../dual-control/dto/approval.dto';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
-import { CreatePosSaleDto, CreatePosDraftDto, OpenPosShiftDto, ClosePosShiftDto, RefundPosSaleDto } from './dto/pos.dto';
+import {
+  CreatePosSaleDto,
+  CreatePosDraftDto,
+  OpenPosShiftDto,
+  ClosePosShiftDto,
+  RefundPosSaleDto,
+  UpdatePosDraftDto,
+} from './dto/pos.dto';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 
 const WALK_IN_NAME = 'POS Walk-in / نقدي';
@@ -176,6 +183,30 @@ export class PosService {
           include: { warehouse: { select: { id: true, code: true, name: true } } },
         });
     return this.applyWarehouseQuantity(products, warehouseId);
+  }
+
+  async syncCatalog(companyId: string, warehouseId?: string) {
+    const products = await this.prisma.product.findMany({
+      where: { companyId, isActive: true },
+      take: 5000,
+      select: {
+        id: true,
+        name: true,
+        sku: true,
+        barcode: true,
+        salePrice: true,
+        quantity: true,
+        isTracked: true,
+        warehouseId: true,
+      },
+    });
+    const withStock = await this.applyWarehouseQuantity(products, warehouseId);
+    return {
+      warehouseId: warehouseId || null,
+      syncedAt: new Date(),
+      count: withStock.length,
+      products: withStock,
+    };
   }
 
   async ensureWalkInContact(companyId: string) {
@@ -461,6 +492,14 @@ export class PosService {
     const today = new Date().toISOString().slice(0, 10);
     const reserveRef = `POS-TEMP-${Date.now()}`;
 
+    const useStoreCredit = dto.useStoreCredit || dto.paymentMethod === PaymentMethod.OTHER;
+
+    if (useStoreCredit) {
+      if (contact.name === WALK_IN_NAME) {
+        throw new BadRequestException('Store credit requires a non-walk-in contact');
+      }
+    }
+
     const lineItems: {
       productId: string;
       description: string;
@@ -520,6 +559,28 @@ export class PosService {
           ? taxCfg.vatRate
           : 5;
 
+    if (useStoreCredit) {
+      let subtotal = 0;
+      for (const item of lineItems) {
+        subtotal += item.unitPrice * item.quantity - item.discount;
+      }
+      const taxAmount = subtotal * (taxRate / 100);
+      const estimatedTotal = subtotal + taxAmount;
+      const currentBalance = Number(contact.currentBalance || 0);
+      if (currentBalance < estimatedTotal) {
+        throw new BadRequestException(
+          `Insufficient store credit: balance ${currentBalance.toFixed(3)}, required ${estimatedTotal.toFixed(3)}`,
+        );
+      }
+    }
+
+    const openShift = await this.findOpenShift(companyId, dto.warehouseId || null);
+    if ((await this.dualControl.isRequireOpenShift(companyId)) && !openShift) {
+      throw new BadRequestException(
+        'An open shift is required before completing a sale. Open a shift from /pos/shifts first.',
+      );
+    }
+
     // 1) Reserve stock first (atomic) so we never charge without inventory
     const reserved: { productId: string; qty: number; warehouseId: string }[] = [];
     let invoiceCreated = false;
@@ -542,7 +603,11 @@ export class PosService {
       }
 
       // 2) Create paid cash invoice (attach to open shift for this warehouse)
-      const openShift = await this.findOpenShift(companyId, dto.warehouseId || null);
+
+      const paymentMethod = useStoreCredit ? PaymentMethod.OTHER : (dto.paymentMethod ?? PaymentMethod.CASH);
+      const notes = useStoreCredit
+        ? `[STORE_CREDIT] ${dto.notes || 'Hisaby POS sale'}`
+        : (dto.notes || 'Hisaby POS sale');
 
       const invoice = await this.invoices.create(companyId, userId, {
         type: InvoiceType.SALES,
@@ -550,12 +615,33 @@ export class PosService {
         date: today,
         dueDate: today,
         taxRate,
-        notes: dto.notes || 'Hisaby POS sale',
+        notes,
         payImmediately: true,
-        paymentMethod: dto.paymentMethod ?? PaymentMethod.CASH,
+        paymentMethod,
         items: lineItems,
       });
       invoiceCreated = true;
+
+      if (useStoreCredit) {
+        const invoiceTotal = Number(invoice.total);
+        await this.prisma.contact.update({
+          where: { id: contact.id },
+          data: { currentBalance: { decrement: invoiceTotal } },
+        });
+        try {
+          await this.prisma.invoice.update({
+            where: { id: invoice.id },
+            data: {
+              customFieldsJson: {
+                usedStoreCredit: true,
+                storeCreditAmount: invoiceTotal,
+              },
+            },
+          });
+        } catch {
+          /* non-fatal */
+        }
+      }
 
       if (openShift) {
         try {
@@ -646,6 +732,20 @@ export class PosService {
         contactId: dto.contactId || null,
         linesJson: dto.lines as unknown as Prisma.InputJsonValue,
       },
+    });
+  }
+
+  async updateDraftName(companyId: string, id: string, dto: UpdatePosDraftDto) {
+    const existing = await this.prisma.posDraft.findFirst({
+      where: { id, companyId },
+      select: { id: true },
+    });
+    if (!existing) throw new NotFoundException('Parked cart not found');
+    const name = dto.name.trim();
+    if (!name) throw new BadRequestException('Draft name is required');
+    return this.prisma.posDraft.update({
+      where: { id },
+      data: { name },
     });
   }
 
@@ -918,6 +1018,7 @@ export class PosService {
           },
         ],
       },
+      include: { payments: true },
     });
 
     let salesTotal = 0;
@@ -940,8 +1041,14 @@ export class PosService {
     }
 
     const refundsTotal = refunds.reduce((s, r) => s + Number(r.total), 0);
+    const cashRefundsTotal = refunds
+      .filter((r) => {
+        const method = r.payments?.[0]?.method;
+        return method === PaymentMethod.CASH;
+      })
+      .reduce((s, r) => s + Number(r.total), 0);
     const cashSales = byPaymentMethod[PaymentMethod.CASH] || 0;
-    const expectedCash = Number((openingFloat + cashSales - refundsTotal).toFixed(3));
+    const expectedCash = Number((openingFloat + cashSales - cashRefundsTotal).toFixed(3));
     const variance =
       closingCash != null ? Number((closingCash - expectedCash).toFixed(3)) : null;
 
@@ -990,8 +1097,8 @@ export class PosService {
     if (invoice.status === InvoiceStatus.CANCELLED) {
       throw new BadRequestException('Cannot refund a voided sale');
     }
-    const notes = String(invoice.notes || '');
-    if (!invoice.isCash || !notes.includes('Hisaby POS')) {
+    const invoiceNotes = String(invoice.notes || '');
+    if (!invoice.isCash || !invoiceNotes.includes('Hisaby POS')) {
       throw new BadRequestException('Only Hisaby POS cash sales can be refunded here');
     }
     if (invoice.type !== InvoiceType.SALES) {
@@ -1110,17 +1217,41 @@ export class PosService {
     }
 
     const reason = dto.reason?.trim();
+    const refundMethod = dto.refundMethod || 'ORIGINAL';
+
+    let paymentMethod: PaymentMethod;
+    if (refundMethod === 'STORE_CREDIT') {
+      paymentMethod = PaymentMethod.OTHER;
+    } else if (refundMethod === 'CASH') {
+      paymentMethod = PaymentMethod.CASH;
+    } else {
+      // ORIGINAL: use original sale payment method, but OTHER→CASH
+      const originalMethod = invoice.payments?.[0]?.method || PaymentMethod.CASH;
+      paymentMethod = originalMethod === PaymentMethod.OTHER ? PaymentMethod.CASH : originalMethod;
+    }
+
+    const notesBase = `${marker}${reason ? `: ${reason}` : ''}`;
+    const notes = refundMethod === 'STORE_CREDIT' ? `${notesBase} [STORE_CREDIT]` : notesBase;
+
     const creditNote = await this.invoices.create(companyId, actor.sub, {
       type: InvoiceType.CREDIT_NOTE,
       contactId: invoice.contactId,
       date: today,
       dueDate: today,
       taxRate,
-      notes: `${marker}${reason ? `: ${reason}` : ''}`,
+      notes,
       payImmediately: true,
-      paymentMethod: PaymentMethod.CASH,
+      paymentMethod,
       items: cnItems,
     });
+
+    if (refundMethod === 'STORE_CREDIT') {
+      const creditNoteTotal = Number(creditNote.total);
+      await this.prisma.contact.update({
+        where: { id: invoice.contactId },
+        data: { currentBalance: { increment: creditNoteTotal } },
+      });
+    }
 
     const openShift = await this.findOpenShift(
       companyId,
@@ -1140,6 +1271,7 @@ export class PosService {
           customFieldsJson: {
             refundOfInvoiceId: invoice.id,
             refundOfNumber: invoice.number,
+            refundMethod,
           },
         },
       });

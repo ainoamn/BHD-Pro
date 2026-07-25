@@ -1241,9 +1241,21 @@ class ApiClient {
     });
   }
 
+  syncPosCatalog(warehouseId?: string) {
+    return this.get<{
+      warehouseId: string | null;
+      syncedAt: string;
+      count: number;
+      products: unknown[];
+    }>('/pos/catalog/sync', {
+      params: warehouseId ? { warehouseId } : {},
+    });
+  }
+
   createPosSale(data: {
     items: { productId: string; quantity: number; unitPrice?: number; discount?: number }[];
     paymentMethod?: string;
+    useStoreCredit?: boolean;
     taxRate?: number;
     notes?: string;
     warehouseId?: string;
@@ -1262,6 +1274,7 @@ class ApiClient {
     body: {
       items: { productId: string; quantity: number }[];
       reason?: string;
+      refundMethod?: 'ORIGINAL' | 'CASH' | 'STORE_CREDIT';
       approval?: DualApprovalPayload;
     },
   ) {
@@ -1364,6 +1377,10 @@ class ApiClient {
 
   deletePosDraft(id: string) {
     return this.delete(`/pos/drafts/${id}`);
+  }
+
+  updatePosDraft(id: string, data: { name: string }) {
+    return this.patch(`/pos/drafts/${id}`, data);
   }
 }
 

@@ -12,16 +12,19 @@ import {
   setPreferCashDrawer,
   setPreferThermalPrinter,
 } from "@/lib/pos-escpos";
+import { getPosBeepMuted, setPosBeepMuted } from "@/lib/pos-beep";
 
 export default function PosSettingsPage() {
   const locale = useLocaleStore((s) => s.locale);
   const t = posCopy[locale === "en" ? "en" : "ar"];
   const [preferThermal, setPreferThermal] = useState(true);
   const [preferDrawer, setPreferDrawer] = useState(true);
+  const [muteBeep, setMuteBeep] = useState(false);
 
   useEffect(() => {
     setPreferThermal(getPreferThermalPrinter());
     setPreferDrawer(getPreferCashDrawer());
+    setMuteBeep(getPosBeepMuted());
   }, []);
 
   return (
@@ -55,6 +58,19 @@ export default function PosSettingsPage() {
             const next = e.target.checked;
             setPreferDrawer(next);
             setPreferCashDrawer(next);
+          }}
+        />
+      </label>
+
+      <label className="flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-200">
+        <span>{t.muteScanBeep}</span>
+        <input
+          type="checkbox"
+          checked={muteBeep}
+          onChange={(e) => {
+            const next = e.target.checked;
+            setMuteBeep(next);
+            setPosBeepMuted(next);
           }}
         />
       </label>

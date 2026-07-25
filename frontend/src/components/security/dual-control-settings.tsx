@@ -18,6 +18,7 @@ type SecurityPublic = {
   nfcBadgesConfigured?: boolean;
   nfcBadgeCount?: number;
   shiftVarianceLimit?: number;
+  requireOpenShift?: boolean;
   actions: {
     POS_VOID: boolean;
     POS_PRICE_OVERRIDE: boolean;
@@ -63,6 +64,7 @@ export function DualControlSettings() {
   const [whatsappPhones, setWhatsappPhones] = useState("");
   const [nfcSecret, setNfcSecret] = useState("");
   const [varianceLimit, setVarianceLimit] = useState("1");
+  const [requireOpenShift, setRequireOpenShift] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["company-security"],
@@ -87,6 +89,7 @@ export function DualControlSettings() {
       ...data.actions,
     });
     setVarianceLimit(String(data.shiftVarianceLimit ?? 1));
+    setRequireOpenShift(data.requireOpenShift === true);
   }, [data]);
 
   const saveMutation = useMutation({
@@ -107,6 +110,7 @@ export function DualControlSettings() {
     dualControlEnabled: enabled,
     actions,
     shiftVarianceLimit: Number(varianceLimit) || 0,
+    requireOpenShift,
   });
 
   if (isLoading) {
@@ -175,6 +179,21 @@ export function DualControlSettings() {
             />
             <p className="text-[11px] text-slate-500 mt-1">{t("varianceHint")}</p>
           </div>
+
+          <label className="flex items-center justify-between gap-4 text-sm text-slate-200">
+            <span>
+              <span className="block">{t("requireOpenShift")}</span>
+              <span className="block text-[11px] text-slate-500 mt-0.5 font-normal">
+                {t("requireOpenShiftHint")}
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              checked={requireOpenShift}
+              disabled={!isAdmin || saveMutation.isPending}
+              onChange={(e) => setRequireOpenShift(e.target.checked)}
+            />
+          </label>
 
           <p className="text-sm text-slate-300">
             {data?.hasSupervisorPin ? t("pinSet") : t("pinUnset")}

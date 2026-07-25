@@ -79,6 +79,8 @@
     "nfcBadges": "شارات NFC",
     "varianceLimit": "حد فارق نقد الوردية",
     "varianceHint": "إذا اختلف نقد الإغلاق عن المتوقع بأكثر من هذا (افتراضي 1.000) تُطلب موافقة مزدوجة",
+    "requireOpenShift": "يتطلب وردية مفتوحة قبل بيع الكاشير",
+    "requireOpenShiftHint": "عند التفعيل يُمنع إتمام البيع حتى فتح وردية الصندوق (افتراضيًا متوقف)",
     "whatsappPhones": "أرقام واتساب للموافقة (OTP)",
     "whatsappPhonesPlaceholder": "9689xxxxxxx مفصولة بفاصلة أو سطر",
     "whatsappReady": "مزوّد واتساب مهيأ",
@@ -158,6 +160,10 @@
     "recordReceiptDesc": "تسجيل دفعة نقد أو بنك",
     "todaySales": "مبيعات اليوم",
     "todaySalesHint": "{count} فاتورة اليوم",
+    "todayPos": "كاشير اليوم",
+    "todayPosHint": "{count} بيع · {shifts} وردية مفتوحة",
+    "pendingApprovals": "موافقات معلّقة",
+    "pendingApprovalsHint": "طلبات حماية مزدوجة بانتظار المدير",
     "overdueAr": "مستحقات متأخرة",
     "overdueArHint": "{count} فاتورة متأخرة",
     "lowStock": "مخزون منخفض",
@@ -511,7 +517,11 @@
     "vatPendingTitle": "فواتير بلا ربط ضريبي",
     "vatPendingMsg": "{count} فاتورة هذا الشهر بلا رقم ضريبي",
     "subscriptionTitle": "الاشتراك ينتهي قريباً",
-    "subscriptionMsg": "يتبقى {days} يوماً على انتهاء الباقة"
+    "subscriptionMsg": "يتبقى {days} يوماً على انتهاء الباقة",
+    "pendingApprovalsTitle": "موافقات معلّقة",
+    "pendingApprovalsMsg": "{count} طلب موافقة بانتظار المدير",
+    "openShiftsTitle": "ورديات مفتوحة",
+    "openShiftsMsg": "{count} وردية كاشير مفتوحة"
   },
   "status": {
     "paid": "مدفوع",

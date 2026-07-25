@@ -79,6 +79,8 @@
     "nfcBadges": "NFC badges",
     "varianceLimit": "Shift cash variance limit",
     "varianceHint": "Closing cash differing more than this (default 1.000) requires dual-control approval",
+    "requireOpenShift": "Require open shift before POS sale",
+    "requireOpenShiftHint": "When enabled, checkout is blocked until a cash-drawer shift is open (default off)",
     "whatsappPhones": "WhatsApp OTP notify phones",
     "whatsappPhonesPlaceholder": "9689xxxxxxx separated by comma or newline",
     "whatsappReady": "WhatsApp provider configured",
@@ -158,6 +160,10 @@
     "recordReceiptDesc": "Record cash or bank payment",
     "todaySales": "Today's sales",
     "todaySalesHint": "{count} invoices today",
+    "todayPos": "POS today",
+    "todayPosHint": "{count} sales · {shifts} open shifts",
+    "pendingApprovals": "Pending approvals",
+    "pendingApprovalsHint": "Dual-control requests waiting for a manager",
     "overdueAr": "Overdue receivables",
     "overdueArHint": "{count} overdue invoices",
     "lowStock": "Low stock",
@@ -511,7 +517,11 @@
     "vatPendingTitle": "Invoices without tax link",
     "vatPendingMsg": "{count} invoices this month without tax UUID",
     "subscriptionTitle": "Subscription ending soon",
-    "subscriptionMsg": "{days} days left on your plan"
+    "subscriptionMsg": "{days} days left on your plan",
+    "pendingApprovalsTitle": "Pending approvals",
+    "pendingApprovalsMsg": "{count} dual-control request(s) waiting",
+    "openShiftsTitle": "Open POS shifts",
+    "openShiftsMsg": "{count} open cashier shift(s)"
   },
   "status": {
     "paid": "Paid",

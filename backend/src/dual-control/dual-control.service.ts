@@ -25,6 +25,8 @@ export type CompanySecurityConfig = {
   nfcBadgeHashes?: string[];
   /** Max abs cash variance on shift close before dual-control (default 1.000) */
   shiftVarianceLimit?: number;
+  /** When true, POS sales require an open shift (default false — opt-in) */
+  requireOpenShift?: boolean;
   methods?: Array<'SELF_CONFIRM' | 'PASSWORD' | 'PIN' | 'WHATSAPP_OTP' | 'NFC' | 'APPROVAL_REQUEST'>;
   actions?: DualControlActionsDto;
 };
@@ -116,6 +118,7 @@ export class DualControlService {
       nfcBadgesConfigured,
       nfcBadgeCount: (config.nfcBadgeHashes || []).length,
       shiftVarianceLimit,
+      requireOpenShift: config.requireOpenShift === true,
       actions,
       asyncApprovals: true,
     };
@@ -127,6 +130,12 @@ export class DualControlService {
       return config.shiftVarianceLimit;
     }
     return DEFAULT_SHIFT_VARIANCE_LIMIT;
+  }
+
+  /** Opt-in: default false so existing tenants are not blocked */
+  async isRequireOpenShift(companyId: string): Promise<boolean> {
+    const config = await this.loadConfig(companyId);
+    return config.requireOpenShift === true;
   }
 
   async getPublicConfig(companyId: string) {
@@ -798,6 +807,9 @@ export class DualControlService {
     if (dto.shiftVarianceLimit !== undefined) {
       next.shiftVarianceLimit = Number(dto.shiftVarianceLimit);
     }
+    if (dto.requireOpenShift !== undefined) {
+      next.requireOpenShift = !!dto.requireOpenShift;
+    }
 
     await this.prisma.company.update({
       where: { id: companyId },
@@ -817,6 +829,7 @@ export class DualControlService {
         nfcBadgesCleared: !!dto.clearNfcBadges,
         nfcBadgeCount: (next.nfcBadgeHashes || []).length,
         shiftVarianceLimit: next.shiftVarianceLimit,
+        requireOpenShift: next.requireOpenShift,
       },
     });
 

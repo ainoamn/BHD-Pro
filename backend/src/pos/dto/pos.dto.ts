@@ -4,11 +4,14 @@ import {
   IsArray,
   IsBoolean,
   IsEnum,
+  IsIn,
   IsNumber,
   IsOptional,
   IsString,
   IsUUID,
+  MaxLength,
   Min,
+  MinLength,
   ValidateNested,
 } from 'class-validator';
 import { PaymentMethod } from '@prisma/client';
@@ -70,6 +73,10 @@ export class CreatePosSaleDto {
   @ValidateNested()
   @Type(() => DualApprovalDto)
   approval?: DualApprovalDto;
+
+  @IsOptional()
+  @IsBoolean()
+  useStoreCredit?: boolean;
 }
 
 export class VoidPosSaleDto {
@@ -104,6 +111,10 @@ export class RefundPosSaleDto {
   @ValidateNested()
   @Type(() => DualApprovalDto)
   approval?: DualApprovalDto;
+
+  @IsOptional()
+  @IsIn(['ORIGINAL','CASH','STORE_CREDIT'])
+  refundMethod?: 'ORIGINAL'|'CASH'|'STORE_CREDIT';
 }
 
 export class OpenPosShiftDto {
@@ -209,4 +220,11 @@ export class CreatePosDraftDto {
   @ValidateNested({ each: true })
   @Type(() => PosDraftLineDto)
   lines: PosDraftLineDto[];
+}
+
+export class UpdatePosDraftDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(120)
+  name: string;
 }

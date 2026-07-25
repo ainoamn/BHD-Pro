@@ -31,7 +31,7 @@ Sensitive actions covered today: `POS_VOID`, `POS_PRICE_OVERRIDE`, `POS_REFUND`,
 
 Config: `companies.security_config` + `GET/PATCH /companies/me/security`.  
 Async API: `POST/GET /dual-control/requests`, `POST .../decide`.  
-Public flags: `asyncApprovals: true`, `nfcBadgesConfigured`, `shiftVarianceLimit`.
+Public flags: `asyncApprovals: true`, `nfcBadgesConfigured`, `shiftVarianceLimit`, `requireOpenShift`.
 
 ---
 
@@ -63,6 +63,14 @@ Public flags: `asyncApprovals: true`, `nfcBadgesConfigured`, `shiftVarianceLimit
 - [x] Quick create customer from POS (name + phone)
 - [x] ESC/POS cash drawer kick (`openCashDrawer` / `tryOpenCashDrawer` + optional auto after cash)
 - [x] Offline catalog cache keyed by warehouse + stale indicator (>30 min) + refresh
+- [x] Require open shift before sale (`requireOpenShift` in `security_config`, default off; ADMIN toggle)
+- [x] Share receipt via WhatsApp + mailto from last-sale card
+- [x] Touch quantity keypad modal on cart lines
+- [x] Scan success beep (Web Audio) + mute setting
+- [x] Refund reason preset chips (AR/EN)
+- [x] Parked cart rename (`PATCH /pos/drafts/:id`)
+- [x] Product favorites strip (localStorage per company)
+- [x] Shortcuts help overlay (`?` key + header button)
 
 ### Planned
 - [ ] Full offline-first catalog/stock sync (beyond per-warehouse snapshot cache)
@@ -86,3 +94,5 @@ Public flags: `asyncApprovals: true`, `nfcBadgesConfigured`, `shiftVarianceLimit
 10. Creating an `ApprovalRequest` best-effort WhatsApps configured manager phones (or company phone) with a short Arabic/English ping to `/pos/approvals`.
 11. Checkout strip: open shift → `/pos/shifts`; today totals from `GET /pos/stats/today` (Asia/Muscat day boundary).
 12. Cash drawer: ESC `p 0 25 250` via Web Serial; auto-kick after cash when `preferCashDrawer` is on (defaults with prefer-thermal).
+13. `requireOpenShift` (default **false**) blocks `POST /pos/sales` and checkout UI when no open shift; enable in Dual Control / POS settings.
+14. Floor polish: qty keypad, scan beep (`hisaby-pos-mute-beep`), favorites (`hisaby-pos-favorites:{companyId}`), receipt WhatsApp/email share, refund reason chips, draft rename, `?` shortcuts help.
