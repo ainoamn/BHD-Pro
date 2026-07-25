@@ -25,6 +25,18 @@ const ALLERGEN_CODES = [
   "molluscs",
 ] as const;
 
+const DIETARY_TAGS = [
+  "halal",
+  "vegan",
+  "vegetarian",
+  "gluten_free",
+  "dairy_free",
+  "spicy",
+  "nuts_free",
+  "keto",
+  "organic",
+] as const;
+
 type MenuItem = {
   id: string;
   name: string;
@@ -33,6 +45,8 @@ type MenuItem = {
   category: string;
   image?: string | null;
   allergens?: string[];
+  dietaryTags?: string[];
+  dayParts?: string[];
 };
 
 type Modifier = {
@@ -57,6 +71,7 @@ type Session = {
   company: { id: string; name: string; logo: string | null; currency: string };
   table: { id: string; code: string; name: string | null; seats: number; zoneName: string };
   menu: MenuItem[];
+  dayPart?: string | null;
   modifiers?: Modifier[];
   openOrder: {
     id: string;
@@ -89,6 +104,7 @@ export default function GuestOrderPage() {
   const [locale, setLocale] = useState<"ar" | "en">("ar");
   const [q, setQ] = useState("");
   const [hideAllergens, setHideAllergens] = useState<string[]>([]);
+  const [needDietary, setNeedDietary] = useState<string[]>([]);
   const [course, setCourse] = useState(1);
   const [pickedMods, setPickedMods] = useState<string[]>([]);
   const [lineNote, setLineNote] = useState("");
@@ -144,14 +160,47 @@ export default function GuestOrderPage() {
       ) {
         return false;
       }
+      if (
+        needDietary.length > 0 &&
+        !needDietary.every((d) => (m.dietaryTags || []).includes(d))
+      ) {
+        return false;
+      }
       if (!needle) return true;
       return (
         m.name.toLowerCase().includes(needle) ||
         (m.nameEn || "").toLowerCase().includes(needle) ||
-        (m.category || "").toLowerCase().includes(needle)
+        (m.category || "").toLowerCase().includes(needle) ||
+        (m.dietaryTags || []).some((d) => d.includes(needle))
       );
     });
-  }, [session?.menu, q, hideAllergens]);
+  }, [session?.menu, q, hideAllergens, needDietary]);
+
+  const dayPartLabel = (code: string | null | undefined) => {
+    if (!code) return "";
+    if (locale === "en") {
+      return (
+        (
+          {
+            breakfast: "Breakfast",
+            lunch: "Lunch",
+            dinner: "Dinner",
+            late: "Late night",
+          } as Record<string, string>
+        )[code] || code
+      );
+    }
+    return (
+      (
+        {
+          breakfast: "فطور",
+          lunch: "غداء",
+          dinner: "عشاء",
+          late: "ليلي",
+        } as Record<string, string>
+      )[code] || code
+    );
+  };
 
   const cartTotal = cart.reduce((s, l) => s + l.price * l.qty, 0);
 
@@ -329,6 +378,12 @@ export default function GuestOrderPage() {
     );
   };
 
+  const toggleDietaryNeed = (code: string) => {
+    setNeedDietary((prev) =>
+      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code],
+    );
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#14110f] text-stone-100 flex items-center justify-center">
@@ -364,6 +419,9 @@ export default function GuestOrderPage() {
               {session.table.name ? ` · ${session.table.name}` : ""}
               {" · "}
               {session.table.zoneName}
+              {session.dayPart
+                ? ` · ${dayPartLabel(session.dayPart)}`
+                : ""}
             </p>
           </div>
           <button
@@ -510,6 +568,31 @@ export default function GuestOrderPage() {
           </div>
         </div>
 
+        <div className="space-y-2">
+          <p className="text-[11px] font-bold text-stone-400">
+            {locale === "en" ? "Must include" : "يحتوي على"}
+          </p>
+          <div className="flex flex-wrap gap-1">
+            {DIETARY_TAGS.map((code) => {
+              const on = needDietary.includes(code);
+              return (
+                <button
+                  key={code}
+                  type="button"
+                  onClick={() => toggleDietaryNeed(code)}
+                  className={`rounded-md px-1.5 py-0.5 text-[9px] font-bold border ${
+                    on
+                      ? "border-emerald-400/50 bg-emerald-500/20 text-emerald-100"
+                      : "border-white/10 text-stone-500"
+                  }`}
+                >
+                  {code}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         <div className="flex flex-wrap gap-1.5">
           {([0, 1, 2, 3] as const).map((c) => (
             <button
@@ -565,8 +648,11 @@ export default function GuestOrderPage() {
                       <p className="font-semibold truncate">{label}</p>
                       <p className="text-[11px] text-stone-500 mt-0.5">
                         {m.category}
+                        {(m.dietaryTags || []).length > 0
+                          ? ` · ${(m.dietaryTags || []).slice(0, 3).join(", ")}`
+                          : ""}
                         {(m.allergens || []).length > 0
-                          ? ` · ${(m.allergens || []).slice(0, 3).join(", ")}`
+                          ? ` · ${(m.allergens || []).slice(0, 2).join(", ")}`
                           : ""}
                       </p>
                     </div>

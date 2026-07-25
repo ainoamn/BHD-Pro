@@ -42,6 +42,8 @@ import {
   SetRestoMenu86Dto,
   SetRestoProductStationDto,
   SetRestoProductAllergensDto,
+  SetRestoProductDietaryDto,
+  SetRestoProductDayPartsDto,
   SetRestoWarehouseDto,
   SplitRestoOrderDto,
   TransferRestoOrderDto,
@@ -137,9 +139,16 @@ export class RestoController {
 
   @Get('menu')
   @Roles(...RESTO_STAFF)
-  @ApiOperation({ summary: 'Menu from linked restaurant warehouse only' })
-  menu(@CurrentUser() user: TokenPayload, @Query('q') q?: string) {
-    return this.resto.getMenu(user.companyId, q);
+  @ApiOperation({
+    summary:
+      'Menu from linked restaurant warehouse (optional dayPart=now|breakfast|lunch|dinner|late)',
+  })
+  menu(
+    @CurrentUser() user: TokenPayload,
+    @Query('q') q?: string,
+    @Query('dayPart') dayPart?: string,
+  ) {
+    return this.resto.getMenu(user.companyId, q, { dayPart: dayPart || null });
   }
 
   @Get('floor')
@@ -533,6 +542,30 @@ export class RestoController {
     @Body() dto: SetRestoProductAllergensDto,
   ) {
     return this.resto.setProductAllergens(user.companyId, productId, dto);
+  }
+
+  @Patch('menu/:productId/dietary')
+  @Roles(...RESTO_FLOOR_MGR)
+  @ApiOperation({ summary: 'Set dietary tags (halal, vegan, spicy, …)' })
+  setProductDietary(
+    @CurrentUser() user: TokenPayload,
+    @Param('productId') productId: string,
+    @Body() dto: SetRestoProductDietaryDto,
+  ) {
+    return this.resto.setProductDietary(user.companyId, productId, dto);
+  }
+
+  @Patch('menu/:productId/day-parts')
+  @Roles(...RESTO_FLOOR_MGR)
+  @ApiOperation({
+    summary: 'Set day-part availability (empty = all day)',
+  })
+  setProductDayParts(
+    @CurrentUser() user: TokenPayload,
+    @Param('productId') productId: string,
+    @Body() dto: SetRestoProductDayPartsDto,
+  ) {
+    return this.resto.setProductDayParts(user.companyId, productId, dto);
   }
 
   @Get('reservations')

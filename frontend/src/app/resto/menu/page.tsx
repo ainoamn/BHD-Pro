@@ -21,6 +21,8 @@ type MenuItem = {
   image?: string | null;
   images?: string[];
   allergens?: string[];
+  dietaryTags?: string[];
+  dayParts?: string[];
   defaultStationId?: string | null;
   defaultStationName?: string | null;
 };
@@ -47,6 +49,20 @@ const ALLERGEN_CODES = [
   "lupin",
   "molluscs",
 ] as const;
+
+const DIETARY_TAGS = [
+  "halal",
+  "vegan",
+  "vegetarian",
+  "gluten_free",
+  "dairy_free",
+  "spicy",
+  "nuts_free",
+  "keto",
+  "organic",
+] as const;
+
+const DAY_PARTS = ["breakfast", "lunch", "dinner", "late"] as const;
 
 export default function RestoMenuPage() {
   const locale = useLocaleStore((s) => s.locale);
@@ -176,6 +192,58 @@ export default function RestoMenuPage() {
     } finally {
       setBusyId(null);
     }
+  };
+
+  const toggleDietary = async (productId: string, code: string) => {
+    const item = items.find((i) => i.id === productId);
+    if (!item) return;
+    const current = item.dietaryTags || [];
+    const next = current.includes(code)
+      ? current.filter((c) => c !== code)
+      : [...current, code];
+    setBusyId(productId);
+    try {
+      await api.setRestoProductDietary(productId, next);
+      setItems((prev) =>
+        prev.map((it) =>
+          it.id === productId ? { ...it, dietaryTags: next } : it,
+        ),
+      );
+    } catch {
+      toast.error(t.actionFail);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const toggleDayPart = async (productId: string, code: string) => {
+    const item = items.find((i) => i.id === productId);
+    if (!item) return;
+    const current = item.dayParts || [];
+    const next = current.includes(code)
+      ? current.filter((c) => c !== code)
+      : [...current, code];
+    setBusyId(productId);
+    try {
+      await api.setRestoProductDayParts(productId, next);
+      setItems((prev) =>
+        prev.map((it) =>
+          it.id === productId ? { ...it, dayParts: next } : it,
+        ),
+      );
+    } catch {
+      toast.error(t.actionFail);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const dayPartLabel = (code: string) => {
+    if (code === "breakfast") return t.dayPartBreakfast;
+    if (code === "lunch") return t.dayPartLunch;
+    if (code === "dinner") return t.dayPartDinner;
+    if (code === "late") return t.dayPartLate;
+    return code;
   };
 
   const mark86 = async (productId: string) => {
@@ -325,6 +393,70 @@ export default function RestoMenuPage() {
                       {t.allergens}: {(item.allergens || []).join(", ")}
                     </p>
                   ) : null}
+                  {canManage ? (
+                    <div className="space-y-1">
+                      <p className="text-[10px] text-stone-500">{t.dietary}</p>
+                      <div className="flex flex-wrap gap-1">
+                        {DIETARY_TAGS.map((code) => {
+                          const on = (item.dietaryTags || []).includes(code);
+                          return (
+                            <button
+                              key={code}
+                              type="button"
+                              disabled={busyId === item.id}
+                              onClick={() => void toggleDietary(item.id, code)}
+                              className={`rounded-md px-1.5 py-0.5 text-[9px] font-bold border ${
+                                on
+                                  ? "border-emerald-400/50 bg-emerald-500/20 text-emerald-100"
+                                  : "border-white/10 text-stone-500 hover:border-white/25"
+                              }`}
+                            >
+                              {code}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (item.dietaryTags || []).length > 0 ? (
+                    <p className="text-[10px] text-emerald-200/80">
+                      {t.dietary}: {(item.dietaryTags || []).join(", ")}
+                    </p>
+                  ) : null}
+                  {canManage ? (
+                    <div className="space-y-1">
+                      <p className="text-[10px] text-stone-500">
+                        {t.dayParts}{" "}
+                        <span className="text-stone-600">({t.dayPartsHint})</span>
+                      </p>
+                      <div className="flex flex-wrap gap-1">
+                        {DAY_PARTS.map((code) => {
+                          const on = (item.dayParts || []).includes(code);
+                          return (
+                            <button
+                              key={code}
+                              type="button"
+                              disabled={busyId === item.id}
+                              onClick={() => void toggleDayPart(item.id, code)}
+                              className={`rounded-md px-1.5 py-0.5 text-[9px] font-bold border ${
+                                on
+                                  ? "border-sky-400/50 bg-sky-500/20 text-sky-100"
+                                  : "border-white/10 text-stone-500 hover:border-white/25"
+                              }`}
+                            >
+                              {dayPartLabel(code)}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (item.dayParts || []).length > 0 ? (
+                    <p className="text-[10px] text-sky-200/80">
+                      {t.dayParts}:{" "}
+                      {(item.dayParts || []).map(dayPartLabel).join(", ")}
+                    </p>
+                  ) : (
+                    <p className="text-[10px] text-stone-500">{t.dayPartAll}</p>
+                  )}
                   {canManage ? (
                     <div className="flex items-center justify-between gap-2 mt-auto">
                       <Link

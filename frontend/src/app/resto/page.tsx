@@ -179,7 +179,7 @@ export default function RestoFloorPage() {
     const timer = window.setTimeout(() => {
       void (async () => {
         try {
-          const res = await api.getRestoMenu(menuQ.trim() || undefined);
+          const res = await api.getRestoMenu(menuQ.trim() || undefined, "now");
           if (!cancelled) setMenu(res.data.items || []);
         } catch {
           if (!cancelled) setMenu([]);

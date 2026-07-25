@@ -1486,7 +1486,7 @@ class ApiClient {
     return this.post('/resto/link', { key, warehouseId });
   }
 
-  getRestoMenu(q?: string) {
+  getRestoMenu(q?: string, dayPart?: string) {
     return this.get<{
       items: Array<{
         id: string;
@@ -1500,6 +1500,8 @@ class ApiClient {
         images?: string[];
         image?: string | null;
         allergens?: string[];
+        dietaryTags?: string[];
+        dayParts?: string[];
         isTracked?: boolean;
         hasRecipe?: boolean;
         defaultStationId?: string | null;
@@ -1508,7 +1510,14 @@ class ApiClient {
       count: number;
       warehouseId?: string | null;
       needsWarehouse?: boolean;
-    }>('/resto/menu', { params: q ? { q } : undefined });
+      dayPart?: string | null;
+      currentDayPart?: string;
+    }>('/resto/menu', {
+      params: {
+        ...(q ? { q } : {}),
+        ...(dayPart ? { dayPart } : {}),
+      },
+    });
   }
 
   seedRestoDemoCatalog() {
@@ -1538,6 +1547,20 @@ class ApiClient {
     return this.patch<{ productId: string; allergens: string[] }>(
       `/resto/menu/${productId}/allergens`,
       { allergens },
+    );
+  }
+
+  setRestoProductDietary(productId: string, dietaryTags: string[]) {
+    return this.patch<{ productId: string; dietaryTags: string[] }>(
+      `/resto/menu/${productId}/dietary`,
+      { dietaryTags },
+    );
+  }
+
+  setRestoProductDayParts(productId: string, dayParts: string[]) {
+    return this.patch<{ productId: string; dayParts: string[] }>(
+      `/resto/menu/${productId}/day-parts`,
+      { dayParts },
     );
   }
 
@@ -2435,6 +2458,24 @@ class ApiClient {
       journalId?: string | null;
       postedToGl?: boolean;
     }>('/pos/shifts/current/cash-movements', data);
+  }
+
+  createPosNoSale(data: {
+    reason: string;
+    warehouseId?: string;
+    approval?: DualApprovalPayload;
+  }) {
+    return this.post<{
+      movement: {
+        id: string;
+        type: string;
+        amount: number | string;
+        reason?: string | null;
+        createdAt: string;
+      };
+      cashMovements?: unknown[];
+      shift?: { id: string };
+    }>('/pos/shifts/current/no-sale', data);
   }
 
   getPosCustomerRecentSales(contactId: string) {

@@ -35,7 +35,11 @@ import {
   PublicGuestPayDto,
   SetRestoMenu86Dto,
   SetRestoProductAllergensDto,
+  SetRestoProductDietaryDto,
+  SetRestoProductDayPartsDto,
   RESTO_ALLERGEN_CODES,
+  RESTO_DIETARY_TAGS,
+  RESTO_DAY_PARTS,
   SplitRestoOrderDto,
   TransferRestoOrderDto,
   UpdateRestoOrderDto,
@@ -299,8 +303,29 @@ export class RestoService {
     return company?.restoWarehouseId ?? null;
   }
 
+  /** Resolve breakfast|lunch|dinner|late from local hour (0–23). */
+  resolveDayPart(hour = new Date().getHours()): (typeof RESTO_DAY_PARTS)[number] {
+    if (hour >= 5 && hour < 11) return 'breakfast';
+    if (hour >= 11 && hour < 16) return 'lunch';
+    if (hour >= 16 && hour < 22) return 'dinner';
+    return 'late';
+  }
+
+  private productAvailableInDayPart(
+    dayParts: string[] | null | undefined,
+    dayPart: string,
+  ) {
+    const parts = dayParts || [];
+    if (parts.length === 0) return true;
+    return parts.includes(dayPart);
+  }
+
   /** Menu = products in the linked restaurant warehouse only */
-  async getMenu(companyId: string, q?: string) {
+  async getMenu(
+    companyId: string,
+    q?: string,
+    opts?: { dayPart?: string | null },
+  ) {
     const warehouseId = await this.resolveWarehouseId(companyId);
     if (!warehouseId) {
       return {
@@ -308,9 +333,20 @@ export class RestoService {
         count: 0,
         warehouseId: null,
         needsWarehouse: true,
+        dayPart: null as string | null,
         message:
           'Select a restaurant warehouse in settings — menu shows only products in that warehouse',
       };
+    }
+
+    let dayPart: string | null = null;
+    if (opts?.dayPart === 'now' || opts?.dayPart === 'auto') {
+      dayPart = this.resolveDayPart();
+    } else if (
+      opts?.dayPart &&
+      (RESTO_DAY_PARTS as readonly string[]).includes(opts.dayPart)
+    ) {
+      dayPart = opts.dayPart;
     }
 
     const products = await this.prisma.product.findMany({
@@ -327,6 +363,8 @@ export class RestoService {
         isTracked: true,
         images: true,
         allergens: true,
+        dietaryTags: true,
+        dayParts: true,
       },
       orderBy: { name: 'asc' },
       take: 500,
@@ -338,7 +376,12 @@ export class RestoService {
     const eightySixMap = new Map(
       eightySixed.map((r) => [r.productId, r.note || true]),
     );
-    const available = products.filter((p) => !eightySixMap.has(p.id));
+    let available = products.filter((p) => !eightySixMap.has(p.id));
+    if (dayPart) {
+      available = available.filter((p) =>
+        this.productAvailableInDayPart(p.dayParts, dayPart!),
+      );
+    }
     const routes = await this.prisma.restoProductStation.findMany({
       where: {
         companyId,
@@ -373,15 +416,18 @@ export class RestoService {
           images: p.images || [],
           image: (p.images && p.images[0]) || null,
           allergens: p.allergens || [],
+          dietaryTags: p.dietaryTags || [],
+          dayParts: p.dayParts || [],
           hasRecipe: withRecipe.has(p.id),
           defaultStationId: route?.stationId ?? null,
           defaultStationName: route?.station?.name ?? null,
         };
       }),
       count: available.length,
-      eightySixedCount: eightySixed.length,
       warehouseId,
       needsWarehouse: false,
+      dayPart,
+      currentDayPart: this.resolveDayPart(),
     };
   }
 
@@ -1475,6 +1521,68 @@ export class RestoService {
       data: { allergens: unique },
     });
     return { productId, allergens: unique };
+  }
+
+  async setProductDietary(
+    companyId: string,
+    productId: string,
+    dto: SetRestoProductDietaryDto,
+  ) {
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, companyId },
+      select: { id: true },
+    });
+    if (!product) throw new NotFoundException('Product not found');
+    const allowed = new Set<string>(RESTO_DIETARY_TAGS);
+    const unique = [
+      ...new Set(
+        (dto.dietaryTags || [])
+          .map((a) => a.trim().toLowerCase())
+          .filter(Boolean),
+      ),
+    ];
+    const invalid = unique.filter((c) => !allowed.has(c));
+    if (invalid.length) {
+      throw new BadRequestException(
+        `Invalid dietary tag(s): ${invalid.join(', ')}`,
+      );
+    }
+    await this.prisma.product.update({
+      where: { id: productId },
+      data: { dietaryTags: unique },
+    });
+    return { productId, dietaryTags: unique };
+  }
+
+  async setProductDayParts(
+    companyId: string,
+    productId: string,
+    dto: SetRestoProductDayPartsDto,
+  ) {
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, companyId },
+      select: { id: true },
+    });
+    if (!product) throw new NotFoundException('Product not found');
+    const allowed = new Set<string>(RESTO_DAY_PARTS);
+    const unique = [
+      ...new Set(
+        (dto.dayParts || [])
+          .map((a) => a.trim().toLowerCase())
+          .filter(Boolean),
+      ),
+    ];
+    const invalid = unique.filter((c) => !allowed.has(c));
+    if (invalid.length) {
+      throw new BadRequestException(
+        `Invalid day part(s): ${invalid.join(', ')}`,
+      );
+    }
+    await this.prisma.product.update({
+      where: { id: productId },
+      data: { dayParts: unique },
+    });
+    return { productId, dayParts: unique };
   }
 
   /** Expo / runner pass — READY tickets awaiting SERVED */
@@ -3746,7 +3854,9 @@ export class RestoService {
   /** Public guest session: company + table + menu + open check summary */
   async getPublicGuestSession(token: string) {
     const table = await this.loadTableByGuestToken(token);
-    const menu = await this.getMenu(table.companyId);
+    const menu = await this.getMenu(table.companyId, undefined, {
+      dayPart: 'now',
+    });
     const open = await this.prisma.restoOrder.findFirst({
       where: {
         companyId: table.companyId,
@@ -3807,7 +3917,10 @@ export class RestoService {
         image: p.image,
         images: p.images,
         allergens: p.allergens || [],
+        dietaryTags: p.dietaryTags || [],
+        dayParts: p.dayParts || [],
       })),
+      dayPart: menu.dayPart ?? this.resolveDayPart(),
       modifiers: (await this.listModifiers(table.companyId)).modifiers,
       openOrder: open
         ? {

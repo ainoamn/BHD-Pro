@@ -979,6 +979,10 @@ model Product {
   images      String[]
   /// EU14-style allergen codes (gluten, milk, nuts, …)
   allergens   String[] @default([])
+  /// Dietary / lifestyle tags (halal, vegan, spicy, …)
+  dietaryTags String[] @default([]) @map("dietary_tags")
+  /// Day-part availability: breakfast|lunch|dinner|late — empty = all day
+  dayParts    String[] @default([]) @map("day_parts")
 
   customFieldsJson Json @default("{}") @map("custom_fields_json")
 

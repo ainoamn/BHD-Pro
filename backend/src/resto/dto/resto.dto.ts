@@ -21,6 +21,27 @@ export const RESTO_ALLERGEN_CODES = [
   'molluscs',
 ] as const;
 
+/** Structured dietary / lifestyle tags */
+export const RESTO_DIETARY_TAGS = [
+  'halal',
+  'vegan',
+  'vegetarian',
+  'gluten_free',
+  'dairy_free',
+  'spicy',
+  'nuts_free',
+  'keto',
+  'organic',
+] as const;
+
+/** Day-part menu windows — empty on product = all day */
+export const RESTO_DAY_PARTS = [
+  'breakfast',
+  'lunch',
+  'dinner',
+  'late',
+] as const;
+
 export class LinkRestoDto {
   @IsString()
   key: string;
@@ -382,6 +403,19 @@ export class SetRestoProductAllergensDto {
   @IsArray()
   @IsIn([...RESTO_ALLERGEN_CODES], { each: true })
   allergens: string[];
+}
+
+export class SetRestoProductDietaryDto {
+  @IsArray()
+  @IsIn([...RESTO_DIETARY_TAGS], { each: true })
+  dietaryTags: string[];
+}
+
+export class SetRestoProductDayPartsDto {
+  /** Empty = available all day */
+  @IsArray()
+  @IsIn([...RESTO_DAY_PARTS], { each: true })
+  dayParts: string[];
 }
 
 export class CloseRestoPaymentLineDto {
