@@ -114,6 +114,13 @@ Public flags: `asyncApprovals: true`, `nfcBadgesConfigured`, `shiftVarianceLimit
 - Custom POS receipt footer (browser + ESC/POS)
 - Doc: [`UPGRADE-POS-WAVE8-2026-07.md`](./UPGRADE-POS-WAVE8-2026-07.md)
 
+### Done (Wave 9 — Sync trust & multi-terminal)
+- Offline queue continues past failed items; quarantine after 3 attempts + discard UI
+- Cloud-synced POS favorites (`GET/PUT /pos/favorites`)
+- Parked-cart TTL purge (24h) on draft list
+- Keyboard `+/-` last-line quantity
+- Doc: [`UPGRADE-POS-WAVE9-2026-07.md`](./UPGRADE-POS-WAVE9-2026-07.md)
+
 - [x] Full catalog sync API `GET /pos/catalog/sync` + offline IDB per warehouse
 - [x] Broader refunds + store-credit MVP (hardened debit / void restore / UI)
 - [x] Cash change due + receipt number lookup for refunds
