@@ -1,0 +1,32 @@
+import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
+import { RestoService } from './resto.service';
+import { PublicGuestCallDto, PublicGuestOrderDto } from './dto/resto.dto';
+
+@ApiTags('Public Resto')
+@Controller('public/resto')
+export class PublicRestoController {
+  constructor(private readonly resto: RestoService) {}
+
+  @Get('t/:token')
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Guest QR session — menu + table + open check' })
+  session(@Param('token') token: string) {
+    return this.resto.getPublicGuestSession(token);
+  }
+
+  @Post('t/:token/items')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Guest adds items to the table check' })
+  addItems(@Param('token') token: string, @Body() dto: PublicGuestOrderDto) {
+    return this.resto.publicAddItems(token, dto);
+  }
+
+  @Post('t/:token/call')
+  @Throttle({ default: { limit: 12, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Guest calls waiter / requests check / water' })
+  call(@Param('token') token: string, @Body() dto: PublicGuestCallDto) {
+    return this.resto.publicCallStaff(token, dto);
+  }
+}

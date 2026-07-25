@@ -22,6 +22,9 @@ type FloorTable = {
   name: string | null;
   seats: number;
   status: string;
+  guestToken?: string | null;
+  guestCallAt?: string | null;
+  guestCallType?: string | null;
   openOrder: {
     id: string;
     number: string;
@@ -587,39 +590,81 @@ export default function RestoFloorPage() {
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                     {zone.tables.map((table) => {
                       const occupied = !!table.openOrder;
+                      const calling = !!table.guestCallAt;
                       return (
-                        <button
+                        <div
                           key={table.id}
-                          type="button"
-                          disabled={busy}
-                          onClick={() => void openTable(table)}
-                          className={`rounded-2xl border p-4 text-start transition min-h-[110px] ${statusStyle(
+                          className={`rounded-2xl border p-3 transition min-h-[110px] flex flex-col ${statusStyle(
                             table.status,
                             occupied,
-                          )}`}
+                          )} ${calling ? "ring-2 ring-rose-400/70" : ""}`}
                         >
-                          <p className="text-lg font-extrabold tracking-tight">
-                            {table.code}
-                          </p>
-                          <p className="text-xs opacity-70 mt-0.5">
-                            {table.seats} {t.seats}
-                          </p>
-                          {table.openOrder ? (
-                            <div className="mt-3 space-y-0.5">
-                              <p className="text-xs font-semibold">
-                                {table.openOrder.number}
-                              </p>
-                              <p className="text-[11px] opacity-80">
-                                {table.openOrder.itemCount} ·{" "}
-                                {itemStatusLabel(table.openOrder.status)}
-                              </p>
-                            </div>
-                          ) : (
-                            <p className="mt-3 text-xs font-semibold opacity-80">
-                              {t.free}
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => void openTable(table)}
+                            className="text-start flex-1"
+                          >
+                            <p className="text-lg font-extrabold tracking-tight">
+                              {table.code}
                             </p>
-                          )}
-                        </button>
+                            <p className="text-xs opacity-70 mt-0.5">
+                              {table.seats} {t.seats}
+                            </p>
+                            {calling ? (
+                              <p className="mt-2 text-[11px] font-bold text-rose-200">
+                                {t.guestCall}:{" "}
+                                {table.guestCallType === "CHECK"
+                                  ? t.guestCallCheck
+                                  : table.guestCallType === "WATER"
+                                    ? t.guestCallWater
+                                    : t.guestCallWaiter}
+                              </p>
+                            ) : null}
+                            {table.openOrder ? (
+                              <div className="mt-2 space-y-0.5">
+                                <p className="text-xs font-semibold">
+                                  {table.openOrder.number}
+                                </p>
+                                <p className="text-[11px] opacity-80">
+                                  {table.openOrder.itemCount} ·{" "}
+                                  {itemStatusLabel(table.openOrder.status)}
+                                </p>
+                              </div>
+                            ) : (
+                              <p className="mt-2 text-xs font-semibold opacity-80">
+                                {t.free}
+                              </p>
+                            )}
+                          </button>
+                          <div className="flex gap-1 mt-2">
+                            {table.guestToken ? (
+                              <button
+                                type="button"
+                                className="flex-1 rounded-lg border border-white/15 py-1 text-[10px] font-bold hover:bg-black/20"
+                                onClick={() => {
+                                  const url = `${window.location.origin}/order/${table.guestToken}`;
+                                  void navigator.clipboard.writeText(url);
+                                }}
+                              >
+                                {t.guestQr}
+                              </button>
+                            ) : null}
+                            {calling ? (
+                              <button
+                                type="button"
+                                className="flex-1 rounded-lg bg-rose-600/80 py-1 text-[10px] font-bold"
+                                onClick={() =>
+                                  void api
+                                    .clearRestoGuestCall(table.id)
+                                    .then(() => loadFloor())
+                                }
+                              >
+                                {t.guestCallClear}
+                              </button>
+                            ) : null}
+                          </div>
+                        </div>
                       );
                     })}
                   </div>

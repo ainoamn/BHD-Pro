@@ -34,6 +34,8 @@ import {
   UpdateRestoOrderDto,
   UpdateRestoOrderItemDto,
   UpsertRestoRecipeDto,
+  PublicGuestOrderDto,
+  PublicGuestCallDto,
 } from './dto/resto.dto';
 import { productWhereForWarehouse } from '../common/warehouse-product-scope';
 
@@ -480,6 +482,7 @@ export class RestoService {
         seats: i < 4 ? 2 : 4,
         sortOrder: i,
         status: RestoTableStatus.FREE,
+        guestToken: randomBytes(9).toString('base64url'),
       })),
     });
     return this.getFloor(companyId);
@@ -513,7 +516,9 @@ export class RestoService {
           code,
           name: dto.name?.trim() || null,
           seats: dto.seats ?? 4,
+          sortOrder: 0,
           status: RestoTableStatus.FREE,
+          guestToken: randomBytes(9).toString('base64url'),
         },
       });
     } catch (e) {
@@ -579,6 +584,9 @@ export class RestoService {
           name: t.name,
           seats: t.seats,
           status: open ? RestoTableStatus.OCCUPIED : t.status,
+          guestToken: t.guestToken,
+          guestCallAt: t.guestCallAt,
+          guestCallType: t.guestCallType,
           openOrder: open
             ? {
                 id: open.id,
@@ -2435,6 +2443,238 @@ export class RestoService {
       where: { companyId, productId },
     });
     return { ok: true, productId };
+  }
+
+  /** Ensure every table has a guest QR token; return staff QR list */
+  async ensureGuestTokens(companyId: string) {
+    const tables = await this.prisma.restoTable.findMany({
+      where: { companyId },
+      orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        guestToken: true,
+        zone: { select: { name: true } },
+      },
+    });
+    const out: Array<{
+      id: string;
+      code: string;
+      name: string | null;
+      zoneName: string;
+      guestToken: string;
+      path: string;
+    }> = [];
+    for (const t of tables) {
+      let token = t.guestToken;
+      if (!token) {
+        token = randomBytes(9).toString('base64url');
+        await this.prisma.restoTable.update({
+          where: { id: t.id },
+          data: { guestToken: token },
+        });
+      }
+      out.push({
+        id: t.id,
+        code: t.code,
+        name: t.name,
+        zoneName: t.zone.name,
+        guestToken: token,
+        path: `/order/${token}`,
+      });
+    }
+    return { count: out.length, tables: out };
+  }
+
+  async clearGuestCall(companyId: string, tableId: string) {
+    const table = await this.prisma.restoTable.findFirst({
+      where: { id: tableId, companyId },
+    });
+    if (!table) throw new NotFoundException('Table not found');
+    await this.prisma.restoTable.update({
+      where: { id: tableId },
+      data: { guestCallAt: null, guestCallType: null },
+    });
+    return { ok: true, tableId };
+  }
+
+  private async loadTableByGuestToken(token: string) {
+    const clean = token.trim();
+    if (!clean) throw new NotFoundException('Invalid table link');
+    const table = await this.prisma.restoTable.findFirst({
+      where: { guestToken: clean },
+      include: {
+        zone: { select: { name: true, nameEn: true } },
+        company: {
+          select: {
+            id: true,
+            name: true,
+            logo: true,
+            currency: true,
+            restoLinkedAt: true,
+            restoWarehouseId: true,
+          },
+        },
+      },
+    });
+    if (!table || !table.company.restoLinkedAt) {
+      throw new NotFoundException('Table menu not available');
+    }
+    return table;
+  }
+
+  /** Public guest session: company + table + menu + open check summary */
+  async getPublicGuestSession(token: string) {
+    const table = await this.loadTableByGuestToken(token);
+    const menu = await this.getMenu(table.companyId);
+    const open = await this.prisma.restoOrder.findFirst({
+      where: {
+        companyId: table.companyId,
+        tableId: table.id,
+        status: { in: ACTIVE_ORDER },
+      },
+      include: {
+        items: {
+          where: { status: { not: RestoOrderItemStatus.CANCELLED } },
+          orderBy: { createdAt: 'asc' },
+          select: {
+            id: true,
+            name: true,
+            qty: true,
+            unitPrice: true,
+            notes: true,
+            status: true,
+            course: true,
+          },
+        },
+      },
+    });
+    return {
+      company: {
+        id: table.company.id,
+        name: table.company.name,
+        logo: table.company.logo,
+        currency: table.company.currency || 'OMR',
+      },
+      table: {
+        id: table.id,
+        code: table.code,
+        name: table.name,
+        seats: table.seats,
+        zoneName: table.zone.name,
+      },
+      menu: menu.items.map((p) => ({
+        id: p.id,
+        name: p.name,
+        nameEn: p.nameEn,
+        price: p.price,
+        category: p.category,
+        image: p.image,
+        images: p.images,
+      })),
+      modifiers: (await this.listModifiers(table.companyId)).modifiers,
+      openOrder: open
+        ? {
+            id: open.id,
+            number: open.number,
+            status: open.status,
+            items: open.items.map((i) => ({
+              id: i.id,
+              name: i.name,
+              qty: Number(i.qty),
+              unitPrice: Number(i.unitPrice),
+              lineTotal: Number(i.qty) * Number(i.unitPrice),
+              notes: i.notes,
+              status: i.status,
+              course: i.course ?? 1,
+            })),
+            subtotal: open.items.reduce(
+              (s, i) => s + Number(i.qty) * Number(i.unitPrice),
+              0,
+            ),
+          }
+        : null,
+    };
+  }
+
+  async publicAddItems(token: string, dto: PublicGuestOrderDto) {
+    if (!dto.items?.length) {
+      throw new BadRequestException('Add at least one item');
+    }
+    if (dto.items.length > 30) {
+      throw new BadRequestException('Too many items in one request');
+    }
+    const table = await this.loadTableByGuestToken(token);
+    let order = await this.prisma.restoOrder.findFirst({
+      where: {
+        companyId: table.companyId,
+        tableId: table.id,
+        status: { in: ACTIVE_ORDER },
+      },
+    });
+    if (!order) {
+      const opened = await this.openOrder(table.companyId, '', {
+        tableId: table.id,
+        channel: RestoOrderChannel.DINE_IN,
+        guests: 2,
+        notes: dto.guestNote?.trim() || 'Guest QR order',
+      });
+      order = await this.prisma.restoOrder.findFirst({
+        where: { id: opened.id },
+      });
+    }
+    if (!order) throw new BadRequestException('Could not open order');
+
+    for (const line of dto.items) {
+      await this.addItem(table.companyId, order.id, {
+        productId: line.productId,
+        qty: line.qty ?? 1,
+        notes: line.notes,
+        course: line.course ?? 1,
+        modifiers: line.modifiers,
+      });
+    }
+    if (dto.guestNote?.trim()) {
+      await this.prisma.restoOrder.update({
+        where: { id: order.id },
+        data: {
+          notes: [order.notes, `Guest: ${dto.guestNote.trim()}`]
+            .filter(Boolean)
+            .join(' | '),
+        },
+      });
+    }
+    this.notifyKitchen(table.companyId);
+    const mapped = await this.getOrder(table.companyId, order.id);
+    return {
+      ok: true,
+      order: {
+        id: mapped.id,
+        number: mapped.number,
+        status: mapped.status,
+        items: mapped.items,
+        subtotal: mapped.subtotal,
+      },
+      message: 'Items added — staff will send to kitchen',
+    };
+  }
+
+  async publicCallStaff(token: string, dto: PublicGuestCallDto) {
+    const table = await this.loadTableByGuestToken(token);
+    await this.prisma.restoTable.update({
+      where: { id: table.id },
+      data: {
+        guestCallAt: new Date(),
+        guestCallType: dto.type,
+      },
+    });
+    return {
+      ok: true,
+      type: dto.type,
+      tableCode: table.code,
+      message: 'Staff notified',
+    };
   }
 
   private mapRecipe(r: {

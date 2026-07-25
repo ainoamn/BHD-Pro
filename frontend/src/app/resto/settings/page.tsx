@@ -30,6 +30,17 @@ export default function RestoSettingsPage() {
   const [nameEn, setNameEn] = useState("");
   const [busy, setBusy] = useState(false);
   const [demoBusy, setDemoBusy] = useState(false);
+  const [qrBusy, setQrBusy] = useState(false);
+  const [qrTables, setQrTables] = useState<
+    Array<{
+      id: string;
+      code: string;
+      name: string | null;
+      zoneName: string;
+      guestToken: string;
+      path: string;
+    }>
+  >([]);
 
   const loadStations = async () => {
     try {
@@ -98,6 +109,62 @@ export default function RestoSettingsPage() {
       </div>
       <HisabyAppsLinkHub tone="resto" />
       <RestoLinkSettings variant="resto" />
+
+      {canManage ? (
+        <div className="rounded-2xl border border-violet-500/25 bg-violet-500/5 p-4 space-y-3">
+          <div>
+            <h2 className="font-bold">{t.guestQrTitle}</h2>
+            <p className="text-xs text-stone-400 mt-1">{t.guestQrHint}</p>
+          </div>
+          <button
+            type="button"
+            disabled={qrBusy}
+            onClick={() => {
+              void (async () => {
+                setQrBusy(true);
+                try {
+                  const res = await api.ensureRestoGuestTokens();
+                  setQrTables(res.data.tables || []);
+                  toast.success(t.guestQrEnsure);
+                } catch {
+                  toast.error(t.actionFail);
+                } finally {
+                  setQrBusy(false);
+                }
+              })();
+            }}
+            className="w-full rounded-xl bg-violet-500 py-2.5 text-sm font-bold text-white disabled:opacity-50"
+          >
+            {qrBusy ? "…" : t.guestQrEnsure}
+          </button>
+          {qrTables.length > 0 ? (
+            <ul className="max-h-56 overflow-y-auto space-y-1.5 text-sm">
+              {qrTables.map((tb) => (
+                <li
+                  key={tb.id}
+                  className="flex items-center justify-between gap-2 rounded-lg border border-white/10 px-2.5 py-1.5"
+                >
+                  <span className="font-semibold truncate">
+                    {tb.code}
+                    {tb.name ? ` · ${tb.name}` : ""}
+                  </span>
+                  <button
+                    type="button"
+                    className="text-[11px] font-bold text-violet-200 shrink-0"
+                    onClick={() => {
+                      const url = `${window.location.origin}${tb.path}`;
+                      void navigator.clipboard.writeText(url);
+                      toast.success(t.guestQrCopied);
+                    }}
+                  >
+                    {t.guestQrCopy}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
 
       {canManage ? (
         <div className="rounded-2xl border border-sky-500/25 bg-sky-500/5 p-4 space-y-3">

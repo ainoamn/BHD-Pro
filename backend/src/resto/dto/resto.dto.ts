@@ -448,3 +448,49 @@ export class UpsertRestoRecipeDto {
   @Type(() => RestoRecipeItemDto)
   items: RestoRecipeItemDto[];
 }
+
+export class PublicGuestOrderItemDto {
+  @IsUUID()
+  productId: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @Min(0.001)
+  @Max(20)
+  qty?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  notes?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(3)
+  course?: number;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => RestoModifierChoiceDto)
+  modifiers?: RestoModifierChoiceDto[];
+}
+
+export class PublicGuestOrderDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PublicGuestOrderItemDto)
+  items: PublicGuestOrderItemDto[];
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  guestNote?: string;
+}
+
+export class PublicGuestCallDto {
+  @IsIn(['WAITER', 'CHECK', 'WATER'])
+  type: 'WAITER' | 'CHECK' | 'WATER';
+}

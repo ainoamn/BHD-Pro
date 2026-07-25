@@ -190,6 +190,23 @@ export class RestoController {
     return this.resto.createTable(user.companyId, dto);
   }
 
+  @Post('tables/guest-tokens')
+  @Roles(...RESTO_FLOOR_MGR)
+  @ApiOperation({ summary: 'Ensure guest QR tokens for all tables' })
+  ensureGuestTokens(@CurrentUser() user: TokenPayload) {
+    return this.resto.ensureGuestTokens(user.companyId);
+  }
+
+  @Post('tables/:id/clear-call')
+  @Roles(...RESTO_STAFF)
+  @ApiOperation({ summary: 'Clear guest call-waiter flag on a table' })
+  clearGuestCall(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+  ) {
+    return this.resto.clearGuestCall(user.companyId, id);
+  }
+
   @Post('orders')
   @Roles(...RESTO_STAFF)
   openOrder(

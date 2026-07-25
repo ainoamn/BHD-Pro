@@ -1714,6 +1714,24 @@ class ApiClient {
     });
   }
 
+  ensureRestoGuestTokens() {
+    return this.post<{
+      count: number;
+      tables: Array<{
+        id: string;
+        code: string;
+        name: string | null;
+        zoneName: string;
+        guestToken: string;
+        path: string;
+      }>;
+    }>('/resto/tables/guest-tokens', {});
+  }
+
+  clearRestoGuestCall(tableId: string) {
+    return this.post(`/resto/tables/${tableId}/clear-call`, {});
+  }
+
   getRestoOrder(id: string) {
     return this.get<RestoOrderPayload>(`/resto/orders/${id}`);
   }
@@ -2096,6 +2114,7 @@ class ApiClient {
     warehouseId?: string;
     contactId?: string;
     clientSaleId?: string;
+    loyaltyPointsToRedeem?: number;
     approval?: DualApprovalPayload;
   }) {
     return this.post('/pos/sales', data);
@@ -2378,6 +2397,9 @@ class ApiClient {
       cashierBonusTiers?: { minSales: number; bonusAmount: number }[];
       customerEnabled?: boolean;
       customerPointsPerUnit?: number;
+      redeemEnabled?: boolean;
+      redeemPointsPerUnit?: number;
+      receiptFooter?: string;
     }>("/pos/incentives/config");
   }
 
@@ -2387,6 +2409,9 @@ class ApiClient {
     cashierBonusTiers?: { minSales: number; bonusAmount: number }[];
     customerEnabled?: boolean;
     customerPointsPerUnit?: number;
+    redeemEnabled?: boolean;
+    redeemPointsPerUnit?: number;
+    receiptFooter?: string;
   }) {
     return this.patch("/pos/incentives/config", data);
   }
@@ -2459,6 +2484,9 @@ class ApiClient {
       points: number;
       customerEnabled: boolean;
       pointsPerUnit: number;
+      redeemEnabled?: boolean;
+      redeemPointsPerUnit?: number;
+      receiptFooter?: string;
     }>(`/pos/incentives/customers/${encodeURIComponent(contactId)}/points`);
   }
 }

@@ -1836,6 +1836,11 @@ model RestoTable {
   seats     Int             @default(4)
   status    RestoTableStatus @default(FREE)
   sortOrder Int             @default(0) @map("sort_order")
+  /// Public guest QR token — /order/{token}
+  guestToken String?        @unique @map("guest_token")
+  /// Guest pressed “call waiter / check” from QR menu
+  guestCallAt DateTime?     @map("guest_call_at")
+  guestCallType String?     @map("guest_call_type")
   createdAt DateTime        @default(now()) @map("created_at")
   updatedAt DateTime        @updatedAt @map("updated_at")
 
