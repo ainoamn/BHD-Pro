@@ -136,11 +136,23 @@ export default function PosCheckoutPage() {
   }, []);
 
   const loadCatalog = useCallback(async (q?: string, whId?: string) => {
+    const wh = whId || warehouseId || undefined;
     try {
-      const res = await api.searchPosProducts(q, whId || warehouseId || undefined);
-      setCatalog((res.data as PosProduct[]) || []);
+      const res = await api.searchPosProducts(q, wh);
+      const rows = (res.data as PosProduct[]) || [];
+      setCatalog(rows);
+      if (!q?.trim() && rows.length) {
+        const { saveCatalogCache } = await import("@/lib/pos-catalog-cache");
+        void saveCatalogCache(rows, wh);
+      }
     } catch {
-      /* ignore */
+      try {
+        const { loadCatalogCache, filterCachedCatalog } = await import("@/lib/pos-catalog-cache");
+        const cached = await loadCatalogCache(wh);
+        setCatalog(filterCachedCatalog(cached, q) as PosProduct[]);
+      } catch {
+        /* ignore */
+      }
     } finally {
       setCatalogLoaded(true);
     }
@@ -252,21 +264,15 @@ export default function PosCheckoutPage() {
     const flush = async () => {
       if (typeof navigator !== "undefined" && navigator.onLine === false) return;
       try {
-        const { listPendingSales, removePendingSale } = await import("@/lib/pos-offline-queue");
-        const pending = await listPendingSales();
-        for (const row of pending) {
-          if (cancelled) return;
-          try {
-            await api.createPosSale(row.payload);
-            await removePendingSale(row.id);
-            toast.success(t.saleOk);
-          } catch {
-            break;
-          }
-        }
-        if (pending.length) {
+        const { flushPendingPosSales } = await import("@/lib/pos-offline-sync");
+        const result = await flushPendingPosSales();
+        if (cancelled) return;
+        if (result.synced > 0) {
+          toast.success(t.syncOk);
           await loadRecentSales();
           await loadCatalog(search, warehouseId || undefined);
+        } else if (result.failed) {
+          toast.error(t.syncFail);
         }
       } catch {
         /* ignore */
@@ -278,7 +284,7 @@ export default function PosCheckoutPage() {
       cancelled = true;
       window.removeEventListener("online", flush);
     };
-  }, [loadCatalog, loadRecentSales, search, t.saleOk, warehouseId]);
+  }, [loadCatalog, loadRecentSales, search, t.syncFail, t.syncOk, warehouseId]);
 
   useEffect(() => {
     const id = window.setTimeout(() => loadCatalog(search), 220);
@@ -449,6 +455,19 @@ export default function PosCheckoutPage() {
       setCameraOpen(false);
       focusScan();
     } catch {
+      try {
+        const { lookupCachedProduct } = await import("@/lib/pos-catalog-cache");
+        const cached = await lookupCachedProduct(trimmed, warehouseId || undefined);
+        if (cached) {
+          addProduct(cached as PosProduct, 1);
+          setScan("");
+          setCameraOpen(false);
+          focusScan();
+          return;
+        }
+      } catch {
+        /* ignore */
+      }
       toast.error(t.notFound);
       setScan("");
       focusScan();
@@ -475,21 +494,24 @@ export default function PosCheckoutPage() {
 
   const printReceiptSnapshot = useCallback(
     async (receipt: ReceiptSnapshot) => {
+      const escPosPayload = {
+        brand: t.brand,
+        companyName: company?.name || "",
+        vatNumber: company?.vatNumber || undefined,
+        warehouseLabel: receipt.warehouseLabel,
+        number: receipt.number,
+        paymentMethod: receipt.paymentMethod,
+        totalLabel: t.total,
+        total: receipt.total || 0,
+        currency,
+        lines: receipt.lines || [],
+      };
       try {
-        const { tryPrintEscPos } = await import("@/lib/pos-escpos");
-        const ok = await tryPrintEscPos({
-          brand: t.brand,
-          companyName: company?.name || "",
-          vatNumber: company?.vatNumber || undefined,
-          warehouseLabel: receipt.warehouseLabel,
-          number: receipt.number,
-          paymentMethod: receipt.paymentMethod,
-          totalLabel: t.total,
-          total: receipt.total || 0,
-          currency,
-          lines: receipt.lines || [],
-        });
-        if (ok) return;
+        const { tryPrintEscPosSmart, getPreferThermalPrinter } = await import("@/lib/pos-escpos");
+        if (getPreferThermalPrinter()) {
+          const ok = await tryPrintEscPosSmart(escPosPayload);
+          if (ok) return;
+        }
       } catch {
         /* fall through to browser print */
       }
@@ -1192,13 +1214,41 @@ export default function PosCheckoutPage() {
             </button>
           </div>
           {lastInvoice && (
-            <button
-              type="button"
-              onClick={() => printReceiptSnapshot(lastInvoice)}
-              className="w-full min-h-10 h-10 rounded-xl border border-white/10 text-sm text-slate-300 hover:bg-white/5"
-            >
-              {t.printReceipt} · {lastInvoice.number}
-            </button>
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => printReceiptSnapshot(lastInvoice)}
+                className="w-full min-h-10 h-10 rounded-xl border border-white/10 text-sm text-slate-300 hover:bg-white/5"
+              >
+                {t.printReceipt} · {lastInvoice.number}
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const { tryPrintEscPosSmart } = await import("@/lib/pos-escpos");
+                    const ok = await tryPrintEscPosSmart({
+                      brand: t.brand,
+                      companyName: company?.name || "",
+                      vatNumber: company?.vatNumber || undefined,
+                      warehouseLabel: lastInvoice.warehouseLabel,
+                      number: lastInvoice.number,
+                      paymentMethod: lastInvoice.paymentMethod,
+                      totalLabel: t.total,
+                      total: lastInvoice.total || 0,
+                      currency,
+                      lines: lastInvoice.lines || [],
+                    });
+                    if (!ok) toast.error(t.thermalFail);
+                  } catch {
+                    toast.error(t.thermalFail);
+                  }
+                }}
+                className="w-full min-h-10 h-10 rounded-xl border border-amber-500/30 text-sm text-amber-200 hover:bg-amber-500/10"
+              >
+                {t.thermalPrint}
+              </button>
+            </div>
           )}
         </div>
       </aside>

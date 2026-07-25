@@ -726,7 +726,7 @@ export class PosService {
 
   async closeShift(
     companyId: string,
-    userId: string,
+    actor: TokenPayload,
     dto: ClosePosShiftDto & { warehouseId?: string },
   ) {
     const shift = await this.findOpenShift(companyId, dto.warehouseId || null);
@@ -747,11 +747,23 @@ export class PosService {
       closingCash,
     );
 
+    const expectedCash = Number(zReport.expectedCash ?? 0);
+    const variance = Math.abs(closingCash - expectedCash);
+    const limit = await this.dualControl.getShiftVarianceLimit(companyId);
+    if (variance > limit) {
+      await this.dualControl.assertApproved(
+        companyId,
+        actor,
+        'SHIFT_CLOSE_VARIANCE',
+        dto.approval,
+      );
+    }
+
     const updated = await this.prisma.posShift.update({
       where: { id: shift.id },
       data: {
         status: 'CLOSED',
-        closedById: userId,
+        closedById: actor.sub,
         closedAt,
         closingCash,
         notes,

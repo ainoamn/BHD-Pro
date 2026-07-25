@@ -162,7 +162,7 @@ export class PosController {
   @Roles(...POS_STAFF)
   @ApiOperation({ summary: 'Close open POS shift and save Z-report' })
   closeShift(@CurrentUser() user: TokenPayload, @Body() dto: ClosePosShiftDto) {
-    return this.pos.closeShift(user.companyId, user.sub, dto);
+    return this.pos.closeShift(user.companyId, user, dto);
   }
 
   @Get('shifts/:id/z-report')

@@ -24,14 +24,14 @@ POS lives at **`/pos`**, optionally linked to Accounting via shared login or tec
 |-------|---------|--------|
 | **1 — MVP** | `SELF_CONFIRM` (ADMIN/MANAGER), `PASSWORD` (other manager), `PIN` | Done |
 | **2 — Async online** | `APPROVAL_REQUEST` — cashier creates request; manager decides on `/pos/approvals`; token consumed on action | Done (25 Jul 2026) |
-| **3 — Messaging** | WhatsApp OTP to manager | Env-gated scaffold (optional) |
-| **4 — Badge** | NFC / proximity token | Planned |
+| **3 — Messaging** | WhatsApp OTP to manager | Done (env-gated + invalidate prior + 3/10min) |
+| **4 — Badge** | NFC / proximity token (`NFC` + bcrypt `nfcBadgeHashes`) | Done (25 Jul 2026) — Web NFC on Android Chrome HTTPS; manual paste for desktop testing |
 
-Sensitive actions covered today: `POS_VOID`, `POS_PRICE_OVERRIDE`, `POS_REFUND`, `STOCK_ADJUST`, `STOCK_TRANSFER`, `INVOICE_CANCEL`, `PAYMENT_REVERSE`.
+Sensitive actions covered today: `POS_VOID`, `POS_PRICE_OVERRIDE`, `POS_REFUND`, `STOCK_ADJUST`, `STOCK_TRANSFER`, `INVOICE_CANCEL`, `PAYMENT_REVERSE`, `SHIFT_CLOSE_VARIANCE`.
 
 Config: `companies.security_config` + `GET/PATCH /companies/me/security`.  
 Async API: `POST/GET /dual-control/requests`, `POST .../decide`.  
-Public flag: `asyncApprovals: true`.
+Public flags: `asyncApprovals: true`, `nfcBadgesConfigured`, `shiftVarianceLimit`.
 
 ---
 
@@ -52,16 +52,18 @@ Public flag: `asyncApprovals: true`.
 - [x] Partial POS refund (`POST /pos/sales/:id/refund` + credit note + stock IN + line-qty UI)
 - [x] Shifts / cash drawer / Z-report (`pos_shifts`, `/pos/shifts`, printable Z on close)
 - [x] Per-warehouse open shifts
-- [x] ESC/POS Web Serial (+ browser thermal fallback)
-- [x] Offline sale queue (IndexedDB) + sync on `online`
+- [x] ESC/POS Web Serial (+ browser thermal fallback) + explicit **طباعة حرارية** + prefer-thermal setting
+- [x] Offline sale queue (IndexedDB) + sync on `online` + header pending badge / مزامنة
+- [x] NFC badge dual-control (`addNfcBadgeSecret` / `clearNfcBadges`, method `NFC`)
+- [x] Dual-control on shift close when cash variance exceeds `shiftVarianceLimit` (default 1.000)
+- [x] Offline catalog snapshot cache (IndexedDB) + barcode fallback
+- [x] Harden WhatsApp OTP (invalidate unused prior OTPs + max 3 / 10 min)
 
 ### Planned
-- [ ] NFC badge method
-- [ ] Full offline catalog/stock cache
-- [ ] Partner NFC tap-to-pay
+- [ ] Full offline catalog/stock sync (beyond last-snapshot cache)
+- [ ] Partner NFC tap-to-pay (gateway / wallet partners — not badge dual-control)
 - [ ] Native wrapper (Capacitor) if PWA limits hit
-- [ ] Dual-control on shift close variance
-- [ ] Harden WhatsApp OTP for production (beyond env-gated scaffold)
+- [ ] Reliable multi-vendor Web Bluetooth thermal (current BLE path is best-effort)
 
 ---
 
@@ -72,5 +74,7 @@ Public flag: `asyncApprovals: true`.
 3. Managers open **Approvals** from POS header (`/pos/approvals`).
 4. Staff open **Shift** from POS header (`/pos/shifts`) — one open shift per warehouse.
 5. Camera needs HTTPS (or localhost) + user permission.
-6. Receipt print tries Web Serial ESC/POS then falls back to browser 80mm print.
-7. Offline sales queue in IndexedDB flushes when the browser goes online.
+6. Receipt print tries Web Serial ESC/POS (then best-effort BLE) when prefer-thermal is on; **طباعة حرارية** forces thermal; otherwise browser 80mm print.
+7. Offline sales queue in IndexedDB flushes when the browser goes online; header shows pending count + Sync.
+8. NFC badge registration is ADMIN-only in Security settings; hashes live in `security_config` JSON (no new migration). Web NFC = Android Chrome + HTTPS.
+9. Closing a shift with `|closingCash − expectedCash| > shiftVarianceLimit` requires dual-control (`SHIFT_CLOSE_VARIANCE`).

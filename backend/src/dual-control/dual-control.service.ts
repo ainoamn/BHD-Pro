@@ -21,9 +21,16 @@ export type CompanySecurityConfig = {
   supervisorPinHash?: string | null;
   /** Phones (E.164 digits) that receive WhatsApp OTP codes */
   whatsappNotifyPhones?: string[];
+  /** bcrypt hashes of NFC badge secrets — raw secrets never stored */
+  nfcBadgeHashes?: string[];
+  /** Max abs cash variance on shift close before dual-control (default 1.000) */
+  shiftVarianceLimit?: number;
   methods?: Array<'SELF_CONFIRM' | 'PASSWORD' | 'PIN' | 'WHATSAPP_OTP' | 'NFC' | 'APPROVAL_REQUEST'>;
   actions?: DualControlActionsDto;
 };
+
+/** Default OMR-ish float variance before SHIFT_CLOSE_VARIANCE */
+export const DEFAULT_SHIFT_VARIANCE_LIMIT = 1;
 
 export type DualControlActor = {
   sub: string;
@@ -83,24 +90,43 @@ export class DualControlService {
       STOCK_TRANSFER: config.actions?.STOCK_TRANSFER !== false,
       INVOICE_CANCEL: config.actions?.INVOICE_CANCEL !== false,
       PAYMENT_REVERSE: config.actions?.PAYMENT_REVERSE !== false,
+      SHIFT_CLOSE_VARIANCE: config.actions?.SHIFT_CLOSE_VARIANCE !== false,
     };
     const whatsappReady = this.whatsapp.isConfigured();
+    const nfcBadgesConfigured = (config.nfcBadgeHashes || []).length > 0;
+    const methods: string[] = [...DEFAULT_METHODS];
+    if (whatsappReady) methods.push('WHATSAPP_OTP');
+    if (nfcBadgesConfigured) methods.push('NFC');
+    const futureMethods: string[] = [];
+    if (!whatsappReady) futureMethods.push('WHATSAPP_OTP');
+    if (!nfcBadgesConfigured) futureMethods.push('NFC');
+    const shiftVarianceLimit =
+      typeof config.shiftVarianceLimit === 'number' && config.shiftVarianceLimit >= 0
+        ? config.shiftVarianceLimit
+        : DEFAULT_SHIFT_VARIANCE_LIMIT;
     return {
       dualControlEnabled,
       hasSupervisorPin: !!config.supervisorPinHash,
-      methods: whatsappReady
-        ? ([...DEFAULT_METHODS, 'WHATSAPP_OTP'] as const)
-        : ([...DEFAULT_METHODS] as const),
-      futureMethods: whatsappReady
-        ? (['NFC'] as const)
-        : (['WHATSAPP_OTP', 'NFC'] as const),
+      methods,
+      futureMethods,
       whatsappConfigured: whatsappReady,
       whatsappNotifyPhones: (config.whatsappNotifyPhones || []).map((p) =>
         String(p).replace(/\d(?=\d{4})/g, '*'),
       ),
+      nfcBadgesConfigured,
+      nfcBadgeCount: (config.nfcBadgeHashes || []).length,
+      shiftVarianceLimit,
       actions,
       asyncApprovals: true,
     };
+  }
+
+  async getShiftVarianceLimit(companyId: string): Promise<number> {
+    const config = await this.loadConfig(companyId);
+    if (typeof config.shiftVarianceLimit === 'number' && config.shiftVarianceLimit >= 0) {
+      return config.shiftVarianceLimit;
+    }
+    return DEFAULT_SHIFT_VARIANCE_LIMIT;
   }
 
   async getPublicConfig(companyId: string) {
@@ -524,6 +550,36 @@ export class DualControlService {
       return { approverId: actor.sub, method: 'WHATSAPP_OTP' };
     }
 
+    if (approval.method === 'NFC') {
+      const secret = approval.badgeSecret?.trim();
+      if (!secret || secret.length < 4) {
+        throw new BadRequestException('NFC badge secret is required');
+      }
+      const config = await this.loadConfig(companyId);
+      const hashes = config.nfcBadgeHashes || [];
+      if (!hashes.length) {
+        throw new BadRequestException('No NFC badges configured');
+      }
+      let matched = false;
+      for (const hash of hashes) {
+        if (await bcrypt.compare(secret, hash)) {
+          matched = true;
+          break;
+        }
+      }
+      if (!matched) {
+        throw new ForbiddenException('Invalid NFC badge');
+      }
+      await this.writeAudit({
+        companyId,
+        userId: actor.sub,
+        action: 'NFC_OK',
+        success: true,
+        details: { dualAction: action },
+      });
+      return { approverId: actor.sub, method: 'NFC' };
+    }
+
     throw new BadRequestException('Unsupported approval method');
   }
 
@@ -560,6 +616,31 @@ export class DualControlService {
       );
     }
 
+    // Rate-limit: max 3 OTPs per actor+action in 10 minutes
+    const since = new Date(Date.now() - OTP_TTL_MS);
+    const recent = await this.prisma.dualControlOtp.count({
+      where: {
+        companyId,
+        action,
+        requestedById: actor.sub,
+        createdAt: { gte: since },
+      },
+    });
+    if (recent >= 3) {
+      throw new BadRequestException('Too many WhatsApp OTP requests — wait a few minutes');
+    }
+
+    // Invalidate unused prior OTPs for this actor+action
+    await this.prisma.dualControlOtp.updateMany({
+      where: {
+        companyId,
+        action,
+        requestedById: actor.sub,
+        usedAt: null,
+      },
+      data: { usedAt: new Date() },
+    });
+
     const code = String(Math.floor(100000 + Math.random() * 900000));
     const codeHash = await bcrypt.hash(code, 10);
     const expiresAt = new Date(Date.now() + OTP_TTL_MS);
@@ -575,7 +656,7 @@ export class DualControlService {
       },
     });
 
-    const body = `Hisaby dual-control OTP: ${code}\nAction: ${action}\nValid 10 minutes.`;
+    const body = `Hisaby dual-control OTP: ${code}\nAction: ${action}\nValid 10 minutes.\nDo not share this code.`;
     const results = await Promise.all(targets.map((to) => this.whatsapp.sendText(to, body)));
     const anyOk = results.some((r) => r.ok);
     if (!anyOk) {
@@ -594,6 +675,7 @@ export class DualControlService {
       sent: true,
       expiresAt,
       maskedTo: targets.map((p) => p.replace(/\d(?=\d{4})/g, '*')),
+      remainingRequests: Math.max(0, 3 - recent - 1),
     };
   }
 
@@ -650,6 +732,20 @@ export class DualControlService {
         .map((p) => String(p).replace(/[^\d]/g, ''))
         .filter((p) => p.length >= 8);
     }
+    if (dto.clearNfcBadges) {
+      next.nfcBadgeHashes = [];
+    }
+    if (dto.addNfcBadgeSecret?.trim()) {
+      const secret = dto.addNfcBadgeSecret.trim();
+      if (secret.length < 4) {
+        throw new BadRequestException('NFC badge secret must be at least 4 characters');
+      }
+      const hash = await bcrypt.hash(secret, 12);
+      next.nfcBadgeHashes = [...(next.nfcBadgeHashes || config.nfcBadgeHashes || []), hash];
+    }
+    if (dto.shiftVarianceLimit !== undefined) {
+      next.shiftVarianceLimit = Number(dto.shiftVarianceLimit);
+    }
 
     await this.prisma.company.update({
       where: { id: companyId },
@@ -665,6 +761,10 @@ export class DualControlService {
         dualControlEnabled: next.dualControlEnabled,
         actions: next.actions,
         pinChanged: !!dto.supervisorPin || !!dto.clearSupervisorPin,
+        nfcBadgeAdded: !!dto.addNfcBadgeSecret,
+        nfcBadgesCleared: !!dto.clearNfcBadges,
+        nfcBadgeCount: (next.nfcBadgeHashes || []).length,
+        shiftVarianceLimit: next.shiftVarianceLimit,
       },
     });
 

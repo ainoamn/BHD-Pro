@@ -13,6 +13,11 @@ type SecurityPublic = {
   dualControlEnabled: boolean;
   hasSupervisorPin: boolean;
   methods: string[];
+  whatsappConfigured?: boolean;
+  whatsappNotifyPhones?: string[];
+  nfcBadgesConfigured?: boolean;
+  nfcBadgeCount?: number;
+  shiftVarianceLimit?: number;
   actions: {
     POS_VOID: boolean;
     POS_PRICE_OVERRIDE: boolean;
@@ -21,6 +26,7 @@ type SecurityPublic = {
     STOCK_TRANSFER: boolean;
     INVOICE_CANCEL: boolean;
     PAYMENT_REVERSE: boolean;
+    SHIFT_CLOSE_VARIANCE: boolean;
   };
 };
 
@@ -32,6 +38,7 @@ const ACTION_KEYS = [
   "STOCK_TRANSFER",
   "INVOICE_CANCEL",
   "PAYMENT_REVERSE",
+  "SHIFT_CLOSE_VARIANCE",
 ] as const;
 
 export function DualControlSettings() {
@@ -50,8 +57,12 @@ export function DualControlSettings() {
     STOCK_TRANSFER: true,
     INVOICE_CANCEL: true,
     PAYMENT_REVERSE: true,
+    SHIFT_CLOSE_VARIANCE: true,
   });
   const [pin, setPin] = useState("");
+  const [whatsappPhones, setWhatsappPhones] = useState("");
+  const [nfcSecret, setNfcSecret] = useState("");
+  const [varianceLimit, setVarianceLimit] = useState("1");
 
   const { data, isLoading } = useQuery({
     queryKey: ["company-security"],
@@ -64,7 +75,18 @@ export function DualControlSettings() {
   useEffect(() => {
     if (!data) return;
     setEnabled(data.dualControlEnabled !== false);
-    setActions({ ...data.actions });
+    setActions({
+      POS_VOID: true,
+      POS_PRICE_OVERRIDE: true,
+      POS_REFUND: true,
+      STOCK_ADJUST: true,
+      STOCK_TRANSFER: true,
+      INVOICE_CANCEL: true,
+      PAYMENT_REVERSE: true,
+      SHIFT_CLOSE_VARIANCE: true,
+      ...data.actions,
+    });
+    setVarianceLimit(String(data.shiftVarianceLimit ?? 1));
   }, [data]);
 
   const saveMutation = useMutation({
@@ -74,10 +96,17 @@ export function DualControlSettings() {
       queryClient.invalidateQueries({ queryKey: ["company"] });
       toast.success(t("saved"));
       setPin("");
+      setNfcSecret("");
     },
     onError: (err: { response?: { data?: { message?: string } } }) => {
       toast.error(err.response?.data?.message || tCommon("error"));
     },
+  });
+
+  const baseBody = () => ({
+    dualControlEnabled: enabled,
+    actions,
+    shiftVarianceLimit: Number(varianceLimit) || 0,
   });
 
   if (isLoading) {
@@ -134,6 +163,19 @@ export function DualControlSettings() {
 
       {isAdmin ? (
         <div className="space-y-3 border-t border-white/10 pt-4">
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">{t("varianceLimit")}</label>
+            <input
+              type="number"
+              min={0}
+              step="0.001"
+              value={varianceLimit}
+              onChange={(e) => setVarianceLimit(e.target.value)}
+              className="w-full sm:w-40 h-10 px-3 rounded-lg bg-slate-900/60 border border-white/10 text-sm text-white"
+            />
+            <p className="text-[11px] text-slate-500 mt-1">{t("varianceHint")}</p>
+          </div>
+
           <p className="text-sm text-slate-300">
             {data?.hasSupervisorPin ? t("pinSet") : t("pinUnset")}
           </p>
@@ -152,8 +194,7 @@ export function DualControlSettings() {
               disabled={pin.length < 4 || saveMutation.isPending}
               onClick={() =>
                 saveMutation.mutate({
-                  dualControlEnabled: enabled,
-                  actions,
+                  ...baseBody(),
                   supervisorPin: pin,
                 })
               }
@@ -167,8 +208,7 @@ export function DualControlSettings() {
                 disabled={saveMutation.isPending}
                 onClick={() =>
                   saveMutation.mutate({
-                    dualControlEnabled: enabled,
-                    actions,
+                    ...baseBody(),
                     clearSupervisorPin: true,
                   })
                 }
@@ -179,15 +219,94 @@ export function DualControlSettings() {
             ) : null}
           </div>
 
+          <div className="space-y-2 border-t border-white/10 pt-4">
+            <p className="text-sm text-slate-300">{t("whatsappPhones")}</p>
+            <p className="text-[11px] text-slate-500">
+              {data?.whatsappConfigured
+                ? t("whatsappReady")
+                : t("whatsappNotConfigured")}
+              {data?.whatsappNotifyPhones?.length
+                ? ` · ${data.whatsappNotifyPhones.join(", ")}`
+                : ""}
+            </p>
+            <textarea
+              value={whatsappPhones}
+              onChange={(e) => setWhatsappPhones(e.target.value)}
+              placeholder={t("whatsappPhonesPlaceholder")}
+              rows={2}
+              className="w-full px-3 py-2 rounded-lg bg-slate-900/60 border border-white/10 text-sm text-white"
+            />
+            <button
+              type="button"
+              disabled={saveMutation.isPending || !whatsappPhones.trim()}
+              onClick={() => {
+                const phones = whatsappPhones
+                  .split(/[\s,;]+/)
+                  .map((p) => p.replace(/\D/g, ""))
+                  .filter((p) => p.length >= 8);
+                saveMutation.mutate({
+                  ...baseBody(),
+                  whatsappNotifyPhones: phones,
+                });
+              }}
+              className="h-10 px-4 rounded-lg bg-emerald-700 text-white text-sm font-semibold disabled:opacity-50"
+            >
+              {t("saveWhatsapp")}
+            </button>
+          </div>
+
+          <div className="space-y-2 border-t border-white/10 pt-4">
+            <p className="text-sm text-slate-300">{t("nfcBadges")}</p>
+            <p className="text-[11px] text-slate-500">
+              {data?.nfcBadgesConfigured
+                ? t("nfcSet", { count: data.nfcBadgeCount ?? 0 })
+                : t("nfcUnset")}
+            </p>
+            <p className="text-[11px] text-slate-500">{t("nfcHint")}</p>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                type="password"
+                value={nfcSecret}
+                onChange={(e) => setNfcSecret(e.target.value)}
+                placeholder={t("nfcPlaceholder")}
+                className="flex-1 h-10 px-3 rounded-lg bg-slate-900/60 border border-white/10 text-sm text-white"
+                autoComplete="off"
+              />
+              <button
+                type="button"
+                disabled={nfcSecret.trim().length < 4 || saveMutation.isPending}
+                onClick={() =>
+                  saveMutation.mutate({
+                    ...baseBody(),
+                    addNfcBadgeSecret: nfcSecret.trim(),
+                  })
+                }
+                className="h-10 px-4 rounded-lg bg-sky-600 text-white text-sm font-semibold disabled:opacity-50"
+              >
+                {t("addNfc")}
+              </button>
+              {data?.nfcBadgesConfigured ? (
+                <button
+                  type="button"
+                  disabled={saveMutation.isPending}
+                  onClick={() =>
+                    saveMutation.mutate({
+                      ...baseBody(),
+                      clearNfcBadges: true,
+                    })
+                  }
+                  className="h-10 px-4 rounded-lg bg-slate-800 text-rose-300 text-sm font-semibold"
+                >
+                  {t("clearNfc")}
+                </button>
+              ) : null}
+            </div>
+          </div>
+
           <button
             type="button"
             disabled={saveMutation.isPending}
-            onClick={() =>
-              saveMutation.mutate({
-                dualControlEnabled: enabled,
-                actions,
-              })
-            }
+            onClick={() => saveMutation.mutate(baseBody())}
             className="inline-flex items-center gap-2 h-10 px-4 rounded-lg bg-emerald-600 text-white text-sm font-semibold"
           >
             {saveMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}

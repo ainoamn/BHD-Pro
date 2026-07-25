@@ -52,7 +52,7 @@
   "dualControl": {
     "title": "Dual control (maker-checker)",
     "desc": "Require manager self-confirm or supervisor password/PIN before sensitive actions",
-    "futureNote": "WhatsApp OTP and NFC badge approvals are planned for a later phase.",
+    "futureNote": "WhatsApp OTP is env-gated; NFC badges can be registered below. Partner tap-to-pay remains planned.",
     "enabled": "Enable dual control",
     "actions": "Protected actions",
     "action": {
@@ -62,13 +62,28 @@
       "STOCK_ADJUST": "Stock adjustment",
       "STOCK_TRANSFER": "Stock transfer",
       "INVOICE_CANCEL": "Invoice cancel",
-      "PAYMENT_REVERSE": "Reverse all payments"
+      "PAYMENT_REVERSE": "Reverse all payments",
+      "SHIFT_CLOSE_VARIANCE": "Shift close cash variance"
     },
     "pinSet": "Supervisor PIN is set",
     "pinUnset": "No supervisor PIN yet",
     "pinPlaceholder": "New PIN (4–8 digits)",
     "setPin": "Set PIN",
     "clearPin": "Clear PIN",
+    "nfcSet": "{count} NFC badge(s) registered",
+    "nfcUnset": "No NFC badges yet",
+    "nfcHint": "Store a badge secret (UID or NDEF text). Raw values are hashed — never stored. Web NFC needs Android Chrome + HTTPS.",
+    "nfcPlaceholder": "Badge secret / UID",
+    "addNfc": "Add badge",
+    "clearNfc": "Clear badges",
+    "nfcBadges": "NFC badges",
+    "varianceLimit": "Shift cash variance limit",
+    "varianceHint": "Closing cash differing more than this (default 1.000) requires dual-control approval",
+    "whatsappPhones": "WhatsApp OTP notify phones",
+    "whatsappPhonesPlaceholder": "9689xxxxxxx separated by comma or newline",
+    "whatsappReady": "WhatsApp provider configured",
+    "whatsappNotConfigured": "WhatsApp provider not configured on server",
+    "saveWhatsapp": "Save WhatsApp phones",
     "saved": "Security settings saved",
     "adminOnly": "Only company ADMIN can change these settings"
   },

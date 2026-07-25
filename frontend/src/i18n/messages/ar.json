@@ -52,7 +52,7 @@
   "dualControl": {
     "title": "الحماية المزدوجة",
     "desc": "تتطلب تأكيد المدير أو كلمة مرور/رمز مشرف قبل الإجراءات الحساسة",
-    "futureNote": "موافقة واتساب OTP وNFC مخططة لمرحلة لاحقة.",
+    "futureNote": "واتساب OTP اختياري عبر البيئة؛ يمكن تسجيل شارات NFC أدناه. الدفع باللمس عبر شريك لاحقاً.",
     "enabled": "تفعيل الحماية المزدوجة",
     "actions": "الإجراءات المحمية",
     "action": {
@@ -62,13 +62,28 @@
       "STOCK_ADJUST": "تعديل المخزون",
       "STOCK_TRANSFER": "تحويل المخزون",
       "INVOICE_CANCEL": "إلغاء فاتورة",
-      "PAYMENT_REVERSE": "عكس جميع الدفعات"
+      "PAYMENT_REVERSE": "عكس جميع الدفعات",
+      "SHIFT_CLOSE_VARIANCE": "فارق نقد إغلاق الوردية"
     },
     "pinSet": "رمز المشرف مضبوط",
     "pinUnset": "لا يوجد رمز مشرف بعد",
     "pinPlaceholder": "رمز جديد (4–8 أرقام)",
     "setPin": "تعيين الرمز",
     "clearPin": "مسح الرمز",
+    "nfcSet": "شارات NFC مسجّلة: {count}",
+    "nfcUnset": "لا شارات NFC بعد",
+    "nfcHint": "احفظ سر الشارة (UID أو نص NDEF). تُخزَّن التجزئة فقط. Web NFC على Android Chrome وHTTPS.",
+    "nfcPlaceholder": "سر الشارة / UID",
+    "addNfc": "إضافة شارة",
+    "clearNfc": "مسح الشارات",
+    "nfcBadges": "شارات NFC",
+    "varianceLimit": "حد فارق نقد الوردية",
+    "varianceHint": "إذا اختلف نقد الإغلاق عن المتوقع بأكثر من هذا (افتراضي 1.000) تُطلب موافقة مزدوجة",
+    "whatsappPhones": "أرقام واتساب للموافقة (OTP)",
+    "whatsappPhonesPlaceholder": "9689xxxxxxx مفصولة بفاصلة أو سطر",
+    "whatsappReady": "مزوّد واتساب مهيأ",
+    "whatsappNotConfigured": "مزوّد واتساب غير مهيأ في الخادم",
+    "saveWhatsapp": "حفظ أرقام واتساب",
     "saved": "تم حفظ إعدادات الحماية",
     "adminOnly": "تعديل هذه الإعدادات متاح لمدير الشركة فقط"
   },

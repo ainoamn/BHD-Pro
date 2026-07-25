@@ -4,12 +4,14 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Clock3, Loader2, Printer } from "lucide-react";
 import toast from "react-hot-toast";
-import api from "@/lib/api";
+import api, { DualApprovalPayload } from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
 import { useAuthStore } from "@/store/auth";
 import { posCopy } from "@/lib/pos-copy";
+import { DualApprovalModal } from "@/components/security/dual-approval-modal";
 
 const POS_WAREHOUSE_KEY = "hisaby-pos-warehouse-id";
+const DEFAULT_VARIANCE_LIMIT = 1;
 
 type ZReport = {
   salesTotal?: number;
@@ -28,7 +30,11 @@ type ZReport = {
   variance?: number | null;
 };
 
-function printZReport(t: (typeof posCopy)["en"], report: ZReport, companyName?: string) {
+function printZReport(
+  t: (typeof posCopy)["en"] | (typeof posCopy)["ar"],
+  report: ZReport,
+  companyName?: string,
+) {
   const rows = [
     [t.openingFloat, report.openingCash ?? report.openingFloat ?? 0],
     [t.zSales, report.salesTotal ?? 0],
@@ -60,9 +66,19 @@ function printZReport(t: (typeof posCopy)["en"], report: ZReport, companyName?: 
   w.document.close();
 }
 
+function isDualControlRequired(err: {
+  response?: { status?: number; data?: { message?: string | string[] } };
+}) {
+  const status = err.response?.status;
+  const raw = err.response?.data?.message;
+  const msg = Array.isArray(raw) ? raw.join(" ") : String(raw || "");
+  return status === 403 && /dual control/i.test(msg);
+}
+
 export default function PosShiftsPage() {
   const locale = useLocaleStore((s) => s.locale);
   const company = useAuthStore((s) => s.company);
+  const user = useAuthStore((s) => s.user);
   const t = posCopy[locale === "en" ? "en" : "ar"];
   const qc = useQueryClient();
   const [openingFloat, setOpeningFloat] = useState("0");
@@ -70,6 +86,9 @@ export default function PosShiftsPage() {
   const [lastZ, setLastZ] = useState<ZReport | null>(null);
   const [warehouseId, setWarehouseId] = useState("");
   const [warehouses, setWarehouses] = useState<{ id: string; name: string; code: string }[]>([]);
+  const [varianceLimit, setVarianceLimit] = useState(DEFAULT_VARIANCE_LIMIT);
+  const [approvalOpen, setApprovalOpen] = useState(false);
+  const [pendingCloseCash, setPendingCloseCash] = useState<number | null>(null);
 
   useEffect(() => {
     try {
@@ -84,6 +103,13 @@ export default function PosShiftsPage() {
           (w) => w.isActive !== false,
         );
         setWarehouses(rows);
+      } catch {
+        /* ignore */
+      }
+      try {
+        const sec = await api.getCompanySecurity();
+        const limit = (sec.data as { shiftVarianceLimit?: number })?.shiftVarianceLimit;
+        if (typeof limit === "number" && limit >= 0) setVarianceLimit(limit);
       } catch {
         /* ignore */
       }
@@ -144,24 +170,51 @@ export default function PosShiftsPage() {
   });
 
   const closeMut = useMutation({
-    mutationFn: () =>
+    mutationFn: (args: { closingCash: number; approval?: DualApprovalPayload }) =>
       api.closePosShift({
-        closingCash: Number(closingCash) || 0,
+        closingCash: args.closingCash,
         warehouseId: warehouseId || undefined,
+        approval: args.approval,
       }),
     onSuccess: (res) => {
       toast.success(t.shiftClosed);
       setClosingCash("");
+      setApprovalOpen(false);
+      setPendingCloseCash(null);
       const z = (res.data as { zReport?: ZReport })?.zReport || null;
       setLastZ(z);
       if (z) printZReport(t, z, company?.name);
       qc.invalidateQueries({ queryKey: ["pos-shift-current"] });
       qc.invalidateQueries({ queryKey: ["pos-shifts"] });
     },
-    onError: (err: { response?: { data?: { message?: string } } }) => {
-      toast.error(err.response?.data?.message || t.shiftFail);
+    onError: (err: {
+      response?: { status?: number; data?: { message?: string | string[] } };
+    }) => {
+      if (isDualControlRequired(err) && pendingCloseCash != null) {
+        setApprovalOpen(true);
+        toast.error(t.varianceNeedApproval);
+        return;
+      }
+      const raw = err.response?.data?.message;
+      const msg = Array.isArray(raw) ? raw[0] : raw;
+      toast.error(msg || t.shiftFail);
     },
   });
+
+  const live = data?.live as ZReport | undefined;
+  const expectedCash = Number(live?.expectedCash ?? 0);
+
+  const requestClose = () => {
+    const cash = Number(closingCash);
+    if (Number.isNaN(cash) || cash < 0) return;
+    const variance = Math.abs(cash - expectedCash);
+    setPendingCloseCash(cash);
+    if (variance > varianceLimit) {
+      setApprovalOpen(true);
+      return;
+    }
+    closeMut.mutate({ closingCash: cash });
+  };
 
   const shift = data?.shift as
     | {
@@ -171,7 +224,6 @@ export default function PosShiftsPage() {
       }
     | null
     | undefined;
-  const live = data?.live as ZReport | undefined;
 
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-3xl mx-auto">
@@ -255,7 +307,7 @@ export default function PosShiftsPage() {
             <button
               type="button"
               disabled={closeMut.isPending || closingCash === ""}
-              onClick={() => closeMut.mutate()}
+              onClick={requestClose}
               className="h-10 px-4 rounded-lg bg-rose-500/90 text-white text-sm font-semibold disabled:opacity-50"
             >
               {closeMut.isPending ? "…" : t.closeShift}
@@ -334,6 +386,28 @@ export default function PosShiftsPage() {
           {!history.length ? <p className="text-sm text-slate-500">{t.noShiftHistory}</p> : null}
         </ul>
       </div>
+
+      <DualApprovalModal
+        open={approvalOpen}
+        action="SHIFT_CLOSE_VARIANCE"
+        actionLabel={t.varianceNeedApproval}
+        payload={{
+          closingCash: pendingCloseCash,
+          expectedCash,
+          varianceLimit,
+        }}
+        summary={`${t.closeShift}: ${pendingCloseCash ?? "—"} vs ${expectedCash}`}
+        actorRole={user?.role}
+        busy={closeMut.isPending}
+        onCancel={() => {
+          setApprovalOpen(false);
+          setPendingCloseCash(null);
+        }}
+        onConfirm={async (approval) => {
+          if (pendingCloseCash == null) return;
+          await closeMut.mutateAsync({ closingCash: pendingCloseCash, approval });
+        }}
+      />
     </div>
   );
 }

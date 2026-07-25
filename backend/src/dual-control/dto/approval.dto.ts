@@ -2,10 +2,12 @@ import { Type } from 'class-transformer';
 import {
   IsBoolean,
   IsIn,
+  IsNumber,
   IsObject,
   IsOptional,
   IsString,
   Matches,
+  Min,
   MinLength,
   MaxLength,
   ValidateNested,
@@ -18,6 +20,7 @@ export const DUAL_APPROVAL_METHODS = [
   'PIN',
   'APPROVAL_REQUEST',
   'WHATSAPP_OTP',
+  'NFC',
 ] as const;
 export type DualApprovalMethod = (typeof DUAL_APPROVAL_METHODS)[number];
 
@@ -52,6 +55,14 @@ export class DualApprovalDto {
   @IsOptional()
   @IsString()
   otp?: string;
+
+  /** Raw NFC badge UID/text — compared to bcrypt hashes; never stored */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MinLength(4)
+  @MaxLength(128)
+  badgeSecret?: string;
 }
 
 export const DUAL_CONTROL_ACTIONS = [
@@ -62,6 +73,7 @@ export const DUAL_CONTROL_ACTIONS = [
   'STOCK_TRANSFER',
   'INVOICE_CANCEL',
   'PAYMENT_REVERSE',
+  'SHIFT_CLOSE_VARIANCE',
 ] as const;
 export type DualControlAction = (typeof DUAL_CONTROL_ACTIONS)[number];
 
@@ -93,6 +105,10 @@ export class DualControlActionsDto {
   @IsOptional()
   @IsBoolean()
   PAYMENT_REVERSE?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  SHIFT_CLOSE_VARIANCE?: boolean;
 }
 
 export class UpdateSecurityConfigDto {
@@ -126,6 +142,27 @@ export class UpdateSecurityConfigDto {
   @ApiPropertyOptional({ type: [String] })
   @IsOptional()
   whatsappNotifyPhones?: string[];
+
+  /** Raw NFC badge secret — hashed and appended to nfcBadgeHashes (never stored raw) */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MinLength(4)
+  @MaxLength(128)
+  addNfcBadgeSecret?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  clearNfcBadges?: boolean;
+
+  /** Max |closingCash − expectedCash| in company currency before SHIFT_CLOSE_VARIANCE (default 1.000) */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  shiftVarianceLimit?: number;
 }
 
 export class CreateApprovalRequestDto {

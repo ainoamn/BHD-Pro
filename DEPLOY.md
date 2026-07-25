@@ -69,15 +69,17 @@ Migration طلبات الموافقة الأونلاين: `20260725160000_approv
 Migration دور الكاشير + الورديات + OTP: `20260725170000_cashier_shifts_otp`  
 (تضيف `CASHIER` إلى `UserRole`، جدول `pos_shifts`، عمود `invoices.pos_shift_id`، وجدول `dual_control_otps`).
 
-**Dual control:** عند تفعيل الحماية (الافتراضي عند غياب الإعداد)، تتطلب إجراءات مثل إلغاء بيع الكاشير، الاسترداد الجزئي، تجاوز السعر، تعديل/تحويل المخزون، إلغاء فاتورة، وعكس الدفعات موافقة:
+**Dual control:** عند تفعيل الحماية (الافتراضي عند غياب الإعداد)، تتطلب إجراءات مثل إلغاء بيع الكاشير، الاسترداد الجزئي، تجاوز السعر، تعديل/تحويل المخزون، إلغاء فاتورة، وعكس الدفعات، و**فارق إغلاق الوردية** موافقة:
 - `SELF_CONFIRM` للمدير/ADMIN
 - أو `PASSWORD` لمشرف آخر في نفس الشركة
 - أو `PIN` إن وُجد
 - أو **`APPROVAL_REQUEST`** — طلب أونلاين يوافق عليه المدير من `/pos/approvals` (جلسة المدير هي الموافقة؛ بدون كلمة مرور إضافية)
+- أو **`WHATSAPP_OTP`** عند ضبط أسرار واتساب
+- أو **`NFC`** عند تسجيل شارات (تجزئة bcrypt في `security_config` — بدون migration جديدة)
 
-مرحلة لاحقة: WhatsApp OTP / NFC.
+إعدادات إضافية في `security_config`: `nfcBadgeHashes`, `shiftVarianceLimit` (افتراضي 1.000).
 
-**كاميرا الباركود / PWA:** الواجهة تستخدم `BarcodeDetector` مع احتياطي `@zxing/browser`. الـ PWA يخزّن shell خفيف لـ `/pos` و`/dashboard` مع اختصارات كاشير/محاسبة في `manifest.webmanifest`. يتطلب HTTPS (أو localhost) لإذن الكاميرا.
+**كاميرا الباركود / PWA:** الواجهة تستخدم `BarcodeDetector` مع احتياطي `@zxing/browser`. الـ PWA يخزّن shell خفيف لـ `/pos` و`/dashboard` مع اختصارات كاشير/محاسبة في `manifest.webmanifest`. يتطلب HTTPS (أو localhost) لإذن الكاميرا. Web NFC للموافقة يعمل على Android Chrome + HTTPS فقط.
 
 **Keep-warm (Render Free):** workflow GitHub `.github/workflows/keep-warm.yml` ينادي `/api/health` كل 10 دقائق. يمكن ضبط السرّ `API_HEALTH_URL` إن اختلف عنوان الـ API.
 
@@ -107,8 +109,10 @@ Migration دور الكاشير + الورديات + OTP: `20260725170000_cashie
 | سلات معلّقة متعددة الأجهزة (`pos_drafts`) | جاهز — طبّق `20260725140000_pos_drafts` |
 | موافقات أونلاين (`approval_requests`) | جاهز — طبّق `20260725160000_approval_requests` |
 | دور CASHIER + ورديات Z + استرداد جزئي | جاهز — طبّق `20260725170000_cashier_shifts_otp` |
+| شارة NFC + فارق وردية + مزامنة أوفلاين + طباعة حرارية | جاهز في الواجهة/API داخل `security_config` (بدون migration جديدة) |
 | كاميرا باركود + اختصارات PWA | جاهز في الواجهة (HTTPS للكاميرا) |
 | الفوترة الإلكترونية OTA | غير مكتملة |
 | الشات الذكي | ردود ثابتة |
+| دفع NFC/محافظ شريك + Capacitor | مخطّط |
 
 **التوصية:** اربط الدومين وشغّل بيتا، ثم اختبر الدفع على `hisaby.pro`.

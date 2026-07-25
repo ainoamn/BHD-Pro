@@ -1,14 +1,25 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Calculator, Clock3, Link2, Link2Off, LogOut, Package, Settings2, ShieldCheck } from "lucide-react";
+import {
+  Calculator,
+  Clock3,
+  CloudUpload,
+  Link2,
+  Link2Off,
+  LogOut,
+  Package,
+  Settings2,
+  ShieldCheck,
+} from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 import { useLocaleStore } from "@/store/locale";
 import { posCopy } from "@/lib/pos-copy";
+import { flushPendingPosSales, pendingSalesCount } from "@/lib/pos-offline-sync";
 
 export function PosShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -20,12 +31,58 @@ export function PosShell({ children }: { children: React.ReactNode }) {
   const [linked, setLinked] = useState<boolean | null>(null);
   const [shiftOpen, setShiftOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [syncing, setSyncing] = useState(false);
   const isLogin = pathname?.startsWith("/pos/login");
   const canSeeApprovals = user?.role === "ADMIN" || user?.role === "MANAGER";
+
+  const refreshPending = useCallback(async () => {
+    try {
+      const n = await pendingSalesCount();
+      setPendingCount(n);
+    } catch {
+      setPendingCount(0);
+    }
+  }, []);
+
+  const runFlush = useCallback(
+    async (silent = false) => {
+      if (syncing) return;
+      setSyncing(true);
+      try {
+        const result = await flushPendingPosSales();
+        await refreshPending();
+        if (result.synced > 0) {
+          toast.success(t.syncOk);
+        } else if (result.failed && !silent) {
+          toast.error(t.syncFail);
+        }
+      } catch {
+        if (!silent) toast.error(t.syncFail);
+      } finally {
+        setSyncing(false);
+      }
+    },
+    [refreshPending, syncing, t.syncFail, t.syncOk],
+  );
 
   useEffect(() => {
     setHydrated(true);
   }, []);
+
+  useEffect(() => {
+    if (!hydrated || isLogin) return;
+    void refreshPending();
+    const onOnline = () => {
+      void runFlush(true);
+    };
+    window.addEventListener("online", onOnline);
+    const id = window.setInterval(() => void refreshPending(), 15000);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.clearInterval(id);
+    };
+  }, [hydrated, isLogin, refreshPending, runFlush]);
 
   useEffect(() => {
     if (!hydrated || isLogin) return;
@@ -111,6 +168,19 @@ export function PosShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
           <div className="flex items-center gap-1.5 sm:gap-2">
+            {pendingCount > 0 ? (
+              <button
+                type="button"
+                onClick={() => void runFlush(false)}
+                disabled={syncing}
+                title={t.pendingOffline}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500/15 px-2.5 py-1.5 text-xs font-semibold text-amber-200 hover:bg-amber-500/25 disabled:opacity-50"
+              >
+                <CloudUpload className="w-4 h-4" />
+                <span className="tabular-nums">{pendingCount}</span>
+                <span className="hidden sm:inline">{t.syncNow}</span>
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={() => setLocale(locale === "en" ? "ar" : "en")}

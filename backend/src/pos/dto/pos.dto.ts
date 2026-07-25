@@ -143,6 +143,11 @@ export class ClosePosShiftDto {
   @IsOptional()
   @IsUUID()
   warehouseId?: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DualApprovalDto)
+  approval?: DualApprovalDto;
 }
 
 export class LinkPosDto {

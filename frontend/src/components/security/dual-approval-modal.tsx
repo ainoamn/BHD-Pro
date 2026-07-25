@@ -5,6 +5,7 @@ import { Loader2, ShieldCheck, Wifi, X } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
+import { NfcBadgeReader } from "@/components/security/nfc-badge-reader";
 
 export type DualControlAction =
   | "POS_VOID"
@@ -13,15 +14,17 @@ export type DualControlAction =
   | "STOCK_ADJUST"
   | "STOCK_TRANSFER"
   | "INVOICE_CANCEL"
-  | "PAYMENT_REVERSE";
+  | "PAYMENT_REVERSE"
+  | "SHIFT_CLOSE_VARIANCE";
 
 export type DualApprovalPayload = {
-  method: "SELF_CONFIRM" | "PASSWORD" | "PIN" | "APPROVAL_REQUEST" | "WHATSAPP_OTP";
+  method: "SELF_CONFIRM" | "PASSWORD" | "PIN" | "APPROVAL_REQUEST" | "WHATSAPP_OTP" | "NFC";
   email?: string;
   password?: string;
   pin?: string;
   approvalRequestId?: string;
   otp?: string;
+  badgeSecret?: string;
 };
 
 type ActorRole = string | undefined;
@@ -50,6 +53,7 @@ const copy = {
     tabPin: "رمز PIN",
     tabOnline: "طلب موافقة أونلاين",
     tabWhatsapp: "واتساب OTP",
+    tabNfc: "شارة NFC",
     email: "بريد المشرف",
     password: "كلمة المرور",
     pin: "رمز المشرف (4–8 أرقام)",
@@ -75,6 +79,7 @@ const copy = {
     tabPin: "PIN",
     tabOnline: "Request online approval",
     tabWhatsapp: "WhatsApp OTP",
+    tabNfc: "NFC badge",
     email: "Supervisor email",
     password: "Password",
     pin: "Supervisor PIN (4–8 digits)",
@@ -97,6 +102,7 @@ function isApprover(role?: string) {
 }
 
 type WaitMode = "idle" | "waiting" | "done";
+type Mode = "PASSWORD" | "PIN" | "ONLINE" | "WHATSAPP" | "NFC";
 
 export function DualApprovalModal({
   open,
@@ -114,7 +120,7 @@ export function DualApprovalModal({
   const approver = isApprover(actorRole);
 
   const [checked, setChecked] = useState(false);
-  const [mode, setMode] = useState<"PASSWORD" | "PIN" | "ONLINE" | "WHATSAPP">("PASSWORD");
+  const [mode, setMode] = useState<Mode>("PASSWORD");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [pin, setPin] = useState("");
@@ -228,7 +234,16 @@ export function DualApprovalModal({
       await onConfirm({ method: "WHATSAPP_OTP", otp: otp.trim() });
       return;
     }
+    if (mode === "NFC") {
+      return;
+    }
     await onConfirm({ method: "PIN", pin: pin.trim() });
+  };
+
+  const onNfcRead = async (badgeSecret: string) => {
+    if (busy || confirmedRef.current) return;
+    confirmedRef.current = true;
+    await onConfirm({ method: "NFC", badgeSecret });
   };
 
   const sendWhatsappOtp = async () => {
@@ -245,6 +260,10 @@ export function DualApprovalModal({
   };
 
   const showOnline = !!action;
+  const tabClass = (active: boolean) =>
+    `flex-1 min-w-[4.5rem] px-1.5 py-2 text-[11px] font-semibold ${
+      active ? "bg-sky-500/20 text-sky-200" : "text-slate-400 hover:bg-white/5"
+    }`;
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60">
@@ -350,55 +369,26 @@ export function DualApprovalModal({
             </>
           ) : (
             <>
-              <div className="flex rounded-lg overflow-hidden border border-white/10">
-                <button
-                  type="button"
-                  onClick={() => setMode("PASSWORD")}
-                  className={`flex-1 px-2 py-2 text-[11px] font-semibold ${
-                    mode === "PASSWORD"
-                      ? "bg-sky-500/20 text-sky-200"
-                      : "text-slate-400 hover:bg-white/5"
-                  }`}
-                >
+              <div className="flex flex-wrap rounded-lg overflow-hidden border border-white/10">
+                <button type="button" onClick={() => setMode("PASSWORD")} className={tabClass(mode === "PASSWORD")}>
                   {t.tabPassword}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setMode("PIN")}
-                  className={`flex-1 px-2 py-2 text-[11px] font-semibold ${
-                    mode === "PIN"
-                      ? "bg-sky-500/20 text-sky-200"
-                      : "text-slate-400 hover:bg-white/5"
-                  }`}
-                >
+                <button type="button" onClick={() => setMode("PIN")} className={tabClass(mode === "PIN")}>
                   {t.tabPin}
                 </button>
                 {showOnline ? (
-                  <button
-                    type="button"
-                    onClick={() => setMode("ONLINE")}
-                    className={`flex-1 px-2 py-2 text-[11px] font-semibold ${
-                      mode === "ONLINE"
-                        ? "bg-sky-500/20 text-sky-200"
-                        : "text-slate-400 hover:bg-white/5"
-                    }`}
-                  >
+                  <button type="button" onClick={() => setMode("ONLINE")} className={tabClass(mode === "ONLINE")}>
                     {t.tabOnline}
                   </button>
                 ) : null}
                 {showOnline ? (
-                  <button
-                    type="button"
-                    onClick={() => setMode("WHATSAPP")}
-                    className={`flex-1 px-2 py-2 text-[11px] font-semibold ${
-                      mode === "WHATSAPP"
-                        ? "bg-sky-500/20 text-sky-200"
-                        : "text-slate-400 hover:bg-white/5"
-                    }`}
-                  >
+                  <button type="button" onClick={() => setMode("WHATSAPP")} className={tabClass(mode === "WHATSAPP")}>
                     {t.tabWhatsapp}
                   </button>
                 ) : null}
+                <button type="button" onClick={() => setMode("NFC")} className={tabClass(mode === "NFC")}>
+                  {t.tabNfc}
+                </button>
               </div>
 
               {mode === "PASSWORD" ? (
@@ -458,39 +448,53 @@ export function DualApprovalModal({
                     />
                   </div>
                 </div>
+              ) : mode === "NFC" ? (
+                <NfcBadgeReader active={open && mode === "NFC"} onRead={onNfcRead} disabled={!!busy} />
               ) : (
                 <p className="text-xs text-slate-400">{t.waitingHint}</p>
               )}
 
-              <div className="flex gap-2 justify-end">
-                <button
-                  type="button"
-                  onClick={onCancel}
-                  className="px-3 py-2 text-sm rounded-lg text-slate-300 hover:bg-white/5"
-                >
-                  {t.cancel}
-                </button>
-                <button
-                  type="button"
-                  disabled={
-                    busy ||
-                    requestBusy ||
-                    otpBusy ||
-                    (mode === "PASSWORD"
-                      ? !email.trim() || !password
-                      : mode === "PIN"
-                        ? pin.length < 4
-                        : mode === "WHATSAPP"
-                          ? otp.length !== 6
-                          : !action)
-                  }
-                  onClick={submitOther}
-                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-amber-500 text-slate-950 disabled:opacity-50"
-                >
-                  {(busy || requestBusy) && <Loader2 className="w-4 h-4 animate-spin" />}
-                  {mode === "ONLINE" ? t.tabOnline : t.submit}
-                </button>
-              </div>
+              {mode !== "NFC" ? (
+                <div className="flex gap-2 justify-end">
+                  <button
+                    type="button"
+                    onClick={onCancel}
+                    className="px-3 py-2 text-sm rounded-lg text-slate-300 hover:bg-white/5"
+                  >
+                    {t.cancel}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={
+                      busy ||
+                      requestBusy ||
+                      otpBusy ||
+                      (mode === "PASSWORD"
+                        ? !email.trim() || !password
+                        : mode === "PIN"
+                          ? pin.length < 4
+                          : mode === "WHATSAPP"
+                            ? otp.length !== 6
+                            : !action)
+                    }
+                    onClick={submitOther}
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-amber-500 text-slate-950 disabled:opacity-50"
+                  >
+                    {(busy || requestBusy) && <Loader2 className="w-4 h-4 animate-spin" />}
+                    {mode === "ONLINE" ? t.tabOnline : t.submit}
+                  </button>
+                </div>
+              ) : (
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={onCancel}
+                    className="px-3 py-2 text-sm rounded-lg text-slate-300 hover:bg-white/5"
+                  >
+                    {t.cancel}
+                  </button>
+                </div>
+              )}
             </>
           )}
         </div>

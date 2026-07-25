@@ -2,11 +2,13 @@ import axios, { AxiosInstance, AxiosError, AxiosRequestConfig } from 'axios';
 import { useAuthStore } from '@/store/auth';
 
 export type DualApprovalPayload = {
-  method: 'SELF_CONFIRM' | 'PASSWORD' | 'PIN' | 'APPROVAL_REQUEST';
+  method: 'SELF_CONFIRM' | 'PASSWORD' | 'PIN' | 'APPROVAL_REQUEST' | 'WHATSAPP_OTP' | 'NFC';
   email?: string;
   password?: string;
   pin?: string;
   approvalRequestId?: string;
+  otp?: string;
+  badgeSecret?: string;
 };
 
 /** Prefer same-origin Next rewrite so httpOnly cookies work on localhost + production */
@@ -1295,7 +1297,12 @@ class ApiClient {
     return this.post('/pos/shifts/open', data || {});
   }
 
-  closePosShift(data: { closingCash: number; notes?: string; warehouseId?: string }) {
+  closePosShift(data: {
+    closingCash: number;
+    notes?: string;
+    warehouseId?: string;
+    approval?: DualApprovalPayload;
+  }) {
     return this.post<{
       shift: { id: string; closedAt?: string; closingCash?: number | string };
       zReport: Record<string, unknown>;
