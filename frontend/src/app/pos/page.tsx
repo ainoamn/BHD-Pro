@@ -897,7 +897,7 @@ export default function PosCheckoutPage() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [cart.length, t.clearConfirm, t.stock, focusScan, shortcutsOpen, parkEdit]);
+  }, [cart.length, t.clearConfirm, t.stock, focusScan, shortcutsOpen, parkEdit, loadRecentSales]);
 
   const onWarehouseChange = (id: string) => {
     setWarehouseId(id);
@@ -2184,8 +2184,19 @@ export default function PosCheckoutPage() {
                 </span>
               ) : null}
             </div>
-            <p className="text-xs font-bold text-slate-300">{t.recentSales}</p>
-          </div>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-bold text-slate-300">{t.recentSales}</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setReceiptsOpen(true);
+                  void loadRecentSales();
+                }}
+                className="h-7 px-2 rounded-lg border border-white/15 text-[10px] font-semibold text-slate-300 hover:bg-white/5"
+              >
+                {t.receiptsDrawer} · F7
+              </button>
+            </div>
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -2530,11 +2541,16 @@ export default function PosCheckoutPage() {
                       ),
                     );
                   }}
-                  className={`w-24 h-8 px-2 rounded-md bg-black/30 border border-white/10 text-sm text-end text-white ${
-                    !canOverridePrice ? "opacity-60 cursor-not-allowed" : ""
-                  }`}
+                  className={`w-24 h-8 px-2 rounded-md bg-black/30 border text-sm text-end text-white ${
+                    Math.abs(l.unitPrice - (l.catalogPrice ?? l.unitPrice)) > 0.001
+                      ? "border-amber-400/50 text-amber-100"
+                      : "border-white/10"
+                  } ${!canOverridePrice ? "opacity-60 cursor-not-allowed" : ""}`}
                 />
               </div>
+              {Math.abs(l.unitPrice - (l.catalogPrice ?? l.unitPrice)) > 0.001 ? (
+                <p className="mt-1 text-[10px] text-amber-300/90">{t.priceOverrideHint}</p>
+              ) : null}
               <div className="mt-2 flex items-center justify-between gap-2">
                 <label className="text-[11px] text-slate-500 shrink-0">{t.discount}</label>
                 <input
