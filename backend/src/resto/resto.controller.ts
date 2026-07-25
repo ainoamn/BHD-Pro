@@ -484,6 +484,16 @@ export class RestoController {
     return this.resto.getFlashReport(user.companyId);
   }
 
+  @Get('reports/live')
+  @Roles(...RESTO_STAFF)
+  @ApiOperation({
+    summary:
+      'Live section performance board (open checks + today’s closed KPIs)',
+  })
+  reportsLive(@CurrentUser() user: TokenPayload) {
+    return this.resto.getLiveSectionBoard(user.companyId);
+  }
+
   @Get('staff')
   @Roles(...RESTO_STAFF)
   @ApiOperation({ summary: 'List floor staff for tip assignee / sections' })

@@ -2191,6 +2191,57 @@ class ApiClient {
     >('/resto/reports/flash');
   }
 
+  getRestoLiveBoard() {
+    return this.get<{
+      asOf: string;
+      businessDayFrom: string;
+      timezone: string;
+      companyName: string;
+      house: {
+        openTables: number;
+        openCovers: number;
+        openChecks: number;
+        openRevenue: number;
+        closedOrders: number;
+        closedCovers: number;
+        revenue: number;
+        avgTicket: number;
+        tipsTotal: number;
+      };
+      sections: Array<{
+        zoneId: string;
+        zoneName: string;
+        zoneNameEn: string | null;
+        server: { id: string; name: string } | null;
+        openTables: number;
+        openCovers: number;
+        openChecks: number;
+        openRevenue: number;
+        avgOccupiedMinutes: number | null;
+        closedToday: {
+          orders: number;
+          covers: number;
+          revenue: number;
+          avgTicket: number;
+          tips: number;
+        };
+      }>;
+      offFloor: {
+        openChecks: number;
+        openCovers: number;
+        openRevenue: number;
+        takeawayOpen: number;
+        deliveryOpen: number;
+        closedToday: {
+          orders: number;
+          covers: number;
+          revenue: number;
+          tips: number;
+        };
+      };
+    }>('/resto/reports/live');
+  }
+
   getRestoStaff() {
     return this.get<{
       staff: Array<{

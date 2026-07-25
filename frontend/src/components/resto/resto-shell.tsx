@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  Activity,
   BarChart3,
   Calculator,
   CalendarDays,
@@ -145,6 +146,12 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
       label: t.waitlist,
       icon: Users,
       active: pathname?.startsWith("/resto/waitlist"),
+    },
+    {
+      href: "/resto/board",
+      label: t.liveBoard,
+      icon: Activity,
+      active: pathname?.startsWith("/resto/board"),
     },
     {
       href: "/resto/reports",

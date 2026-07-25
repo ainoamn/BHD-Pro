@@ -2914,6 +2914,352 @@ export class RestoService {
     };
   }
 
+  /** Midnight in company timezone → UTC Date */
+  private startOfDayInZone(timeZone: string, now = new Date()): Date {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      hour: 'numeric',
+      minute: 'numeric',
+      second: 'numeric',
+      hourCycle: 'h23',
+      hour12: false,
+    }).formatToParts(now);
+    const num = (type: string) =>
+      Number(parts.find((p) => p.type === type)?.value || 0);
+    let hour = num('hour');
+    if (hour === 24) hour = 0;
+    const ms =
+      hour * 3600000 +
+      num('minute') * 60000 +
+      num('second') * 1000 +
+      now.getMilliseconds();
+    return new Date(now.getTime() - ms);
+  }
+
+  private tipFromInvoiceFields(
+    fields: Record<string, unknown>,
+    items: Array<{ description: string | null; unitPrice: unknown; quantity: unknown }>,
+  ): number {
+    let tip =
+      typeof fields.tipAmount === 'number'
+        ? fields.tipAmount
+        : Number(fields.tipAmount) || 0;
+    if (!(tip > 0.0005)) {
+      for (const li of items || []) {
+        const d = String(li.description || '').toLowerCase();
+        if (d.includes('tip') || d.includes('بقشيش')) {
+          tip += Number(li.unitPrice) * Number(li.quantity);
+        }
+      }
+    }
+    return tip;
+  }
+
+  /**
+   * Live floor board — open checks + today's closed KPIs by section/server.
+   * Poll-friendly; no new tables.
+   */
+  async getLiveSectionBoard(companyId: string) {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { timezone: true, name: true },
+    });
+    if (!company) throw new NotFoundException('Company not found');
+    const timezone = company.timezone || 'Asia/Muscat';
+    const businessDayFrom = this.startOfDayInZone(timezone);
+    const asOf = new Date();
+
+    const [zones, assignments, openOrders, closedToday] = await Promise.all([
+      this.prisma.restoZone.findMany({
+        where: { companyId },
+        orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+        select: {
+          id: true,
+          name: true,
+          nameEn: true,
+          tables: {
+            select: {
+              id: true,
+              code: true,
+              seats: true,
+              status: true,
+            },
+          },
+        },
+      }),
+      this.prisma.restoServerSection.findMany({
+        where: { companyId, endsAt: null },
+        include: {
+          user: { select: { id: true, name: true, email: true } },
+        },
+      }),
+      this.prisma.restoOrder.findMany({
+        where: {
+          companyId,
+          status: { in: ACTIVE_ORDER },
+        },
+        include: {
+          table: { select: { id: true, code: true, zoneId: true } },
+          items: {
+            where: { status: { not: RestoOrderItemStatus.CANCELLED } },
+            select: {
+              qty: true,
+              unitPrice: true,
+              isComp: true,
+              status: true,
+            },
+          },
+        },
+        take: 500,
+      }),
+      this.prisma.restoOrder.findMany({
+        where: {
+          companyId,
+          status: RestoOrderStatus.CLOSED,
+          invoiceId: { not: null },
+          closedAt: { gte: businessDayFrom },
+        },
+        include: {
+          table: { select: { id: true, code: true, zoneId: true } },
+          items: {
+            where: {
+              status: { not: RestoOrderItemStatus.CANCELLED },
+              isComp: false,
+            },
+            select: { qty: true, unitPrice: true },
+          },
+        },
+        take: 3000,
+      }),
+    ]);
+
+    const serverByZone = new Map(
+      assignments.map((a) => [
+        a.zoneId,
+        {
+          id: a.user.id,
+          name: a.user.name || a.user.email,
+        },
+      ]),
+    );
+
+    const invoiceIds = closedToday
+      .map((o) => o.invoiceId)
+      .filter((id): id is string => !!id);
+    const invoices =
+      invoiceIds.length > 0
+        ? await this.prisma.invoice.findMany({
+            where: { companyId, id: { in: invoiceIds } },
+            select: {
+              id: true,
+              customFieldsJson: true,
+              items: {
+                select: { description: true, unitPrice: true, quantity: true },
+              },
+            },
+          })
+        : [];
+    const tipByInvoice = new Map<string, number>();
+    for (const inv of invoices) {
+      const fields =
+        inv.customFieldsJson &&
+        typeof inv.customFieldsJson === 'object' &&
+        !Array.isArray(inv.customFieldsJson)
+          ? (inv.customFieldsJson as Record<string, unknown>)
+          : {};
+      tipByInvoice.set(
+        inv.id,
+        this.tipFromInvoiceFields(fields, inv.items || []),
+      );
+    }
+
+    type SectionAcc = {
+      zoneId: string;
+      zoneName: string;
+      zoneNameEn: string | null;
+      server: { id: string; name: string } | null;
+      openTables: number;
+      openCovers: number;
+      openChecks: number;
+      openRevenue: number;
+      occupiedSum: number;
+      occupiedN: number;
+      closedOrders: number;
+      closedCovers: number;
+      closedRevenue: number;
+      tips: number;
+    };
+
+    const sections = new Map<string, SectionAcc>();
+    for (const z of zones) {
+      sections.set(z.id, {
+        zoneId: z.id,
+        zoneName: z.name,
+        zoneNameEn: z.nameEn,
+        server: serverByZone.get(z.id) || null,
+        openTables: 0,
+        openCovers: 0,
+        openChecks: 0,
+        openRevenue: 0,
+        occupiedSum: 0,
+        occupiedN: 0,
+        closedOrders: 0,
+        closedCovers: 0,
+        closedRevenue: 0,
+        tips: 0,
+      });
+    }
+
+    const offFloor = {
+      openChecks: 0,
+      openCovers: 0,
+      openRevenue: 0,
+      closedOrders: 0,
+      closedCovers: 0,
+      closedRevenue: 0,
+      tips: 0,
+      takeawayOpen: 0,
+      deliveryOpen: 0,
+    };
+
+    let houseOpenTables = 0;
+    let houseOpenCovers = 0;
+    let houseOpenChecks = 0;
+    let houseOpenRevenue = 0;
+
+    for (const order of openOrders) {
+      const billable = order.items.filter((i) => !i.isComp);
+      const rev = billable.reduce(
+        (s, i) => s + Number(i.qty) * Number(i.unitPrice),
+        0,
+      );
+      const covers = order.guests || 0;
+      const occupiedMinutes = Math.max(
+        0,
+        Math.floor((asOf.getTime() - new Date(order.createdAt).getTime()) / 60000),
+      );
+      houseOpenChecks += 1;
+      houseOpenCovers += covers;
+      houseOpenRevenue += rev;
+
+      const zoneId = order.table?.zoneId;
+      if (zoneId && sections.has(zoneId)) {
+        const sec = sections.get(zoneId)!;
+        sec.openChecks += 1;
+        sec.openCovers += covers;
+        sec.openRevenue += rev;
+        sec.openTables += 1;
+        houseOpenTables += 1;
+        sec.occupiedSum += occupiedMinutes;
+        sec.occupiedN += 1;
+      } else {
+        offFloor.openChecks += 1;
+        offFloor.openCovers += covers;
+        offFloor.openRevenue += rev;
+        if (order.channel === RestoOrderChannel.TAKEAWAY) {
+          offFloor.takeawayOpen += 1;
+        } else if (order.channel === RestoOrderChannel.DELIVERY) {
+          offFloor.deliveryOpen += 1;
+        }
+      }
+    }
+
+    let houseClosedOrders = 0;
+    let houseClosedCovers = 0;
+    let houseRevenue = 0;
+    let houseTips = 0;
+
+    for (const order of closedToday) {
+      const rev = order.items.reduce(
+        (s, i) => s + Number(i.qty) * Number(i.unitPrice),
+        0,
+      );
+      const tip = order.invoiceId
+        ? tipByInvoice.get(order.invoiceId) || 0
+        : 0;
+      const covers = order.guests || 0;
+      houseClosedOrders += 1;
+      houseClosedCovers += covers;
+      houseRevenue += rev;
+      houseTips += tip;
+
+      const zoneId = order.table?.zoneId;
+      if (zoneId && sections.has(zoneId)) {
+        const sec = sections.get(zoneId)!;
+        sec.closedOrders += 1;
+        sec.closedCovers += covers;
+        sec.closedRevenue += rev;
+        // Attribute tip to zone of the table (section board view)
+        sec.tips += tip;
+      } else {
+        offFloor.closedOrders += 1;
+        offFloor.closedCovers += covers;
+        offFloor.closedRevenue += rev;
+        offFloor.tips += tip;
+      }
+    }
+
+    const sectionRows = Array.from(sections.values()).map((s) => ({
+      zoneId: s.zoneId,
+      zoneName: s.zoneName,
+      zoneNameEn: s.zoneNameEn,
+      server: s.server,
+      openTables: s.openTables,
+      openCovers: s.openCovers,
+      openChecks: s.openChecks,
+      openRevenue: Number(s.openRevenue.toFixed(3)),
+      avgOccupiedMinutes:
+        s.occupiedN > 0
+          ? Number((s.occupiedSum / s.occupiedN).toFixed(1))
+          : null,
+      closedToday: {
+        orders: s.closedOrders,
+        covers: s.closedCovers,
+        revenue: Number(s.closedRevenue.toFixed(3)),
+        avgTicket:
+          s.closedOrders > 0
+            ? Number((s.closedRevenue / s.closedOrders).toFixed(3))
+            : 0,
+        tips: Number(s.tips.toFixed(3)),
+      },
+    }));
+
+    return {
+      asOf: asOf.toISOString(),
+      businessDayFrom: businessDayFrom.toISOString(),
+      timezone,
+      companyName: company.name,
+      house: {
+        openTables: houseOpenTables,
+        openCovers: houseOpenCovers,
+        openChecks: houseOpenChecks,
+        openRevenue: Number(houseOpenRevenue.toFixed(3)),
+        closedOrders: houseClosedOrders,
+        closedCovers: houseClosedCovers,
+        revenue: Number(houseRevenue.toFixed(3)),
+        avgTicket:
+          houseClosedOrders > 0
+            ? Number((houseRevenue / houseClosedOrders).toFixed(3))
+            : 0,
+        tipsTotal: Number(houseTips.toFixed(3)),
+      },
+      sections: sectionRows,
+      offFloor: {
+        openChecks: offFloor.openChecks,
+        openCovers: offFloor.openCovers,
+        openRevenue: Number(offFloor.openRevenue.toFixed(3)),
+        takeawayOpen: offFloor.takeawayOpen,
+        deliveryOpen: offFloor.deliveryOpen,
+        closedToday: {
+          orders: offFloor.closedOrders,
+          covers: offFloor.closedCovers,
+          revenue: Number(offFloor.closedRevenue.toFixed(3)),
+          tips: Number(offFloor.tips.toFixed(3)),
+        },
+      },
+    };
+  }
+
   async listRestoStaff(companyId: string) {
     const users = await this.prisma.user.findMany({
       where: {
