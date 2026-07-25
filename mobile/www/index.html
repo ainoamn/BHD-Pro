@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Hisaby POS</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: system-ui, sans-serif;
+        background: #0b1220;
+        color: #e2e8f0;
+        display: grid;
+        place-items: center;
+        min-height: 100vh;
+        padding: 24px;
+        text-align: center;
+      }
+      a {
+        color: #34d399;
+        font-weight: 700;
+      }
+    </style>
+    <script>
+      // Fallback if Capacitor server.url is not applied
+      var target = "https://bhd-pro.vercel.app/pos";
+      setTimeout(function () {
+        if (!window.Capacitor || !window.Capacitor.isNativePlatform || !window.Capacitor.isNativePlatform()) {
+          window.location.replace(target);
+        }
+      }, 400);
+    </script>
+  </head>
+  <body>
+    <div>
+      <h1>كاشير حسابي</h1>
+      <p>جارٍ فتح التطبيق…</p>
+      <p><a href="https://bhd-pro.vercel.app/pos">فتح الكاشير على الويب</a></p>
+    </div>
+  </body>
+</html>

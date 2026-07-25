@@ -15,12 +15,13 @@ import { TokenPayload } from '../auth/interfaces/token-payload.interface';
 import { UserRole } from '@prisma/client';
 import { WhatsappNotifyService } from './whatsapp-notify.service';
 import { EmailNotifyService } from './email-notify.service';
+import { SmsNotifyService } from './sms-notify.service';
 import { StorageService } from '../storage/storage.service';
 
 class TestMessageDto {
   @IsString()
-  @MinLength(5)
-  channel: 'whatsapp' | 'email';
+  @MinLength(3)
+  channel: 'whatsapp' | 'email' | 'sms';
 
   @IsString()
   @MinLength(3)
@@ -39,12 +40,13 @@ export class MessagingController {
   constructor(
     private whatsapp: WhatsappNotifyService,
     private email: EmailNotifyService,
+    private sms: SmsNotifyService,
     private storage: StorageService,
   ) {}
 
   @Get('status')
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
-  @ApiOperation({ summary: 'Integration status for WhatsApp, Email, Storage, Payments env' })
+  @ApiOperation({ summary: 'Integration status for WhatsApp, Email, SMS, Storage, Payments env' })
   status() {
     return {
       whatsapp: {
@@ -55,6 +57,10 @@ export class MessagingController {
         configured: this.email.isConfigured(),
         mode: this.email.mode(),
       },
+      sms: {
+        configured: this.sms.isConfigured(),
+        mode: this.sms.mode(),
+      },
       storage: {
         driver: this.storage.driver(),
         s3Ready: this.storage.isS3Configured(),
@@ -63,9 +69,14 @@ export class MessagingController {
         thawani: !!(process.env.THAWANI_SECRET_KEY || process.env.THAWANI_PUBLISHABLE_KEY),
         stripe: !!(process.env.STRIPE_SECRET_KEY || process.env.STRIPE_PUBLISHABLE_KEY),
         paypal: !!(process.env.PAYPAL_CLIENT_ID && process.env.PAYPAL_CLIENT_SECRET),
+        terminalMode: process.env.POS_TERMINAL_MODE || 'hosted',
       },
       ota: {
         note: 'Configure company zatcaConfig on /vat — mock|sandbox|live',
+      },
+      ai: {
+        llm: !!(process.env.OPENAI_API_KEY || process.env.AI_LLM_API_KEY),
+        note: 'Rules engine always on; LLM enriches summaries when key is set (HITL only)',
       },
     };
   }
@@ -99,13 +110,23 @@ export class MessagingController {
           ],
         },
         {
+          id: 'sms',
+          titleAr: 'رسائل SMS (Twilio)',
+          stepsAr: [
+            'ضع TWILIO_ACCOUNT_SID و TWILIO_AUTH_TOKEN و TWILIO_FROM في بيئة الـ API.',
+            'للاختبار بدون Twilio: TWILIO_MODE=mock',
+            'تُرسل تلقائياً مع إيصالات الكاشير عند توفر رقم الجوال (إلى جانب واتساب).',
+            'اختبار: POST /messaging/test بقناة sms.',
+          ],
+        },
+        {
           id: 'ota',
           titleAr: 'الفاتورة الإلكترونية (OTA عُمان)',
           stepsAr: [
             'من صفحة الضريبة/الفوترة الإلكترونية اختر الوضع: mock أو sandbox أو live.',
             'mock يُنشئ UUID/QR/XML محلياً فوراً.',
-            'sandbox يُحاكي طلب الإرسال ويحفظ حالة الإرسال دون ربط إنتاجي.',
-            'live يحتاج بيانات اعتماد الجهة الضريبية عند توفرها في zatcaConfig.',
+            'sandbox يُحاكي قبول الجهة بدون HTTP خارجي.',
+            'live يُرسل HTTP إلى apiBaseUrl عند ضبط clientId/clientSecret في zatcaConfig (مسار /v1/invoices افتراضياً).',
           ],
         },
         {
@@ -113,18 +134,17 @@ export class MessagingController {
           titleAr: 'OTP والموافقات والمستندات',
           stepsAr: [
             'OTP للموافقة المزدوجة: أضف أرقام المديرين ثم استخدم زر إرسال OTP من الكاشير.',
-            'إيصالات الكاشير تُرسل تلقائياً عبر واتساب (وإيميل إن ضُبط) بعد البيع/الإلغاء/الاسترداد.',
-            'إرسال مستند: استخدم رابط الإيصال العام أو sendDocumentLink من واتساب Cloud API.',
-            'اختبار سريع: POST /messaging/test بقناة whatsapp أو email.',
+            'إيصالات الكاشير: واتساب + إيميل + SMS (إن ضُبطت) بعد البيع/الإلغاء/الاسترداد.',
+            'اختبار سريع: POST /messaging/test بقناة whatsapp أو email أو sms.',
           ],
         },
         {
           id: 'payments',
-          titleAr: 'دفع الشريك (بطاقة/محفظة) — ليس شارة NFC',
+          titleAr: 'دفع الشريك + Terminal tap-to-pay',
           stepsAr: [
             'اضبط مفاتيح Thawani أو Stripe أو PayPal على مستوى المنصة/الشركة.',
-            'من الكاشير: بعد إنشاء الفاتورة استخدم POST /pos/sales/:invoiceId/partner-checkout لفتح جلسة الدفع.',
-            'Thawani UAT: THAWANI_BASE_URL الافتراضي جاهز للاختبار.',
+            'من الكاشير: دفع شريك → partner-checkout، أو «لمس/Terminal» → terminal-tap.',
+            'POS_TERMINAL_MODE=mock|hosted|softpos — SoftPOS يحتاج POS_SOFTPOS_DEEP_LINK_TEMPLATE.',
             'شارة NFC في الكاشير للموافقة المزدوجة فقط — ليست دفعاً للعميل.',
           ],
         },
@@ -139,27 +159,28 @@ export class MessagingController {
         },
         {
           id: 'offline',
-          titleAr: 'مخزون أوفلاين',
+          titleAr: 'أوفلاين',
           stepsAr: [
             'مزامنة كاملة: GET /pos/catalog/sync',
-            'تحديثات المخزون: GET /pos/stock/sync?since=ISO — يحدّث الكاش المحلي فقط للكميات المتغيرة',
-            'مبيعات الأوفلاين تُصفّ في الطابور ثم تُرسل عند عودة الشبكة',
+            'تحديثات المخزون: GET /pos/stock/sync?since=ISO',
+            'مبيعات الأوفلاين: طابور IndexedDB + clientSaleId لمنع التكرار عند إعادة الإرسال',
           ],
         },
         {
           id: 'ai',
           titleAr: 'مساعد AI بإشراف بشري',
           stepsAr: [
-            'صفحة التحليلات تعرض اقتراحات قواعدية فقط — لا تنفيذ تلقائي.',
-            'زر «إرسال للمراجعة» ينشئ تنبيهات إدارة (Management Alerts) للموافقة البشرية.',
+            'قواعد rules_v1 دائماً — لا تنفيذ تلقائي.',
+            'عند ضبط OPENAI_API_KEY أو AI_LLM_API_KEY يُضاف ملخص LLM اختياري دون تنفيذ.',
+            'زر «إرسال للمراجعة» → Management Alerts.',
           ],
         },
         {
           id: 'capacitor',
           titleAr: 'Capacitor / BLE',
           stepsAr: [
-            'هيكل الموبايل جاهز في mobile/ — راجع README هناك قبل البناء.',
-            'BLE للطابعات/الأجهزة: استخدم الإعدادات في frontend/src/lib/capacitor-ble.ts (stubs + vendor presets).',
+            'راجع mobile/package.json و README — غلاف أصلي حول /pos.',
+            'BLE: frontend/src/lib/capacitor-ble.ts + Web Bluetooth fallback في pos-escpos.',
           ],
         },
       ],
@@ -168,7 +189,7 @@ export class MessagingController {
 
   @Post('test')
   @Roles(UserRole.ADMIN, UserRole.MANAGER)
-  @ApiOperation({ summary: 'Send a test WhatsApp or Email message' })
+  @ApiOperation({ summary: 'Send a test WhatsApp, Email, or SMS message' })
   async test(@CurrentUser() user: TokenPayload, @Body() dto: TestMessageDto) {
     const body =
       dto.body?.trim() ||
@@ -177,6 +198,11 @@ export class MessagingController {
     if (dto.channel === 'whatsapp') {
       const res = await this.whatsapp.sendText(dto.to, body);
       return { channel: 'whatsapp', ...res, mode: this.whatsapp.mode() };
+    }
+
+    if (dto.channel === 'sms') {
+      const res = await this.sms.sendText({ to: dto.to, body });
+      return { channel: 'sms', ...res };
     }
 
     const res = await this.email.sendText({

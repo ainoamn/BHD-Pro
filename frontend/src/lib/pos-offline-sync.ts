@@ -25,7 +25,10 @@ export async function flushPendingPosSales(): Promise<FlushOfflineResult> {
 
   for (const row of pending) {
     try {
-      await api.createPosSale(row.payload);
+      await api.createPosSale({
+        ...row.payload,
+        clientSaleId: row.payload.clientSaleId || row.id,
+      });
       await removePendingSale(row.id);
       synced += 1;
     } catch {

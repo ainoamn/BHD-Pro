@@ -4,12 +4,14 @@ import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { WhatsappNotifyService } from './whatsapp-notify.service';
 import { EmailNotifyService } from './email-notify.service';
+import { SmsNotifyService } from './sms-notify.service';
 import { isValidMobileE164, toE164Digits, dialCodeForCountry } from '../common/phone';
 
 type SecurityCfg = {
   autoSendPosReceipts?: boolean;
   whatsappNotifyPhones?: string[];
   autoSendPosReceiptEmail?: boolean;
+  autoSendPosReceiptSms?: boolean;
 };
 
 @Injectable()
@@ -20,6 +22,7 @@ export class CustomerNotifyService {
     private prisma: PrismaService,
     private whatsapp: WhatsappNotifyService,
     private email: EmailNotifyService,
+    private sms: SmsNotifyService,
   ) {}
 
   private frontendBaseUrl(): string {
@@ -69,10 +72,14 @@ export class CustomerNotifyService {
     return raw as SecurityCfg;
   }
 
-  /** Default true when WhatsApp or Email is configured; false when explicitly disabled. */
+  /** Default true when WhatsApp, Email, or SMS is configured; false when explicitly disabled. */
   private shouldNotify(cfg: SecurityCfg): boolean {
     if (cfg.autoSendPosReceipts === false) return false;
-    return this.whatsapp.isConfigured() || this.email.isConfigured();
+    return (
+      this.whatsapp.isConfigured() ||
+      this.email.isConfigured() ||
+      this.sms.isConfigured()
+    );
   }
 
   private formatMoney(amount: number | string, currency: string): string {
@@ -250,6 +257,16 @@ export class CustomerNotifyService {
       emailError = mail.error;
     }
 
+    let smsStatus: 'ok' | 'fail' | 'skipped' = 'skipped';
+    let smsError: string | undefined;
+    const smsAllowed = cfg.autoSendPosReceiptSms !== false;
+    if (smsAllowed && isValidMobileE164(digits) && this.sms.isConfigured()) {
+      const smsBody = body.slice(0, 600);
+      const sms = await this.sms.sendText({ to: digits, body: smsBody });
+      smsStatus = sms.ok ? 'ok' : 'fail';
+      smsError = sms.error;
+    }
+
     try {
       const existing =
         (invoice.customFieldsJson as Record<string, unknown>) || {};
@@ -264,6 +281,8 @@ export class CustomerNotifyService {
               ...(waError ? { whatsappError: waError } : {}),
               email: emailStatus,
               ...(emailError ? { emailError } : {}),
+              sms: smsStatus,
+              ...(smsError ? { smsError } : {}),
               kind,
               at: new Date().toISOString(),
             },

@@ -14,6 +14,8 @@ export type PendingPosSale = {
     contactId?: string;
     tipAmount?: number;
     notes?: string;
+    /** Idempotency key — same as queue row id */
+    clientSaleId?: string;
   };
   receipt: {
     number?: string;

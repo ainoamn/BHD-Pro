@@ -112,6 +112,16 @@ export class CreatePosSaleDto {
   @IsOptional()
   @IsBoolean()
   useStoreCredit?: boolean;
+
+  /**
+   * Client-generated UUID for offline queue idempotency.
+   * Re-submitting the same id returns the existing POS invoice instead of duplicating.
+   */
+  @IsOptional()
+  @IsString()
+  @MinLength(8)
+  @MaxLength(80)
+  clientSaleId?: string;
 }
 
 export class VoidPosSaleDto {

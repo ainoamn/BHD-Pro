@@ -24,8 +24,9 @@ import {
 } from './dto/pos.dto';
 import { PaymentsService } from '../payments/payments.service';
 import { CompanyGatewaysService } from '../payments/company-gateways.service';
+import { TerminalTapService } from './terminal-tap.service';
 import { GATEWAY_META } from '../payments/gateway.constants';
-import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsEnum, IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
 
 class PartnerCheckoutDto {
   @IsOptional()
@@ -36,6 +37,21 @@ class PartnerCheckoutDto {
   @IsString()
   @MaxLength(200)
   customerEmail?: string;
+}
+
+class TerminalTapDto {
+  @IsOptional()
+  @IsEnum(PaymentGatewaySlug)
+  gatewaySlug?: PaymentGatewaySlug;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  customerEmail?: string;
+
+  @IsOptional()
+  @IsIn(['mock', 'hosted', 'softpos'])
+  mode?: 'mock' | 'hosted' | 'softpos';
 }
 
 const POS_STAFF = [
@@ -55,6 +71,7 @@ export class PosController {
     private incentives: PosIncentivesService,
     private payments: PaymentsService,
     private companyGateways: CompanyGatewaysService,
+    private terminalTap: TerminalTapService,
   ) {}
 
   @Get('incentives/config')
@@ -412,5 +429,46 @@ export class PosController {
       gatewaySlug: slug as any,
       customerEmail: dto.customerEmail,
     });
+  }
+
+  @Post('sales/:invoiceId/terminal-tap')
+  @Roles(...POS_STAFF)
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  @ApiOperation({
+    summary:
+      'Start SoftPOS / partner terminal tap-to-pay session (NOT NFC badge dual-control)',
+  })
+  terminalTapStart(
+    @CurrentUser() user: TokenPayload,
+    @Param('invoiceId') invoiceId: string,
+    @Body() dto: TerminalTapDto,
+  ) {
+    return this.terminalTap.startSession({
+      companyId: user.companyId,
+      invoiceId,
+      gatewaySlug: dto.gatewaySlug,
+      customerEmail: dto.customerEmail,
+      mode: dto.mode,
+    });
+  }
+
+  @Get('sales/:invoiceId/terminal-tap')
+  @Roles(...POS_STAFF)
+  @ApiOperation({ summary: 'Poll terminal tap-to-pay session status' })
+  terminalTapStatus(
+    @CurrentUser() user: TokenPayload,
+    @Param('invoiceId') invoiceId: string,
+  ) {
+    return this.terminalTap.getSession(user.companyId, invoiceId);
+  }
+
+  @Post('sales/:invoiceId/terminal-tap/confirm-mock')
+  @Roles(...POS_STAFF)
+  @ApiOperation({ summary: 'Confirm mock terminal tap (demo only)' })
+  terminalTapConfirmMock(
+    @CurrentUser() user: TokenPayload,
+    @Param('invoiceId') invoiceId: string,
+  ) {
+    return this.terminalTap.confirmMockTap(user.companyId, invoiceId);
   }
 }

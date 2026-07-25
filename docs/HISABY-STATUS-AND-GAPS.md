@@ -17,7 +17,7 @@
 | **حسابي للكاشير (POS)** | `/pos` | جاهز للبيتا — بيع سريع، مخزون مستودع، حماية مزدوجة، كاميرا باركود، موافقات أونلاين |
 | لوحة المنصة | `/admin` | تعمل لمشغّلي المنصة |
 
-فجوات واضحة المتبقي: NFC tap-to-pay جهاز طرفي (بوابة الشريك config-ready)، Capacitor native build، OTA live عند اعتماد الجهة الضريبية، BLE طباعة موثوق لكل البائعين. التقرير الشامل: [`HISABY-MASTER-STATUS-AND-PLAN-2026-07-25.md`](./HISABY-MASTER-STATUS-AND-PLAN-2026-07-25.md) + [`INTEGRATIONS-MESSAGING-OTA.md`](./INTEGRATIONS-MESSAGING-OTA.md). (موجة الربط: واتساب/إيميل + اقرأني `/integrations`، OTA mock/sandbox/live، S3 للمرفقات، مساعد AI بإشراف بشري، مخزون أوفلاين deltas، دفع شريك عبر بوابة — منجزة كـ config-ready.)
+فجوات واضحة المتبقي: اعتماد جهة OTA الرسمي (live HTTP جاهز للربط)، SoftPOS جهاز طرفي بقالب deep-link مورّد، بناء متجر Capacitor محلياً (`mobile/`), BLE حسب طابعة البائع. التقرير: [`HISABY-MASTER-STATUS-AND-PLAN-2026-07-25.md`](./HISABY-MASTER-STATUS-AND-PLAN-2026-07-25.md) + [`INTEGRATIONS-MESSAGING-OTA.md`](./INTEGRATIONS-MESSAGING-OTA.md).
 
 
 ---
@@ -100,12 +100,12 @@
 | فجوة | ملاحظة |
 |------|--------|
 | WhatsApp OTP إنتاجي بالكامل | هيكل موجود؛ يحتاج أسرار/مزوّد جاهز |
-| إيصالات بريد SMTP / SMS (Twilio) | إيميل جاهز (Resend/SMTP/mock) + واتساب خادم؛ SMS لاحقاً |
-| أوفلاين كامل للكتالوج/المخزون | منجز config-ready — `/pos/catalog/sync` + `/pos/stock/sync?since=` + IndexedDB |
-| OTA / فاتورة إلكترونية رسمية كاملة | mock/sandbox جاهز؛ live ينتظر اعتماد الجهة (`/vat` + `zatcaConfig`) |
-| AI حقيقي | مساعد قواعدي بإشراف بشري (`/ai-analytics` → تنبيهات إدارة) — ليس LLM خارجي |
-| دفع NFC/محافظ عبر شركاء بوابة | دفع شريك عبر Thawani/Stripe/PayPal من الكاشير؛ NFC جهاز طرفي مؤجّل |
-| Capacitor / غلاف أصلي | هيكل `mobile/` + BLE stubs — البناء الأصلي لاحقاً |
+| إيصالات SMS (Twilio) | منجز config-ready — `TWILIO_*` أو `TWILIO_MODE=mock` |
+| أوفلاين كامل للكتالوج/المخزون | مبيعات + كتالوج + stock deltas + `clientSaleId` — ليس offline-first لكل العمليات (void/refund) |
+| OTA / فاتورة إلكترونية رسمية كاملة | mock/sandbox + live HTTP؛ يحتاج عقد/اعتماد الجهة |
+| AI حقيقي | قواعد + ملخص LLM اختياري عند المفتاح — HITL فقط |
+| دفع NFC/Terminal طرفي | `terminal-tap` mock/hosted/softpos — يحتاج قالب SoftPOS مورّد للإنتاج |
+| Capacitor / غلاف أصلي | `mobile/` جاهز للتثبيت المحلي — ليس على المتاجر بعد |
 | عمولة كاشير + نقاط ولاء | منجز — `incentives_config` + ledgers + إعدادات الكاشير |
 
 ---

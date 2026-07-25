@@ -7,8 +7,10 @@ type OtaConfig = {
   mode?: 'mock' | 'sandbox' | 'live';
   apiBaseUrl?: string;
   clientId?: string;
+  clientSecret?: string;
   clientSecretConfigured?: boolean;
   taxpayerTin?: string;
+  submitPath?: string;
 };
 
 @Injectable()
@@ -122,10 +124,64 @@ export class VatService {
           'Live OTA requires apiBaseUrl and clientId in company e-invoice settings',
         );
       }
-      // Live HTTP call is gated until official Oman OTA credentials/API contract are provided.
-      // We record LIVE_PENDING so ops can monitor and complete when the endpoint is available.
-      otaStatus = 'LIVE_PENDING';
-      otaMessage = `Queued for live OTA at ${ota.apiBaseUrl} (credentials present — awaiting official API contract)`;
+      const submitPath = ota.submitPath || '/v1/invoices';
+      const base = String(ota.apiBaseUrl).replace(/\/$/, '');
+      const url = `${base}${submitPath.startsWith('/') ? submitPath : `/${submitPath}`}`;
+      const secret = ota.clientSecret || process.env.OTA_CLIENT_SECRET || '';
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            Authorization: secret
+              ? `Bearer ${secret}`
+              : `Basic ${Buffer.from(`${ota.clientId}:`).toString('base64')}`,
+            'X-Client-Id': String(ota.clientId),
+            'X-Taxpayer-TIN': String(ota.taxpayerTin || invoice.company.vatNumber || ''),
+          },
+          body: JSON.stringify({
+            uuid: vatUuid,
+            invoiceNumber: invoice.number,
+            issueDate: invoice.date.toISOString().split('T')[0],
+            hash,
+            qrData,
+            xml: xmlContent,
+            currency: 'OMR',
+            taxableAmount: Number(invoice.subtotal),
+            taxAmount: Number(invoice.taxAmount),
+            totalAmount: Number(invoice.total),
+            sellerVat: invoice.company.vatNumber,
+            buyerName: invoice.contact.name,
+            buyerTaxId: invoice.contact.taxId,
+          }),
+        });
+        const bodyText = await res.text();
+        if (res.ok) {
+          otaStatus = 'CLEARED';
+          otaMessage = `Live OTA accepted (${res.status})`;
+          try {
+            const parsed = JSON.parse(bodyText) as { message?: string; status?: string };
+            if (parsed.message) otaMessage = parsed.message;
+            if (String(parsed.status || '').toUpperCase().includes('PEND')) {
+              otaStatus = 'LIVE_PENDING';
+            }
+          } catch {
+            /* keep defaults */
+          }
+        } else if (res.status === 404 || res.status === 501) {
+          otaStatus = 'LIVE_PENDING';
+          otaMessage = `Live endpoint not ready (${res.status}) at ${url} — queued pending official contract`;
+        } else {
+          otaStatus = 'LIVE_REJECTED';
+          otaMessage = `Live OTA rejected (${res.status}): ${bodyText.slice(0, 300)}`;
+        }
+      } catch (err) {
+        otaStatus = 'LIVE_PENDING';
+        otaMessage = `Live OTA transport error — queued: ${
+          err instanceof Error ? err.message : 'unknown'
+        }`;
+      }
     }
 
     const prevFields =
@@ -142,7 +198,7 @@ export class VatService {
         hash,
         qrCode: qrData,
         xmlContent,
-        clearedAt: mode === 'live' ? null : new Date(),
+        clearedAt: otaStatus === 'CLEARED' || otaStatus === 'SANDBOX_ACCEPTED' ? new Date() : null,
         status: invoice.status,
         customFieldsJson: {
           ...prevFields,

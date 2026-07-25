@@ -17,7 +17,8 @@ export type AiSuggestion = {
 
 /**
  * Rule-based assistant with human-in-the-loop.
- * Does NOT call external LLM APIs. Proposals become ManagementAlert rows for review.
+ * Optionally enriches with an external LLM summary when OPENAI_API_KEY / AI_LLM_API_KEY is set.
+ * Does NOT auto-apply accounting or stock changes.
  */
 @Injectable()
 export class AiService {
@@ -27,6 +28,69 @@ export class AiService {
     private prisma: PrismaService,
     private alerts: ManagementAlertsService,
   ) {}
+
+  private llmConfigured(): boolean {
+    return !!(process.env.OPENAI_API_KEY || process.env.AI_LLM_API_KEY);
+  }
+
+  private async enrichWithLlm(payload: {
+    summary: Record<string, unknown>;
+    recommendations: AiSuggestion[];
+    fraudRisk: string;
+  }): Promise<string | null> {
+    const key = process.env.OPENAI_API_KEY || process.env.AI_LLM_API_KEY;
+    if (!key) return null;
+    const base =
+      process.env.AI_LLM_BASE_URL?.replace(/\/$/, '') ||
+      'https://api.openai.com/v1';
+    const model = process.env.AI_LLM_MODEL || 'gpt-4o-mini';
+    try {
+      const res = await fetch(`${base}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${key}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          temperature: 0.2,
+          max_tokens: 400,
+          messages: [
+            {
+              role: 'system',
+              content:
+                'You are Hisaby accounting assistant. Summarize risks in Arabic briefly. Never instruct to auto-post journals. Always say human approval is required.',
+            },
+            {
+              role: 'user',
+              content: JSON.stringify({
+                fraudRisk: payload.fraudRisk,
+                summary: payload.summary,
+                recommendations: payload.recommendations.map((r) => ({
+                  type: r.type,
+                  priority: r.priority,
+                  title: r.title,
+                })),
+              }),
+            },
+          ],
+        }),
+      });
+      if (!res.ok) {
+        this.logger.warn(`LLM enrich failed: ${res.status}`);
+        return null;
+      }
+      const data = (await res.json()) as {
+        choices?: { message?: { content?: string } }[];
+      };
+      return data.choices?.[0]?.message?.content?.trim() || null;
+    } catch (err) {
+      this.logger.warn(
+        `LLM enrich error: ${err instanceof Error ? err.message : err}`,
+      );
+      return null;
+    }
+  }
 
   async getAnalytics(companyId: string) {
     const [invoices, products, invoiceStats, openAlerts] = await Promise.all([
@@ -128,9 +192,9 @@ export class AiService {
     const fraudRisk =
       anomalyScore > 0.5 ? 'high' : anomalyScore > 0.25 ? 'medium' : 'low';
 
-    return {
+    const base = {
       mode: 'human_in_the_loop' as const,
-      engine: 'rules_v1',
+      engine: this.llmConfigured() ? 'rules_v1+llm_summary' : 'rules_v1',
       disclaimerAr:
         'المساعد يقترح فقط. لا يُرسل فواتير ولا يغيّر مخزوناً ولا يدفع رواتب بدون موافقة بشرية من تنبيهات الإدارة.',
       disclaimerEn:
@@ -155,7 +219,18 @@ export class AiService {
       })),
       anomalyScore,
       fraudRisk,
+      llmNote: null as string | null,
     };
+
+    if (this.llmConfigured()) {
+      base.llmNote = await this.enrichWithLlm({
+        summary: base.summary,
+        recommendations: suggestions,
+        fraudRisk,
+      });
+    }
+
+    return base;
   }
 
   /** Push current suggestions into ManagementAlert queue for managers. */

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { PosController } from './pos.controller';
 import { PosService } from './pos.service';
 import { PosIncentivesService } from './pos-incentives.service';
+import { TerminalTapService } from './terminal-tap.service';
 import { InvoicesModule } from '../invoices/invoices.module';
 import { ProductsModule } from '../products/products.module';
 import { PeriodsModule } from '../periods/periods.module';
@@ -23,7 +24,7 @@ import { PaymentsModule } from '../payments/payments.module';
     PaymentsModule,
   ],
   controllers: [PosController],
-  providers: [PosService, PosIncentivesService],
-  exports: [PosService, PosIncentivesService],
+  providers: [PosService, PosIncentivesService, TerminalTapService],
+  exports: [PosService, PosIncentivesService, TerminalTapService],
 })
 export class PosModule {}

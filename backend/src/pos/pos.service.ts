@@ -651,6 +651,25 @@ export class PosService {
   ) {
     await this.subscriptions.assertCanCreateInvoice(companyId);
     const userId = actor.sub;
+
+    const clientSaleId = dto.clientSaleId?.trim();
+    if (clientSaleId) {
+      const existing = await this.prisma.invoice.findFirst({
+        where: {
+          companyId,
+          notes: { contains: `[CLIENT_SALE:${clientSaleId}]` },
+        },
+        include: {
+          contact: true,
+          items: true,
+          payments: true,
+        },
+      });
+      if (existing) {
+        return existing;
+      }
+    }
+
     const contact = await this.resolveSaleContact(companyId, dto.contactId);
     const role = await this.resolveUserRole(userId, actor.role);
     const canOverridePrice =
@@ -833,12 +852,15 @@ export class PosService {
         : (dto.paymentMethod ?? PaymentMethod.CASH);
       const partnerCheckout = !!dto.partnerCheckout && !useStoreCredit && !useSplit;
       const baseNotes = dto.notes?.trim() || 'Hisaby POS sale';
+      const withClient = clientSaleId
+        ? `${baseNotes} [CLIENT_SALE:${clientSaleId}]`
+        : baseNotes;
       const notes =
         useStoreCredit || storeCreditPortion > 0
-          ? `[STORE_CREDIT] ${baseNotes}`
+          ? `[STORE_CREDIT] ${withClient}`
           : partnerCheckout
-            ? `[PARTNER_PAY] ${baseNotes}`
-            : baseNotes;
+            ? `[PARTNER_PAY] ${withClient}`
+            : withClient;
 
       let invoice = await this.invoices.create(companyId, userId, {
         type: InvoiceType.SALES,

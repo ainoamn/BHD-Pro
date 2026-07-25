@@ -77,7 +77,7 @@ type ParkedCart = {
   lines: CartLine[];
 };
 
-type CheckoutMethod = "CASH" | "CREDIT_CARD" | "BANK_TRANSFER" | "STORE_CREDIT" | "PARTNER";
+type CheckoutMethod = "CASH" | "CREDIT_CARD" | "BANK_TRANSFER" | "STORE_CREDIT" | "PARTNER" | "TERMINAL";
 
 type PosWarehouse = {
   id: string;
@@ -914,6 +914,7 @@ export default function PosCheckoutPage() {
     if (m === "CASH") return t.payCash;
     if (m === "CREDIT_CARD" || m === "CARD") return t.payCard;
     if (m === "PARTNER") return t.partnerPay;
+    if (m === "TERMINAL") return t.terminalTap;
     if (m === "BANK_TRANSFER") return t.payBank;
     if (m === "STORE_CREDIT" || m === "OTHER") return t.payStoreCredit;
     return method;
@@ -1187,8 +1188,12 @@ export default function PosCheckoutPage() {
         return;
       }
     }
-    if (method === "PARTNER" && (typeof navigator !== "undefined" && navigator.onLine === false)) {
-      toast.error(t.partnerPayOffline);
+    if (
+      (method === "PARTNER" || method === "TERMINAL") &&
+      typeof navigator !== "undefined" &&
+      navigator.onLine === false
+    ) {
+      toast.error(method === "TERMINAL" ? t.terminalTapOffline : t.partnerPayOffline);
       return;
     }
     const tipLine =
@@ -1205,7 +1210,8 @@ export default function PosCheckoutPage() {
       ? `${cartNotes.trim()} — Hisaby POS sale`
       : undefined;
     const useStoreCredit = method === "STORE_CREDIT" && !payments?.length;
-    const isPartner = method === "PARTNER" && !payments?.length;
+    const isPartner =
+      (method === "PARTNER" || method === "TERMINAL") && !payments?.length;
     const paymentLabelJoined = payments?.length
       ? payments
           .map((p) => `${paymentLabel(p.method)} ${p.amount.toFixed(3)}`)
@@ -1247,8 +1253,9 @@ export default function PosCheckoutPage() {
         const { enqueuePendingSale } = await import("@/lib/pos-offline-queue");
         const { adjustCachedStock } = await import("@/lib/pos-catalog-cache");
         const localNumber = `OFF-${Date.now().toString(36).toUpperCase()}`;
+        const clientSaleId = crypto.randomUUID();
         await enqueuePendingSale({
-          id: crypto.randomUUID(),
+          id: clientSaleId,
           createdAt: new Date().toISOString(),
           payload: {
             items: payload.items,
@@ -1257,6 +1264,7 @@ export default function PosCheckoutPage() {
             notes: saleNotes,
             warehouseId: warehouseId || undefined,
             contactId: contactId || undefined,
+            clientSaleId,
           },
           receipt: {
             number: localNumber,
@@ -1297,20 +1305,40 @@ export default function PosCheckoutPage() {
       });
       if (isPartner && inv.id) {
         try {
-          const payRes = await api.createPosPartnerCheckout(inv.id);
-          const data = payRes.data as {
-            checkout?: { redirectUrl?: string };
-            checkoutUrl?: string;
-          };
-          const url = data?.checkout?.redirectUrl || data?.checkoutUrl;
-          if (url) {
-            window.open(url, "_blank", "noopener,noreferrer");
-            toast.success(t.partnerPayOpened);
+          if (method === "TERMINAL") {
+            const tapRes = await api.startPosTerminalTap(inv.id);
+            const tap = tapRes.data as {
+              mode?: string;
+              checkoutUrl?: string | null;
+              softposDeepLink?: string | null;
+              sessionId?: string;
+            };
+            const url = tap.softposDeepLink || tap.checkoutUrl;
+            if (url) {
+              window.open(url, "_blank", "noopener,noreferrer");
+              toast.success(t.terminalTapOpened);
+            } else if (tap.mode === "mock") {
+              await api.confirmPosTerminalTapMock(inv.id);
+              toast.success(t.terminalTapMockOk);
+            } else {
+              toast.error(t.terminalTapFail);
+            }
           } else {
-            toast.error(t.partnerPayFail);
+            const payRes = await api.createPosPartnerCheckout(inv.id);
+            const data = payRes.data as {
+              checkout?: { redirectUrl?: string };
+              checkoutUrl?: string;
+            };
+            const url = data?.checkout?.redirectUrl || data?.checkoutUrl;
+            if (url) {
+              window.open(url, "_blank", "noopener,noreferrer");
+              toast.success(t.partnerPayOpened);
+            } else {
+              toast.error(t.partnerPayFail);
+            }
           }
         } catch {
-          toast.error(t.partnerPayFail);
+          toast.error(method === "TERMINAL" ? t.terminalTapFail : t.partnerPayFail);
         }
       }
       setCart([]);
@@ -1352,8 +1380,9 @@ export default function PosCheckoutPage() {
           const { enqueuePendingSale } = await import("@/lib/pos-offline-queue");
           const { adjustCachedStock } = await import("@/lib/pos-catalog-cache");
           const localNumber = `OFF-${Date.now().toString(36).toUpperCase()}`;
+          const clientSaleId = crypto.randomUUID();
           await enqueuePendingSale({
-            id: crypto.randomUUID(),
+            id: clientSaleId,
             createdAt: new Date().toISOString(),
             payload: {
               items: payload.items,
@@ -1362,6 +1391,7 @@ export default function PosCheckoutPage() {
               notes: saleNotes,
               warehouseId: warehouseId || undefined,
               contactId: contactId || undefined,
+              clientSaleId,
             },
             receipt: {
               number: localNumber,
@@ -2244,6 +2274,15 @@ export default function PosCheckoutPage() {
               title={t.partnerPayHint}
             >
               {t.partnerPay}
+            </button>
+            <button
+              type="button"
+              disabled={!cart.length || paying}
+              onClick={() => checkout("TERMINAL")}
+              className="min-h-12 h-12 rounded-xl bg-fuchsia-600 text-white font-bold disabled:opacity-40 hover:bg-fuchsia-500 text-sm"
+              title={t.terminalTapHint}
+            >
+              {t.terminalTap}
             </button>
             <button
               type="button"

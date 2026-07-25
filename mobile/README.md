@@ -1,33 +1,35 @@
 # Hisaby Mobile (Capacitor)
 
-Scaffold for a future native shell around the Next.js POS / dashboard.
+Native shell around the hosted Next.js POS (`/pos`). **Web POS remains the production path**; this package wraps it for Android/iOS (camera, BLE printers, NFC badge).
 
 ## Status
 
-- **Web POS** is production path today (browser + Web Serial for drawers/printers where supported).
-- **Capacitor** is prepared here so Android/iOS builds can wrap `https://www.hisaby.pro` (or a local `frontend` export) when you are ready.
-- **BLE** helpers live in `frontend/src/lib/capacitor-ble.ts` (vendor presets + stubs). Reliable BLE only works inside a native Capacitor build with a BLE plugin.
+| Piece | Status |
+|-------|--------|
+| `package.json` + `capacitor.config.ts` | Ready |
+| `www/` fallback | Ready |
+| Android / iOS projects | Run `npm i` then `npm run add:android` / `add:ios` locally |
+| BLE plugin | `@capacitor-community/bluetooth-le` — wired from `frontend/src/lib/capacitor-ble.ts` when native |
+| Partner card tap-to-pay | SoftPOS/hosted gateway via API `terminal-tap` — **not** badge NFC |
 
-## Quick start (when ready)
+## Quick start
 
 ```bash
-npm create @capacitor/app@latest
-# point webDir at a static export or load the hosted URL
+cd mobile
+npm install
+npm run build:web
+# optional override:
+# set HISABY_MOBILE_SERVER_URL=https://your-frontend/pos
 npx cap add android
-npx cap add ios
+npx cap sync
+npx cap open android
 ```
-
-Recommended plugins later:
-
-- `@capacitor-community/bluetooth-le` — thermal printers / scanners
-- `@capacitor/preferences` — offline flags
-- NFC plugin only for **badge dual-control**, never for partner card payments
 
 ## Partner pay vs NFC badge
 
 | Feature | Channel |
 |--------|---------|
-| Customer card / wallet / tap-to-pay | Thawani / Stripe / PayPal via `POST /pos/sales/:invoiceId/partner-checkout` |
-| Manager dual-control badge | NFC Web / Capacitor NFC — approval only |
+| Customer card / wallet / tap-to-pay | `POST /pos/sales/:id/terminal-tap` or partner-checkout |
+| Manager dual-control badge | Web NFC / Capacitor NFC — approval only |
 
 Do not conflate the two.

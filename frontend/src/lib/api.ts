@@ -1396,6 +1396,21 @@ class ApiClient {
     return this.post(`/pos/sales/${invoiceId}/partner-checkout`, data || {});
   }
 
+  startPosTerminalTap(
+    invoiceId: string,
+    data?: { gatewaySlug?: string; customerEmail?: string; mode?: 'mock' | 'hosted' | 'softpos' },
+  ) {
+    return this.post(`/pos/sales/${invoiceId}/terminal-tap`, data || {});
+  }
+
+  getPosTerminalTap(invoiceId: string) {
+    return this.get(`/pos/sales/${invoiceId}/terminal-tap`);
+  }
+
+  confirmPosTerminalTapMock(invoiceId: string) {
+    return this.post(`/pos/sales/${invoiceId}/terminal-tap/confirm-mock`, {});
+  }
+
   createPosSale(data: {
     items: { productId: string; quantity: number; unitPrice?: number; discount?: number }[];
     paymentMethod?: string;
@@ -1407,6 +1422,7 @@ class ApiClient {
     notes?: string;
     warehouseId?: string;
     contactId?: string;
+    clientSaleId?: string;
     approval?: DualApprovalPayload;
   }) {
     return this.post('/pos/sales', data);

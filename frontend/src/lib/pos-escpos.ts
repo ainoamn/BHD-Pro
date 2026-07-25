@@ -198,6 +198,23 @@ export async function tryPrintEscPos(r: EscPosReceipt): Promise<boolean> {
  */
 export async function tryPrintEscPosSmart(r: EscPosReceipt): Promise<boolean> {
   const bytes = buildEscPosReceipt(r);
+
+  // Capacitor native BLE first (phones/tablets)
+  try {
+    const { isCapacitorNative, getLastBlePrinterId, writeBleEscPos } = await import(
+      "@/lib/capacitor-ble"
+    );
+    if (isCapacitorNative()) {
+      const deviceId = getLastBlePrinterId();
+      if (deviceId) {
+        const res = await writeBleEscPos(deviceId, bytes);
+        if (res.ok) return true;
+      }
+    }
+  } catch {
+    /* fall through */
+  }
+
   if (isWebSerialSupported()) {
     try {
       await printViaWebSerial(bytes);
