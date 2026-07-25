@@ -88,6 +88,10 @@ export interface Product {
   warehouseId?: string;
   isActive: boolean;
   images: string[];
+  warehouseStocks?: {
+    quantity: number | string;
+    warehouse: { id: string; code: string; name: string };
+  }[];
 }
 
 export interface Contact {

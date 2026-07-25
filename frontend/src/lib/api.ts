@@ -1176,6 +1176,7 @@ class ApiClient {
     taxRate?: number;
     notes?: string;
     warehouseId?: string;
+    contactId?: string;
   }) {
     return this.post('/pos/sales', data);
   }

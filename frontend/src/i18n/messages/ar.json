@@ -525,7 +525,8 @@
     "transferStock": "تحويل المخزون",
     "fromWarehouse": "من المستودع",
     "toWarehouse": "إلى المستودع",
-    "transferred": "تم تحويل المخزون"
+    "transferred": "تم تحويل المخزون",
+    "byWarehouse": "حسب المستودع"
   },
   "contacts": {
     "title": "دفتر العناوين",

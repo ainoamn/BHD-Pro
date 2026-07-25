@@ -59,6 +59,10 @@ export class CreatePosSaleDto {
   @IsOptional()
   @IsUUID()
   warehouseId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  contactId?: string;
 }
 
 export class LinkPosDto {

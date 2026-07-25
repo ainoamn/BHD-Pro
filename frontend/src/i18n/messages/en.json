@@ -525,7 +525,8 @@
     "transferStock": "Transfer stock",
     "fromWarehouse": "From warehouse",
     "toWarehouse": "To warehouse",
-    "transferred": "Stock transferred"
+    "transferred": "Stock transferred",
+    "byWarehouse": "By warehouse"
   },
   "contacts": {
     "title": "Address Book",

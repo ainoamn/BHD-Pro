@@ -79,6 +79,10 @@ export const posCopy = {
     voidConfirm: "إلغاء هذا البيع واسترجاع المخزون؟",
     voidOk: "تم إلغاء البيع",
     voidFail: "فشل إلغاء البيع",
+    walkIn: "عميل نقدي",
+    customer: "العميل",
+    payment: "الدفع",
+    recallOverwrite: "السلة الحالية غير فارغة — استبدالها بالسلة المعلّقة؟",
   },
   en: {
     brand: "Hisaby POS",
@@ -158,5 +162,9 @@ export const posCopy = {
     voidConfirm: "Void this sale and restore stock?",
     voidOk: "Sale voided",
     voidFail: "Could not void sale",
+    walkIn: "Walk-in",
+    customer: "Customer",
+    payment: "Payment",
+    recallOverwrite: "Current cart is not empty — replace it with the parked cart?",
   },
 } as const;

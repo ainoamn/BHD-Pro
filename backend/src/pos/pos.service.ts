@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -10,6 +11,7 @@ import {
   InvoiceType,
   MovementType,
   PaymentMethod,
+  UserRole,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { InvoicesService } from '../invoices/invoices.service';
@@ -311,7 +313,12 @@ export class PosService {
   }
 
   /** Void a POS cash sale: reverse payments, restore warehouse stock, cancel invoice */
-  async voidSale(companyId: string, userId: string, invoiceId: string) {
+  async voidSale(
+    companyId: string,
+    userId: string,
+    invoiceId: string,
+    _userRole?: string,
+  ) {
     const invoice = await this.invoices.findOne(companyId, invoiceId);
 
     if (invoice.status === InvoiceStatus.CANCELLED) {
@@ -409,8 +416,37 @@ export class PosService {
     };
   }
 
-  async createSale(companyId: string, userId: string, dto: CreatePosSaleDto) {
-    const contact = await this.ensureWalkInContact(companyId);
+  private async resolveSaleContact(companyId: string, contactId?: string) {
+    if (!contactId) return this.ensureWalkInContact(companyId);
+
+    const contact = await this.prisma.contact.findFirst({
+      where: { id: contactId, companyId, isActive: true },
+    });
+    if (!contact) {
+      throw new BadRequestException('Contact not found or inactive for this company');
+    }
+    return contact;
+  }
+
+  private async resolveUserRole(userId: string, roleFromToken?: string) {
+    if (roleFromToken) return roleFromToken;
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+    return user?.role;
+  }
+
+  async createSale(
+    companyId: string,
+    userId: string,
+    dto: CreatePosSaleDto,
+    userRole?: string,
+  ) {
+    const contact = await this.resolveSaleContact(companyId, dto.contactId);
+    const role = await this.resolveUserRole(userId, userRole);
+    const canOverridePrice =
+      role === UserRole.ADMIN || role === UserRole.MANAGER;
     const today = new Date().toISOString().slice(0, 10);
     const reserveRef = `POS-TEMP-${Date.now()}`;
 
@@ -427,12 +463,24 @@ export class PosService {
       if (!product.isActive) {
         throw new BadRequestException(`Product inactive: ${product.name}`);
       }
+      const catalogPrice = Number(product.salePrice);
+      const unitPrice =
+        item.unitPrice != null ? Number(item.unitPrice) : catalogPrice;
+      if (
+        item.unitPrice != null &&
+        Math.abs(unitPrice - catalogPrice) > 0.001 &&
+        !canOverridePrice
+      ) {
+        throw new ForbiddenException(
+          'Only ADMIN or MANAGER can override unit price',
+        );
+      }
       const qty = Number(item.quantity);
       lineItems.push({
         productId: product.id,
         description: product.name,
         quantity: qty,
-        unitPrice: item.unitPrice != null ? Number(item.unitPrice) : Number(product.salePrice),
+        unitPrice,
         discount: item.discount || 0,
       });
     }

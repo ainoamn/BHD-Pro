@@ -208,6 +208,25 @@ export default function InventoryPage() {
   const isLowStock = (p: Product) =>
     Number(p.quantity) <= Number(p.minQuantity);
 
+  const warehouseStockChips = (product: Product) => {
+    if (!product.warehouseStocks?.length) return null;
+    return (
+      <div
+        className="flex flex-wrap gap-1 mt-1"
+        title={t("byWarehouse")}
+      >
+        {product.warehouseStocks.map((ws) => (
+          <span
+            key={ws.warehouse.id}
+            className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700/80"
+          >
+            {ws.warehouse.code}: {Number(ws.quantity)}
+          </span>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -311,14 +330,17 @@ export default function InventoryPage() {
                           {product.barcode ? ` · ${product.barcode}` : ""}
                         </p>
                       </div>
-                      <p
-                        className={cn(
-                          "text-sm font-medium shrink-0",
-                          isLowStock(product) ? "text-amber-400" : "text-white"
-                        )}
-                      >
-                        {product.quantity} {product.unit}
-                      </p>
+                      <div className="shrink-0 text-end">
+                        <p
+                          className={cn(
+                            "text-sm font-medium",
+                            isLowStock(product) ? "text-amber-400" : "text-white"
+                          )}
+                        >
+                          {product.quantity} {product.unit}
+                        </p>
+                        {warehouseStockChips(product)}
+                      </div>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-slate-500">{product.category || "—"}</span>
@@ -394,7 +416,10 @@ export default function InventoryPage() {
                             isLowStock(product) ? "text-amber-400" : "text-white"
                           )}
                         >
-                          {product.quantity} {product.unit}
+                          <div>
+                            {product.quantity} {product.unit}
+                          </div>
+                          {warehouseStockChips(product)}
                         </td>
                         <td className="p-4 text-slate-300">
                           {formatMoney(Number(product.costPrice), currency)}

@@ -9,6 +9,7 @@ import { useLocaleStore } from "@/store/locale";
 import { useAuthStore } from "@/store/auth";
 import { posCopy } from "@/lib/pos-copy";
 import { formatMoney } from "@/lib/utils";
+import type { Contact } from "@/types";
 
 const POS_WAREHOUSE_KEY = "hisaby-pos-warehouse-id";
 
@@ -59,6 +60,7 @@ type ReceiptSnapshot = {
   total?: number;
   lines?: { name: string; qty: number; lineTotal: number }[];
   paymentMethod?: string;
+  warehouseLabel?: string;
 };
 
 type RecentCashSale = {
@@ -79,6 +81,7 @@ type RecentCashSale = {
 export default function PosCheckoutPage() {
   const locale = useLocaleStore((s) => s.locale);
   const company = useAuthStore((s) => s.company);
+  const user = useAuthStore((s) => s.user);
   const t = posCopy[locale === "en" ? "en" : "ar"];
   const scanRef = useRef<HTMLInputElement>(null);
   const [scan, setScan] = useState("");
@@ -92,15 +95,26 @@ export default function PosCheckoutPage() {
   const [warehouseId, setWarehouseId] = useState("");
   const [recentSales, setRecentSales] = useState<RecentCashSale[]>([]);
   const [parkedCarts, setParkedCarts] = useState<ParkedCart[]>([]);
+  const [customers, setCustomers] = useState<Contact[]>([]);
+  const [contactId, setContactId] = useState("");
 
   const currency = company?.currency || "OMR";
   const companyId = company?.id;
+  const canOverridePrice = user?.role === "ADMIN" || user?.role === "MANAGER";
   const taxRate =
     company?.applyVat === false
       ? 0
       : typeof company?.vatRate === "number"
         ? company.vatRate
         : 5;
+
+  const selectedWarehouse = useMemo(
+    () => warehouses.find((w) => w.id === warehouseId),
+    [warehouses, warehouseId],
+  );
+  const warehouseLabel = selectedWarehouse
+    ? `${selectedWarehouse.code} — ${selectedWarehouse.name}`
+    : "";
 
   const focusScan = useCallback(() => {
     window.requestAnimationFrame(() => scanRef.current?.focus());
@@ -150,9 +164,16 @@ export default function PosCheckoutPage() {
     }
     (async () => {
       try {
-        const res = await api.getWarehouses();
-        const rows = ((res.data as PosWarehouse[]) || []).filter((w) => w.isActive !== false);
+        const [whRes, contactRes] = await Promise.all([
+          api.getWarehouses(),
+          api.getContacts("CUSTOMER"),
+        ]);
+        const rows = ((whRes.data as PosWarehouse[]) || []).filter((w) => w.isActive !== false);
         setWarehouses(rows);
+        const contactRows = ((contactRes.data as Contact[]) || []).filter(
+          (c) => c.isActive !== false,
+        );
+        setCustomers(contactRows);
         if (!saved && rows.length > 0) {
           setWarehouseId(rows[0].id);
           try {
@@ -213,8 +234,35 @@ export default function PosCheckoutPage() {
     focusScan();
   };
 
-  const recallParked = (parked: ParkedCart) => {
-    setCart(parked.lines.map((l) => ({ ...l })));
+  const recallParked = async (parked: ParkedCart) => {
+    if (cart.length && !window.confirm(t.recallOverwrite)) return;
+    const whId = parked.warehouseId || warehouseId;
+    let lines = parked.lines.map((l) => ({ ...l }));
+    try {
+      const refreshed = await Promise.all(
+        lines.map(async (line) => {
+          try {
+            const res = await api.lookupPosProduct(line.sku, whId || undefined);
+            const p = res.data as PosProduct;
+            return { ...line, stock: Number(p.quantity), isTracked: p.isTracked };
+          } catch {
+            const fromCatalog = catalog.find((c) => c.id === line.productId);
+            if (fromCatalog) {
+              return {
+                ...line,
+                stock: Number(fromCatalog.quantity),
+                isTracked: fromCatalog.isTracked,
+              };
+            }
+            return line;
+          }
+        }),
+      );
+      lines = refreshed;
+    } catch {
+      /* best-effort */
+    }
+    setCart(lines);
     if (parked.warehouseId) onWarehouseChange(parked.warehouseId);
     persistParked(parkedCarts.filter((p) => p.id !== parked.id));
     focusScan();
@@ -336,19 +384,32 @@ export default function PosCheckoutPage() {
         )
         .join("");
       const dir = locale === "en" ? "ltr" : "rtl";
+      const companyName = company?.name || "";
+      const vatLine = company?.vatNumber
+        ? `<p style="font-size:11px;color:#444">${locale === "en" ? "VAT" : "الرقم الضريبي"}: ${company.vatNumber}</p>`
+        : "";
+      const whLine = receipt.warehouseLabel
+        ? `<p style="font-size:12px">${t.warehouse}: ${receipt.warehouseLabel}</p>`
+        : "";
+      const payLine = receipt.paymentMethod
+        ? `<p style="font-size:12px">${t.payment}: ${receipt.paymentMethod}</p>`
+        : "";
       w.document.write(`<!doctype html><html dir="${dir}"><head><title>Receipt</title>
       <style>
         body{font-family:system-ui,sans-serif;padding:16px;width:280px;margin:0 auto;color:#111}
-        h1{font-size:16px;margin:0 0 4px} p{margin:4px 0;font-size:13px}
+        h1{font-size:16px;margin:0 0 4px} h2{font-size:18px;margin:6px 0 2px;font-weight:800}
+        p{margin:4px 0;font-size:13px}
         table{width:100%;border-collapse:collapse;font-size:12px;margin:8px 0}
         td{padding:3px 0;vertical-align:top}
         hr{border:none;border-top:1px dashed #999;margin:12px 0}
       </style></head><body>
       <h1>${t.brand}</h1>
-      <p>${company?.name || ""}</p>
+      <h2>${companyName}</h2>
+      ${vatLine}
+      ${whLine}
       <hr/>
       <p>${receipt.number || ""}</p>
-      <p>${receipt.paymentMethod || ""}</p>
+      ${payLine}
       <table><tbody>${linesHtml}</tbody></table>
       <hr/>
       <p><strong>${t.total}: ${formatMoney(receipt.total || 0, currency)}</strong></p>
@@ -356,7 +417,16 @@ export default function PosCheckoutPage() {
       <script>window.print()</script></body></html>`);
       w.document.close();
     },
-    [company?.name, currency, locale, t.brand, t.total],
+    [
+      company?.name,
+      company?.vatNumber,
+      currency,
+      locale,
+      t.brand,
+      t.payment,
+      t.total,
+      t.warehouse,
+    ],
   );
 
   const paymentLabel = (method?: string) => {
@@ -373,6 +443,7 @@ export default function PosCheckoutPage() {
       number: sale.number,
       total: Number(sale.total),
       paymentMethod: paymentLabel(sale.payments?.[0]?.method),
+      warehouseLabel: warehouseLabel || undefined,
       lines: (sale.items || []).map((item) => ({
         name: item.description,
         qty: Number(item.quantity),
@@ -408,6 +479,7 @@ export default function PosCheckoutPage() {
       const res = await api.createPosSale({
         paymentMethod: method,
         warehouseId: warehouseId || undefined,
+        contactId: contactId || undefined,
         items: cart.map((l) => ({
           productId: l.productId,
           quantity: l.quantity,
@@ -421,6 +493,7 @@ export default function PosCheckoutPage() {
         total: Number(inv.total),
         lines: snapshot,
         paymentMethod: paymentLabel(method),
+        warehouseLabel: warehouseLabel || undefined,
       });
       setCart([]);
       toast.success(t.saleOk);
@@ -464,6 +537,27 @@ export default function PosCheckoutPage() {
             <p className="text-[10px] text-slate-500 ps-6">{t.warehouseHint}</p>
           </div>
         ) : null}
+
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
+          <label className="flex items-center gap-2">
+            <span className="text-xs text-slate-400 shrink-0">{t.customer}</span>
+            <select
+              value={contactId}
+              onChange={(e) => setContactId(e.target.value)}
+              className="flex-1 min-w-0 bg-transparent text-sm text-white focus:outline-none"
+              aria-label={t.customer}
+            >
+              <option value="" className="bg-[#111827] text-white">
+                {t.walkIn}
+              </option>
+              {customers.map((c) => (
+                <option key={c.id} value={c.id} className="bg-[#111827] text-white">
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
 
         <form onSubmit={handleScan} className="space-y-1.5">
           <div className="flex gap-2">
@@ -711,7 +805,10 @@ export default function PosCheckoutPage() {
                   min={0}
                   step={0.001}
                   value={l.unitPrice}
+                  readOnly={!canOverridePrice}
+                  disabled={!canOverridePrice}
                   onChange={(e) => {
+                    if (!canOverridePrice) return;
                     const next = Math.max(0, parseFloat(e.target.value) || 0);
                     setCart((prev) =>
                       prev.map((x) =>
@@ -719,7 +816,9 @@ export default function PosCheckoutPage() {
                       ),
                     );
                   }}
-                  className="w-24 h-8 px-2 rounded-md bg-black/30 border border-white/10 text-sm text-end text-white"
+                  className={`w-24 h-8 px-2 rounded-md bg-black/30 border border-white/10 text-sm text-end text-white ${
+                    !canOverridePrice ? "opacity-60 cursor-not-allowed" : ""
+                  }`}
                 />
               </div>
               <div className="mt-2 flex items-center justify-between gap-2">

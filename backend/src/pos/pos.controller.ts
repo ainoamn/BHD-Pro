@@ -70,7 +70,7 @@ export class PosController {
   @Throttle({ default: { limit: 60, ttl: 60000 } })
   @ApiOperation({ summary: 'Complete POS cash sale (stock reserve then invoice)' })
   sale(@CurrentUser() user: TokenPayload, @Body() dto: CreatePosSaleDto) {
-    return this.pos.createSale(user.companyId, user.sub, dto);
+    return this.pos.createSale(user.companyId, user.sub, dto, user.role);
   }
 
   @Post('sales/:id/void')
@@ -78,6 +78,6 @@ export class PosController {
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Void POS cash sale (reverse payment + restore stock)' })
   voidSale(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
-    return this.pos.voidSale(user.companyId, user.sub, id);
+    return this.pos.voidSale(user.companyId, user.sub, id, user.role);
   }
 }
