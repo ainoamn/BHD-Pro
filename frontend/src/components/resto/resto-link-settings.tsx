@@ -57,7 +57,7 @@ export function RestoLinkSettings({
   const refresh = async () => {
     const [linkRes, whRes] = await Promise.all([
       api.getRestoLinkStatus(),
-      api.getWarehouses().catch(() => ({ data: [] as Warehouse[] })),
+      api.getWarehouses(),
     ]);
     setLinked(!!linkRes.data.linked);
     setPrefix(linkRes.data.keyPrefix);

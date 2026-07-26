@@ -43,6 +43,7 @@ export default function RestoOrderPage() {
   const company = useAuthStore((s) => s.company);
   const [order, setOrder] = useState<RestoOrderPayload | null>(null);
   const [menu, setMenu] = useState<MenuItem[]>([]);
+  const [menuError, setMenuError] = useState(false);
   const [stations, setStations] = useState<Station[]>([]);
   const [stationId, setStationId] = useState("");
   const [itemNote, setItemNote] = useState("");
@@ -96,9 +97,15 @@ export default function RestoOrderPage() {
       void (async () => {
         try {
           const res = await api.getRestoMenu(q.trim() || undefined);
-          if (!cancelled) setMenu(res.data.items || []);
+          if (!cancelled) {
+            setMenu(res.data.items || []);
+            setMenuError(false);
+          }
         } catch {
-          if (!cancelled) setMenu([]);
+          if (!cancelled) {
+            setMenu([]);
+            setMenuError(true);
+          }
         }
       })();
     }, 150);
@@ -477,6 +484,24 @@ export default function RestoOrderPage() {
             className="w-full h-10 rounded-xl bg-[#1a1614] border border-white/10 px-3 text-sm focus:outline-none focus:border-amber-500"
           />
           <ul className="max-h-56 overflow-y-auto grid sm:grid-cols-2 gap-2">
+            {menuError ? (
+              <li className="sm:col-span-2 text-xs text-rose-300 py-2">
+                {t.loadFailed}{" "}
+                <button
+                  type="button"
+                  className="underline text-amber-300"
+                  onClick={() => {
+                    setMenuError(false);
+                    void api
+                      .getRestoMenu(q.trim() || undefined)
+                      .then((res) => setMenu(res.data.items || []))
+                      .catch(() => setMenuError(true));
+                  }}
+                >
+                  {t.retry}
+                </button>
+              </li>
+            ) : null}
             {menu.map((m) => (
               <li key={m.id}>
                 <button

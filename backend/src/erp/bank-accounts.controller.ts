@@ -10,6 +10,7 @@
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { ErpService } from './erp.service';
 import { BankAccountDto, BankStatementLineDto, BankTransferDto } from './dto/erp.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -36,6 +37,7 @@ export class BankAccountsController {
   }
 
   @Post('transfer')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @ApiOperation({ summary: 'Internal transfer between two bank accounts (GL + balances)' })
   async transfer(@CurrentUser() u: TokenPayload, @Body() dto: BankTransferDto) {
     await this.dualControl.assertApproved(

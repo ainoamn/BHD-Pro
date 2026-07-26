@@ -48,7 +48,7 @@ export function PosLinkSettings({
   const refresh = async () => {
     const [linkRes, whRes] = await Promise.all([
       api.getPosLinkStatus(),
-      api.getWarehouses().catch(() => ({ data: [] })),
+      api.getWarehouses(),
     ]);
     setLinked(!!linkRes.data.linked);
     setPrefix(linkRes.data.keyPrefix);

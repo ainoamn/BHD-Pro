@@ -11,6 +11,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { InvoicesService } from './invoices.service';
 import { DocumentShareService, DocumentShareVariant } from './document-share.service';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
@@ -128,6 +129,7 @@ export class InvoicesController {
   }
 
   @Patch(':id/status')
+  @Throttle({ default: { limit: 40, ttl: 60000 } })
   @ApiOperation({ summary: 'Update invoice status' })
   async updateStatus(
     @CurrentUser() user: TokenPayload,
@@ -151,6 +153,7 @@ export class InvoicesController {
   }
 
   @Post('payments/batch')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @ApiOperation({ summary: 'Record payment across multiple invoices (FIFO / manual split)' })
   recordBatchPayment(
     @CurrentUser() user: TokenPayload,
@@ -160,6 +163,7 @@ export class InvoicesController {
   }
 
   @Post(':id/payments')
+  @Throttle({ default: { limit: 40, ttl: 60000 } })
   @ApiOperation({ summary: 'Record payment / receipt against invoice' })
   recordPayment(
     @CurrentUser() user: TokenPayload,
@@ -185,6 +189,7 @@ export class InvoicesController {
   }
 
   @Delete(':id/payments/:paymentId')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Reverse / undo a payment receipt' })
   reversePayment(
     @CurrentUser() user: TokenPayload,
@@ -195,6 +200,7 @@ export class InvoicesController {
   }
 
   @Post(':id/payments/reverse-all')
+  @Throttle({ default: { limit: 15, ttl: 60000 } })
   @ApiOperation({ summary: 'Reverse all payment receipts on an invoice' })
   async reverseAllPayments(
     @CurrentUser() user: TokenPayload,
@@ -211,6 +217,7 @@ export class InvoicesController {
   }
 
   @Post(':id/send')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @ApiOperation({ summary: 'Send invoice by email' })
   send(
     @CurrentUser() user: TokenPayload,

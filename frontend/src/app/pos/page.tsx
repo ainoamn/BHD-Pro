@@ -168,6 +168,8 @@ export default function PosCheckoutPage() {
   const [search, setSearch] = useState("");
   const [catalog, setCatalog] = useState<PosProduct[]>([]);
   const [catalogLoaded, setCatalogLoaded] = useState(false);
+  const [catalogError, setCatalogError] = useState(false);
+  const [bootError, setBootError] = useState(false);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [paying, setPaying] = useState(false);
   const [lastInvoice, setLastInvoice] = useState<ReceiptSnapshot | null>(null);
@@ -410,21 +412,26 @@ export default function PosCheckoutPage() {
       const rows = (res.data as PosProduct[]) || [];
       setCatalog(rows);
       setCatalogStale(false);
+      setCatalogError(false);
       if (!q?.trim() && rows.length) {
         const { saveCatalogCache } = await import("@/lib/pos-catalog-cache");
         void saveCatalogCache(rows, wh);
       }
     } catch {
+      let hadCache = false;
       try {
         const { loadCatalogCacheMeta, filterCachedCatalog, isCatalogStale } = await import(
           "@/lib/pos-catalog-cache"
         );
         const meta = await loadCatalogCacheMeta(wh);
-        setCatalog(filterCachedCatalog(meta.products, q) as PosProduct[]);
+        const cached = filterCachedCatalog(meta.products, q) as PosProduct[];
+        setCatalog(cached);
         setCatalogStale(isCatalogStale(meta.savedAt));
+        hadCache = cached.length > 0;
       } catch {
-        /* ignore */
+        /* no cache */
       }
+      setCatalogError(!hadCache);
     } finally {
       setCatalogLoaded(true);
     }
@@ -564,10 +571,12 @@ export default function PosCheckoutPage() {
 
   const [receiptsOpen, setReceiptsOpen] = useState(false);
   const [receiptsLoading, setReceiptsLoading] = useState(false);
+  const [receiptsError, setReceiptsError] = useState(false);
   const [receiptsSearch, setReceiptsSearch] = useState("");
 
   const loadRecentSales = useCallback(async (q?: string) => {
     setReceiptsLoading(true);
+    setReceiptsError(false);
     try {
       const res = await api.listRecentPosSales({
         take: q?.trim() ? 40 : 20,
@@ -579,7 +588,8 @@ export default function PosCheckoutPage() {
       );
       setRecentSales(rows);
     } catch {
-      /* ignore */
+      setRecentSales([]);
+      setReceiptsError(true);
     } finally {
       setReceiptsLoading(false);
     }
@@ -738,7 +748,7 @@ export default function PosCheckoutPage() {
       const rows = (res.data || []).map(mapDraftToParked);
       setParkedCarts(rows);
     } catch {
-      /* ignore */
+      setParkedCarts([]);
     }
   }, [companyId, mapDraftToParked]);
 
@@ -860,6 +870,7 @@ export default function PosCheckoutPage() {
           api.getWarehouses(),
           api.getContacts("CUSTOMER"),
         ]);
+        setBootError(false);
         const rows = ((whRes.data as PosWarehouse[]) || []).filter((w) => w.isActive !== false);
         setWarehouses(rows);
         const contactRows = ((contactRes.data as Contact[]) || []).filter(
@@ -882,7 +893,7 @@ export default function PosCheckoutPage() {
           }
         }
       } catch {
-        /* ignore */
+        setBootError(true);
       }
     })();
   }, [loadRecentSales, loadParkedCarts, focusScan, companyId]);
@@ -2685,7 +2696,8 @@ export default function PosCheckoutPage() {
     }
   };
 
-  const showEmptyCatalog = catalogLoaded && catalog.length === 0 && !search.trim();
+  const showEmptyCatalog =
+    catalogLoaded && !catalogError && catalog.length === 0 && !search.trim();
   const favoriteProducts = useMemo(
     () => catalog.filter((p) => favoriteIds.includes(p.id)),
     [catalog, favoriteIds],
@@ -2712,6 +2724,36 @@ export default function PosCheckoutPage() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-0 lg:gap-4 p-3 sm:p-4 min-h-[calc(100vh-3.5rem)]">
       <section className="lg:col-span-7 xl:col-span-8 space-y-3">
+        {bootError ? (
+          <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm text-rose-300">{t.loadFailed}</p>
+            <button
+              type="button"
+              onClick={() => {
+                setBootError(false);
+                void (async () => {
+                  try {
+                    const [whRes, contactRes] = await Promise.all([
+                      api.getWarehouses(),
+                      api.getContacts("CUSTOMER"),
+                    ]);
+                    setWarehouses(
+                      ((whRes.data as PosWarehouse[]) || []).filter((w) => w.isActive !== false),
+                    );
+                    setCustomers(
+                      ((contactRes.data as Contact[]) || []).filter((c) => c.isActive !== false),
+                    );
+                  } catch {
+                    setBootError(true);
+                  }
+                })();
+              }}
+              className="rounded-lg bg-amber-500 px-3 py-1 text-xs font-bold text-slate-950"
+            >
+              {t.retry}
+            </button>
+          </div>
+        ) : null}
         {warehouses.length > 0 ? (
           <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 space-y-1">
             <label className="flex items-center gap-2">
@@ -3072,8 +3114,17 @@ export default function PosCheckoutPage() {
               {t.blindReturn}
             </button>
           </form>
-          {!recentSales.length ? (
+          {!recentSales.length && !receiptsError ? (
             <p className="text-[11px] text-slate-500">{t.noRecentSales}</p>
+          ) : null}
+          {receiptsError ? (
+            <button
+              type="button"
+              onClick={() => void loadRecentSales()}
+              className="text-[11px] font-semibold text-rose-300 hover:underline"
+            >
+              {t.loadFailed} — {t.retry}
+            </button>
           ) : null}
           {recentSales.length > 0 ? (
             <div className="flex gap-2 overflow-x-auto pb-0.5">
@@ -3117,7 +3168,18 @@ export default function PosCheckoutPage() {
           ) : null}
         </div>
 
-        {showEmptyCatalog ? (
+        {catalogError ? (
+          <div className="rounded-3xl border border-rose-500/30 bg-rose-500/10 px-6 py-14 text-center space-y-3">
+            <p className="text-base font-bold text-rose-200">{t.loadFailed}</p>
+            <button
+              type="button"
+              onClick={() => void loadCatalog(search, warehouseId || undefined)}
+              className="inline-flex items-center justify-center h-11 px-5 rounded-xl bg-amber-500 text-slate-950 font-bold"
+            >
+              {t.retry}
+            </button>
+          </div>
+        ) : showEmptyCatalog ? (
           <div className="rounded-3xl border border-dashed border-white/15 bg-white/[0.03] px-6 py-14 text-center space-y-3">
             <PackagePlus className="w-10 h-10 text-sky-400/80 mx-auto" />
             <p className="text-base font-bold text-white">{t.emptyCatalog}</p>
@@ -5039,6 +5101,17 @@ export default function PosCheckoutPage() {
                   <Loader2 className="w-4 h-4 animate-spin" />
                   …
                 </p>
+              ) : receiptsError ? (
+                <div className="text-center py-8 space-y-2">
+                  <p className="text-sm text-rose-300">{t.loadFailed}</p>
+                  <button
+                    type="button"
+                    onClick={() => void loadRecentSales(receiptsSearch.trim() || undefined)}
+                    className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-bold text-slate-950"
+                  >
+                    {t.retry}
+                  </button>
+                </div>
               ) : !recentSales.length ? (
                 <p className="text-sm text-slate-500 text-center py-8">
                   {receiptsSearch.trim() ? t.receiptsSearchEmpty : t.noRecentSales}

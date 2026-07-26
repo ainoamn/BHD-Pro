@@ -9,6 +9,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -60,6 +61,7 @@ export class ProductsController {
   }
 
   @Post(':id/adjust')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Adjust product stock (IN / OUT / SET)' })
   adjust(
     @CurrentUser() user: TokenPayload,
@@ -70,6 +72,7 @@ export class ProductsController {
   }
 
   @Post(':id/transfer')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Transfer product stock between warehouses' })
   transfer(
     @CurrentUser() user: TokenPayload,

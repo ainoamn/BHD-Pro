@@ -80,7 +80,7 @@ export default function RestoRecipesPage() {
       const [rec, menuRes, productsRes] = await Promise.all([
         api.getRestoRecipes(),
         api.getRestoMenu(),
-        api.getProducts().catch(() => ({ data: [] })),
+        api.getProducts(),
       ]);
       setRecipes(rec.data.recipes || []);
       setMenu(menuRes.data.items || []);

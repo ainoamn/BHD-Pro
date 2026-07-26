@@ -391,6 +391,7 @@ export class RestoController {
   }
 
   @Post('orders/:id/send')
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @Roles(...RESTO_STAFF)
   @ApiOperation({ summary: 'Fire pending items to KDS (optional course filter)' })
   send(
@@ -413,6 +414,7 @@ export class RestoController {
   }
 
   @Post('orders/:id/settle/by-seat')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @Roles(...RESTO_STAFF)
   @ApiOperation({
     summary:
@@ -427,6 +429,7 @@ export class RestoController {
   }
 
   @Post('orders/:id/settle/equal')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @Roles(...RESTO_STAFF)
   @ApiOperation({
     summary: 'Equal N-way tender split on a single paid close',
