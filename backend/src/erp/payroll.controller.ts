@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { PayrollStatus } from '@prisma/client';
 import { ErpService } from './erp.service';
 import { CreatePayrollDto, UpdatePayrollStatusDto } from './dto/erp.dto';
@@ -24,7 +25,9 @@ export class PayrollController {
   @Post() create(@CurrentUser() u: TokenPayload, @Body() dto: CreatePayrollDto) {
     return this.erp.createPayrollRun(u.companyId, dto);
   }
-  @Patch(':id/status') async updateStatus(
+  @Patch(':id/status')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  async updateStatus(
     @CurrentUser() u: TokenPayload,
     @Param('id') id: string,
     @Body() dto: UpdatePayrollStatusDto,

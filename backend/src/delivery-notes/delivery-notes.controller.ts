@@ -8,6 +8,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { DeliveryNotesService } from './delivery-notes.service';
 import { CreateDeliveryNoteDto } from './dto/create-delivery-note.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -37,6 +38,7 @@ export class DeliveryNotesController {
   }
 
   @Post(':id/deliver')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @ApiOperation({ summary: 'Confirm delivery and deduct stock' })
   deliver(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.service.deliver(user.companyId, id);

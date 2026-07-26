@@ -61,6 +61,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
   const [queueSales, setQueueSales] = useState<PendingPosSale[]>([]);
   const [queueOps, setQueueOps] = useState<PendingPosOp[]>([]);
   const [queueLoading, setQueueLoading] = useState(false);
+  const [queueLoadError, setQueueLoadError] = useState(false);
   const [idleLockMinutes, setIdleLockMinutes] = useState(0);
   const [allowTrainingMode, setAllowTrainingMode] = useState(true);
   const [locked, setLocked] = useState(false);
@@ -84,13 +85,16 @@ export function PosShell({ children }: { children: React.ReactNode }) {
 
   const loadQueueDetail = useCallback(async () => {
     setQueueLoading(true);
+    setQueueLoadError(false);
     try {
       const [sales, ops] = await Promise.all([listPendingSales(), listPendingOps()]);
       setQueueSales(sales);
       setQueueOps(ops);
+      setQueueLoadError(false);
     } catch {
       setQueueSales([]);
       setQueueOps([]);
+      setQueueLoadError(true);
     } finally {
       setQueueLoading(false);
     }
@@ -617,6 +621,17 @@ export function PosShell({ children }: { children: React.ReactNode }) {
                   <Loader2 className="w-4 h-4 animate-spin" />
                   …
                 </p>
+              ) : queueLoadError ? (
+                <div className="py-8 flex flex-col items-center gap-3">
+                  <p className="text-sm text-rose-300">{t.loadFailed}</p>
+                  <button
+                    type="button"
+                    onClick={() => void loadQueueDetail()}
+                    className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-bold text-slate-950"
+                  >
+                    {t.retry}
+                  </button>
+                </div>
               ) : !queueSales.length && !queueOps.length ? (
                 <p className="text-sm text-slate-500 text-center py-8">{t.offlineQueueEmpty}</p>
               ) : (

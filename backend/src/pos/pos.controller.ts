@@ -305,6 +305,7 @@ export class PosController {
 
   @Delete('drafts/:id')
   @Roles(...POS_STAFF)
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @ApiOperation({
     summary: 'Delete a parked POS cart (returns cash hold to drawer as OUT)',
   })

@@ -9,6 +9,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { StockCountsService } from './stock-counts.service';
 import {
   CreateStockCountDto,
@@ -52,6 +53,7 @@ export class StockCountsController {
   }
 
   @Post(':id/complete')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @ApiOperation({ summary: 'Complete count and apply stock variances' })
   complete(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.service.complete(user.companyId, id);

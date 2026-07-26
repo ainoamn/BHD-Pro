@@ -177,6 +177,7 @@ export default function PosCheckoutPage() {
   const [warehouseId, setWarehouseId] = useState("");
   const [recentSales, setRecentSales] = useState<RecentCashSale[]>([]);
   const [parkedCarts, setParkedCarts] = useState<ParkedCart[]>([]);
+  const [parkLoadError, setParkLoadError] = useState(false);
   const [parkSearch, setParkSearch] = useState("");
   const [restorePrompt, setRestorePrompt] = useState<{
     warehouseId: string;
@@ -196,6 +197,7 @@ export default function PosCheckoutPage() {
   const [contactId, setContactId] = useState("");
   const [customerRecentPurchases, setCustomerRecentPurchases] = useState<RecentCashSale[]>([]);
   const [customerPurchasesLoading, setCustomerPurchasesLoading] = useState(false);
+  const [purchasesError, setPurchasesError] = useState(false);
   const [customerLoyaltyPoints, setCustomerLoyaltyPoints] = useState<number | null>(null);
   const [loyaltyEnabled, setLoyaltyEnabled] = useState(false);
   const [redeemEnabled, setRedeemEnabled] = useState(false);
@@ -633,6 +635,7 @@ export default function PosCheckoutPage() {
     if (!contactId) {
       setCustomerRecentPurchases([]);
       setCustomerPurchasesLoading(false);
+      setPurchasesError(false);
       setCustomerLoyaltyPoints(null);
       setLoyaltyEnabled(false);
       setRedeemEnabled(false);
@@ -641,14 +644,19 @@ export default function PosCheckoutPage() {
     }
     let cancelled = false;
     setCustomerPurchasesLoading(true);
+    setPurchasesError(false);
     (async () => {
       try {
         const res = await api.getPosCustomerRecentSales(contactId);
         if (!cancelled) {
           setCustomerRecentPurchases((res.data?.sales || []) as RecentCashSale[]);
+          setPurchasesError(false);
         }
       } catch {
-        if (!cancelled) setCustomerRecentPurchases([]);
+        if (!cancelled) {
+          setCustomerRecentPurchases([]);
+          setPurchasesError(true);
+        }
       } finally {
         if (!cancelled) setCustomerPurchasesLoading(false);
       }
@@ -741,14 +749,17 @@ export default function PosCheckoutPage() {
   const loadParkedCarts = useCallback(async () => {
     if (!companyId) {
       setParkedCarts([]);
+      setParkLoadError(false);
       return;
     }
     try {
       const res = await api.listPosDrafts();
       const rows = (res.data || []).map(mapDraftToParked);
       setParkedCarts(rows);
+      setParkLoadError(false);
     } catch {
       setParkedCarts([]);
+      setParkLoadError(true);
     }
   }, [companyId, mapDraftToParked]);
 
@@ -857,6 +868,7 @@ export default function PosCheckoutPage() {
         .catch(() => undefined);
     } else {
       setParkedCarts([]);
+      setParkLoadError(false);
     }
     (async () => {
       try {
@@ -2835,6 +2847,32 @@ export default function PosCheckoutPage() {
                   <Loader2 className="w-3 h-3 animate-spin" />
                   …
                 </p>
+              ) : purchasesError ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-[11px] text-rose-300">{t.loadFailed}</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPurchasesError(false);
+                      setCustomerPurchasesLoading(true);
+                      void (async () => {
+                        try {
+                          const res = await api.getPosCustomerRecentSales(contactId);
+                          setCustomerRecentPurchases((res.data?.sales || []) as RecentCashSale[]);
+                          setPurchasesError(false);
+                        } catch {
+                          setCustomerRecentPurchases([]);
+                          setPurchasesError(true);
+                        } finally {
+                          setCustomerPurchasesLoading(false);
+                        }
+                      })();
+                    }}
+                    className="rounded-md bg-amber-500 px-2 py-0.5 text-[10px] font-bold text-slate-950"
+                  >
+                    {t.retry}
+                  </button>
+                </div>
               ) : !customerRecentPurchases.length ? (
                 <p className="text-[11px] text-slate-500">{t.noRecentPurchases}</p>
               ) : (
@@ -3309,11 +3347,24 @@ export default function PosCheckoutPage() {
           </div>
         </div>
 
-        {parkedCarts.length > 0 ? (
+        {parkLoadError || parkedCarts.length > 0 ? (
           <div className="px-3 pt-2 space-y-1.5 border-b border-white/5 pb-2">
             <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
               {t.parkedCarts}
             </p>
+            {parkLoadError ? (
+              <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-2.5 py-2 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-[11px] text-rose-300">{t.loadFailed}</p>
+                <button
+                  type="button"
+                  onClick={() => void loadParkedCarts()}
+                  className="rounded-md bg-amber-500 px-2 py-0.5 text-[10px] font-bold text-slate-950"
+                >
+                  {t.retry}
+                </button>
+              </div>
+            ) : (
+              <>
             <input
               value={parkSearch}
               onChange={(e) => setParkSearch(e.target.value)}
@@ -3409,6 +3460,8 @@ export default function PosCheckoutPage() {
               })
               )}
             </div>
+              </>
+            )}
           </div>
         ) : null}
 

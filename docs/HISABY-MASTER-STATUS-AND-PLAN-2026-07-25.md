@@ -69,6 +69,7 @@
 - موجة P: حوافز/ربط POS·مطاعم/تنبيهات + throttles checkout عام وAI وFX — [`HISABY-WAVE-P-INCENTIVES-LINKS-ALERTS-2026-07-26.md`](./HISABY-WAVE-P-INCENTIVES-LINKS-ALERTS-2026-07-26.md)
 - موجة Q: لوحات التطبيقات/حجز عام/قائمة صالة + throttles void/close/رصيد متجر — [`HISABY-WAVE-Q-APPS-RESERVE-MENU-2026-07-26.md`](./HISABY-WAVE-Q-APPS-RESERVE-MENU-2026-07-26.md)
 - موجة R: صدق كاشير (boot/كتالوج/إيصالات) + throttles دفعات/مخزون/بنوك/KDS — [`HISABY-WAVE-R-POS-MONEY-THROTTLE-2026-07-26.md`](./HISABY-WAVE-R-POS-MONEY-THROTTLE-2026-07-26.md)
+- موجة S: صدق معلّق/مشتريات/طابور أوفلاين + throttles جرد/تسليم/رواتب/قيود — [`HISABY-WAVE-S-POS-PARK-QUEUE-THROTTLE-2026-07-26.md`](./HISABY-WAVE-S-POS-PARK-QUEUE-THROTTLE-2026-07-26.md)
 
 ### 1.6 المنصة ولوحة الإدارة (محدث 26 يوليو مساءً)
 - اشتراكات، بوابات دفع، `/admin`، PWA، GeoIP، keep-warm

@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Delete, Body, Param, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { JournalService } from './journal.service';
 import { CreateJournalDto } from './dto/create-journal.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -29,6 +30,7 @@ export class JournalController {
   }
 
   @Post()
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   create(@CurrentUser() user: TokenPayload, @Body() dto: CreateJournalDto) {
     return this.journalService.create(user.companyId, user.sub, dto);
   }
