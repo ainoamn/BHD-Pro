@@ -21,13 +21,23 @@ type Offer = {
 };
 
 const BASE_PLANS = [
-  { id: "STARTER", nameAr: "بدائية", nameEn: "Starter", monthly: 5, yearly: 48 },
+  {
+    id: "STARTER",
+    nameAr: "بدائية",
+    nameEn: "Starter",
+    monthly: 5,
+    yearly: 48,
+    featuresAr: ["محاسبة وفوترة", "مخزون أساسي"],
+    featuresEn: ["Accounting & invoicing", "Basic inventory"],
+  },
   {
     id: "PROFESSIONAL",
     nameAr: "محترفة",
     nameEn: "Professional",
     monthly: 15,
     yearly: 144,
+    featuresAr: ["كل بدائية", "كاشير POS", "فروع متعددة", "مفاتيح API"],
+    featuresEn: ["All Starter", "POS cashier", "Multi-branch", "API keys"],
   },
   {
     id: "ENTERPRISE",
@@ -35,6 +45,8 @@ const BASE_PLANS = [
     nameEn: "Enterprise",
     monthly: 35,
     yearly: 336,
+    featuresAr: ["كل محترفة", "مطاعم", "تحليلات AI", "دعم 24/7"],
+    featuresEn: ["All Professional", "Restaurants", "AI analytics", "24/7 support"],
   },
 ];
 
@@ -120,6 +132,13 @@ export default function AdminPlansPage() {
             <p className="text-sm text-slate-400">
               {p.yearly} {en ? "OMR / yr" : "ر.ع / سنة"}
             </p>
+            <ul className="mt-3 space-y-1">
+              {(en ? p.featuresEn : p.featuresAr).map((f) => (
+                <li key={f} className="text-xs text-slate-600 flex gap-1.5">
+                  <span className="text-teal-600">✓</span> {f}
+                </li>
+              ))}
+            </ul>
           </div>
         ))}
       </div>

@@ -19,7 +19,7 @@
 | `CORS_ORIGIN` | `https://hisaby.pro` |
 | `FRONTEND_URL` | `https://hisaby.pro` |
 | `API_PUBLIC_URL` | `https://hisaby.pro` |
-| `PLATFORM_ADMIN_EMAILS` | بريدك مثل `admin@hisaby.pro` — **مطلوب** لفتح `/admin` |
+| `PLATFORM_ADMIN_EMAILS` | اختياري — مشرفون إضافيون. الافتراضي: `admin@bhd.om`, `admin@hisaby.pro`. يمكن التعيين أيضاً من `/admin/operators` |
 
 ## الأمان (الإنتاج)
 

@@ -23,15 +23,20 @@ import { adminCopy } from "@/lib/admin-copy";
 import api from "@/lib/api";
 
 const NAV = [
-  { href: "/admin", key: "overview" as const, icon: LayoutDashboard, exact: true },
-  { href: "/admin/tenants", key: "tenants" as const, icon: Building2 },
-  { href: "/admin/users", key: "users" as const, icon: Users },
-  { href: "/admin/operators", key: "operators" as const, icon: Shield },
-  { href: "/admin/billing", key: "billing" as const, icon: CreditCard },
-  { href: "/admin/plans", key: "plans" as const, icon: Package },
-  { href: "/admin/visits", key: "visits" as const, icon: MapPin },
-  { href: "/admin/gateways", key: "gateways" as const, icon: Wallet },
+  { href: "/admin", key: "overview" as const, perm: "overview" as const, icon: LayoutDashboard, exact: true },
+  { href: "/admin/tenants", key: "tenants" as const, perm: "tenants" as const, icon: Building2 },
+  { href: "/admin/users", key: "users" as const, perm: "users" as const, icon: Users },
+  { href: "/admin/operators", key: "operators" as const, perm: "operators" as const, icon: Shield },
+  { href: "/admin/billing", key: "billing" as const, perm: "billing" as const, icon: CreditCard },
+  { href: "/admin/plans", key: "plans" as const, perm: "plans" as const, icon: Package },
+  { href: "/admin/visits", key: "visits" as const, perm: "visits" as const, icon: MapPin },
+  { href: "/admin/gateways", key: "gateways" as const, perm: "gateways" as const, icon: Wallet },
 ];
+
+function canAccess(perms: string[], needed: string) {
+  if (!perms.length || perms.includes("full")) return true;
+  return perms.includes(needed);
+}
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -43,6 +48,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [allowed, setAllowed] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  const [perms, setPerms] = useState<string[]>(["full"]);
 
   useEffect(() => {
     let cancelled = false;
@@ -66,6 +72,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           );
           return;
         }
+        const p = (res.data as { permissions?: string[] }).permissions;
+        setPerms(Array.isArray(p) && p.length ? p : ["full"]);
         setAllowed(true);
       } catch (err: unknown) {
         if (cancelled) return;
@@ -122,7 +130,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const NavLinks = (
     <nav className="flex flex-col gap-1 p-3">
-      {NAV.map((item) => {
+      {NAV.filter((item) => canAccess(perms, item.perm)).map((item) => {
         const active = item.exact
           ? pathname === item.href
           : pathname === item.href || pathname.startsWith(item.href + "/");

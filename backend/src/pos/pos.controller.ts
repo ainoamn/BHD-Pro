@@ -35,6 +35,8 @@ import { CompanyGatewaysService } from '../payments/company-gateways.service';
 import { TerminalTapService } from './terminal-tap.service';
 import { GATEWAY_META } from '../payments/gateway.constants';
 import { IsEnum, IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
+import { PlanFeatureGuard } from '../common/guards/plan-feature.guard';
+import { RequirePlanFeature } from '../common/decorators/require-plan-feature.decorator';
 
 class PartnerCheckoutDto {
   @IsOptional()
@@ -71,7 +73,8 @@ const POS_STAFF = [
 
 @ApiTags('POS')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, PlanFeatureGuard)
+@RequirePlanFeature('pos')
 @Controller('pos')
 export class PosController {
   constructor(

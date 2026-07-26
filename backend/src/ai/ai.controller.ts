@@ -8,10 +8,13 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
 import { UserRole } from '@prisma/client';
+import { PlanFeatureGuard } from '../common/guards/plan-feature.guard';
+import { RequirePlanFeature } from '../common/decorators/require-plan-feature.decorator';
 
 @ApiTags('AI Analytics')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, PlanFeatureGuard)
+@RequirePlanFeature('aiAnalytics')
 @Controller('ai')
 export class AiController {
   constructor(

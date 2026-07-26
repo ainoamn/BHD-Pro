@@ -66,6 +66,8 @@ import {
   VoidRestoOrderItemDto,
 } from './dto/resto.dto';
 import { IsIn } from 'class-validator';
+import { PlanFeatureGuard } from '../common/guards/plan-feature.guard';
+import { RequirePlanFeature } from '../common/decorators/require-plan-feature.decorator';
 
 class KitchenStatusDto {
   @IsIn(['PREPARING', 'READY', 'SERVED'])
@@ -90,7 +92,8 @@ const RESTO_FLOOR_MGR = [
 
 @ApiTags('resto')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, PlanFeatureGuard)
+@RequirePlanFeature('resto')
 @Controller('resto')
 export class RestoController {
   constructor(

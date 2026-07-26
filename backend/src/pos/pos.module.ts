@@ -12,6 +12,7 @@ import { JournalModule } from '../journal/journal.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { PaymentsModule } from '../payments/payments.module';
 import { AuditModule } from '../audit/audit.module';
+import { PlanFeatureGuard } from '../common/guards/plan-feature.guard';
 
 @Module({
   imports: [
@@ -26,7 +27,12 @@ import { AuditModule } from '../audit/audit.module';
     AuditModule,
   ],
   controllers: [PosController],
-  providers: [PosService, PosIncentivesService, TerminalTapService],
+  providers: [
+    PosService,
+    PosIncentivesService,
+    TerminalTapService,
+    PlanFeatureGuard,
+  ],
   exports: [PosService, PosIncentivesService, TerminalTapService],
 })
 export class PosModule {}

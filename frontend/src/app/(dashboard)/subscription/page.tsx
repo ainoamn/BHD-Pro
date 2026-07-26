@@ -20,6 +20,7 @@ interface Plan {
   usersLimit: number;
   support: string;
   currency: string;
+  features?: Record<string, boolean>;
 }
 
 interface Subscription {
@@ -275,6 +276,30 @@ function SubscriptionContent() {
                   <Check className="w-4 h-4 text-emerald-400" />
                   {plan.support} {t("support")}
                 </li>
+                {plan.features?.pos && (
+                  <li className="flex items-center gap-2">
+                    <Check className="w-4 h-4 text-emerald-400" />
+                    POS / كاشير
+                  </li>
+                )}
+                {plan.features?.resto && (
+                  <li className="flex items-center gap-2">
+                    <Check className="w-4 h-4 text-emerald-400" />
+                    مطاعم / Restaurants
+                  </li>
+                )}
+                {plan.features?.aiAnalytics && (
+                  <li className="flex items-center gap-2">
+                    <Check className="w-4 h-4 text-emerald-400" />
+                    AI Analytics
+                  </li>
+                )}
+                {plan.features?.multiBranch && (
+                  <li className="flex items-center gap-2">
+                    <Check className="w-4 h-4 text-emerald-400" />
+                    فروع متعددة
+                  </li>
+                )}
               </ul>
 
               <button

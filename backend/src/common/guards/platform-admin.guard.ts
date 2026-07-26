@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Injectable,
 } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { PrismaService } from '../../prisma/prisma.service';
 
 /**
@@ -30,6 +31,19 @@ export const PLATFORM_PERMISSIONS = [
 
 export type PlatformPermission = (typeof PLATFORM_PERMISSIONS)[number];
 
+const PATH_PERMISSIONS: { match: RegExp; perm: PlatformPermission }[] = [
+  { match: /\/admin\/operators(\/|$)/, perm: 'operators' },
+  { match: /\/admin\/tenants(\/|$)/, perm: 'tenants' },
+  { match: /\/admin\/users(\/|$)/, perm: 'users' },
+  { match: /\/admin\/billing(\/|$)/, perm: 'billing' },
+  { match: /\/admin\/offers(\/|$)/, perm: 'plans' },
+  { match: /\/admin\/visits(\/|$)/, perm: 'visits' },
+  { match: /\/admin\/sessions(\/|$)/, perm: 'visits' },
+  { match: /\/admin\/payment-gateways(\/|$)/, perm: 'gateways' },
+  { match: /\/admin\/overview(\/|$)/, perm: 'overview' },
+  { match: /\/admin\/settings(\/|$)/, perm: 'overview' },
+];
+
 export function getEnvPlatformAdminEmails(): string[] {
   return (process.env.PLATFORM_ADMIN_EMAILS || '')
     .split(',')
@@ -48,9 +62,29 @@ export function isBootstrapAdminEmail(email?: string | null): boolean {
   return getBootstrapAdminEmails().includes(email.toLowerCase());
 }
 
+export function operatorHasPermission(
+  permissions: string[] | undefined,
+  needed?: PlatformPermission[],
+): boolean {
+  if (!needed?.length) return true;
+  const perms = permissions || [];
+  if (perms.includes('full')) return true;
+  return needed.some((p) => perms.includes(p));
+}
+
+function permissionForPath(url: string): PlatformPermission | null {
+  for (const row of PATH_PERMISSIONS) {
+    if (row.match.test(url)) return row.perm;
+  }
+  return null;
+}
+
 @Injectable()
 export class PlatformAdminGuard implements CanActivate {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private reflector: Reflector,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest();
@@ -58,16 +92,51 @@ export class PlatformAdminGuard implements CanActivate {
     if (!email) {
       throw new ForbiddenException('Not a platform administrator.');
     }
-    if (isBootstrapAdminEmail(email)) return true;
 
-    const op = await this.prisma.platformOperator.findUnique({
-      where: { email },
-    });
-    if (op?.isActive) return true;
+    let permissions: PlatformPermission[] = [];
+    let allowed = false;
 
-    throw new ForbiddenException(
-      'Not a platform administrator. Appoint this email from /admin/operators.',
+    if (isBootstrapAdminEmail(email)) {
+      allowed = true;
+      permissions = ['full'];
+    } else {
+      const op = await this.prisma.platformOperator.findUnique({
+        where: { email },
+      });
+      if (op?.isActive) {
+        allowed = true;
+        permissions = ((op.permissions as string[]) || []) as PlatformPermission[];
+        if (!permissions.length) permissions = ['full'];
+      }
+    }
+
+    if (!allowed) {
+      throw new ForbiddenException(
+        'Not a platform administrator. Appoint this email from /admin/operators.',
+      );
+    }
+
+    req.platformPermissions = permissions;
+
+    const fromMeta = this.reflector.getAllAndOverride<PlatformPermission[]>(
+      'platformPerms',
+      [context.getHandler(), context.getClass()],
     );
+    const path = String(req.originalUrl || req.url || '');
+    const fromPath = permissionForPath(path);
+    const needed = fromMeta?.length
+      ? fromMeta
+      : fromPath
+        ? [fromPath]
+        : undefined;
+
+    if (!operatorHasPermission(permissions, needed)) {
+      throw new ForbiddenException(
+        'Insufficient platform operator permissions for this action.',
+      );
+    }
+
+    return true;
   }
 }
 
