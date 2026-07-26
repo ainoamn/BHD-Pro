@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { UserRole } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -21,6 +22,7 @@ export class DualControlController {
   constructor(private dualControl: DualControlService) {}
 
   @Post('whatsapp-otp')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @ApiOperation({ summary: 'Send WhatsApp OTP for a dual-control action' })
   requestWhatsappOtp(
     @CurrentUser() user: TokenPayload,

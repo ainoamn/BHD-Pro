@@ -141,7 +141,20 @@ function LoginForm() {
       if (!axiosErr?.response) {
         toast.error(t("networkError"));
       } else if (status === 403 && typeof msg === "string" && msg.includes("locked")) {
-        toast.error(t("accountLocked"));
+        const untilMatch = msg.match(/until\s+(\S+)/i);
+        let untilLabel = "";
+        if (untilMatch?.[1]) {
+          try {
+            untilLabel = new Date(untilMatch[1].replace(/\.+$/, "")).toLocaleString();
+          } catch {
+            untilLabel = untilMatch[1];
+          }
+        }
+        toast.error(
+          untilLabel
+            ? t("accountLockedUntil", { until: untilLabel })
+            : t("accountLocked"),
+        );
       } else {
         toast.error(Array.isArray(msg) ? msg.join(" — ") : msg || t("invalidCredentials"));
       }

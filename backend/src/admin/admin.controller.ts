@@ -14,6 +14,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
+import { Logger } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
@@ -284,6 +285,8 @@ export class AdminController {
 @ApiTags('Public')
 @Controller('public')
 export class PublicVisitsController {
+  private readonly logger = new Logger(PublicVisitsController.name);
+
   constructor(private admin: AdminService) {}
 
   @Get('stats')
@@ -354,5 +357,29 @@ export class PublicVisitsController {
       country,
       city: (headerCity || body.city)?.slice(0, 80),
     });
+  }
+
+  @Post('client-errors')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Browser error beacon (best-effort logging)' })
+  clientErrors(
+    @Body()
+    body: {
+      message?: string;
+      stack?: string;
+      url?: string;
+      source?: string;
+    },
+  ) {
+    const message = String(body?.message || 'unknown').slice(0, 500);
+    const url = String(body?.url || '').slice(0, 400);
+    const source = String(body?.source || 'browser').slice(0, 40);
+    this.logger.warn(
+      `client-error [${source}] ${message} @ ${url || '-'}`,
+    );
+    if (body?.stack) {
+      this.logger.debug(String(body.stack).slice(0, 2000));
+    }
+    return { ok: true };
   }
 }

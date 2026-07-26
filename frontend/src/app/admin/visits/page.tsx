@@ -44,12 +44,25 @@ export default function AdminVisitsPage() {
   const en = locale === "en";
   const [visits, setVisits] = useState<VisitsPayload | null>(null);
   const [sessions, setSessions] = useState<SessionRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+
+  const load = () => {
+    setLoading(true);
+    setLoadError(false);
+    Promise.all([
+      api.getAdminVisits(150).then((res) => setVisits(res.data as VisitsPayload)),
+      api.getAdminSessions(80).then((res) => setSessions(res.data as SessionRow[])),
+    ])
+      .catch(() => {
+        setLoadError(true);
+        setVisits(null);
+      })
+      .finally(() => setLoading(false));
+  };
 
   useEffect(() => {
-    api.getAdminVisits(150).then((res) => setVisits(res.data as VisitsPayload));
-    api
-      .getAdminSessions(80)
-      .then((res) => setSessions(res.data as SessionRow[]));
+    load();
   }, []);
 
   const kpis = useMemo(() => {
@@ -72,8 +85,25 @@ export default function AdminVisitsPage() {
     return Math.max(...visits.byDay.map((d) => d.count), 1);
   }, [visits]);
 
-  if (!visits || !kpis) {
+  if (loading) {
     return <p className="text-sm text-slate-500">{t.loading}</p>;
+  }
+
+  if (loadError || !visits || !kpis) {
+    return (
+      <div className="space-y-3">
+        <p className="text-sm text-rose-600">
+          {en ? "Could not load visits" : "تعذر تحميل الزيارات"}
+        </p>
+        <button
+          type="button"
+          onClick={load}
+          className="rounded-lg bg-teal-700 px-3 py-2 text-sm font-semibold text-white"
+        >
+          {en ? "Retry" : "إعادة المحاولة"}
+        </button>
+      </div>
+    );
   }
 
   const dayBars = [...visits.byDay].slice(0, 14).reverse();

@@ -8,7 +8,7 @@ import { Settings, Loader2, Percent, Lock, KeyRound, FileStack, FormInput, Arrow
 import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
-import { PageHeader, LoadingSpinner, GlassCard } from "@/components/ui/page-shell";
+import { PageHeader, LoadingSpinner, QueryError, GlassCard } from "@/components/ui/page-shell";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { Company } from "@/types";
 import { cn } from "@/lib/utils";
@@ -61,7 +61,7 @@ export default function SettingsPage() {
     documentColor: "#059669",
   });
 
-  const { data: company, isLoading } = useQuery({
+  const { data: company, isLoading, isError, refetch } = useQuery({
     queryKey: ["company"],
     queryFn: async () => {
       const res = await api.getCompany();
@@ -95,6 +95,23 @@ export default function SettingsPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [company, authUser?.email]);
+
+  useEffect(() => {
+    if (isLoading) return;
+    const hash = typeof window !== "undefined" ? window.location.hash.replace(/^#/, "") : "";
+    if (!hash) return;
+    const scroll = () => {
+      const el = document.getElementById(hash);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+    const t = window.setTimeout(scroll, 80);
+    const onHash = () => scroll();
+    window.addEventListener("hashchange", onHash);
+    return () => {
+      window.clearTimeout(t);
+      window.removeEventListener("hashchange", onHash);
+    };
+  }, [isLoading, company]);
 
   const saveMutation = useMutation({
     mutationFn: () => {
@@ -172,6 +189,8 @@ export default function SettingsPage() {
       <GlassCard className="p-6">
         {isLoading ? (
           <LoadingSpinner />
+        ) : isError ? (
+          <QueryError onRetry={() => refetch()} />
         ) : (
           <form
             onSubmit={(e) => {

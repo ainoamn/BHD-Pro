@@ -3,6 +3,7 @@ import { Cairo, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import "./light-theme.css";
 import { Providers } from "@/components/providers";
+import { ClientErrorBeacon } from "@/components/system/client-error-beacon";
 
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
@@ -59,7 +60,10 @@ export default function RootLayout({
   return (
     <html lang="ar" dir="rtl" suppressHydrationWarning>
       <body className={`${cairo.variable} ${spaceGrotesk.variable} font-sans antialiased`}>
-        <Providers>{children}</Providers>
+        <Providers>
+          <ClientErrorBeacon />
+          {children}
+        </Providers>
       </body>
     </html>
   );

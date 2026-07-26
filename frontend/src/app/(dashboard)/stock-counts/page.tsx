@@ -7,7 +7,7 @@ import { Plus, Loader2, X, ClipboardList, Trash2, CheckCircle2 } from "lucide-re
 import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { formatDate, cn } from "@/lib/utils";
-import { PageHeader, LoadingSpinner, EmptyState, GlassCard } from "@/components/ui/page-shell";
+import { PageHeader, LoadingSpinner, QueryError, EmptyState, GlassCard } from "@/components/ui/page-shell";
 import { DecimalInput } from "@/components/ui/decimal-input";
 
 interface CountLine {
@@ -58,7 +58,7 @@ export default function StockCountsPage() {
     },
   });
 
-  const { data: detail, isLoading: detailLoading } = useQuery({
+  const { data: detail, isLoading: detailLoading, isError: detailError, refetch: refetchDetail } = useQuery({
     queryKey: ["stock-counts", detailId],
     enabled: !!detailId,
     queryFn: async () => {
@@ -335,8 +335,10 @@ export default function StockCountsPage() {
               </button>
             </div>
 
-            {detailLoading || !detail ? (
+            {detailLoading ? (
               <LoadingSpinner />
+            ) : detailError || !detail ? (
+              <QueryError onRetry={() => refetchDetail()} />
             ) : (
               <>
                 <span className={cn("text-xs px-2 py-1 rounded-full", statusClass(detail.status))}>

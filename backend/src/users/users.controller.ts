@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { UsersService } from './users.service';
 import { CreateUserDto, UpdateUserDto } from './dto/user.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -29,6 +30,7 @@ export class UsersController {
 
   @Post()
   @Roles('ADMIN')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   create(@CurrentUser() user: TokenPayload, @Body() dto: CreateUserDto) {
     return this.usersService.create(user.companyId, dto);
   }

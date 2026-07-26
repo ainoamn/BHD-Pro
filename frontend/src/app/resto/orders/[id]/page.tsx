@@ -49,6 +49,7 @@ export default function RestoOrderPage() {
   const [tipAmount, setTipAmount] = useState("");
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [busy, setBusy] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
 
@@ -61,9 +62,13 @@ export default function RestoOrderPage() {
     let cancelled = false;
     (async () => {
       try {
+        setLoadError(false);
         await refresh();
       } catch {
-        if (!cancelled) toast.error(t.fail);
+        if (!cancelled) {
+          setLoadError(true);
+          toast.error(t.fail);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -274,10 +279,41 @@ export default function RestoOrderPage() {
     }
   };
 
-  if (loading || !order) {
+  if (loading) {
     return (
       <div className="flex justify-center py-24 text-stone-400">
         <Loader2 className="w-6 h-6 animate-spin" />
+      </div>
+    );
+  }
+
+  if (loadError || !order) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-24 text-center px-4">
+        <p className="text-sm text-stone-400">{t.fail}</p>
+        <button
+          type="button"
+          onClick={() => {
+            setLoading(true);
+            setLoadError(false);
+            void (async () => {
+              try {
+                await refresh();
+              } catch {
+                setLoadError(true);
+                toast.error(t.fail);
+              } finally {
+                setLoading(false);
+              }
+            })();
+          }}
+          className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white"
+        >
+          {locale === "en" ? "Retry" : "إعادة المحاولة"}
+        </button>
+        <Link href="/resto" className="text-xs text-stone-500 hover:text-amber-200">
+          {locale === "en" ? "Back to floor" : "العودة للصالة"}
+        </Link>
       </div>
     );
   }

@@ -59,6 +59,7 @@
 - **إلزام 2FA** عبر `REQUIRE_2FA_ROLES` (افتراضي ADMIN,MANAGER) + `require2faForAdmins` للشركة
 - CORS مقيّد، منصّة إدارة من env، حد MIME/حجم للمرفقات، CSP أساسي على Next
 - موجة H جزئية: [`HISABY-WAVE-H-SECURITY-UX-2026-07-26.md`](./HISABY-WAVE-H-SECURITY-UX-2026-07-26.md)
+- موجة I: تدقيق دخول + إصلاح دوران صفحات إضافية + منارة أخطاء متصفح — [`HISABY-WAVE-I-STABILITY-AUDIT-2026-07-26.md`](./HISABY-WAVE-I-STABILITY-AUDIT-2026-07-26.md)
 
 ### 1.6 المنصة ولوحة الإدارة (محدث 26 يوليو مساءً)
 - اشتراكات، بوابات دفع، `/admin`، PWA، GeoIP، keep-warm

@@ -40,7 +40,7 @@ After the hardening commit, the app is **closer to production-ready** for a cont
 
 - ~~Enforce 2FA for ADMIN/MANAGER~~ — **done (Wave H partial):** `REQUIRE_2FA_ROLES` (default `ADMIN,MANAGER`) + company `require2faForAdmins`; banner + disable blocked; set `REQUIRE_2FA_ROLES=off` to disable env policy
 - WAF / bot protection in front of login (Cloudflare)
-- Full Sentry DSN wiring (optional env) for error monitoring
+- Full Sentry DSN wiring (optional env) for error monitoring — lightweight `POST /public/client-errors` beacon shipped in Wave I; full `@sentry/*` SDK still optional
 - Dependency audit (`npm audit`) and lock Next.js / Nest to patched releases
 - Object storage (S3) for attachments instead of data URLs
 - Narrow API-key scopes below full ACCOUNTANT where possible

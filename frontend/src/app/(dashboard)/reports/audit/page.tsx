@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ScrollText } from "lucide-react";
 import api from "@/lib/api";
 import { formatDate, cn } from "@/lib/utils";
-import { PageHeader, LoadingSpinner, EmptyState, GlassCard } from "@/components/ui/page-shell";
+import { PageHeader, LoadingSpinner, QueryError, EmptyState, GlassCard } from "@/components/ui/page-shell";
 
 interface AuditRow {
   id: string;
@@ -31,7 +31,7 @@ export default function AuditLogPage() {
   const [entity, setEntity] = useState("");
   const [action, setAction] = useState("");
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["report-audit-log", entity, action],
     queryFn: async () => {
       const res = await api.getAuditLog({
@@ -46,8 +46,10 @@ export default function AuditLogPage() {
   const rows = data?.rows || [];
 
   const actionClass = (a: string) => {
-    if (a === "DELETE") return "bg-rose-500/10 text-rose-400";
-    if (a === "CREATE" || a === "PAYMENT") return "bg-emerald-500/10 text-emerald-400";
+    if (a === "DELETE" || a === "LOGIN_FAIL" || a === "ACCOUNT_LOCK")
+      return "bg-rose-500/10 text-rose-400";
+    if (a === "CREATE" || a === "PAYMENT" || a === "LOGIN_OK")
+      return "bg-emerald-500/10 text-emerald-400";
     if (a === "LOCK") return "bg-amber-500/10 text-amber-400";
     return "bg-slate-800 text-slate-300";
   };
@@ -74,7 +76,7 @@ export default function AuditLogPage() {
             className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm"
           >
             <option value="">{t("allActions")}</option>
-            {["CREATE", "UPDATE", "DELETE", "PAYMENT", "LOCK", "UNLOCK", "ADJUST", "TOGGLE"].map(
+            {["CREATE", "UPDATE", "DELETE", "PAYMENT", "LOCK", "UNLOCK", "ADJUST", "TOGGLE", "LOGIN_OK", "LOGIN_FAIL", "ACCOUNT_LOCK"].map(
               (a) => (
                 <option key={a} value={a}>
                   {a}
@@ -92,6 +94,8 @@ export default function AuditLogPage() {
 
       {isLoading ? (
         <LoadingSpinner />
+      ) : isError ? (
+        <QueryError onRetry={() => refetch()} />
       ) : rows.length === 0 ? (
         <EmptyState icon={ScrollText} title={t("empty")} description={t("emptyHint")} />
       ) : (

@@ -8,7 +8,7 @@ import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { formatMoney, formatDate, cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
-import { PageHeader, LoadingSpinner, EmptyState, GlassCard } from "@/components/ui/page-shell";
+import { PageHeader, LoadingSpinner, QueryError, EmptyState, GlassCard } from "@/components/ui/page-shell";
 import { DecimalInput } from "@/components/ui/decimal-input";
 
 interface BankOption {
@@ -63,7 +63,7 @@ export default function BankReconciliationPage() {
 
   const selectedId = bankId || banks[0]?.id || "";
 
-  const { data: report, isLoading: reportLoading } = useQuery({
+  const { data: report, isLoading: reportLoading, isError: reportError, refetch: refetchReport } = useQuery({
     queryKey: ["bank-reconciliation", selectedId],
     enabled: !!selectedId,
     queryFn: async () => {
@@ -151,8 +151,10 @@ export default function BankReconciliationPage() {
             </select>
           </GlassCard>
 
-          {reportLoading || !report ? (
+          {reportLoading ? (
             <LoadingSpinner />
+          ) : reportError || !report ? (
+            <QueryError onRetry={() => refetchReport()} />
           ) : (
             <>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

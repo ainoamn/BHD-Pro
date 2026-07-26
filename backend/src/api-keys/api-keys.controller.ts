@@ -11,6 +11,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { ApiKeysService } from './api-keys.service';
 import { CreateApiKeyDto, UpdateApiKeyDto } from './dto/api-key.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -41,6 +42,7 @@ export class ApiKeysController {
   }
 
   @Post()
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @ApiOperation({ summary: 'Create API key — secret returned once' })
   create(
     @CurrentUser() user: TokenPayload,

@@ -14,6 +14,7 @@ import { decryptSecret, encryptSecret, hashToken } from '../common/crypto/secret
 import { resolveModulePermissions } from '../common/module-permissions';
 import { generateSecret, generateURI, verifySync } from 'otplib';
 import * as QRCode from 'qrcode';
+import { AuditService } from '../audit/audit.service';
 
 @Injectable()
 export class AuthService {
@@ -24,6 +25,7 @@ export class AuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private config: ConfigService,
+    private audit: AuditService,
   ) {}
 
   private getGoogleClient() {
@@ -72,23 +74,37 @@ export class AuthService {
   }
 
   async login(dto: LoginDto) {
-    const user = await this.validateUser(dto.email, dto.password);
+    try {
+      const user = await this.validateUser(dto.email, dto.password);
 
-    if (user.twoFactorEnabled && user.twoFactorSecret) {
-      const tempToken = await this.jwtService.signAsync(
-        { sub: user.id, purpose: '2fa' },
-        {
-          secret: this.config.get<string>('jwt.secret'),
-          expiresIn: '5m',
-        },
-      );
-      return { requires2fa: true as const, tempToken };
+      if (user.twoFactorEnabled && user.twoFactorSecret) {
+        const tempToken = await this.jwtService.signAsync(
+          { sub: user.id, purpose: '2fa' },
+          {
+            secret: this.config.get<string>('jwt.secret'),
+            expiresIn: '5m',
+          },
+        );
+        return { requires2fa: true as const, tempToken };
+      }
+
+      await this.auditAuth({
+        companyId: user.companyId,
+        userId: user.id,
+        action: 'LOGIN_OK',
+        email: user.email,
+        ipAddress: dto.ipAddress,
+        userAgent: dto.userAgent,
+      });
+
+      return this.issueSession(user, {
+        ipAddress: dto.ipAddress,
+        userAgent: dto.userAgent,
+      });
+    } catch (err) {
+      await this.auditFailedLogin(dto.email, dto.ipAddress, dto.userAgent, err);
+      throw err;
     }
-
-    return this.issueSession(user, {
-      ipAddress: dto.ipAddress,
-      userAgent: dto.userAgent,
-    });
   }
 
   async verify2faLogin(tempToken: string, code: string) {
@@ -609,11 +625,81 @@ export class AuthService {
     });
 
     if (user.loginAttempts >= 5) {
+      const lockedUntil = new Date(Date.now() + 30 * 60 * 1000);
       await this.prisma.user.update({
         where: { id: userId },
-        data: { lockedUntil: new Date(Date.now() + 30 * 60 * 1000) },
+        data: { lockedUntil },
+      });
+      await this.auditAuth({
+        companyId: user.companyId,
+        userId: user.id,
+        action: 'ACCOUNT_LOCK',
+        email: user.email,
+        details: { lockedUntil: lockedUntil.toISOString() },
       });
     }
+  }
+
+  private async auditFailedLogin(
+    email: string,
+    ipAddress?: string,
+    userAgent?: string,
+    err?: unknown,
+  ) {
+    const normalized = String(email || '').trim().toLowerCase();
+    if (!normalized) return;
+    const user = await this.prisma.user.findUnique({
+      where: { email: normalized },
+      select: { id: true, companyId: true, email: true },
+    });
+    if (!user) return;
+    const locked = this.exceptionLooksLocked(err);
+    await this.auditAuth({
+      companyId: user.companyId,
+      userId: user.id,
+      action: locked ? 'ACCOUNT_LOCK' : 'LOGIN_FAIL',
+      email: user.email,
+      ipAddress,
+      userAgent,
+    });
+  }
+
+  private exceptionLooksLocked(err: unknown): boolean {
+    if (!(err instanceof ForbiddenException)) return false;
+    const res = err.getResponse();
+    const text =
+      typeof res === 'string'
+        ? res
+        : res && typeof res === 'object' && 'message' in res
+          ? Array.isArray((res as { message: unknown }).message)
+            ? ((res as { message: string[] }).message).join(' ')
+            : String((res as { message: unknown }).message || '')
+          : String(err.message || '');
+    return text.toLowerCase().includes('locked');
+  }
+
+  private async auditAuth(opts: {
+    companyId: string;
+    userId?: string;
+    action: string;
+    email?: string;
+    ipAddress?: string;
+    userAgent?: string;
+    details?: Record<string, unknown>;
+  }) {
+    await this.audit.log({
+      companyId: opts.companyId,
+      userId: opts.userId || null,
+      action: opts.action,
+      entity: 'Auth',
+      entityId: opts.userId || null,
+      newValues: {
+        email: opts.email,
+        ...(opts.details || {}),
+      },
+      ipAddress: opts.ipAddress || null,
+      userAgent: opts.userAgent || null,
+    });
   }
 
   private async createDefaultAccounts(companyId: string) {
