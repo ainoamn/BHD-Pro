@@ -532,6 +532,7 @@ export class PosController {
   }
 
   @Post('shifts/open')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @Roles(...POS_STAFF)
   @ApiOperation({ summary: 'Open a POS cash-drawer shift for a warehouse' })
   openShift(@CurrentUser() user: TokenPayload, @Body() dto: OpenPosShiftDto) {
@@ -539,6 +540,7 @@ export class PosController {
   }
 
   @Post('shifts/close')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @Roles(...POS_STAFF)
   @ApiOperation({ summary: 'Close open POS shift and save Z-report' })
   closeShift(@CurrentUser() user: TokenPayload, @Body() dto: ClosePosShiftDto) {

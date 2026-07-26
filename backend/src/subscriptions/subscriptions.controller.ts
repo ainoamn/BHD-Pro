@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Body, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { SubscriptionsService } from './subscriptions.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -34,6 +35,7 @@ export class SubscriptionsController {
   }
 
   @Post('upgrade')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: 'Upgrade subscription plan' })
   upgrade(@CurrentUser() user: TokenPayload, @Body() dto: UpgradePlanDto) {
     return this.subscriptionsService.upgrade(user.companyId, dto.plan, dto.billing);

@@ -597,6 +597,7 @@
     "saved": "Saved successfully",
     "deleted": "Deleted",
     "error": "An error occurred",
+    "retry": "Retry",
     "confirmDelete": "Are you sure you want to delete?",
     "darkMode": "Dark mode",
     "lightMode": "Light mode"

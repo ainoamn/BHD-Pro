@@ -80,7 +80,7 @@ export default function PosBooksPage() {
         </Link>
       </div>
 
-      {!data?.linked && (
+      {data && !data.linked && (
         <div className="rounded-2xl border border-violet-500/30 bg-violet-500/10 p-4 space-y-2">
           <p className="font-bold text-violet-100 flex items-center gap-2">
             <Calculator className="w-4 h-4" />

@@ -38,7 +38,7 @@ export function EntityAttachments({ entityType, entityId, className }: EntityAtt
   const inputRef = useRef<HTMLInputElement>(null);
   const queryKey = ["attachments", entityType, entityId];
 
-  const { data: rows = [], isLoading } = useQuery({
+  const { data: rows = [], isLoading, isError, refetch } = useQuery({
     queryKey,
     queryFn: async () =>
       (await api.getAttachments(entityType, entityId)).data as AttachmentRow[],
@@ -75,6 +75,7 @@ export function EntityAttachments({ entityType, entityId, className }: EntityAtt
       queryClient.invalidateQueries({ queryKey });
       toast.success(tCommon("deleted"));
     },
+    onError: () => toast.error(tCommon("error")),
   });
 
   return (
@@ -110,6 +111,17 @@ export function EntityAttachments({ entityType, entityId, className }: EntityAtt
       </div>
       {isLoading ? (
         <p className="text-xs text-slate-500">{tCommon("loading")}</p>
+      ) : isError ? (
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-rose-400">{tCommon("error")}</span>
+          <button
+            type="button"
+            onClick={() => void refetch()}
+            className="text-emerald-400 hover:underline"
+          >
+            {tCommon("retry")}
+          </button>
+        </div>
       ) : rows.length === 0 ? (
         <p className="text-xs text-slate-500">{t("empty")}</p>
       ) : (

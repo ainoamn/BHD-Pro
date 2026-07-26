@@ -8,6 +8,7 @@ import {
   ParseIntPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { PeriodsService } from './periods.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -32,6 +33,7 @@ export class PeriodsController {
   }
 
   @Post(':year/:month/lock')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @ApiOperation({ summary: 'Lock an accounting period' })
   lock(
     @CurrentUser() user: TokenPayload,
@@ -42,6 +44,7 @@ export class PeriodsController {
   }
 
   @Post(':year/:month/unlock')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @ApiOperation({ summary: 'Unlock an accounting period (admin only)' })
   unlock(
     @CurrentUser() user: TokenPayload,

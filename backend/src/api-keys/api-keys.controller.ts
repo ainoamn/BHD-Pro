@@ -65,6 +65,7 @@ export class ApiKeysController {
   }
 
   @Post(':id/revoke')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @ApiOperation({ summary: 'Revoke API key' })
   revoke(
     @CurrentUser() user: TokenPayload,
@@ -76,6 +77,7 @@ export class ApiKeysController {
   }
 
   @Delete(':id')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   remove(
     @CurrentUser() user: TokenPayload,
     @Param('id') id: string,

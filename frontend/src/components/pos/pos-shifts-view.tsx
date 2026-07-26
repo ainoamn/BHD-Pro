@@ -311,7 +311,7 @@ export function PosShiftsView({
     refetchInterval: 15000,
   });
 
-  const { data: history = [] } = useQuery({
+  const { data: history = [], isError: historyError, refetch: refetchHistory } = useQuery({
     queryKey: ["pos-shifts"],
     queryFn: async () => {
       const res = await api.listPosShifts();
@@ -1248,7 +1248,20 @@ export function PosShiftsView({
               ) : null}
             </li>
           ))}
-          {!history.length ? <p className="text-sm text-slate-500">{t.noShiftHistory}</p> : null}
+          {historyError ? (
+            <div className="space-y-2 py-2">
+              <p className="text-sm text-rose-300">{t.loadFailed}</p>
+              <button
+                type="button"
+                onClick={() => void refetchHistory()}
+                className="text-xs font-bold text-amber-300 hover:underline"
+              >
+                {t.retry}
+              </button>
+            </div>
+          ) : !history.length ? (
+            <p className="text-sm text-slate-500">{t.noShiftHistory}</p>
+          ) : null}
         </ul>
       </div>
 

@@ -43,6 +43,7 @@ export default function RestoWaitlistPage() {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [freeTables, setFreeTables] = useState<FloorTable[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [busy, setBusy] = useState(false);
   const [guestName, setGuestName] = useState("");
   const [phone, setPhone] = useState("");
@@ -84,7 +85,10 @@ export default function RestoWaitlistPage() {
             tb.status !== "BILLING",
         ),
       );
+      setLoadError(false);
     } catch {
+      setEntries([]);
+      setLoadError(true);
       toast.error(t.actionFail);
     } finally {
       setLoading(false);
@@ -220,6 +224,20 @@ export default function RestoWaitlistPage() {
       {loading ? (
         <div className="flex justify-center py-16 text-stone-400">
           <Loader2 className="w-6 h-6 animate-spin" />
+        </div>
+      ) : loadError ? (
+        <div className="text-center py-12 space-y-3">
+          <p className="text-sm text-rose-300">{t.loadFailed}</p>
+          <button
+            type="button"
+            onClick={() => {
+              setLoading(true);
+              void load();
+            }}
+            className="rounded-xl bg-amber-500 text-[#14110f] px-4 py-2 text-sm font-bold"
+          >
+            {t.retry}
+          </button>
         </div>
       ) : entries.length === 0 ? (
         <p className="text-center text-sm text-stone-400 py-12">{t.waitlistEmpty}</p>
