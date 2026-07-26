@@ -1,3 +1,4 @@
+import { PartialType, ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsDateString,
   IsNumber,
@@ -7,7 +8,6 @@ import {
   Min,
   MinLength,
 } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class ExchangeRateDto {
   @ApiProperty({ example: 'USD' })
@@ -35,3 +35,5 @@ export class ExchangeRateDto {
   @MinLength(1)
   notes?: string;
 }
+
+export class UpdateExchangeRateDto extends PartialType(ExchangeRateDto) {}

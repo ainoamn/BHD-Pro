@@ -16,9 +16,11 @@ import { CreateContactDto } from './dto/create-contact.dto';
 import { UpdateContactDto } from './dto/update-contact.dto';
 import { AdjustStoreCreditDto } from './dto/adjust-store-credit.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
-import { ContactType } from '@prisma/client';
+import { ContactType, UserRole } from '@prisma/client';
 
 @ApiTags('Contacts')
 @ApiBearerAuth()
@@ -51,6 +53,8 @@ export class ContactsController {
   }
 
   @Post(':id/store-credit-adjust')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({
     summary: 'Top up or reduce customer store-credit wallet with GL posting to 2130',
