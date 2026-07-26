@@ -18,6 +18,8 @@ type Entry = {
   notes: string | null;
   waitedMinutes: number;
   createdAt: string;
+  notifyChannel?: string | null;
+  notifyResult?: string | null;
 };
 
 type FloorTable = {
@@ -27,6 +29,12 @@ type FloorTable = {
   status: string;
   openOrder: { id: string } | null;
 };
+
+type NotifyPayload = {
+  ok: boolean;
+  channel: string | null;
+  error?: string;
+} | null | undefined;
 
 export default function RestoWaitlistPage() {
   const router = useRouter();
@@ -42,6 +50,21 @@ export default function RestoWaitlistPage() {
   const [quoted, setQuoted] = useState(15);
   const [seatFor, setSeatFor] = useState<string | null>(null);
   const [tableId, setTableId] = useState("");
+
+  const toastNotify = (notify: NotifyPayload) => {
+    if (!notify) return;
+    if (notify.ok) {
+      toast.success(
+        `${t.notifySent}${notify.channel ? ` · ${notify.channel}` : ""}`,
+      );
+      return;
+    }
+    if (notify.error === "no_phone") {
+      toast.error(t.notifyNoPhone);
+      return;
+    }
+    toast.error(t.notifyFail);
+  };
 
   const load = useCallback(async () => {
     try {
@@ -96,9 +119,22 @@ export default function RestoWaitlistPage() {
     }
   };
 
+  const notifyGuest = async (id: string) => {
+    setBusy(true);
+    try {
+      const res = await api.notifyRestoWaitlist(id);
+      toastNotify(res.data.notify);
+      await load();
+    } catch {
+      toast.error(t.actionFail);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const setStatus = async (
     id: string,
-    status: "NOTIFIED" | "CANCELLED" | "SEATED",
+    status: "CANCELLED" | "SEATED",
     seatTableId?: string,
   ) => {
     setBusy(true);
@@ -108,7 +144,7 @@ export default function RestoWaitlistPage() {
         tableId: seatTableId,
       });
       if (status === "SEATED") {
-        const orderId = (res.data as { order?: { id: string } })?.order?.id;
+        const orderId = res.data?.order?.id;
         if (orderId) {
           router.push(`/resto/orders/${orderId}`);
           return;
@@ -204,14 +240,18 @@ export default function RestoWaitlistPage() {
                     {e.quotedMinutes != null
                       ? ` · ~${e.quotedMinutes}`
                       : ""}
-                    {e.status === "NOTIFIED" ? ` · ${t.waitlistNotify}` : ""}
+                    {e.status === "NOTIFIED"
+                      ? ` · ${t.waitlistNotify}${
+                          e.notifyChannel ? ` (${e.notifyChannel})` : ""
+                        }`
+                      : ""}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   <button
                     type="button"
                     disabled={busy}
-                    onClick={() => void setStatus(e.id, "NOTIFIED")}
+                    onClick={() => void notifyGuest(e.id)}
                     className="rounded-lg border border-white/15 px-2.5 py-1.5 text-[11px] font-bold hover:bg-white/5"
                   >
                     {t.waitlistNotify}

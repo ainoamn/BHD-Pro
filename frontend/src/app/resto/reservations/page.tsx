@@ -17,6 +17,8 @@ type Reservation = {
   reservedAt: string;
   status: string;
   notes: string | null;
+  confirmedAt?: string | null;
+  reminderSentAt?: string | null;
   table: { id: string; code: string; name: string | null } | null;
 };
 
@@ -50,6 +52,25 @@ export default function RestoReservationsPage() {
     notes: "",
   });
 
+  const toastNotify = (notify?: {
+    ok: boolean;
+    channel: string | null;
+    error?: string;
+  }) => {
+    if (!notify) return;
+    if (notify.ok) {
+      toast.success(
+        `${t.notifySent}${notify.channel ? ` · ${notify.channel}` : ""}`,
+      );
+      return;
+    }
+    if (notify.error === "no_phone") {
+      toast.error(t.notifyNoPhone);
+      return;
+    }
+    toast.error(t.notifyFail);
+  };
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -58,11 +79,17 @@ export default function RestoReservationsPage() {
         api.getRestoFloor(),
       ]);
       setRows(res.data.reservations || []);
-      const flat = (floor.data.tables || []).map((tb) => ({
-        id: tb.id,
-        code: tb.code,
-        name: tb.name,
-      }));
+      const fromZones = (floor.data.zones || []).flatMap(
+        (z: { tables?: FloorTable[] }) => z.tables || [],
+      );
+      const flat =
+        fromZones.length > 0
+          ? fromZones
+          : (floor.data.tables || []).map((tb: FloorTable) => ({
+              id: tb.id,
+              code: tb.code,
+              name: tb.name,
+            }));
       setTables(flat);
     } catch {
       toast.error(t.actionFail);
@@ -116,6 +143,22 @@ export default function RestoReservationsPage() {
       if (status === "SEATED" && res.data.openedOrderId) {
         router.push(`/resto/orders/${res.data.openedOrderId}`);
       }
+    } catch {
+      toast.error(t.actionFail);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const sendNotify = async (
+    id: string,
+    kind: "CONFIRM" | "REMINDER" | "TABLE_READY",
+  ) => {
+    setBusy(true);
+    try {
+      const res = await api.notifyRestoReservation(id, kind);
+      toastNotify(res.data.notify);
+      await load();
     } catch {
       toast.error(t.actionFail);
     } finally {
@@ -255,6 +298,31 @@ export default function RestoReservationsPage() {
                       {t.resConfirm}
                     </button>
                   ) : null}
+                  <button
+                    type="button"
+                    disabled={busy || !r.phone}
+                    onClick={() => void sendNotify(r.id, "CONFIRM")}
+                    className="rounded-lg border border-sky-400/40 text-sky-100 px-2.5 py-1 text-[11px] font-bold disabled:opacity-40"
+                    title={!r.phone ? t.notifyNoPhone : undefined}
+                  >
+                    {t.resSendConfirm}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy || !r.phone}
+                    onClick={() => void sendNotify(r.id, "REMINDER")}
+                    className="rounded-lg border border-white/15 px-2.5 py-1 text-[11px] font-semibold disabled:opacity-40"
+                  >
+                    {t.resSendRemind}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy || !r.phone}
+                    onClick={() => void sendNotify(r.id, "TABLE_READY")}
+                    className="rounded-lg border border-amber-400/35 text-amber-100 px-2.5 py-1 text-[11px] font-semibold disabled:opacity-40"
+                  >
+                    {t.resTableReady}
+                  </button>
                   <button
                     type="button"
                     disabled={busy}

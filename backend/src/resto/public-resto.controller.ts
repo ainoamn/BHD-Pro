@@ -45,4 +45,25 @@ export class PublicRestoController {
   loyalty(@Param('token') token: string, @Body() dto: PublicGuestLoyaltyDto) {
     return this.resto.publicAttachLoyalty(token, dto);
   }
+
+  @Get('reservations/:token')
+  @Throttle({ default: { limit: 40, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Public reservation lookup by confirm token' })
+  reservation(@Param('token') token: string) {
+    return this.resto.getPublicReservation(token);
+  }
+
+  @Post('reservations/:token/confirm')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Guest confirms reservation via link' })
+  confirmReservation(@Param('token') token: string) {
+    return this.resto.publicConfirmReservation(token);
+  }
+
+  @Post('reservations/:token/cancel')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Guest cancels reservation via link' })
+  cancelReservation(@Param('token') token: string) {
+    return this.resto.publicCancelReservation(token);
+  }
 }

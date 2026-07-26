@@ -255,6 +255,12 @@ export class UpdateRestoWaitlistStatusDto {
   tableId?: string;
 }
 
+export class NotifyRestoReservationDto {
+  @IsOptional()
+  @IsIn(['CONFIRM', 'REMINDER', 'TABLE_READY'])
+  kind?: 'CONFIRM' | 'REMINDER' | 'TABLE_READY';
+}
+
 export class SetRestoMenu86Dto {
   @IsUUID()
   productId: string;

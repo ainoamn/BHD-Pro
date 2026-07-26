@@ -59,6 +59,7 @@ import {
   UpdateRestoOrderItemDto,
   UpdateRestoDeliveryDto,
   UpdateRestoWaitlistStatusDto,
+  NotifyRestoReservationDto,
   UpsertRestoRecipeDto,
   UpdateRestoReservationStatusDto,
   VoidRestoOrderItemDto,
@@ -814,7 +815,10 @@ export class RestoController {
 
   @Patch('waitlist/:id/status')
   @Roles(...RESTO_STAFF)
-  @ApiOperation({ summary: 'Update waitlist status (seat opens dine-in order)' })
+  @ApiOperation({
+    summary:
+      'Update waitlist status (NOTIFIED sends WhatsApp/SMS when configured)',
+  })
   updateWaitlistStatus(
     @CurrentUser() user: TokenPayload,
     @Param('id') id: string,
@@ -826,6 +830,33 @@ export class RestoController {
       user.sub,
       dto.status,
       dto.tableId,
+    );
+  }
+
+  @Post('waitlist/:id/notify')
+  @Roles(...RESTO_STAFF)
+  @ApiOperation({ summary: 'Re-send table-ready notify (WhatsApp/SMS)' })
+  notifyWaitlist(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+  ) {
+    return this.resto.notifyWaitlistGuest(user.companyId, id);
+  }
+
+  @Post('reservations/:id/notify')
+  @Roles(...RESTO_STAFF)
+  @ApiOperation({
+    summary: 'Send reservation confirm / reminder / table-ready to guest',
+  })
+  notifyReservation(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+    @Body() dto: NotifyRestoReservationDto,
+  ) {
+    return this.resto.notifyReservationGuest(
+      user.companyId,
+      id,
+      dto?.kind || 'CONFIRM',
     );
   }
 

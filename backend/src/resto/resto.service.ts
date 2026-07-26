@@ -20,6 +20,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PosService } from '../pos/pos.service';
 import { PosIncentivesService } from '../pos/pos-incentives.service';
 import { DualControlService } from '../dual-control/dual-control.service';
+import { RestoGuestNotifyService } from '../notifications/resto-guest-notify.service';
 import { DualApprovalDto } from '../dual-control/dto/approval.dto';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
 import {
@@ -4357,6 +4358,9 @@ export class RestoService {
     status: string;
     notes: string | null;
     tableId: string | null;
+    confirmToken?: string | null;
+    confirmedAt?: Date | null;
+    reminderSentAt?: Date | null;
     createdAt: Date;
     table?: { id: string; code: string; name: string | null } | null;
   }) {
@@ -4369,6 +4373,9 @@ export class RestoService {
       status: r.status,
       notes: r.notes,
       tableId: r.tableId,
+      confirmToken: r.confirmToken ?? null,
+      confirmedAt: r.confirmedAt ?? null,
+      reminderSentAt: r.reminderSentAt ?? null,
       table: r.table
         ? { id: r.table.id, code: r.table.code, name: r.table.name }
         : null,
@@ -4454,6 +4461,7 @@ export class RestoService {
         tableId: dto.tableId || null,
         notes: dto.notes?.trim() || null,
         status: 'PENDING',
+        confirmToken: this.guestNotify.newConfirmToken(),
       },
       include: {
         table: { select: { id: true, code: true, name: true } },
@@ -5003,7 +5011,181 @@ export class RestoService {
         ...(status === 'NOTIFIED' ? { notifiedAt: new Date() } : {}),
       },
     });
-    return this.mapWaitlist(updated);
+
+    let notify: {
+      ok: boolean;
+      channel: string | null;
+      error?: string;
+    } | null = null;
+    if (status === 'NOTIFIED') {
+      notify = await this.sendWaitlistReadyNotify(companyId, updated);
+    }
+
+    const fresh = await this.prisma.restoWaitlistEntry.findUnique({
+      where: { id },
+    });
+    return {
+      ...this.mapWaitlist(fresh || updated),
+      notify,
+    };
+  }
+
+  async notifyWaitlistGuest(companyId: string, id: string) {
+    const row = await this.prisma.restoWaitlistEntry.findFirst({
+      where: { id, companyId },
+    });
+    if (!row) throw new NotFoundException('Waitlist entry not found');
+    if (row.status === 'SEATED' || row.status === 'CANCELLED') {
+      throw new BadRequestException('Cannot notify a closed waitlist entry');
+    }
+    await this.prisma.restoWaitlistEntry.update({
+      where: { id },
+      data: { status: 'NOTIFIED', notifiedAt: new Date() },
+    });
+    const notify = await this.sendWaitlistReadyNotify(companyId, row);
+    const fresh = await this.prisma.restoWaitlistEntry.findUnique({
+      where: { id },
+    });
+    return { ...this.mapWaitlist(fresh || row), notify };
+  }
+
+  private async sendWaitlistReadyNotify(
+    companyId: string,
+    row: {
+      id: string;
+      guestName: string;
+      phone: string | null;
+      quotedMinutes: number | null;
+      notifyAttempts: number;
+    },
+  ) {
+    const result = await this.guestNotify.notifyGuest({
+      companyId,
+      phone: row.phone,
+      guestName: row.guestName,
+      kind: 'WAITLIST_READY',
+      quotedMinutes: row.quotedMinutes,
+    });
+    await this.prisma.restoWaitlistEntry.update({
+      where: { id: row.id },
+      data: {
+        notifyChannel: result.channel,
+        notifyResult: result.ok
+          ? 'ok'
+          : `fail:${result.error || 'unknown'}`,
+        notifyAttempts: (row.notifyAttempts || 0) + 1,
+      },
+    });
+    return result;
+  }
+
+  async notifyReservationGuest(
+    companyId: string,
+    id: string,
+    kind: 'CONFIRM' | 'REMINDER' | 'TABLE_READY' = 'CONFIRM',
+  ) {
+    const row = await this.prisma.restoReservation.findFirst({
+      where: { id, companyId },
+      include: { table: { select: { code: true } } },
+    });
+    if (!row) throw new NotFoundException('Reservation not found');
+
+    let token = row.confirmToken;
+    if (!token) {
+      token = this.guestNotify.newConfirmToken();
+      await this.prisma.restoReservation.update({
+        where: { id },
+        data: { confirmToken: token },
+      });
+    }
+    const confirmUrl = `${this.guestNotify.frontendBaseUrl()}/book/${token}`;
+    const mapKind =
+      kind === 'REMINDER'
+        ? ('RESERVATION_REMIND' as const)
+        : kind === 'TABLE_READY'
+          ? ('RESERVATION_TABLE_READY' as const)
+          : ('RESERVATION_CONFIRM' as const);
+
+    const notify = await this.guestNotify.notifyGuest({
+      companyId,
+      phone: row.phone,
+      guestName: row.guestName,
+      kind: mapKind,
+      tableCode: row.table?.code,
+      reservedAt: row.reservedAt,
+      confirmUrl,
+    });
+
+    const data: Prisma.RestoReservationUpdateInput = {};
+    if (kind === 'CONFIRM' && notify.ok) {
+      data.status = 'CONFIRMED';
+      data.confirmedAt = new Date();
+    }
+    if (kind === 'REMINDER' && notify.ok) {
+      data.reminderSentAt = new Date();
+    }
+    const updated = await this.prisma.restoReservation.update({
+      where: { id },
+      data,
+      include: { table: { select: { id: true, code: true, name: true } } },
+    });
+    return { ...this.mapReservation(updated), notify, confirmUrl };
+  }
+
+  async getPublicReservation(token: string) {
+    const row = await this.prisma.restoReservation.findFirst({
+      where: { confirmToken: token },
+      include: {
+        table: { select: { code: true, name: true } },
+        company: { select: { name: true, logo: true } },
+      },
+    });
+    if (!row) throw new NotFoundException('Reservation link invalid');
+    return {
+      guestName: row.guestName,
+      guests: row.guests,
+      reservedAt: row.reservedAt,
+      status: row.status,
+      notes: row.notes,
+      tableCode: row.table?.code ?? null,
+      company: {
+        name: row.company.name,
+        logo: row.company.logo,
+      },
+      canConfirm: row.status === 'PENDING',
+      canCancel:
+        row.status === 'PENDING' || row.status === 'CONFIRMED',
+    };
+  }
+
+  async publicConfirmReservation(token: string) {
+    const row = await this.prisma.restoReservation.findFirst({
+      where: { confirmToken: token },
+    });
+    if (!row) throw new NotFoundException('Reservation link invalid');
+    if (row.status === 'CANCELLED' || row.status === 'NO_SHOW') {
+      throw new BadRequestException('Reservation is closed');
+    }
+    const updated = await this.prisma.restoReservation.update({
+      where: { id: row.id },
+      data: {
+        status: 'CONFIRMED',
+        confirmedAt: row.confirmedAt ?? new Date(),
+      },
+      include: { table: { select: { id: true, code: true, name: true } } },
+    });
+    return this.mapReservation(updated);
+  }
+
+  async publicCancelReservation(token: string) {
+    const row = await this.prisma.restoReservation.findFirst({
+      where: { confirmToken: token },
+    });
+    if (!row) throw new NotFoundException('Reservation link invalid');
+    if (row.status === 'SEATED') {
+      throw new BadRequestException('Already seated');
+    }
+    return this.updateReservationStatus(row.companyId, row.id, 'CANCELLED');
   }
 
   private mapWaitlist(r: {
@@ -5017,6 +5199,9 @@ export class RestoService {
     tableId: string | null;
     seatedOrderId: string | null;
     notifiedAt: Date | null;
+    notifyChannel?: string | null;
+    notifyResult?: string | null;
+    notifyAttempts?: number;
     seatedAt: Date | null;
     createdAt: Date;
   }) {
@@ -5035,6 +5220,9 @@ export class RestoService {
       tableId: r.tableId,
       seatedOrderId: r.seatedOrderId,
       notifiedAt: r.notifiedAt,
+      notifyChannel: r.notifyChannel ?? null,
+      notifyResult: r.notifyResult ?? null,
+      notifyAttempts: r.notifyAttempts ?? 0,
       seatedAt: r.seatedAt,
       createdAt: r.createdAt,
       waitedMinutes: waitedMin,

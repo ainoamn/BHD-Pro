@@ -1624,6 +1624,18 @@ class ApiClient {
     }>(`/resto/reservations/${id}/status`, { status });
   }
 
+  notifyRestoReservation(
+    id: string,
+    kind: 'CONFIRM' | 'REMINDER' | 'TABLE_READY' = 'CONFIRM',
+  ) {
+    return this.post<{
+      id: string;
+      status: string;
+      confirmUrl?: string;
+      notify?: { ok: boolean; channel: string | null; error?: string };
+    }>(`/resto/reservations/${id}/notify`, { kind });
+  }
+
   getRestoRecipes() {
     return this.get<{
       count: number;
@@ -1997,7 +2009,20 @@ class ApiClient {
       tableId?: string;
     },
   ) {
-    return this.patch(`/resto/waitlist/${id}/status`, data);
+    return this.patch<{
+      id: string;
+      status: string;
+      notify?: { ok: boolean; channel: string | null; error?: string } | null;
+      order?: { id: string };
+    }>(`/resto/waitlist/${id}/status`, data);
+  }
+
+  notifyRestoWaitlist(id: string) {
+    return this.post<{
+      id: string;
+      status: string;
+      notify?: { ok: boolean; channel: string | null; error?: string };
+    }>(`/resto/waitlist/${id}/notify`, {});
   }
 
   getRestoMenu86() {
