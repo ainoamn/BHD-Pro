@@ -6,7 +6,7 @@ import { TrendingUp } from "lucide-react";
 import api from "@/lib/api";
 import { formatMoney } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
-import { PageHeader, LoadingSpinner, GlassCard } from "@/components/ui/page-shell";
+import { PageHeader, LoadingSpinner, QueryError, GlassCard } from "@/components/ui/page-shell";
 import { ReportStatCards } from "@/components/reports/report-stat-cards";
 import { ExportButtons } from "@/components/reports/export-buttons";
 
@@ -15,7 +15,7 @@ export default function SalesReportPage() {
   const { company } = useAuthStore();
   const currency = company?.currency || "OMR";
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["report-sales-summary"],
     queryFn: async () => {
       const res = await api.getSalesSummary();
@@ -31,7 +31,8 @@ export default function SalesReportPage() {
     },
   });
 
-  if (isLoading || !data) return <LoadingSpinner />;
+  if (isLoading) return <LoadingSpinner />;
+  if (isError || !data) return <QueryError onRetry={() => refetch()} />;
 
   const exportRows = [
     ...data.topCustomers.map((c) => [c.name, c.count, c.total]),

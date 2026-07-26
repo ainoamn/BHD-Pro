@@ -47,6 +47,31 @@ export function LoadingSpinner() {
   );
 }
 
+export function QueryError({
+  message,
+  onRetry,
+}: {
+  message?: string;
+  onRetry?: () => void;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+      <p className="text-sm text-slate-500 dark:text-slate-400">
+        {message || "تعذر تحميل البيانات"}
+      </p>
+      {onRetry ? (
+        <button
+          type="button"
+          onClick={onRetry}
+          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500"
+        >
+          إعادة المحاولة
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 export function GlassCard({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
     <div className={`glass rounded-xl overflow-hidden ${className}`}>{children}</div>

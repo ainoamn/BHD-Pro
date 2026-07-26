@@ -7,11 +7,14 @@ import { Shield, Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { GlassCard } from "@/components/ui/page-shell";
+import { useAuthStore } from "@/store/auth";
 
 export function TwoFactorSettings() {
   const t = useTranslations("twoFactor");
   const tCommon = useTranslations("common");
   const queryClient = useQueryClient();
+  const setUser = useAuthStore((s) => s.setUser);
+  const user = useAuthStore((s) => s.user);
   const [setup, setSetup] = useState<{
     qrCodeDataUrl: string;
     secret: string;
@@ -23,7 +26,7 @@ export function TwoFactorSettings() {
     queryKey: ["2fa-status"],
     queryFn: async () => {
       const res = await api.get2faStatus();
-      return res.data;
+      return res.data as { enabled: boolean; required?: boolean };
     },
   });
 
@@ -48,6 +51,7 @@ export function TwoFactorSettings() {
       setSetup(null);
       setCode("");
       queryClient.invalidateQueries({ queryKey: ["2fa-status"] });
+      if (user) setUser({ ...user, twoFactorEnabled: true });
     },
     onError: (err: { response?: { data?: { message?: string } } }) => {
       toast.error(err.response?.data?.message || tCommon("error"));
@@ -61,6 +65,7 @@ export function TwoFactorSettings() {
       setPassword("");
       setCode("");
       queryClient.invalidateQueries({ queryKey: ["2fa-status"] });
+      if (user) setUser({ ...user, twoFactorEnabled: false });
     },
     onError: (err: { response?: { data?: { message?: string } } }) => {
       toast.error(err.response?.data?.message || tCommon("error"));
@@ -76,6 +81,7 @@ export function TwoFactorSettings() {
   }
 
   const enabled = !!status?.enabled;
+  const required = !!(status?.required || user?.twoFactorRequired);
 
   return (
     <GlassCard className="p-6 space-y-4">
@@ -90,6 +96,9 @@ export function TwoFactorSettings() {
               {enabled ? t("on") : t("off")}
             </span>
           </p>
+          {required ? (
+            <p className="text-xs text-amber-300/90 mt-2">{t("requiredHint")}</p>
+          ) : null}
         </div>
       </div>
 
@@ -142,7 +151,7 @@ export function TwoFactorSettings() {
         </div>
       )}
 
-      {enabled && (
+      {enabled && !required && (
         <div className="space-y-3 border-t border-slate-800 pt-4">
           <p className="text-sm text-slate-400">{t("disableHint")}</p>
           <input
@@ -168,6 +177,12 @@ export function TwoFactorSettings() {
           </button>
         </div>
       )}
+
+      {enabled && required ? (
+        <p className="text-xs text-slate-500 border-t border-slate-800 pt-4">
+          {t("cannotDisable")}
+        </p>
+      ) : null}
     </GlassCard>
   );
 }

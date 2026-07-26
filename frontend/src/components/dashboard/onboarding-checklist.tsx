@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { CheckCircle2, Circle, Sparkles, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuthStore } from "@/store/auth";
 
 export interface OnboardingState {
   hasLogo: boolean;
@@ -21,11 +22,11 @@ const STEPS: {
   key: keyof OnboardingState;
   href: string;
 }[] = [
-  { key: "hasLogo", href: "/settings" },
-  { key: "hasVat", href: "/settings" },
-  { key: "hasCr", href: "/settings" },
-  { key: "hasAddress", href: "/settings" },
-  { key: "hasPhone", href: "/settings" },
+  { key: "hasLogo", href: "/settings#logo" },
+  { key: "hasVat", href: "/settings#vat" },
+  { key: "hasCr", href: "/settings#company" },
+  { key: "hasAddress", href: "/settings#company" },
+  { key: "hasPhone", href: "/settings#company" },
   { key: "hasCustomers", href: "/contacts?action=new&type=CUSTOMER" },
   { key: "hasProducts", href: "/inventory" },
   { key: "hasInvoices", href: "/accounting?tab=sales&action=new&type=SALES" },
@@ -35,9 +36,23 @@ interface OnboardingChecklistProps {
   data: OnboardingState;
 }
 
+function dismissKey(companyId: string) {
+  return `hisaby-onboarding-dismiss:${companyId}`;
+}
+
 export function OnboardingChecklist({ data }: OnboardingChecklistProps) {
   const t = useTranslations("onboarding");
+  const companyId = useAuthStore((s) => s.company?.id || s.user?.companyId || "");
   const [hidden, setHidden] = useState(false);
+
+  useEffect(() => {
+    if (!companyId || typeof window === "undefined") return;
+    try {
+      setHidden(localStorage.getItem(dismissKey(companyId)) === "1");
+    } catch {
+      /* ignore */
+    }
+  }, [companyId]);
 
   const { done, total, percent, incomplete } = useMemo(() => {
     const totalSteps = STEPS.length;
@@ -49,6 +64,16 @@ export function OnboardingChecklist({ data }: OnboardingChecklistProps) {
       incomplete: STEPS.filter((s) => !data[s.key]),
     };
   }, [data]);
+
+  const dismiss = () => {
+    setHidden(true);
+    if (!companyId || typeof window === "undefined") return;
+    try {
+      localStorage.setItem(dismissKey(companyId), "1");
+    } catch {
+      /* ignore */
+    }
+  };
 
   if (hidden || percent >= 100) return null;
 
@@ -75,7 +100,7 @@ export function OnboardingChecklist({ data }: OnboardingChecklistProps) {
         </div>
         <button
           type="button"
-          onClick={() => setHidden(true)}
+          onClick={dismiss}
           className="p-1.5 text-slate-500 hover:text-white"
           aria-label="close"
         >

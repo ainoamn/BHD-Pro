@@ -38,11 +38,22 @@ After the hardening commit, the app is **closer to production-ready** for a cont
 
 ## Remaining (recommended next)
 
-- Enforce 2FA for ADMIN/MANAGER via company security policy (TOTP UI already exists)
+- ~~Enforce 2FA for ADMIN/MANAGER~~ — **done (Wave H partial):** `REQUIRE_2FA_ROLES` (default `ADMIN,MANAGER`) + company `require2faForAdmins`; banner + disable blocked; set `REQUIRE_2FA_ROLES=off` to disable env policy
 - WAF / bot protection in front of login (Cloudflare)
+- Full Sentry DSN wiring (optional env) for error monitoring
 - Dependency audit (`npm audit`) and lock Next.js / Nest to patched releases
 - Object storage (S3) for attachments instead of data URLs
 - Narrow API-key scopes below full ACCOUNTANT where possible
+
+## Hardening — 26 Jul 2026 (Wave H partial)
+
+| Area | Change |
+|------|--------|
+| 2FA policy | Env `REQUIRE_2FA_ROLES` + company `require2faForAdmins` |
+| 2FA throttle | setup/confirm/disable limited to 10/min |
+| 2FA UX | Dashboard banner + cannot disable when required |
+| CSP | Baseline `frame-ancestors` / `base-uri` / `form-action` / `object-src` on Next |
+| Query errors | Dashboard/reports no longer infinite-spin on API failure |
 
 ## Hardening — 25 Jul 2026
 

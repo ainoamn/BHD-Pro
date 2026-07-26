@@ -6,7 +6,7 @@ import { FolderKanban } from "lucide-react";
 import api from "@/lib/api";
 import { cn, formatMoney } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
-import { PageHeader, LoadingSpinner, GlassCard, EmptyState } from "@/components/ui/page-shell";
+import { PageHeader, LoadingSpinner, QueryError, GlassCard, EmptyState } from "@/components/ui/page-shell";
 import { ReportStatCards } from "@/components/reports/report-stat-cards";
 import { ExportButtons } from "@/components/reports/export-buttons";
 
@@ -15,7 +15,7 @@ export default function ProjectBudgetReportPage() {
   const { company } = useAuthStore();
   const currency = company?.currency || "OMR";
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["report-project-budget"],
     queryFn: async () => {
       const res = await api.getProjectBudgetReport();
@@ -44,7 +44,8 @@ export default function ProjectBudgetReportPage() {
     },
   });
 
-  if (isLoading || !data) return <LoadingSpinner />;
+  if (isLoading) return <LoadingSpinner />;
+  if (isError || !data) return <QueryError onRetry={() => refetch()} />;
 
   const exportRows = data.rows.map((r) => [
     r.code,

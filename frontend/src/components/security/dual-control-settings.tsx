@@ -20,6 +20,7 @@ type SecurityPublic = {
   shiftVarianceLimit?: number;
   cashOutApprovalLimit?: number;
   requireOpenShift?: boolean;
+  require2faForAdmins?: boolean;
   idleLockMinutes?: number;
   allowTrainingMode?: boolean;
   autoSendPosReceipts?: boolean;
@@ -108,6 +109,7 @@ export function DualControlSettings() {
   const [varianceLimit, setVarianceLimit] = useState("1");
   const [cashOutLimit, setCashOutLimit] = useState("20");
   const [requireOpenShift, setRequireOpenShift] = useState(false);
+  const [require2faForAdmins, setRequire2faForAdmins] = useState(false);
   const [idleLockMinutes, setIdleLockMinutes] = useState("0");
   const [allowTrainingMode, setAllowTrainingMode] = useState(true);
   const [autoSendPosReceipts, setAutoSendPosReceipts] = useState(true);
@@ -155,6 +157,7 @@ export function DualControlSettings() {
     setVarianceLimit(String(data.shiftVarianceLimit ?? 1));
     setCashOutLimit(String(data.cashOutApprovalLimit ?? 20));
     setRequireOpenShift(data.requireOpenShift === true);
+    setRequire2faForAdmins(data.require2faForAdmins === true);
     setIdleLockMinutes(String(data.idleLockMinutes ?? 0));
     setAllowTrainingMode(data.allowTrainingMode !== false);
     setAutoSendPosReceipts(data.autoSendPosReceipts !== false);
@@ -188,6 +191,7 @@ export function DualControlSettings() {
     shiftVarianceLimit: Number(varianceLimit) || 0,
     cashOutApprovalLimit: Number(cashOutLimit) || 0,
     requireOpenShift,
+    require2faForAdmins,
     idleLockMinutes: Number(idleLockMinutes) || 0,
     allowTrainingMode,
     autoSendPosReceipts,
@@ -292,6 +296,21 @@ export function DualControlSettings() {
               checked={requireOpenShift}
               disabled={!isAdmin || saveMutation.isPending}
               onChange={(e) => setRequireOpenShift(e.target.checked)}
+            />
+          </label>
+
+          <label className="flex items-center justify-between gap-4 text-sm text-slate-200">
+            <span>
+              <span className="block">{t("require2faForAdmins")}</span>
+              <span className="block text-[11px] text-slate-500 mt-0.5 font-normal">
+                {t("require2faForAdminsHint")}
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              checked={require2faForAdmins}
+              disabled={!isAdmin || saveMutation.isPending}
+              onChange={(e) => setRequire2faForAdmins(e.target.checked)}
             />
           </label>
 

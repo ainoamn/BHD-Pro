@@ -25,7 +25,7 @@ export default function PosBooksPage() {
   const [expenseAmt, setExpenseAmt] = useState(0);
   const [expenseReason, setExpenseReason] = useState("");
 
-  const { data, isLoading, refetch } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["pos-books-summary"],
     queryFn: async () => {
       const res = await api.getPosBooksSummary();
@@ -105,9 +105,22 @@ export default function PosBooksPage() {
         </div>
       )}
 
-      {isLoading || !data ? (
+      {isLoading ? (
         <div className="py-16 flex justify-center text-slate-400">
           <Loader2 className="w-6 h-6 animate-spin" />
+        </div>
+      ) : isError || !data ? (
+        <div className="py-12 flex flex-col items-center gap-3 text-center">
+          <p className="text-sm text-slate-400">
+            {locale === "en" ? "Could not load books summary" : "تعذر تحميل ملخص الحسابات"}
+          </p>
+          <button
+            type="button"
+            onClick={() => refetch()}
+            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white"
+          >
+            {locale === "en" ? "Retry" : "إعادة المحاولة"}
+          </button>
         </div>
       ) : (
         <>

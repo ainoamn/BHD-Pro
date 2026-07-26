@@ -237,6 +237,12 @@ export class UpdateSecurityConfigDto {
   @IsBoolean()
   requireOpenShift?: boolean;
 
+  /** When true, require TOTP 2FA for ADMIN/MANAGER (company opt-in) */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  require2faForAdmins?: boolean;
+
   /** Idle minutes before POS locks (0 = off) */
   @ApiPropertyOptional()
   @IsOptional()

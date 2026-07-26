@@ -218,6 +218,7 @@ npm run dev
 |---------|--------|
 | `DATABASE_URL` | PostgreSQL |
 | `JWT_SECRET` / `JWT_REFRESH_SECRET` | أسرار JWT قوية (≥32 حرف) — إلزامي في الإنتاج |
+| `REQUIRE_2FA_ROLES` | أدوار تُلزم بـ 2FA (افتراضي `ADMIN,MANAGER`؛ `off` لتعطيل سياسة البيئة) |
 | `PAYMENT_SECRETS_KEY` | تشفير أسرار بوابات الدفع (AES-GCM) — إلزامي في الإنتاج |
 | `PLATFORM_ADMIN_EMAILS` | إيميلات مشغّل المنصة لإدارة بوابات الاشتراك |
 | `CORS_ORIGIN` | أصل الواجهة HTTPS في الإنتاج |

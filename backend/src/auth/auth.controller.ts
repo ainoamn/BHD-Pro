@@ -71,6 +71,7 @@ export class AuthController {
   }
 
   @Post('2fa/setup')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Generate TOTP secret + QR (not enabled until confirm)' })
@@ -79,6 +80,7 @@ export class AuthController {
   }
 
   @Post('2fa/confirm')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
@@ -87,6 +89,7 @@ export class AuthController {
   }
 
   @Post('2fa/disable')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)

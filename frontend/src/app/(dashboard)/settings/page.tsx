@@ -180,7 +180,7 @@ export default function SettingsPage() {
             }}
             className="max-w-2xl space-y-8"
           >
-            <div>
+            <div id="company">
               <div className="flex items-center gap-3 mb-4">
                 <Settings className="w-6 h-6 text-emerald-400" />
                 <h2 className="text-lg font-semibold text-white">{t("companyInfo")}</h2>
@@ -228,7 +228,7 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              <div className="mt-6 pt-6 border-t border-slate-800">
+              <div id="logo" className="mt-6 pt-6 border-t border-slate-800">
                 <CompanyLogoUpload
                   value={logo}
                   companyName={form.name}
@@ -362,7 +362,7 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            <div className="border-t border-slate-800 pt-6">
+            <div id="vat" className="border-t border-slate-800 pt-6">
               <div className="flex items-center gap-3 mb-4">
                 <Percent className="w-6 h-6 text-emerald-400" />
                 <h2 className="text-lg font-semibold text-white">{t("taxSettings")}</h2>
@@ -567,7 +567,9 @@ export default function SettingsPage() {
         </div>
       </GlassCard>
 
-      <TwoFactorSettings />
+      <div id="two-factor">
+        <TwoFactorSettings />
+      </div>
 
       <DualControlSettings />
 

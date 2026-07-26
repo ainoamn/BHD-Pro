@@ -55,9 +55,10 @@
 - دليل: [`INTEGRATIONS-MESSAGING-OTA.md`](./INTEGRATIONS-MESSAGING-OTA.md)
 
 ### 1.5 الأمن والحماية
-- bcrypt(12)، JWT + refresh، 2FA اختياري، Helmet، throttling، dual-control
-- CORS مقيّد، منصّة إدارة من env، حد MIME/حجم للمرفقات
-- **إصلاح بناء Vercel (يوليو 26):** مفتاح `warehouseHint` المكرر في `pos-copy` أُصلح إلى `warehouseBindHint` (من commit `6a2f24d` فما بعد) — أعد النشر من أحدث `main`
+- bcrypt(12)، JWT + refresh، 2FA TOTP، Helmet، throttling، dual-control
+- **إلزام 2FA** عبر `REQUIRE_2FA_ROLES` (افتراضي ADMIN,MANAGER) + `require2faForAdmins` للشركة
+- CORS مقيّد، منصّة إدارة من env، حد MIME/حجم للمرفقات، CSP أساسي على Next
+- موجة H جزئية: [`HISABY-WAVE-H-SECURITY-UX-2026-07-26.md`](./HISABY-WAVE-H-SECURITY-UX-2026-07-26.md)
 
 ### 1.6 المنصة ولوحة الإدارة (محدث 26 يوليو مساءً)
 - اشتراكات، بوابات دفع، `/admin`، PWA، GeoIP، keep-warm
@@ -79,7 +80,7 @@
 | بناء **Capacitor** أصلي | هيكل فقط | متوسطة |
 | طباعة **BLE** موثوقة لكل البائعين | stubs + Serial أساس | منخفضة–متوسطة |
 | **LLM خارجي** | مساعد قواعدي HITL فقط | منخفضة |
-| 2FA **إلزامي** لـ ADMIN/MANAGER | اختياري اليوم | عالية أمنياً |
+| **2FA إلزامي** لـ ADMIN/MANAGER | منجز جزئياً — env + شركة + شريط تنبيه؛ WAF/Sentry لاحقاً | عالية أمنياً (متبقٍ WAF) |
 | WAF / حماية بوتات | غير موجود | عالية إنتاج |
 | واتساب/إيميل إنتاجي 100% | يحتاج أسرار env على Render | متوسطة |
 | مطاعم: معدّلات / توصيل / SSE / كورسات / انتظار / 86 / void+expo / QR ضيف / طباعة QR | منجز على main | منخفضة |

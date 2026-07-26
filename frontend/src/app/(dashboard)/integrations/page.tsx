@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
-import { PageHeader, LoadingSpinner, GlassCard } from "@/components/ui/page-shell";
+import { PageHeader, LoadingSpinner, QueryError, GlassCard } from "@/components/ui/page-shell";
 import { cn } from "@/lib/utils";
 
 type MessagingStatus = {
@@ -53,7 +53,7 @@ export default function IntegrationsPage() {
   const [to, setTo] = useState("");
   const [body, setBody] = useState("");
 
-  const { data: status, isLoading } = useQuery({
+  const { data: status, isLoading, isError, refetch } = useQuery({
     queryKey: ["messaging-status"],
     queryFn: async () => {
       const res = await api.getMessagingStatus();
@@ -154,8 +154,10 @@ export default function IntegrationsPage() {
         }
       />
 
-      {isLoading || !status ? (
+      {isLoading ? (
         <LoadingSpinner />
+      ) : isError || !status ? (
+        <QueryError onRetry={() => refetch()} />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {cards.map((c) => (

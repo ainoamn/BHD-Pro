@@ -321,6 +321,8 @@ class ApiClient {
         company: import('@/types').Company;
         permissions?: Record<string, 'hidden' | 'view' | 'edit'> | null;
         modulePermissions?: Record<string, 'hidden' | 'view' | 'edit'>;
+        twoFactorEnabled?: boolean;
+        twoFactorRequired?: boolean;
       };
       // Keep any in-memory accessToken from a just-completed login.
       const existingToken = useAuthStore.getState().accessToken;
@@ -333,6 +335,8 @@ class ApiClient {
           companyId: data.companyId,
           permissions: data.permissions,
           modulePermissions: data.modulePermissions,
+          twoFactorEnabled: !!data.twoFactorEnabled,
+          twoFactorRequired: !!data.twoFactorRequired,
         },
         data.company,
         existingToken

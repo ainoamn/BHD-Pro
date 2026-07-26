@@ -9,7 +9,7 @@ import { useAuthStore } from "@/store/auth";
 import { DashboardStats } from "@/components/dashboard/stats";
 import { RevenueChart } from "@/components/dashboard/revenue-chart";
 import { RecentInvoices } from "@/components/dashboard/recent-invoices";
-import { PageHeader, LoadingSpinner } from "@/components/ui/page-shell";
+import { PageHeader, LoadingSpinner, QueryError } from "@/components/ui/page-shell";
 import { QuickActions } from "@/components/dashboard/quick-actions";
 import { SmartKpis } from "@/components/dashboard/smart-kpis";
 import { OnboardingChecklist, OnboardingState } from "@/components/dashboard/onboarding-checklist";
@@ -76,7 +76,7 @@ export default function DashboardPage() {
   const currency = company?.currency || "OMR";
   const [collectOpen, setCollectOpen] = useState(false);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["dashboard-stats"],
     queryFn: async () => {
       const res = await api.getDashboardStats();
@@ -137,8 +137,10 @@ export default function DashboardPage() {
         />
       ) : null}
 
-      {isLoading || !data ? (
+      {isLoading ? (
         <LoadingSpinner />
+      ) : isError || !data ? (
+        <QueryError onRetry={() => refetch()} />
       ) : (
         <>
           {grant("smartKpis") ? (

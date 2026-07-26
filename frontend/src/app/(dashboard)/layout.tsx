@@ -4,6 +4,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { CommandPalette } from "@/components/dashboard/command-palette";
 import { MaintenanceGate } from "@/components/layout/maintenance-gate";
+import { Require2faBanner } from "@/components/auth/require-2fa-banner";
 import { useUIStore } from "@/store/ui";
 import { useAuthStore } from "@/store/auth";
 import { cn } from "@/lib/utils";
@@ -119,7 +120,10 @@ export default function DashboardLayout({
           )}
         >
           <Topbar />
-          <main className="p-3 sm:p-4 md:p-6 max-w-[100vw] overflow-x-hidden">{children}</main>
+          <main className="p-3 sm:p-4 md:p-6 max-w-[100vw] overflow-x-hidden">
+            <Require2faBanner />
+            {children}
+          </main>
         </div>
         <CommandPalette />
       </div>

@@ -29,6 +29,8 @@ export type CompanySecurityConfig = {
   cashOutApprovalLimit?: number;
   /** When true, POS sales require an open shift (default false — opt-in) */
   requireOpenShift?: boolean;
+  /** When true, ADMIN/MANAGER must enable TOTP 2FA (default false — opt-in; env REQUIRE_2FA_ROLES may still force) */
+  require2faForAdmins?: boolean;
   /** Idle minutes before POS screen locks (0 = off, default 0) */
   idleLockMinutes?: number;
   /** Allow POS training mode toggle (default true) */
@@ -160,6 +162,7 @@ export class DualControlService {
           ? config.cashOutApprovalLimit
           : DEFAULT_CASH_OUT_APPROVAL_LIMIT,
       requireOpenShift: config.requireOpenShift === true,
+      require2faForAdmins: config.require2faForAdmins === true,
       idleLockMinutes:
         typeof config.idleLockMinutes === 'number' && config.idleLockMinutes >= 0
           ? Math.min(240, Math.floor(config.idleLockMinutes))
@@ -1095,6 +1098,9 @@ export class DualControlService {
     }
     if (dto.requireOpenShift !== undefined) {
       next.requireOpenShift = !!dto.requireOpenShift;
+    }
+    if (dto.require2faForAdmins !== undefined) {
+      next.require2faForAdmins = !!dto.require2faForAdmins;
     }
     if (dto.idleLockMinutes !== undefined) {
       next.idleLockMinutes = Math.max(

@@ -26,7 +26,7 @@ import Link from "next/link";
 import api from "@/lib/api";
 import { cn, formatMoney, formatDate } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
-import { PageHeader, LoadingSpinner, GlassCard } from "@/components/ui/page-shell";
+import { PageHeader, LoadingSpinner, QueryError, GlassCard } from "@/components/ui/page-shell";
 
 interface AiRecommendation {
   type: string;
@@ -79,7 +79,7 @@ export default function AiAnalyticsPage() {
   const isEn = locale === "en";
   const queryClient = useQueryClient();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["ai-analytics"],
     queryFn: async () => {
       const res = await api.getAiAnalytics();
@@ -164,8 +164,10 @@ export default function AiAnalyticsPage() {
         }
       />
 
-      {isLoading || !data ? (
+      {isLoading ? (
         <LoadingSpinner />
+      ) : isError || !data ? (
+        <QueryError onRetry={() => refetch()} />
       ) : (
         <>
           <GlassCard className="p-4 text-sm text-amber-100/90 border border-amber-500/20 bg-amber-500/5">

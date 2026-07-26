@@ -8,6 +8,8 @@ export interface User {
   company?: Company;
   permissions?: Record<string, 'hidden' | 'view' | 'edit'> | null;
   modulePermissions?: Record<string, 'hidden' | 'view' | 'edit'>;
+  twoFactorEnabled?: boolean;
+  twoFactorRequired?: boolean;
 }
 
 export interface Company {

@@ -46,6 +46,8 @@
     "confirm": "Confirm enable",
     "password": "Password",
     "disableHint": "Enter your password and a TOTP code to disable 2FA",
+    "requiredHint": "Required for manager roles by security policy — enable it now.",
+    "cannotDisable": "2FA cannot be disabled while policy requires it for this role.",
     "enabled": "Two-factor authentication enabled",
     "disabled": "Two-factor authentication disabled"
   },
@@ -93,6 +95,8 @@
     "cashOutLimitHint": "Cash-out at or above this amount requires dual-control (default 20)",
     "requireOpenShift": "Require open shift before POS sale",
     "requireOpenShiftHint": "When enabled, checkout is blocked until a cash-drawer shift is open (default off)",
+    "require2faForAdmins": "Require 2FA for company admins",
+    "require2faForAdminsHint": "Forces TOTP for ADMIN and MANAGER (in addition to any REQUIRE_2FA_ROLES env policy)",
     "idleLockMinutes": "Lock screen after idle (minutes)",
     "idleLockMinutesHint": "0 = off. After idle, POS locks until dual-control unlock",
     "allowTrainingMode": "Allow training mode",

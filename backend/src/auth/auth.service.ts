@@ -130,9 +130,57 @@ export class AuthService {
   async get2faStatus(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { twoFactorEnabled: true },
+      select: { twoFactorEnabled: true, role: true, companyId: true },
     });
-    return { enabled: !!user?.twoFactorEnabled };
+    if (!user) throw new UnauthorizedException();
+    const required = await this.isTwoFactorRequired(user);
+    return { enabled: !!user.twoFactorEnabled, required };
+  }
+
+  /**
+   * Wave H: 2FA required for listed roles.
+   * Env REQUIRE_2FA_ROLES defaults to ADMIN,MANAGER.
+   * Set REQUIRE_2FA_ROLES=off to disable env policy.
+   * Company securityConfig.require2faForAdmins=true also forces ADMIN/MANAGER.
+   */
+  async isTwoFactorRequired(user: {
+    role: string;
+    companyId: string;
+  }): Promise<boolean> {
+    const role = String(user.role || '').toUpperCase();
+    const envRaw = (
+      this.config.get<string>('REQUIRE_2FA_ROLES') ||
+      process.env.REQUIRE_2FA_ROLES ||
+      'ADMIN,MANAGER'
+    ).trim();
+    const envOff =
+      !envRaw ||
+      envRaw.toLowerCase() === 'off' ||
+      envRaw.toLowerCase() === 'none' ||
+      envRaw === '-';
+    if (!envOff) {
+      const roles = envRaw
+        .split(',')
+        .map((r) => r.trim().toUpperCase())
+        .filter(Boolean);
+      if (roles.includes(role)) return true;
+    }
+
+    const company = await this.prisma.company.findUnique({
+      where: { id: user.companyId },
+      select: { securityConfig: true },
+    });
+    const raw = company?.securityConfig;
+    if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+      const cfg = raw as { require2faForAdmins?: boolean };
+      if (
+        cfg.require2faForAdmins === true &&
+        (role === 'ADMIN' || role === 'MANAGER')
+      ) {
+        return true;
+      }
+    }
+    return false;
   }
 
   async setup2fa(userId: string) {
@@ -180,6 +228,11 @@ export class AuthService {
   async disable2fa(userId: string, password: string, code: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new UnauthorizedException();
+    if (await this.isTwoFactorRequired(user)) {
+      throw new ForbiddenException(
+        'Two-factor authentication is required for this role and cannot be disabled',
+      );
+    }
     if (!user.password) {
       throw new BadRequestException('Set a password before disabling 2FA on Google accounts');
     }
@@ -481,6 +534,7 @@ export class AuthService {
       throw new UnauthorizedException();
     }
     const { password: _, ...safe } = user;
+    const twoFactorRequired = await this.isTwoFactorRequired(safe);
     return {
       id: safe.id,
       name: safe.name,
@@ -490,6 +544,7 @@ export class AuthService {
       companyId: safe.companyId,
       company: this.enrichCompany(safe.company),
       twoFactorEnabled: !!safe.twoFactorEnabled,
+      twoFactorRequired,
       permissions: safe.permissions || null,
       modulePermissions: resolveModulePermissions(safe.role, safe.permissions),
     };
