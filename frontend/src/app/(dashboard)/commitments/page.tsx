@@ -186,9 +186,12 @@ export default function CommitmentsPage() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.deleteCommitment(id),
-    onSuccess: invalidate,
-    onError: (err: { response?: { data?: { message?: string } } }) => {
-      toast.error(err.response?.data?.message || tCommon("error"));
+    onSuccess: () => {
+      invalidate();
+      toast.success(t("cancelled"));
+    },
+    onError: (err: unknown) => {
+      toast.error(apiErrorMessage(err, tCommon("error")));
     },
   });
 
@@ -391,14 +394,16 @@ export default function CommitmentsPage() {
                   ) : null}
                 </div>
                 <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => openEdit(row)}
-                    className="p-2 rounded bg-slate-700/60 text-slate-200"
-                    title={t("edit")}
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </button>
+                  {row.status !== "CANCELLED" && (
+                    <button
+                      type="button"
+                      onClick={() => openEdit(row)}
+                      className="p-2 rounded bg-slate-700/60 text-slate-200"
+                      title={t("edit")}
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                  )}
                   {row.status === "ACTIVE" ? (
                     <button
                       type="button"
@@ -408,7 +413,7 @@ export default function CommitmentsPage() {
                     >
                       <Pause className="w-4 h-4" />
                     </button>
-                  ) : (
+                  ) : row.status === "PAUSED" ? (
                     <button
                       type="button"
                       onClick={() => resumeMutation.mutate(row.id)}
@@ -416,7 +421,7 @@ export default function CommitmentsPage() {
                     >
                       <Play className="w-4 h-4" />
                     </button>
-                  )}
+                  ) : null}
                   <button
                     type="button"
                     onClick={() =>
@@ -426,21 +431,25 @@ export default function CommitmentsPage() {
                   >
                     {t("attachments")}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setPendingReverseId(row.id)}
-                    className="px-2 py-1 rounded bg-amber-600/20 text-amber-300 text-xs"
-                    title={t("reverseLast")}
-                  >
-                    {t("reverseLast")}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => deleteMutation.mutate(row.id)}
-                    className="p-2 rounded bg-rose-600/20 text-rose-300"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  {row.status !== "CANCELLED" && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setPendingReverseId(row.id)}
+                        className="px-2 py-1 rounded bg-amber-600/20 text-amber-300 text-xs"
+                        title={t("reverseLast")}
+                      >
+                        {t("reverseLast")}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteMutation.mutate(row.id)}
+                        className="p-2 rounded bg-rose-600/20 text-rose-300"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
               {expandedId === row.id && (

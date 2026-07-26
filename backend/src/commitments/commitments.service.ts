@@ -120,7 +120,10 @@ export class CommitmentsService {
   }
 
   async remove(companyId: string, id: string) {
-    await this.findOne(companyId, id);
+    const row = await this.findOne(companyId, id);
+    if (row.status === 'CANCELLED') {
+      throw new BadRequestException('Commitment already cancelled');
+    }
     const accruals = await this.prisma.journal.findMany({
       where: { companyId, reference: { startsWith: `COMMIT:${id}:` } },
       select: { id: true },
@@ -136,8 +139,11 @@ export class CommitmentsService {
         );
       }
     }
-    await this.prisma.recurringCommitment.delete({ where: { id } });
-    return { message: 'Deleted' };
+    await this.prisma.recurringCommitment.update({
+      where: { id },
+      data: { status: 'CANCELLED' },
+    });
+    return { message: 'Cancelled', cancelled: true };
   }
 
   async reverseLast(companyId: string, userId: string, id: string) {

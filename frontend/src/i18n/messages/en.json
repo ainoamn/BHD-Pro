@@ -1699,6 +1699,7 @@
     "ran": "Posted",
     "reverseLast": "Reverse last posting",
     "reversed": "Last accrual reversed",
+    "cancelled": "Commitment cancelled",
     "edit": "Edit commitment",
     "expenseAccount": "Expense account (optional — default 5200)",
     "payableAccount": "Payable account (optional — default 2100)",

@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, BookOpen, Trash2, X, Loader2, Scale, Paperclip } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
-import { cn, formatMoney, formatDate } from "@/lib/utils";
+import { cn, formatMoney, formatDate, apiErrorMessage } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
 import { PageHeader, EmptyState, LoadingSpinner, QueryError, GlassCard } from "@/components/ui/page-shell";
 import { FormLabel, LineFieldLabel, LineItemsGrid } from "@/components/ui/form-field";
@@ -152,8 +152,8 @@ export default function JournalPage() {
       setModalOpen(false);
       resetForm();
     },
-    onError: (err: { response?: { data?: { message?: string } } }) => {
-      toast.error(err.response?.data?.message || t("saveError"));
+    onError: (err: unknown) => {
+      toast.error(apiErrorMessage(err, t("saveError")));
     },
   });
 
@@ -163,8 +163,8 @@ export default function JournalPage() {
       queryClient.invalidateQueries({ queryKey: ["journals"] });
       toast.success(t("deleted"));
     },
-    onError: (err: { response?: { data?: { message?: string } } }) => {
-      toast.error(err.response?.data?.message || t("saveError"));
+    onError: (err: unknown) => {
+      toast.error(apiErrorMessage(err, t("saveError")));
     },
   });
 

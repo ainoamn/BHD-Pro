@@ -6,6 +6,10 @@ import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 import { useLocaleStore } from "@/store/locale";
 import { posCopy } from "@/lib/pos-copy";
+import {
+  DualApprovalModal,
+  type DualApprovalPayload,
+} from "@/components/security/dual-approval-modal";
 
 type Summary = {
   earned: number;
@@ -29,6 +33,10 @@ type LedgerRow = {
   createdAt: string;
 };
 
+type PendingDual =
+  | { mode: "payout"; amount: number; warehouseId?: string }
+  | { mode: "reverse"; ledgerId: string };
+
 function fmt(n: number) {
   return Number(n || 0).toFixed(3);
 }
@@ -43,6 +51,7 @@ export function PosCommissionChip() {
   const [open, setOpen] = useState(false);
   const [payoutAmt, setPayoutAmt] = useState("");
   const [busy, setBusy] = useState(false);
+  const [pendingDual, setPendingDual] = useState<PendingDual | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
   const refresh = useCallback(async () => {
@@ -81,48 +90,48 @@ export function PosCommissionChip() {
       ? `${t.commission}: ${t.commissionRemaining} ${fmt(summary.remaining)} · ${t.commissionPaid} ${fmt(summary.paid)}`
       : `${t.commission}: ${t.commissionRemaining} ${fmt(summary.remaining)} · ${t.commissionPaid} ${fmt(summary.paid)}`;
 
-  const doPayout = async () => {
+  const requestPayout = () => {
     if (!user?.id) return;
     const amount = Number(payoutAmt);
     if (!(amount > 0)) return;
-    setBusy(true);
+    let warehouseId: string | undefined;
     try {
-      let warehouseId: string | undefined;
-      try {
-        warehouseId = localStorage.getItem("hisaby-pos-warehouse-id") || undefined;
-      } catch {
-        warehouseId = undefined;
-      }
-      await api.payoutPosCommission({
-        userId: user.id,
-        amount,
-        warehouseId: warehouseId || undefined,
-      });
-      toast.success(t.payoutOk);
-      setPayoutAmt("");
-      await refresh();
-    } catch (err) {
-      const msg =
-        (err as { response?: { data?: { message?: string } } })?.response?.data
-          ?.message || t.payoutFail;
-      toast.error(typeof msg === "string" ? msg : t.payoutFail);
-    } finally {
-      setBusy(false);
+      warehouseId = localStorage.getItem("hisaby-pos-warehouse-id") || undefined;
+    } catch {
+      warehouseId = undefined;
     }
+    setPendingDual({ mode: "payout", amount, warehouseId: warehouseId || undefined });
   };
 
-  const doReversePayout = async (ledgerId: string) => {
-    if (!window.confirm(t.reversePayoutConfirm)) return;
+  const requestReverse = (ledgerId: string) => {
+    setPendingDual({ mode: "reverse", ledgerId });
+  };
+
+  const runApproved = async (approval: DualApprovalPayload) => {
+    if (!pendingDual || !user?.id) return;
     setBusy(true);
     try {
-      await api.reversePosCommissionPayout(ledgerId);
-      toast.success(t.reversePayoutOk);
+      if (pendingDual.mode === "payout") {
+        await api.payoutPosCommission({
+          userId: user.id,
+          amount: pendingDual.amount,
+          warehouseId: pendingDual.warehouseId,
+          approval,
+        });
+        toast.success(t.payoutOk);
+        setPayoutAmt("");
+      } else {
+        await api.reversePosCommissionPayout(pendingDual.ledgerId, approval);
+        toast.success(t.reversePayoutOk);
+      }
+      setPendingDual(null);
       await refresh();
     } catch (err) {
       const msg =
         (err as { response?: { data?: { message?: string } } })?.response?.data
-          ?.message || t.reversePayoutFail;
-      toast.error(typeof msg === "string" ? msg : t.reversePayoutFail);
+          ?.message ||
+        (pendingDual.mode === "payout" ? t.payoutFail : t.reversePayoutFail);
+      toast.error(typeof msg === "string" ? msg : t.payoutFail);
     } finally {
       setBusy(false);
     }
@@ -157,7 +166,9 @@ export function PosCommissionChip() {
             </p>
             <p>
               {t.commissionPaid}:{" "}
-              <span className="tabular-nums">{fmt(summary.paid)}</span>
+              <span className="font-bold text-white tabular-nums">
+                {fmt(summary.paid)}
+              </span>
             </p>
             <p>
               {t.commissionRemaining}:{" "}
@@ -194,7 +205,7 @@ export function PosCommissionChip() {
                       <button
                         type="button"
                         disabled={busy}
-                        onClick={() => void doReversePayout(row.id)}
+                        onClick={() => requestReverse(row.id)}
                         className="rounded px-1 text-[9px] font-semibold text-rose-300 hover:bg-rose-500/20 disabled:opacity-50"
                       >
                         {t.reversePayout}
@@ -218,9 +229,9 @@ export function PosCommissionChip() {
               />
               <button
                 type="button"
-                disabled={busy}
-                onClick={() => void doPayout()}
-                className="h-7 shrink-0 rounded bg-amber-500/20 px-2 text-[11px] font-bold text-amber-100 hover:bg-amber-500/30 disabled:opacity-50"
+                disabled={busy || !(Number(payoutAmt) > 0)}
+                onClick={requestPayout}
+                className="rounded bg-amber-600/80 px-2 text-[11px] font-semibold text-white hover:bg-amber-500 disabled:opacity-50"
               >
                 {t.payout}
               </button>
@@ -228,6 +239,23 @@ export function PosCommissionChip() {
           ) : null}
         </div>
       ) : null}
+
+      <DualApprovalModal
+        open={!!pendingDual}
+        action="COMMISSION_PAYOUT"
+        actionLabel={
+          pendingDual?.mode === "reverse" ? t.reversePayout : t.payout
+        }
+        summary={
+          pendingDual?.mode === "payout"
+            ? fmt(pendingDual.amount)
+            : undefined
+        }
+        actorRole={user?.role}
+        busy={busy}
+        onCancel={() => !busy && setPendingDual(null)}
+        onConfirm={runApproved}
+      />
     </div>
   );
 }

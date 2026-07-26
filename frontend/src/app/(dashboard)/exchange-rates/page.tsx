@@ -9,7 +9,7 @@ import { ErpCrudPage } from "@/components/erp/erp-crud-page";
 import { GlassCard } from "@/components/ui/page-shell";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { useAuthStore } from "@/store/auth";
-import { formatMoney, formatDate } from "@/lib/utils";
+import { formatMoney, formatDate, apiErrorMessage } from "@/lib/utils";
 
 interface RateRow {
   id: string;
@@ -49,9 +49,9 @@ export default function ExchangeRatesPage() {
       };
       setResult(data);
     },
-    onError: (err: { response?: { data?: { message?: string } } }) => {
+    onError: (err: unknown) => {
       setResult(null);
-      toast.error(err.response?.data?.message || tCommon("error"));
+      toast.error(apiErrorMessage(err, tCommon("error")));
     },
   });
 

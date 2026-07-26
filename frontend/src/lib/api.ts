@@ -3351,12 +3351,13 @@ class ApiClient {
     note?: string;
     warehouseId?: string;
     deductFromDrawer?: boolean;
+    approval?: DualApprovalPayload;
   }) {
     return this.post("/pos/incentives/payout", data);
   }
 
-  reversePosCommissionPayout(ledgerId: string) {
-    return this.post(`/pos/incentives/payout/${ledgerId}/reverse`);
+  reversePosCommissionPayout(ledgerId: string, approval?: DualApprovalPayload) {
+    return this.post(`/pos/incentives/payout/${ledgerId}/reverse`, { approval });
   }
 
   getPosShiftAnomalies(shiftId: string) {
