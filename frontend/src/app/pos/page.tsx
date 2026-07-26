@@ -34,6 +34,15 @@ import {
 import { BarcodeCameraScanner } from "@/components/pos/barcode-camera-scanner";
 import { QtyKeypadModal } from "@/components/pos/qty-keypad-modal";
 import { playPosScanBeep, playPosWarnBeep, playPosDenyBeep } from "@/lib/pos-beep";
+import {
+  clearPosCartSession,
+  loadPosCartSession,
+  POS_DUP_SALE_WINDOW_MS,
+  posCartFingerprint,
+  readLastSaleFingerprint,
+  savePosCartSession,
+  writeLastSaleFingerprint,
+} from "@/lib/pos-cart-session";
 import { openPosReceiptEmail, sharePosReceiptWhatsAppWithPdf } from "@/lib/pos-receipt-share";
 import {
   printPosReceiptBrowser,
@@ -82,8 +91,11 @@ type ParkedCart = {
   name: string;
   notes?: string;
   createdAt: string;
+  updatedAt?: string;
   warehouseId: string;
   contactId?: string;
+  contactPhone?: string;
+  contactName?: string;
   lines: CartLine[];
 };
 
@@ -151,6 +163,16 @@ export default function PosCheckoutPage() {
   const [warehouseId, setWarehouseId] = useState("");
   const [recentSales, setRecentSales] = useState<RecentCashSale[]>([]);
   const [parkedCarts, setParkedCarts] = useState<ParkedCart[]>([]);
+  const [parkSearch, setParkSearch] = useState("");
+  const [restorePrompt, setRestorePrompt] = useState<{
+    warehouseId: string;
+    contactId: string;
+    cartNotes: string;
+    tipAmount: number;
+    tipCustom: string;
+    redeemPointsInput: string;
+    cart: CartLine[];
+  } | null>(null);
   const [parkEdit, setParkEdit] = useState<{
     id: string;
     name: string;
@@ -618,15 +640,20 @@ export default function PosCheckoutPage() {
       notes?: string | null;
       warehouseId: string | null;
       contactId?: string | null;
+      contact?: { id: string; name: string; phone?: string | null } | null;
       linesJson: unknown;
       createdAt: string;
+      updatedAt?: string;
     }): ParkedCart => ({
       id: d.id,
       name: d.name,
       notes: d.notes || undefined,
       createdAt: d.createdAt,
+      updatedAt: d.updatedAt || d.createdAt,
       warehouseId: d.warehouseId || "",
       contactId: d.contactId || undefined,
+      contactPhone: d.contact?.phone || undefined,
+      contactName: d.contact?.name || undefined,
       lines: Array.isArray(d.linesJson)
         ? (d.linesJson as CartLine[]).map((l) => ({
             ...l,
@@ -650,6 +677,69 @@ export default function PosCheckoutPage() {
       /* ignore */
     }
   }, [companyId, mapDraftToParked]);
+
+  const filteredParkedCarts = useMemo(() => {
+    const q = parkSearch.trim().toLowerCase();
+    const digits = parkSearch.replace(/\D/g, "");
+    if (!q && !digits) return parkedCarts;
+    return parkedCarts.filter((p) => {
+      const hay = `${p.name} ${p.notes || ""} ${p.contactName || ""}`.toLowerCase();
+      if (q && hay.includes(q)) return true;
+      if (digits && (p.contactPhone || "").replace(/\D/g, "").includes(digits)) {
+        return true;
+      }
+      return false;
+    });
+  }, [parkSearch, parkedCarts]);
+
+  const clearActiveCartSession = useCallback(() => {
+    if (companyId && user?.id) clearPosCartSession(companyId, user.id);
+  }, [companyId, user?.id]);
+
+  useEffect(() => {
+    if (!companyId || !user?.id) return;
+    if (!cart.length) return; // never wipe session while empty — clear only on park/sale/discard
+    const timer = window.setTimeout(() => {
+      savePosCartSession(companyId, user.id, {
+        warehouseId,
+        contactId,
+        cartNotes,
+        tipAmount,
+        tipCustom,
+        redeemPointsInput,
+        cart,
+      });
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [
+    companyId,
+    user?.id,
+    warehouseId,
+    contactId,
+    cartNotes,
+    tipAmount,
+    tipCustom,
+    redeemPointsInput,
+    cart,
+  ]);
+
+  useEffect(() => {
+    if (!companyId || !user?.id) return;
+    const saved = loadPosCartSession(companyId, user.id);
+    if (!saved?.cart?.length) return;
+    setRestorePrompt({
+      warehouseId: saved.warehouseId || "",
+      contactId: saved.contactId || "",
+      cartNotes: saved.cartNotes || "",
+      tipAmount: saved.tipAmount || 0,
+      tipCustom: saved.tipCustom || "",
+      redeemPointsInput: saved.redeemPointsInput || "",
+      cart: saved.cart.map((l) => ({
+        ...l,
+        catalogPrice: l.catalogPrice ?? l.unitPrice,
+      })),
+    });
+  }, [companyId, user?.id]);
 
   useEffect(() => {
     loadRecentSales();
@@ -773,6 +863,9 @@ export default function PosCheckoutPage() {
           stock: l.stock,
           isTracked: l.isTracked,
           discount: l.discount,
+          notes: l.notes,
+          catalogPrice: l.catalogPrice,
+          barcode: l.barcode,
         })),
       });
       setCart([]);
@@ -781,6 +874,7 @@ export default function PosCheckoutPage() {
       setTipCustom("");
       setRedeemPointsInput("");
       setSplitOpen(false);
+      clearActiveCartSession();
       await loadParkedCarts();
       toast.success(t.parkOk);
       focusScan();
@@ -873,14 +967,49 @@ export default function PosCheckoutPage() {
     }
   };
 
-  const parkAgeLabel = (createdAt: string) => {
+  const parkAgeLabel = (iso: string) => {
     const m = Math.max(
       0,
-      Math.floor((Date.now() - new Date(createdAt).getTime()) / 60000),
+      Math.floor((Date.now() - new Date(iso).getTime()) / 60000),
     );
     if (m < 1) return `<1${locale === "en" ? "m" : "د"}`;
     if (m < 60) return `${m}${locale === "en" ? "m" : "د"}`;
     return `${Math.floor(m / 60)}${locale === "en" ? "h" : "س"}`;
+  };
+
+  const applyParkReason = (reason: string) => {
+    setCartNotes((prev) => {
+      const base = prev.trim();
+      if (!base) return reason;
+      if (base.includes(reason)) return base;
+      return `${reason} — ${base}`;
+    });
+  };
+
+  const applyRestorePrompt = () => {
+    if (!restorePrompt) return;
+    setCart(restorePrompt.cart);
+    setCartNotes(restorePrompt.cartNotes);
+    setTipAmount(restorePrompt.tipAmount);
+    setTipCustom(restorePrompt.tipCustom);
+    setRedeemPointsInput(restorePrompt.redeemPointsInput);
+    if (restorePrompt.contactId) setContactId(restorePrompt.contactId);
+    if (restorePrompt.warehouseId) {
+      setWarehouseId(restorePrompt.warehouseId);
+      try {
+        localStorage.setItem(POS_WAREHOUSE_KEY, restorePrompt.warehouseId);
+      } catch {
+        /* ignore */
+      }
+    }
+    setRestorePrompt(null);
+    toast.success(t.restoreCartOk);
+    focusScan();
+  };
+
+  const discardRestorePrompt = () => {
+    setRestorePrompt(null);
+    clearActiveCartSession();
   };
 
   useEffect(() => {
@@ -1252,6 +1381,7 @@ export default function PosCheckoutPage() {
       setTipCustom("");
       setRedeemPointsInput("");
       setSplitOpen(false);
+      clearActiveCartSession();
       focusScan();
     }
   };
@@ -1732,6 +1862,25 @@ export default function PosCheckoutPage() {
       return;
     }
 
+    const fp = posCartFingerprint({
+      warehouseId: warehouseId || "",
+      contactId: contactId || "",
+      total,
+      cart: workingCart,
+    });
+    const lastFp = readLastSaleFingerprint();
+    if (
+      lastFp &&
+      lastFp.fp === fp &&
+      Date.now() - lastFp.at < POS_DUP_SALE_WINDOW_MS
+    ) {
+      if (!window.confirm(t.duplicateSaleWarn)) {
+        setPendingCheckout(null);
+        setCheckoutBusy(false);
+        return;
+      }
+    }
+
     const lowAfter = workingCart.filter((l) => {
       if (!l.isTracked) return false;
       const fromCatalog = catalog.find((c) => c.id === l.productId);
@@ -1881,6 +2030,8 @@ export default function PosCheckoutPage() {
         setTipCustom("");
         setSplitOpen(false);
         setPendingCheckout(null);
+        writeLastSaleFingerprint(fp);
+        clearActiveCartSession();
         toast.success(t.saleQueued);
         focusScan();
         return;
@@ -1943,6 +2094,8 @@ export default function PosCheckoutPage() {
       setRedeemPointsInput("");
       setSplitOpen(false);
       setPendingCheckout(null);
+      writeLastSaleFingerprint(fp);
+      clearActiveCartSession();
       toast.success(isPartner ? t.partnerPayPending : t.saleOk);
       void maybeKickDrawer(
         payments?.some((p) => p.method === "CASH") ? "CASH" : method,
@@ -2011,6 +2164,8 @@ export default function PosCheckoutPage() {
           setTipCustom("");
           setSplitOpen(false);
           setPendingCheckout(null);
+          writeLastSaleFingerprint(fp);
+          clearActiveCartSession();
           toast.success(t.saleQueued);
           focusScan();
           return;
@@ -2695,10 +2850,37 @@ export default function PosCheckoutPage() {
             <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
               {t.parkedCarts}
             </p>
-            <div className="space-y-1 max-h-28 overflow-y-auto">
-              {parkedCarts.map((p) => {
+            <input
+              value={parkSearch}
+              onChange={(e) => setParkSearch(e.target.value)}
+              placeholder={t.parkSearch}
+              className="w-full h-8 rounded-lg bg-black/30 border border-white/10 px-2 text-[11px] text-white placeholder:text-slate-600"
+            />
+            <div className="flex flex-wrap gap-1">
+              {[
+                t.parkReasonWaitPay,
+                t.parkReasonCustomerAway,
+                t.parkReasonHold,
+                t.parkReasonOther,
+              ].map((reason) => (
+                <button
+                  key={reason}
+                  type="button"
+                  onClick={() => applyParkReason(reason)}
+                  className="h-7 px-2 rounded-md text-[10px] font-semibold border border-white/10 text-slate-300 hover:bg-white/5"
+                >
+                  {reason}
+                </button>
+              ))}
+            </div>
+            <div className="space-y-1 max-h-36 overflow-y-auto">
+              {!filteredParkedCarts.length ? (
+                <p className="text-[11px] text-slate-500 py-2 text-center">{t.parkSearchEmpty}</p>
+              ) : (
+                filteredParkedCarts.map((p) => {
+                const ageIso = p.updatedAt || p.createdAt;
                 const ageMin = Math.floor(
-                  (Date.now() - new Date(p.createdAt).getTime()) / 60000,
+                  (Date.now() - new Date(ageIso).getTime()) / 60000,
                 );
                 const stale = ageMin >= 60;
                 return (
@@ -2711,8 +2893,11 @@ export default function PosCheckoutPage() {
                   <div className="min-w-0 flex-1">
                     <p className="text-[11px] text-white truncate">{p.name}</p>
                     <p className="text-[10px] text-slate-500">
-                      {p.lines.length} · {t.parkAge} {parkAgeLabel(p.createdAt)}
+                      {p.lines.length} · {t.parkAge} {parkAgeLabel(ageIso)}
                       {stale ? ` · ${t.parkStale}` : ""}
+                      {p.contactPhone
+                        ? ` · ${t.parkPhone} ${p.contactPhone}`
+                        : ""}
                     </p>
                     {p.notes ? (
                       <p className="text-[10px] text-amber-200/80 truncate">{p.notes}</p>
@@ -2750,7 +2935,8 @@ export default function PosCheckoutPage() {
                   </button>
                 </div>
               );
-              })}
+              })
+              )}
             </div>
           </div>
         ) : null}
@@ -3535,6 +3721,46 @@ export default function PosCheckoutPage() {
         onClose={() => setCameraOpen(false)}
         onDetected={(code) => void applyScanCode(code)}
       />
+
+      {restorePrompt ? (
+        <div className="fixed inset-0 z-[85] flex items-end sm:items-center justify-center bg-black/60 p-3">
+          <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#121a2b] p-4 space-y-3 shadow-xl">
+            <p className="font-bold text-white">{t.restoreCartTitle}</p>
+            <p className="text-[12px] text-slate-400">{t.restoreCartHint}</p>
+            <p className="text-sm text-slate-200">
+              {restorePrompt.cart.length} ·{" "}
+              {formatMoney(
+                restorePrompt.cart.reduce(
+                  (s, l) =>
+                    s +
+                    Math.max(
+                      0,
+                      l.unitPrice * l.quantity - (l.discount || 0),
+                    ),
+                  0,
+                ),
+                currency,
+              )}
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={applyRestorePrompt}
+                className="flex-1 h-11 rounded-xl bg-emerald-500 text-slate-950 font-bold"
+              >
+                {t.restoreCartYes}
+              </button>
+              <button
+                type="button"
+                onClick={discardRestorePrompt}
+                className="flex-1 h-11 rounded-xl border border-white/15 text-slate-200 font-semibold"
+              >
+                {t.restoreCartNo}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {cashTenderOpen ? (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 p-3">

@@ -456,6 +456,12 @@ export class CloseRestoOrderDto {
   @IsUUID()
   contactId?: string;
 
+  /** Redeem loyalty points at paid close (POS incentives) */
+  @IsOptional()
+  @Type(() => Number)
+  @Min(0)
+  loyaltyPointsToRedeem?: number;
+
   @IsOptional()
   @Type(() => Number)
   @Min(0)
@@ -655,6 +661,35 @@ export class AssignRestoSectionDto {
 
   @IsUUID()
   userId: string;
+}
+
+export class PublicGuestLoyaltyDto {
+  @IsString()
+  @MinLength(6)
+  @MaxLength(40)
+  phone: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  name?: string;
+}
+
+export class AttachRestoLoyaltyDto {
+  @IsOptional()
+  @IsUUID()
+  contactId?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(6)
+  @MaxLength(40)
+  phone?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  name?: string;
 }
 
 export class RestoDayPartWindowDto {

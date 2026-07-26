@@ -106,6 +106,10 @@ export default function RestoFloorPage() {
   >([]);
   const [serviceChargePct, setServiceChargePct] = useState("10");
   const [cashPart, setCashPart] = useState("");
+  const [loyaltyPhone, setLoyaltyPhone] = useState("");
+  const [loyaltyName, setLoyaltyName] = useState("");
+  const [loyaltyRedeem, setLoyaltyRedeem] = useState("");
+  const [loyaltyBusy, setLoyaltyBusy] = useState(false);
   const [voidReason, setVoidReason] = useState("");
   const [voidTarget, setVoidTarget] = useState<{
     itemId: string;
@@ -499,6 +503,40 @@ export default function RestoFloorPage() {
     });
   };
 
+  const attachLoyalty = async () => {
+    if (!order || !loyaltyPhone.trim()) return;
+    setLoyaltyBusy(true);
+    setError("");
+    try {
+      const res = await api.attachRestoLoyalty(order.id, {
+        phone: loyaltyPhone.trim(),
+        name: loyaltyName.trim() || undefined,
+      });
+      setOrder(res.data);
+      setLoyaltyPhone("");
+      setLoyaltyName("");
+    } catch {
+      setError(t.actionFail);
+    } finally {
+      setLoyaltyBusy(false);
+    }
+  };
+
+  const clearLoyalty = async () => {
+    if (!order) return;
+    setLoyaltyBusy(true);
+    setError("");
+    try {
+      const res = await api.attachRestoLoyalty(order.id, { contactId: null });
+      setOrder(res.data);
+      setLoyaltyRedeem("");
+    } catch {
+      setError(t.actionFail);
+    } finally {
+      setLoyaltyBusy(false);
+    }
+  };
+
   const closeOrder = async (
     method: "CASH" | "CREDIT_CARD" | "soft" | "SPLIT" = "CASH",
   ) => {
@@ -506,6 +544,14 @@ export default function RestoFloorPage() {
     setBusy(true);
     try {
       const tipTo = tipAssigneeId || undefined;
+      const loyalty =
+        order.contactId || order.loyalty?.contactId
+          ? {
+              contactId: order.contactId || order.loyalty?.contactId || undefined,
+              loyaltyPointsToRedeem:
+                Number(loyaltyRedeem) > 0 ? Number(loyaltyRedeem) : undefined,
+            }
+          : {};
       if (method === "soft") {
         await api.closeRestoOrder(order.id, { soft: true });
       } else if (method === "SPLIT") {
@@ -528,6 +574,7 @@ export default function RestoFloorPage() {
           tipAmount: tip || undefined,
           tipAssigneeId: tipTo,
           serviceChargePct: pct || undefined,
+          ...loyalty,
         });
       } else {
         await api.closeRestoOrder(order.id, {
@@ -535,12 +582,16 @@ export default function RestoFloorPage() {
           tipAmount: Number(tipAmount) || undefined,
           tipAssigneeId: tipTo,
           serviceChargePct: Number(serviceChargePct) || undefined,
+          ...loyalty,
         });
       }
       setOrder(null);
       setTipAmount("");
       setTipAssigneeId("");
       setCashPart("");
+      setLoyaltyPhone("");
+      setLoyaltyName("");
+      setLoyaltyRedeem("");
       await loadFloor();
     } catch {
       setError(t.actionFail);
@@ -1074,6 +1125,73 @@ export default function RestoFloorPage() {
                       </div>
                     </div>
                   ) : null}
+                </div>
+
+                <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-2.5 space-y-2">
+                  <p className="text-[11px] font-bold text-amber-100/90">{t.loyalty}</p>
+                  {order.loyalty ? (
+                    <div className="space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="text-xs font-semibold text-stone-100">
+                            {order.loyalty.name}
+                          </p>
+                          <p className="text-[10px] text-stone-400">
+                            {t.loyaltyPoints}: {order.loyalty.points}
+                            {order.loyalty.phone
+                              ? ` · ${order.loyalty.phone}`
+                              : ""}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={loyaltyBusy}
+                          onClick={() => void clearLoyalty()}
+                          className="text-[10px] font-semibold text-stone-400 hover:text-rose-200 disabled:opacity-40"
+                        >
+                          {t.loyaltyClear}
+                        </button>
+                      </div>
+                      <label className="block space-y-1">
+                        <span className="text-[10px] text-stone-500">
+                          {t.loyaltyRedeem}
+                        </span>
+                        <input
+                          type="number"
+                          min={0}
+                          step="1"
+                          value={loyaltyRedeem}
+                          onChange={(e) => setLoyaltyRedeem(e.target.value)}
+                          className="w-full h-8 rounded-lg bg-black/30 border border-white/10 px-2 text-xs tabular-nums"
+                        />
+                      </label>
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      <p className="text-[10px] text-stone-500">{t.loyaltyHint}</p>
+                      <input
+                        value={loyaltyPhone}
+                        onChange={(e) => setLoyaltyPhone(e.target.value)}
+                        placeholder={t.loyaltyPhone}
+                        className="w-full h-8 rounded-lg bg-black/30 border border-white/10 px-2 text-xs"
+                        inputMode="tel"
+                      />
+                      <input
+                        value={loyaltyName}
+                        onChange={(e) => setLoyaltyName(e.target.value)}
+                        placeholder={t.guestName}
+                        className="w-full h-8 rounded-lg bg-black/30 border border-white/10 px-2 text-xs"
+                      />
+                      <button
+                        type="button"
+                        disabled={loyaltyBusy || !loyaltyPhone.trim()}
+                        onClick={() => void attachLoyalty()}
+                        className="w-full rounded-lg bg-amber-500/90 text-[#14110f] py-1.5 text-[11px] font-bold disabled:opacity-40"
+                      >
+                        {t.loyaltyAttach}
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">

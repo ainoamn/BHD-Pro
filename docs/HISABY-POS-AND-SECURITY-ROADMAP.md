@@ -158,6 +158,13 @@ Public flags: `asyncApprovals: true`, `nfcBadgesConfigured`, `shiftVarianceLimit
 - Audited receipt reprint (`POST /pos/sales/:id/reprint` + count badge)
 - Doc: [`UPGRADE-POS-WAVE15-2026-07.md`](./UPGRADE-POS-WAVE15-2026-07.md)
 
+### Done (Wave 16 — Park find, cart restore, dup-sale warn)
+- Parked-cart search (name / phone / notes) + contact phone on drafts
+- Park age from `updatedAt` + suspend reason chips
+- Active cart session restore after refresh (localStorage, 12h TTL)
+- Duplicate-sale soft-warn (60s cart fingerprint)
+- Doc: [`UPGRADE-POS-WAVE16-2026-07.md`](./UPGRADE-POS-WAVE16-2026-07.md)
+
 - [x] Full catalog sync API `GET /pos/catalog/sync` + offline IDB per warehouse
 - [x] Broader refunds + store-credit MVP (hardened debit / void restore / UI)
 - [x] Cash change due + receipt number lookup for refunds

@@ -7,6 +7,7 @@ import { createHash, randomBytes } from 'crypto';
 import {
   PaymentMethod,
   Prisma,
+  ContactType,
   RestoOrderChannel,
   RestoOrderItemStatus,
   RestoOrderStatus,
@@ -17,11 +18,18 @@ import { Observable, Subject, from, interval, merge, of } from 'rxjs';
 import { map, switchMap } from 'rxjs/operators';
 import { PrismaService } from '../prisma/prisma.service';
 import { PosService } from '../pos/pos.service';
+import { PosIncentivesService } from '../pos/pos-incentives.service';
 import { DualControlService } from '../dual-control/dual-control.service';
 import { DualApprovalDto } from '../dual-control/dto/approval.dto';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
 import {
+  dialCodeForCountry,
+  isValidMobileE164,
+  toE164Digits,
+} from '../common/phone';
+import {
   AddRestoOrderItemDto,
+  AttachRestoLoyaltyDto,
   CloseRestoOrderDto,
   CreateRestoModifierDto,
   CreateRestoReservationDto,
@@ -33,6 +41,7 @@ import {
   MergeRestoOrderDto,
   OpenRestoOrderDto,
   PublicGuestPayDto,
+  PublicGuestLoyaltyDto,
   SetRestoMenu86Dto,
   SetRestoProductAllergensDto,
   SetRestoProductDietaryDto,
@@ -83,6 +92,7 @@ export class RestoService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly pos: PosService,
+    private readonly incentives: PosIncentivesService,
     private readonly dualControl: DualControlService,
   ) {}
 
@@ -465,6 +475,217 @@ export class RestoService {
       data: { restoConfig: next as Prisma.InputJsonValue },
     });
     return this.getRestoConfig(companyId);
+  }
+
+  private async normalizeGuestPhone(companyId: string, phone: string) {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { country: true },
+    });
+    const dial = dialCodeForCountry(company?.country || 'OM');
+    const digits = toE164Digits(phone, dial);
+    if (!isValidMobileE164(digits)) {
+      throw new BadRequestException(
+        'Invalid phone number — use mobile with country code',
+      );
+    }
+    return { e164: `+${digits}`, digits };
+  }
+
+  private async findOrCreateLoyaltyContact(
+    companyId: string,
+    phone: string,
+    name?: string,
+  ) {
+    const { e164, digits } = await this.normalizeGuestPhone(companyId, phone);
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { country: true },
+    });
+    let contact = await this.prisma.contact.findFirst({
+      where: {
+        companyId,
+        isActive: true,
+        type: { in: [ContactType.CUSTOMER, ContactType.BOTH] },
+        OR: [{ phone: e164 }, { phone: digits }, { phone: `00${digits}` }],
+      },
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        loyaltyPoints: true,
+      },
+    });
+    if (!contact) {
+      contact = await this.prisma.contact.create({
+        data: {
+          companyId,
+          type: ContactType.CUSTOMER,
+          name: (name || '').trim() || `Guest ${digits.slice(-4)}`,
+          phone: e164,
+          country: (company?.country || 'OM').toUpperCase(),
+        },
+        select: {
+          id: true,
+          name: true,
+          phone: true,
+          loyaltyPoints: true,
+        },
+      });
+    } else if (name?.trim() && contact.name.startsWith('Guest ')) {
+      contact = await this.prisma.contact.update({
+        where: { id: contact.id },
+        data: { name: name.trim() },
+        select: {
+          id: true,
+          name: true,
+          phone: true,
+          loyaltyPoints: true,
+        },
+      });
+    }
+    const pointsInfo = await this.incentives.getContactPoints(
+      companyId,
+      contact.id,
+    );
+    return { contact, pointsInfo };
+  }
+
+  async lookupLoyaltyByPhone(companyId: string, phone: string) {
+    const { e164, digits } = await this.normalizeGuestPhone(companyId, phone);
+    const contact = await this.prisma.contact.findFirst({
+      where: {
+        companyId,
+        isActive: true,
+        type: { in: [ContactType.CUSTOMER, ContactType.BOTH] },
+        OR: [{ phone: e164 }, { phone: digits }],
+      },
+      select: { id: true, name: true, phone: true, loyaltyPoints: true },
+    });
+    if (!contact) {
+      return {
+        found: false,
+        phone: e164,
+        contactId: null,
+        name: null,
+        points: 0,
+        customerEnabled: false,
+        redeemEnabled: false,
+      };
+    }
+    const pointsInfo = await this.incentives.getContactPoints(
+      companyId,
+      contact.id,
+    );
+    return {
+      found: true,
+      phone: contact.phone,
+      contactId: contact.id,
+      name: contact.name,
+      points: pointsInfo.points,
+      customerEnabled: pointsInfo.customerEnabled,
+      redeemEnabled: pointsInfo.redeemEnabled,
+      pointsPerUnit: pointsInfo.pointsPerUnit,
+      redeemPointsPerUnit: pointsInfo.redeemPointsPerUnit,
+    };
+  }
+
+  async attachLoyaltyToOrder(
+    companyId: string,
+    orderId: string,
+    dto: AttachRestoLoyaltyDto,
+  ) {
+    const order = await this.prisma.restoOrder.findFirst({
+      where: { id: orderId, companyId },
+    });
+    if (!order) throw new NotFoundException('Order not found');
+    if (
+      order.status === RestoOrderStatus.CLOSED ||
+      order.status === RestoOrderStatus.CANCELLED
+    ) {
+      throw new BadRequestException('Order is closed');
+    }
+
+    if (dto.contactId === null && !dto.phone) {
+      await this.prisma.restoOrder.update({
+        where: { id: orderId },
+        data: { contactId: null },
+      });
+      return this.getOrder(companyId, orderId);
+    }
+
+    let contactId = dto.contactId || null;
+    if (!contactId && dto.phone) {
+      const { contact } = await this.findOrCreateLoyaltyContact(
+        companyId,
+        dto.phone,
+        dto.name,
+      );
+      contactId = contact.id;
+    }
+    if (!contactId) {
+      throw new BadRequestException('Provide contactId or phone');
+    }
+    const contact = await this.prisma.contact.findFirst({
+      where: { id: contactId, companyId, isActive: true },
+      select: { id: true, name: true, phone: true },
+    });
+    if (!contact) throw new NotFoundException('Contact not found');
+
+    await this.prisma.restoOrder.update({
+      where: { id: orderId },
+      data: {
+        contactId: contact.id,
+        guestPhone: contact.phone || order.guestPhone,
+        guestName: order.guestName || contact.name,
+      },
+    });
+    return this.getOrder(companyId, orderId);
+  }
+
+  async publicAttachLoyalty(token: string, dto: PublicGuestLoyaltyDto) {
+    const table = await this.loadTableByGuestToken(token);
+    let order = await this.prisma.restoOrder.findFirst({
+      where: {
+        companyId: table.companyId,
+        tableId: table.id,
+        status: { in: ACTIVE_ORDER },
+      },
+    });
+    if (!order) {
+      const opened = await this.openOrder(table.companyId, '', {
+        tableId: table.id,
+        guests: 1,
+      });
+      order = await this.prisma.restoOrder.findFirst({
+        where: { id: opened.id, companyId: table.companyId },
+      });
+      if (!order) throw new BadRequestException('Could not open check');
+    }
+    const { contact, pointsInfo } = await this.findOrCreateLoyaltyContact(
+      table.companyId,
+      dto.phone,
+      dto.name,
+    );
+    await this.prisma.restoOrder.update({
+      where: { id: order.id },
+      data: {
+        contactId: contact.id,
+        guestPhone: contact.phone,
+        guestName: order.guestName || contact.name,
+      },
+    });
+    return {
+      orderId: order.id,
+      contactId: contact.id,
+      name: contact.name,
+      phone: contact.phone,
+      points: pointsInfo.points,
+      customerEnabled: pointsInfo.customerEnabled,
+      redeemEnabled: pointsInfo.redeemEnabled,
+      pointsPerUnit: pointsInfo.pointsPerUnit,
+      redeemPointsPerUnit: pointsInfo.redeemPointsPerUnit,
+    };
   }
 
   private productAvailableInDayPart(
@@ -917,12 +1138,19 @@ export class RestoService {
     invoiceId?: string | null;
     openedById?: string | null;
     tipAssigneeId?: string | null;
+    contactId?: string | null;
     sentAt: Date | null;
     closedAt: Date | null;
     createdAt: Date;
     table?: { id: string; code: string; name: string | null; zoneId?: string } | null;
     openedBy?: { id: string; name: string; email: string } | null;
     tipAssignee?: { id: string; name: string; email: string } | null;
+    contact?: {
+      id: string;
+      name: string;
+      phone: string | null;
+      loyaltyPoints?: Prisma.Decimal | number | null;
+    } | null;
     items: Array<{
       id: string;
       productId: string | null;
@@ -992,8 +1220,17 @@ export class RestoService {
       invoiceId: order.invoiceId ?? null,
       openedById: order.openedById ?? null,
       tipAssigneeId: order.tipAssigneeId ?? null,
+      contactId: order.contactId ?? null,
       openedBy: mapUser(order.openedBy),
       tipAssignee: mapUser(order.tipAssignee),
+      loyalty: order.contact
+        ? {
+            contactId: order.contact.id,
+            name: order.contact.name,
+            phone: order.contact.phone,
+            points: Number(order.contact.loyaltyPoints || 0),
+          }
+        : null,
       table: order.table
         ? {
             id: order.table.id,
@@ -1019,6 +1256,14 @@ export class RestoService {
         table: { select: { id: true, code: true, name: true, zoneId: true } },
         openedBy: { select: { id: true, name: true, email: true } },
         tipAssignee: { select: { id: true, name: true, email: true } },
+        contact: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+            loyaltyPoints: true,
+          },
+        },
         items: {
           orderBy: { createdAt: 'asc' },
           include: {
@@ -2255,9 +2500,13 @@ export class RestoService {
         paymentMethod: dto.paymentMethod ?? PaymentMethod.CASH,
         ...(split ? { payments: split } : {}),
         warehouseId,
-        contactId: dto.contactId,
+        contactId: dto.contactId || order.contactId || undefined,
         tipAmount: tip > 0.0005 ? tip : undefined,
         tipAssigneeId,
+        loyaltyPointsToRedeem:
+          Number(dto.loyaltyPointsToRedeem) > 0
+            ? Number(dto.loyaltyPointsToRedeem)
+            : undefined,
         serviceChargeAmount:
           serviceCharge > 0.0005 ? serviceCharge : undefined,
         notes: noteParts.join(' · '),
@@ -2272,7 +2521,12 @@ export class RestoService {
 
       await this.prisma.restoOrder.update({
         where: { id: orderId },
-        data: { tipAssigneeId },
+        data: {
+          tipAssigneeId,
+          ...(dto.contactId || order.contactId
+            ? { contactId: dto.contactId || order.contactId }
+            : {}),
+        },
       });
     }
 
@@ -2496,7 +2750,7 @@ export class RestoService {
       })),
       partnerCheckout: true,
       warehouseId,
-      contactId: dto.contactId,
+      contactId: dto.contactId || order.contactId || undefined,
       tipAmount: tip > 0.0005 ? tip : undefined,
       tipAssigneeId,
       serviceChargeAmount:
@@ -2507,7 +2761,13 @@ export class RestoService {
 
     await this.prisma.restoOrder.update({
       where: { id: orderId },
-      data: { invoiceId: invoice.id, tipAssigneeId },
+      data: {
+        invoiceId: invoice.id,
+        tipAssigneeId,
+        ...(dto.contactId || order.contactId
+          ? { contactId: dto.contactId || order.contactId }
+          : {}),
+      },
     });
 
     try {
@@ -4369,6 +4629,14 @@ export class RestoService {
         status: { in: ACTIVE_ORDER },
       },
       include: {
+        contact: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+            loyaltyPoints: true,
+          },
+        },
         items: {
           where: { status: { not: RestoOrderItemStatus.CANCELLED } },
           orderBy: { createdAt: 'asc' },
@@ -4396,6 +4664,56 @@ export class RestoService {
       paymentStatus = inv?.paymentStatus ?? null;
       if (inv && inv.status !== 'CANCELLED' && inv.paymentStatus !== 'PAID') {
         payUrl = `${this.frontendOrigin()}/pay/${invoiceId}`;
+      }
+    }
+
+    let loyalty: {
+      contactId: string;
+      name: string;
+      phone: string | null;
+      points: number;
+      customerEnabled: boolean;
+      redeemEnabled: boolean;
+    } | null = null;
+    if (open?.contact) {
+      try {
+        const pts = await this.incentives.getContactPoints(
+          table.companyId,
+          open.contact.id,
+        );
+        loyalty = {
+          contactId: open.contact.id,
+          name: open.contact.name,
+          phone: open.contact.phone,
+          points: pts.points,
+          customerEnabled: pts.customerEnabled,
+          redeemEnabled: pts.redeemEnabled,
+        };
+      } catch {
+        loyalty = {
+          contactId: open.contact.id,
+          name: open.contact.name,
+          phone: open.contact.phone,
+          points: Number(open.contact.loyaltyPoints || 0),
+          customerEnabled: false,
+          redeemEnabled: false,
+        };
+      }
+    } else {
+      try {
+        const cfg = await this.incentives.getConfig(table.companyId);
+        if (cfg.customerEnabled) {
+          loyalty = {
+            contactId: '',
+            name: '',
+            phone: null,
+            points: 0,
+            customerEnabled: true,
+            redeemEnabled: !!cfg.redeemEnabled,
+          };
+        }
+      } catch {
+        /* ignore */
       }
     }
 
@@ -4428,6 +4746,7 @@ export class RestoService {
       dayPart: menu.dayPart ?? (await this.resolveDayPartForCompany(table.companyId)).dayPart,
       dayPartSchedule: menu.dayPartSchedule ?? undefined,
       timezone: menu.timezone ?? undefined,
+      loyalty,
       modifiers: (await this.listModifiers(table.companyId)).modifiers,
       openOrder: open
         ? {
@@ -4437,6 +4756,7 @@ export class RestoService {
             invoiceId,
             paymentStatus,
             payUrl,
+            contactId: open.contactId,
             items: open.items.map((i) => ({
               id: i.id,
               name: i.name,

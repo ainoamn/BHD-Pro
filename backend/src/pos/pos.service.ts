@@ -1488,11 +1488,29 @@ export class PosService {
     await this.prisma.posDraft.deleteMany({
       where: { companyId, createdAt: { lt: cutoff } },
     });
-    return this.prisma.posDraft.findMany({
+    const drafts = await this.prisma.posDraft.findMany({
       where: { companyId },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { updatedAt: 'desc' },
       take: 50,
     });
+    const contactIds = [
+      ...new Set(
+        drafts
+          .map((d) => d.contactId)
+          .filter((id): id is string => !!id),
+      ),
+    ];
+    const contacts = contactIds.length
+      ? await this.prisma.contact.findMany({
+          where: { companyId, id: { in: contactIds } },
+          select: { id: true, name: true, phone: true },
+        })
+      : [];
+    const byId = new Map(contacts.map((c) => [c.id, c]));
+    return drafts.map((d) => ({
+      ...d,
+      contact: d.contactId ? byId.get(d.contactId) || null : null,
+    }));
   }
 
   async createDraft(companyId: string, userId: string, dto: CreatePosDraftDto) {

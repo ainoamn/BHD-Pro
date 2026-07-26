@@ -28,8 +28,15 @@ export type RestoOrderPayload = {
   invoiceId?: string | null;
   openedById?: string | null;
   tipAssigneeId?: string | null;
+  contactId?: string | null;
   openedBy?: { id: string; name: string; email: string } | null;
   tipAssignee?: { id: string; name: string; email: string } | null;
+  loyalty?: {
+    contactId: string;
+    name: string;
+    phone: string | null;
+    points: number;
+  } | null;
   sentAt: string | null;
   closedAt: string | null;
   createdAt: string;
@@ -2036,6 +2043,7 @@ class ApiClient {
       contactId?: string;
       tipAmount?: number;
       tipAssigneeId?: string;
+      loyaltyPointsToRedeem?: number;
       serviceChargeAmount?: number;
       serviceChargePct?: number;
     },
@@ -2338,6 +2346,27 @@ class ApiClient {
       dayParts: Record<string, { start: number; end: number }>;
       defaults: Record<string, { start: number; end: number }>;
     }>('/resto/config', data);
+  }
+
+  lookupRestoLoyalty(phone: string) {
+    return this.get<{
+      found: boolean;
+      phone: string | null;
+      contactId: string | null;
+      name: string | null;
+      points: number;
+      customerEnabled: boolean;
+      redeemEnabled: boolean;
+      pointsPerUnit?: number;
+      redeemPointsPerUnit?: number;
+    }>('/resto/loyalty/lookup', { params: { phone } });
+  }
+
+  attachRestoLoyalty(
+    orderId: string,
+    data: { contactId?: string | null; phone?: string; name?: string },
+  ) {
+    return this.post<RestoOrderPayload>(`/resto/orders/${orderId}/loyalty`, data);
   }
 
   lookupPosProduct(code: string, warehouseId?: string) {
@@ -2755,6 +2784,7 @@ class ApiClient {
         notes?: string | null;
         warehouseId: string | null;
         contactId: string | null;
+        contact?: { id: string; name: string; phone?: string | null } | null;
         linesJson: unknown;
         createdAt: string;
         updatedAt: string;
@@ -2776,6 +2806,9 @@ class ApiClient {
       stock?: number;
       isTracked?: boolean;
       discount?: number;
+      notes?: string;
+      catalogPrice?: number;
+      barcode?: string | null;
     }[];
   }) {
     return this.post('/pos/drafts', data);

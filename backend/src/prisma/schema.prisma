@@ -1165,6 +1165,7 @@ model Contact {
   scheduledInvoices ScheduledInvoice[]
   deliveryNotes DeliveryNote[]
   loyaltyPointsLedger LoyaltyPointsLedger[]
+  restoOrders RestoOrder[]
 
   @@index([companyId])
   @@index([type])
@@ -2006,6 +2007,9 @@ model RestoOrder {
   /// Who receives tip attribution (may differ from opener / closer)
   tipAssigneeId String?        @map("tip_assignee_id")
   tipAssignee   User?          @relation("RestoOrderTipAssignee", fields: [tipAssigneeId], references: [id], onDelete: SetNull)
+  /// Loyalty / CRM contact for points earn on paid close
+  contactId   String?          @map("contact_id")
+  contact     Contact?         @relation(fields: [contactId], references: [id], onDelete: SetNull)
   /// POS/Accounting invoice created on paid close (R4)
   invoiceId   String?          @map("invoice_id")
   sentAt      DateTime?        @map("sent_at")
@@ -2020,6 +2024,7 @@ model RestoOrder {
   @@index([companyId, tableId])
   @@index([invoiceId])
   @@index([companyId, tipAssigneeId])
+  @@index([companyId, contactId])
   @@map("resto_orders")
 }
 

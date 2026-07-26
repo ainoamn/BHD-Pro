@@ -26,6 +26,7 @@ import {
   ActivateRestoLinkDto,
   AddRestoOrderItemDto,
   AssignRestoSectionDto,
+  AttachRestoLoyaltyDto,
   CloseRestoOrderDto,
   CreateRestoModifierDto,
   CreateRestoPayLinkDto,
@@ -510,6 +511,38 @@ export class RestoController {
     @Body() dto: UpdateRestoConfigDto,
   ) {
     return this.resto.updateRestoConfig(user.companyId, dto);
+  }
+
+  @Get('loyalty/lookup')
+  @Roles(...RESTO_STAFF)
+  @ApiOperation({ summary: 'Lookup loyalty contact by phone' })
+  loyaltyLookup(
+    @CurrentUser() user: TokenPayload,
+    @Query('phone') phone?: string,
+  ) {
+    if (!phone?.trim()) {
+      return {
+        found: false,
+        phone: null,
+        contactId: null,
+        name: null,
+        points: 0,
+        customerEnabled: false,
+        redeemEnabled: false,
+      };
+    }
+    return this.resto.lookupLoyaltyByPhone(user.companyId, phone);
+  }
+
+  @Post('orders/:id/loyalty')
+  @Roles(...RESTO_STAFF)
+  @ApiOperation({ summary: 'Attach or clear loyalty contact on an open order' })
+  attachLoyalty(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+    @Body() dto: AttachRestoLoyaltyDto,
+  ) {
+    return this.resto.attachLoyaltyToOrder(user.companyId, id, dto || {});
   }
 
   @Get('staff')

@@ -80,6 +80,7 @@ type Session = {
     invoiceId?: string | null;
     paymentStatus?: string | null;
     payUrl?: string | null;
+    contactId?: string | null;
     items: Array<{
       id: string;
       name: string;
@@ -89,6 +90,15 @@ type Session = {
       course?: number;
     }>;
     subtotal: number;
+  } | null;
+  loyalty?: {
+    contactId: string;
+    name: string;
+    phone: string | null;
+    pointsBalance: number;
+    pointsPerCurrency: number;
+    currencyPerPoint: number;
+    customerEnabled: boolean;
   } | null;
 };
 
@@ -111,6 +121,9 @@ export default function GuestOrderPage() {
   const [composeFor, setComposeFor] = useState<MenuItem | null>(null);
   const [payTip, setPayTip] = useState("");
   const [paying, setPaying] = useState(false);
+  const [loyaltyPhone, setLoyaltyPhone] = useState("");
+  const [loyaltyName, setLoyaltyName] = useState("");
+  const [loyaltyBusy, setLoyaltyBusy] = useState(false);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -298,6 +311,51 @@ export default function GuestOrderPage() {
     }
   };
 
+  const attachLoyalty = async () => {
+    if (!token || !loyaltyPhone.trim()) return;
+    setLoyaltyBusy(true);
+    setError("");
+    try {
+      const res = await fetch(
+        `${API}/public/resto/t/${encodeURIComponent(token)}/loyalty`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "omit",
+          body: JSON.stringify({
+            phone: loyaltyPhone.trim(),
+            name: loyaltyName.trim() || undefined,
+          }),
+        },
+      );
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as {
+          message?: string | string[];
+        };
+        const msg = Array.isArray(body.message) ? body.message[0] : body.message;
+        throw new Error(msg || "loyalty");
+      }
+      setOkMsg(
+        locale === "en"
+          ? "Loyalty linked — points will accrue on payment."
+          : "تم ربط الولاء — تُحتسب النقاط عند الدفع.",
+      );
+      setLoyaltyPhone("");
+      setLoyaltyName("");
+      await load();
+    } catch (e) {
+      setError(
+        e instanceof Error
+          ? e.message
+          : locale === "en"
+            ? "Could not link loyalty."
+            : "تعذر ربط الولاء.",
+      );
+    } finally {
+      setLoyaltyBusy(false);
+    }
+  };
+
   const callStaff = async (type: "WAITER" | "CHECK" | "WATER") => {
     setBusy(true);
     try {
@@ -466,6 +524,72 @@ export default function GuestOrderPage() {
           <p className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-100">
             {error}
           </p>
+        ) : null}
+
+        {session.loyalty?.customerEnabled ? (
+          <section className="rounded-2xl border border-amber-500/25 bg-amber-500/5 p-4 space-y-3">
+            {session.loyalty.contactId ? (
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-black text-amber-100">
+                    {locale === "en" ? "Loyalty" : "الولاء"} · {session.loyalty.name}
+                  </p>
+                  <p className="text-xs text-white/50 mt-0.5">
+                    {session.loyalty.pointsBalance}{" "}
+                    {locale === "en" ? "pts" : "نقطة"}
+                    {session.loyalty.phone ? ` · ${session.loyalty.phone}` : ""}
+                  </p>
+                </div>
+                <span className="text-[10px] font-bold uppercase tracking-wide text-amber-300/80">
+                  {locale === "en" ? "Linked" : "مرتبط"}
+                </span>
+              </div>
+            ) : (
+              <>
+                <p className="text-sm font-black text-amber-100">
+                  {locale === "en" ? "Earn loyalty points" : "اكسب نقاط الولاء"}
+                </p>
+                <p className="text-xs text-white/45">
+                  {locale === "en"
+                    ? "Enter your mobile to link this visit."
+                    : "أدخل رقم جوالك لربط هذه الزيارة."}
+                </p>
+                <div className="grid sm:grid-cols-2 gap-2">
+                  <input
+                    value={loyaltyPhone}
+                    onChange={(e) => setLoyaltyPhone(e.target.value)}
+                    placeholder={
+                      locale === "en" ? "Mobile (+968…)" : "الجوال (+968…)"
+                    }
+                    className="rounded-xl border border-white/15 bg-black/30 px-3 py-2.5 text-sm outline-none focus:border-amber-400/50"
+                    inputMode="tel"
+                  />
+                  <input
+                    value={loyaltyName}
+                    onChange={(e) => setLoyaltyName(e.target.value)}
+                    placeholder={
+                      locale === "en" ? "Name (optional)" : "الاسم (اختياري)"
+                    }
+                    className="rounded-xl border border-white/15 bg-black/30 px-3 py-2.5 text-sm outline-none focus:border-amber-400/50"
+                  />
+                </div>
+                <button
+                  type="button"
+                  disabled={loyaltyBusy || !loyaltyPhone.trim()}
+                  onClick={() => void attachLoyalty()}
+                  className="w-full sm:w-auto rounded-xl bg-amber-500 text-slate-950 px-4 py-2.5 text-sm font-black disabled:opacity-50"
+                >
+                  {loyaltyBusy
+                    ? locale === "en"
+                      ? "Linking…"
+                      : "جاري الربط…"
+                    : locale === "en"
+                      ? "Link loyalty"
+                      : "ربط الولاء"}
+                </button>
+              </>
+            )}
+          </section>
         ) : null}
 
         {session.openOrder ? (
