@@ -126,8 +126,11 @@ export class TaxRatesService {
     if (row.isDefault) {
       throw new BadRequestException('Cannot delete the default tax rate');
     }
-    await this.prisma.taxRate.delete({ where: { id } });
-    return { message: 'Deleted' };
+    await this.prisma.taxRate.update({
+      where: { id },
+      data: { isActive: false },
+    });
+    return { message: 'Deactivated', deactivated: true };
   }
 
   private async ensure(companyId: string, id: string) {

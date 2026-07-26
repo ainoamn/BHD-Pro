@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
-import { cn, formatMoney } from "@/lib/utils";
+import { cn, formatMoney, apiErrorMessage } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
 import { PageHeader, EmptyState, LoadingSpinner, QueryError, GlassCard } from "@/components/ui/page-shell";
 import { DecimalInput } from "@/components/ui/decimal-input";
@@ -261,7 +261,7 @@ export default function InventoryPage() {
         openProductLabel(created);
       }
     },
-    onError: () => toast.error(t("saveError")),
+    onError: (err) => toast.error(apiErrorMessage(err, t("saveError"))),
   });
 
   const deleteMutation = useMutation({

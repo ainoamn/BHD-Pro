@@ -8,7 +8,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { PageHeader, GlassCard, LoadingSpinner, EmptyState, QueryError } from "@/components/ui/page-shell";
-import { cn } from "@/lib/utils";
+import { cn, apiErrorMessage } from "@/lib/utils";
 
 type AlertStatus = "OPEN" | "ACKNOWLEDGED" | "RESOLVED" | "DISMISSED" | "ALL";
 
@@ -66,7 +66,7 @@ export default function ManagementAlertsPage() {
       queryClient.invalidateQueries({ queryKey: ["management-alerts"] });
       toast.success(tCommon("saved"));
     },
-    onError: () => toast.error(t("forbidden")),
+    onError: (err) => toast.error(apiErrorMessage(err, t("forbidden"))),
   });
 
   const sorted = useMemo(() => {

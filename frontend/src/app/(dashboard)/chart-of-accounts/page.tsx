@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import { Plus, ChevronDown, ChevronLeft, Edit, Trash2, X, Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
-import { formatMoney } from "@/lib/utils";
+import { formatMoney, apiErrorMessage } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
 import { PageHeader, LoadingSpinner, GlassCard, QueryError } from "@/components/ui/page-shell";
 import { FormLabel } from "@/components/ui/form-field";
@@ -140,7 +140,7 @@ export default function ChartOfAccountsPage() {
       toast.success(tCommon("saved"));
       setOpen(false);
     },
-    onError: () => toast.error(tCommon("error")),
+    onError: (err) => toast.error(apiErrorMessage(err, tCommon("error"))),
   });
 
   const updateMutation = useMutation({
@@ -151,7 +151,7 @@ export default function ChartOfAccountsPage() {
       toast.success(tCommon("saved"));
       setEditId(null);
     },
-    onError: () => toast.error(tCommon("error")),
+    onError: (err) => toast.error(apiErrorMessage(err, tCommon("error"))),
   });
 
   const deleteMutation = useMutation({
@@ -160,7 +160,7 @@ export default function ChartOfAccountsPage() {
       queryClient.invalidateQueries({ queryKey: ["accounts-tree"] });
       toast.success(tCommon("deleted"));
     },
-    onError: () => toast.error(tCommon("error")),
+    onError: (err) => toast.error(apiErrorMessage(err, tCommon("error"))),
   });
 
   const openEdit = (node: TreeNode) => {

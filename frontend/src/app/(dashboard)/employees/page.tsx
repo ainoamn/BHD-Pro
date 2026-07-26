@@ -7,6 +7,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, ChevronUp, Loader2, Plus, Wallet } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
+import { apiErrorMessage } from "@/lib/utils";
 import { ErpCrudPage, formatMoney } from "@/components/erp/erp-crud-page";
 import { useAuthStore } from "@/store/auth";
 import { PageHeader, GlassCard, LoadingSpinner, QueryError } from "@/components/ui/page-shell";
@@ -77,7 +78,7 @@ export default function EmployeesPage() {
       queryClient.invalidateQueries({ queryKey: ["payroll"] });
       toast.success(tCommon("saved"));
     },
-    onError: () => toast.error(tCommon("error")),
+    onError: (err) => toast.error(apiErrorMessage(err, tCommon("error"))),
   });
 
   const statusMutation = useMutation({

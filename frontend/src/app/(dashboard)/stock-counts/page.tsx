@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Loader2, X, ClipboardList, Trash2, CheckCircle2 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
-import { formatDate, cn } from "@/lib/utils";
+import { formatDate, cn, apiErrorMessage } from "@/lib/utils";
 import { PageHeader, LoadingSpinner, QueryError, EmptyState, GlassCard } from "@/components/ui/page-shell";
 import { DecimalInput } from "@/components/ui/decimal-input";
 
@@ -137,7 +137,7 @@ export default function StockCountsPage() {
       toast.success(t("cancelled"));
       setDetailId(null);
     },
-    onError: () => toast.error(tCommon("error")),
+    onError: (err) => toast.error(apiErrorMessage(err, tCommon("error"))),
   });
 
   const deleteMutation = useMutation({

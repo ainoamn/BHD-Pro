@@ -102,6 +102,16 @@ export function extractTaxFromInclusive(inclusive: number, rate: number): { net:
   return { net, tax };
 }
 
+/** Best-effort Nest/Axios API error message for toast honesty. */
+export function apiErrorMessage(err: unknown, fallback = "Error"): string {
+  const data = (err as { response?: { data?: { message?: string | string[] } } })?.response
+    ?.data;
+  const msg = data?.message;
+  if (Array.isArray(msg)) return msg.filter(Boolean).join(" — ") || fallback;
+  if (typeof msg === "string" && msg.trim()) return msg;
+  return fallback;
+}
+
 export function debounce<T extends (...args: any[]) => any>(
   func: T,
   wait: number

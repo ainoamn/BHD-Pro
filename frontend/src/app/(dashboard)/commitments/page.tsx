@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
+import { apiErrorMessage } from "@/lib/utils";
 import { formatMoney } from "@/components/erp/erp-crud-page";
 import { useAuthStore } from "@/store/auth";
 import { PageHeader, GlassCard, LoadingSpinner, EmptyState, QueryError } from "@/components/ui/page-shell";
@@ -148,7 +149,7 @@ export default function CommitmentsPage() {
       resetForm();
       toast.success(tCommon("saved"));
     },
-    onError: () => toast.error(tCommon("error")),
+    onError: (err) => toast.error(apiErrorMessage(err, tCommon("error"))),
   });
 
   const pauseMutation = useMutation({
@@ -158,13 +159,13 @@ export default function CommitmentsPage() {
       invalidate();
       toast.success(t("paused"));
     },
-    onError: () => toast.error(tCommon("error")),
+    onError: (err) => toast.error(apiErrorMessage(err, tCommon("error"))),
   });
 
   const resumeMutation = useMutation({
     mutationFn: (id: string) => api.resumeCommitment(id),
     onSuccess: invalidate,
-    onError: () => toast.error(tCommon("error")),
+    onError: (err) => toast.error(apiErrorMessage(err, tCommon("error"))),
   });
 
   const runMutation = useMutation({
@@ -173,7 +174,7 @@ export default function CommitmentsPage() {
       invalidate();
       toast.success(`${t("ran")}: ${(res.data as { processed: number }).processed}`);
     },
-    onError: () => toast.error(tCommon("error")),
+    onError: (err) => toast.error(apiErrorMessage(err, tCommon("error"))),
   });
 
   const deleteMutation = useMutation({

@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { RefreshCcw, Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
+import { apiErrorMessage } from "@/lib/utils";
 import { ErpCrudPage, formatMoney } from "@/components/erp/erp-crud-page";
 import { useAuthStore } from "@/store/auth";
 
@@ -30,7 +31,7 @@ export default function ProjectsPage() {
       queryClient.invalidateQueries({ queryKey: ["projects"] });
       toast.success(t("defaultsRestored"));
     },
-    onError: () => toast.error(tCommon("error")),
+    onError: (err) => toast.error(apiErrorMessage(err, tCommon("error"))),
   });
 
   const statusLabel = (status: string) => {

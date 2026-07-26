@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Plus, Trash2, Check, X, Landmark, FileText } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
-import { formatMoney, formatDate, cn } from "@/lib/utils";
+import { formatMoney, formatDate, cn, apiErrorMessage } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
 import { PageHeader, LoadingSpinner, QueryError, EmptyState, GlassCard } from "@/components/ui/page-shell";
 import { DecimalInput } from "@/components/ui/decimal-input";
@@ -108,13 +108,13 @@ export default function BankReconciliationPage() {
       setReference("");
       setAmount(0);
     },
-    onError: () => toast.error(tCommon("error")),
+    onError: (err) => toast.error(apiErrorMessage(err, tCommon("error"))),
   });
 
   const toggleMutation = useMutation({
     mutationFn: (lineId: string) => api.toggleBankStatementReconciled(lineId),
     onSuccess: () => invalidate(),
-    onError: () => toast.error(tCommon("error")),
+    onError: (err) => toast.error(apiErrorMessage(err, tCommon("error"))),
   });
 
   const deleteMutation = useMutation({
@@ -123,7 +123,7 @@ export default function BankReconciliationPage() {
       invalidate();
       toast.success(tCommon("deleted"));
     },
-    onError: () => toast.error(tCommon("error")),
+    onError: (err) => toast.error(apiErrorMessage(err, tCommon("error"))),
   });
 
   if (banksLoading) return <LoadingSpinner />;

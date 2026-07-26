@@ -270,6 +270,17 @@ export class ErpService {
 
   async deleteProject(companyId: string, id: string) {
     await this.ensureProject(companyId, id);
+    const [lines, invoices] = await Promise.all([
+      this.prisma.journalLine.count({ where: { projectId: id } }),
+      this.prisma.invoice.count({ where: { projectId: id } }),
+    ]);
+    if (lines + invoices > 0) {
+      await this.prisma.project.update({
+        where: { id },
+        data: { isActive: false, status: 'ON_HOLD' },
+      });
+      return { message: 'Deactivated (linked journals/invoices retained)', deactivated: true };
+    }
     await this.prisma.project.delete({ where: { id } });
     return { message: 'Deleted' };
   }

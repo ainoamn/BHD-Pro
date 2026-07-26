@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Shield, X, Loader2, SlidersHorizontal } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
-import { cn } from "@/lib/utils";
+import { cn, apiErrorMessage } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
 import { PageHeader, EmptyState, LoadingSpinner, QueryError, GlassCard } from "@/components/ui/page-shell";
 import { UserAccessTree } from "@/components/users/user-access-tree";
@@ -113,7 +113,7 @@ export default function UsersPage() {
       toast.success(en ? "Permissions saved" : "تم حفظ الصلاحيات");
       setPermUser(null);
     },
-    onError: () => toast.error(en ? "Could not save" : "تعذر الحفظ"),
+    onError: (err) => toast.error(apiErrorMessage(err, en ? "Could not save" : "تعذر الحفظ")),
   });
 
   const openCreate = () => {

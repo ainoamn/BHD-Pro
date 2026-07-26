@@ -147,8 +147,12 @@ export class AccountsService {
       throw new BadRequestException('Cannot delete account with sub-accounts');
     }
     const lineCount = await this.prisma.journalLine.count({ where: { accountId: id } });
-    if (lineCount > 0) {
-      throw new BadRequestException('Cannot delete account used in journal entries');
+    if (lineCount > 0 || Math.abs(Number(account.currentBalance)) > 0.0005) {
+      await this.prisma.account.update({
+        where: { id: account.id },
+        data: { isActive: false },
+      });
+      return { message: 'Deactivated (journal history retained)', deactivated: true };
     }
     await this.prisma.account.delete({ where: { id: account.id } });
     return { message: 'Account deleted' };
