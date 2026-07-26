@@ -1610,6 +1610,8 @@ model PosShift {
   status        String    @default("OPEN") // OPEN | CLOSED
   openingFloat  Decimal   @default(0) @map("opening_float") @db.Decimal(14, 3)
   closingCash   Decimal?  @map("closing_cash") @db.Decimal(14, 3)
+  /// Counted note/coin breakdown at close: { "50": 2, "10": 5, ... }
+  closingDenominationJson Json? @map("closing_denomination_json")
   notes         String?
   zReportJson   Json?     @map("z_report_json")
   openedAt      DateTime  @default(now()) @map("opened_at")

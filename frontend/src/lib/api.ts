@@ -2990,6 +2990,7 @@ class ApiClient {
     closingCash: number;
     notes?: string;
     warehouseId?: string;
+    denominationCounts?: Record<string, number>;
     approval?: DualApprovalPayload;
   }) {
     return this.post<{

@@ -210,6 +210,8 @@ export function PosShiftsView({
   const [openingFloat, setOpeningFloat] = useState("0");
   const [openingNotes, setOpeningNotes] = useState("");
   const [closingCash, setClosingCash] = useState("");
+  const [denomCounts, setDenomCounts] = useState<Record<string, string>>({});
+  const TILL_FACES = ["50", "20", "10", "5", "1", "0.5", "0.1", "0.05", "0.025"] as const;
   const [lastZ, setLastZ] = useState<ZReport | null>(null);
   const [lastX, setLastX] = useState<ZReport | null>(null);
   const [warehouseId, setWarehouseId] = useState("");
@@ -355,15 +357,21 @@ export function PosShiftsView({
   });
 
   const closeMut = useMutation({
-    mutationFn: (args: { closingCash: number; approval?: DualApprovalPayload }) =>
+    mutationFn: (args: {
+      closingCash: number;
+      denominationCounts?: Record<string, number>;
+      approval?: DualApprovalPayload;
+    }) =>
       api.closePosShift({
         closingCash: args.closingCash,
         warehouseId: warehouseId || undefined,
+        denominationCounts: args.denominationCounts,
         approval: args.approval,
       }),
     onSuccess: (res) => {
       toast.success(t.shiftClosed);
       setClosingCash("");
+      setDenomCounts({});
       setApprovalOpen(false);
       setPendingCloseCash(null);
       const payload = res.data as {
@@ -529,6 +537,24 @@ export function PosShiftsView({
     }
   };
 
+  const buildDenominationCounts = () => {
+    const out: Record<string, number> = {};
+    for (const face of TILL_FACES) {
+      const n = Math.max(0, Math.floor(Number(denomCounts[face] || 0) || 0));
+      if (n > 0) out[face] = n;
+    }
+    return Object.keys(out).length ? out : undefined;
+  };
+
+  const applyTillCountTotal = () => {
+    let sum = 0;
+    for (const face of TILL_FACES) {
+      const n = Math.max(0, Math.floor(Number(denomCounts[face] || 0) || 0));
+      sum += n * Number(face);
+    }
+    setClosingCash(String(Number(sum.toFixed(3))));
+  };
+
   const requestClose = () => {
     const cash = Number(closingCash);
     if (Number.isNaN(cash) || cash < 0) return;
@@ -537,11 +563,12 @@ export function PosShiftsView({
       if (!window.confirm(t.eodConfirmParked)) return;
     }
     setPendingCloseCash(cash);
+    const denominationCounts = buildDenominationCounts();
     if (variance > varianceLimit) {
       setApprovalOpen(true);
       return;
     }
-    closeMut.mutate({ closingCash: cash });
+    closeMut.mutate({ closingCash: cash, denominationCounts });
   };
 
   const xReportMut = useMutation({
@@ -770,6 +797,37 @@ export function PosShiftsView({
 
           <div className="rounded-xl border border-white/10 bg-black/20 p-4 space-y-3">
             <p className="text-xs font-semibold text-slate-300">{t.reconciliationTitle}</p>
+            <div className="rounded-xl border border-white/10 bg-black/20 p-3 space-y-2">
+              <p className="text-xs font-semibold text-slate-300">{t.tillCountTitle}</p>
+              <p className="text-[11px] text-slate-500">{t.tillCountHint}</p>
+              <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                {TILL_FACES.map((face) => (
+                  <label key={face} className="space-y-1">
+                    <span className="block text-[10px] text-slate-400 tabular-nums">{face}</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1}
+                      value={denomCounts[face] ?? ""}
+                      onChange={(e) =>
+                        setDenomCounts((prev) => ({
+                          ...prev,
+                          [face]: e.target.value,
+                        }))
+                      }
+                      className="w-full h-9 rounded-lg bg-black/30 border border-white/10 px-2 text-sm text-white tabular-nums"
+                    />
+                  </label>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={applyTillCountTotal}
+                className="h-9 px-3 rounded-lg border border-emerald-400/30 text-[11px] font-semibold text-emerald-200 hover:bg-emerald-500/15"
+              >
+                {t.tillCountApply}
+              </button>
+            </div>
             <div className="flex flex-wrap items-end gap-3">
               <div>
                 <label className="block text-xs text-slate-400 mb-1">{t.countedCash}</label>
@@ -1201,7 +1259,11 @@ export function PosShiftsView({
         }}
         onConfirm={async (approval) => {
           if (pendingCloseCash == null) return;
-          await closeMut.mutateAsync({ closingCash: pendingCloseCash, approval });
+          await closeMut.mutateAsync({
+            closingCash: pendingCloseCash,
+            denominationCounts: buildDenominationCounts(),
+            approval,
+          });
         }}
       />
 

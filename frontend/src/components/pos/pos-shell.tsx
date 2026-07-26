@@ -34,8 +34,13 @@ import {
 } from "@/lib/pos-offline-queue";
 import { playPosAlertBeep } from "@/lib/pos-beep";
 import { PosCommissionChip } from "@/components/pos/pos-commission-chip";
+import {
+  DualApprovalModal,
+  type DualApprovalPayload,
+} from "@/components/security/dual-approval-modal";
 
 const VOID_ALERT_KEY = "hisaby-pos-void-alert-day";
+const TRAINING_KEY = "hisaby-pos-training";
 
 export function PosShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -54,6 +59,11 @@ export function PosShell({ children }: { children: React.ReactNode }) {
   const [queueSales, setQueueSales] = useState<PendingPosSale[]>([]);
   const [queueOps, setQueueOps] = useState<PendingPosOp[]>([]);
   const [queueLoading, setQueueLoading] = useState(false);
+  const [idleLockMinutes, setIdleLockMinutes] = useState(0);
+  const [allowTrainingMode, setAllowTrainingMode] = useState(true);
+  const [locked, setLocked] = useState(false);
+  const [unlockOpen, setUnlockOpen] = useState(false);
+  const [trainingMode, setTrainingMode] = useState(false);
   const isLogin = pathname?.startsWith("/pos/login");
   const isCustomerDisplay = pathname?.startsWith("/pos/display");
   const bareShell = isLogin || isCustomerDisplay;
@@ -211,6 +221,82 @@ export function PosShell({ children }: { children: React.ReactNode }) {
     if (!hydrated || bareShell) return;
     let cancelled = false;
     (async () => {
+      try {
+        const res = await api.getCompanySecurity();
+        const d = res.data as {
+          idleLockMinutes?: number;
+          allowTrainingMode?: boolean;
+        };
+        if (!cancelled) {
+          setIdleLockMinutes(
+            typeof d.idleLockMinutes === "number" ? d.idleLockMinutes : 0,
+          );
+          setAllowTrainingMode(d.allowTrainingMode !== false);
+        }
+      } catch {
+        /* ignore */
+      }
+      try {
+        const on = sessionStorage.getItem(TRAINING_KEY) === "1";
+        if (!cancelled) setTrainingMode(on);
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [hydrated, bareShell, pathname]);
+
+  useEffect(() => {
+    if (!hydrated || bareShell || idleLockMinutes <= 0 || locked) return;
+    let timer: number | null = null;
+    const bump = () => {
+      if (timer != null) window.clearTimeout(timer);
+      timer = window.setTimeout(
+        () => {
+          setLocked(true);
+          setUnlockOpen(true);
+        },
+        idleLockMinutes * 60 * 1000,
+      );
+    };
+    const events = ["pointerdown", "keydown", "touchstart", "mousemove"] as const;
+    for (const ev of events) window.addEventListener(ev, bump, { passive: true });
+    bump();
+    return () => {
+      if (timer != null) window.clearTimeout(timer);
+      for (const ev of events) window.removeEventListener(ev, bump);
+    };
+  }, [hydrated, bareShell, idleLockMinutes, locked]);
+
+  const toggleTraining = () => {
+    if (!allowTrainingMode && !trainingMode) {
+      toast.error(t.trainingDisabled);
+      return;
+    }
+    setTrainingMode((prev) => {
+      const next = !prev;
+      try {
+        if (next) sessionStorage.setItem(TRAINING_KEY, "1");
+        else sessionStorage.removeItem(TRAINING_KEY);
+      } catch {
+        /* ignore */
+      }
+      toast.success(next ? t.trainingOn : t.trainingOff);
+      return next;
+    });
+  };
+
+  const onUnlock = async (_approval: DualApprovalPayload) => {
+    setLocked(false);
+    setUnlockOpen(false);
+  };
+
+  useEffect(() => {
+    if (!hydrated || bareShell) return;
+    let cancelled = false;
+    (async () => {
       if (!isAuthenticated) {
         const ok = await api.restoreSession();
         if (!ok && !cancelled) {
@@ -363,6 +449,21 @@ export function PosShell({ children }: { children: React.ReactNode }) {
                 <Wallet className="w-4 h-4" />
                 <span className="hidden sm:inline">{t.posBooksNav}</span>
               </Link>
+              <button
+                type="button"
+                onClick={toggleTraining}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold shrink-0 ${
+                  trainingMode
+                    ? "bg-violet-500/25 text-violet-100 border border-violet-400/40"
+                    : "text-slate-300 hover:bg-white/5"
+                }`}
+                title={t.trainingMode}
+              >
+                <span className="hidden sm:inline">
+                  {trainingMode ? t.trainingOnShort : t.trainingMode}
+                </span>
+                <span className="sm:hidden">TRN</span>
+              </button>
               <Link
                 href="/pos/shifts"
                 className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold hover:bg-sky-500/10 shrink-0 ${
@@ -564,6 +665,36 @@ export function PosShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       ) : null}
+      {trainingMode ? (
+        <div className="sticky top-14 z-30 border-b border-violet-400/30 bg-violet-600/20 px-3 py-1.5 text-center text-[11px] font-bold text-violet-100 tracking-wide">
+          {t.trainingBanner}
+        </div>
+      ) : null}
+      {locked ? (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#0b1220]/95 backdrop-blur-md p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#121a2b] p-5 space-y-3 text-center shadow-xl">
+            <ShieldCheck className="w-10 h-10 text-amber-300 mx-auto" />
+            <p className="text-lg font-bold text-white">{t.idleLockedTitle}</p>
+            <p className="text-sm text-slate-400">{t.idleLockedHint}</p>
+            <button
+              type="button"
+              onClick={() => setUnlockOpen(true)}
+              className="w-full h-11 rounded-xl bg-amber-500 text-slate-950 font-bold"
+            >
+              {t.idleUnlock}
+            </button>
+          </div>
+        </div>
+      ) : null}
+      <DualApprovalModal
+        open={unlockOpen && locked}
+        action="POS_IDLE_UNLOCK"
+        actionLabel={t.idleUnlock}
+        summary={t.idleLockedTitle}
+        actorRole={user?.role}
+        onCancel={() => setUnlockOpen(false)}
+        onConfirm={onUnlock}
+      />
       <main className="mx-auto max-w-[1600px]">{children}</main>
     </div>
   );

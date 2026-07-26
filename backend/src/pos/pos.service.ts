@@ -2460,7 +2460,13 @@ export class PosService {
         closedAt,
         closingCash,
         notes,
-        zReportJson: zReport as unknown as Prisma.InputJsonValue,
+        closingDenominationJson: dto.denominationCounts
+          ? (dto.denominationCounts as Prisma.InputJsonValue)
+          : undefined,
+        zReportJson: {
+          ...zReport,
+          denominationCounts: dto.denominationCounts || null,
+        } as unknown as Prisma.InputJsonValue,
       },
       include: {
         openedBy: { select: { id: true, name: true, email: true } },
@@ -2469,9 +2475,16 @@ export class PosService {
       },
     });
 
-    const zEmail = await this.emailZReportBestEffort(companyId, updated, zReport);
+    const zEmail = await this.emailZReportBestEffort(companyId, updated, {
+      ...zReport,
+      denominationCounts: dto.denominationCounts || null,
+    });
 
-    return { shift: updated, zReport, zEmail };
+    return {
+      shift: updated,
+      zReport: { ...zReport, denominationCounts: dto.denominationCounts || null },
+      zEmail,
+    };
   }
 
   private formatZReportPlainText(
@@ -2505,6 +2518,12 @@ export class PosService {
       `Voids: ${money(z.voidedTotal ?? z.voidsTotal)}`,
       `Expected cash: ${money(z.expectedCash)}`,
       `Closing cash: ${money(z.closingCash)}`,
+      z.denominationCounts && typeof z.denominationCounts === 'object'
+        ? `Till count: ${Object.entries(z.denominationCounts as Record<string, number>)
+            .filter(([, c]) => Number(c) > 0)
+            .map(([face, c]) => `${c}×${face}`)
+            .join(', ') || '—'}`
+        : '',
       `Variance: ${money(z.variance)}`,
       z.varianceStatus ? `Variance status: ${z.varianceStatus}` : '',
     ]

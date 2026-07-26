@@ -2064,6 +2064,44 @@ export default function PosCheckoutPage() {
     opts?: { allowNegativeStock?: boolean },
   ) => {
     if (!cart.length || paying) return;
+    try {
+      if (sessionStorage.getItem("hisaby-pos-training") === "1") {
+        setPaying(true);
+        const snapshot = cart.map((l) => ({
+          name: l.name,
+          qty: l.quantity,
+          lineTotal: lineTotal(l),
+          barcode: l.barcode,
+          sku: l.sku,
+          note: l.notes || null,
+        }));
+        const paymentLabelJoined = payments?.length
+          ? payments.map((p) => `${p.method}:${p.amount}`).join("+")
+          : method;
+        setLastInvoice({
+          number: `TRAIN-${Date.now().toString(36).toUpperCase()}`,
+          total,
+          lines: snapshot,
+          paymentMethod: `[TRAINING] ${paymentLabelJoined}`,
+          warehouseLabel: warehouses.find((w) => w.id === warehouseId)?.name,
+        });
+        setCart([]);
+        setCartNotes("");
+        setTipAmount(0);
+        setTipCustom("");
+        setSplitOpen(false);
+        setPendingCheckout(null);
+        setCashTenderOpen(false);
+        clearActiveCartSession();
+        toast.success(t.trainingSaleOk);
+        focusScan();
+        setPaying(false);
+        setCheckoutBusy(false);
+        return;
+      }
+    } catch {
+      /* ignore */
+    }
     if (requireOpenShift && !shiftOpen) {
       toast(
         (toastId) => (

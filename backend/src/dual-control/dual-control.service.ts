@@ -29,6 +29,10 @@ export type CompanySecurityConfig = {
   cashOutApprovalLimit?: number;
   /** When true, POS sales require an open shift (default false — opt-in) */
   requireOpenShift?: boolean;
+  /** Idle minutes before POS screen locks (0 = off, default 0) */
+  idleLockMinutes?: number;
+  /** Allow POS training mode toggle (default true) */
+  allowTrainingMode?: boolean;
   /** Auto WhatsApp POS receipts to customer (default true when WA configured) */
   autoSendPosReceipts?: boolean;
   /** Auto email POS receipts (default true when email configured) */
@@ -114,6 +118,7 @@ export class DualControlService {
       POS_NO_SALE: config.actions?.POS_NO_SALE !== false,
       POS_REFUND: config.actions?.POS_REFUND !== false,
       POS_BLIND_RETURN: config.actions?.POS_BLIND_RETURN !== false,
+      POS_IDLE_UNLOCK: config.actions?.POS_IDLE_UNLOCK !== false,
       STOCK_ADJUST: config.actions?.STOCK_ADJUST !== false,
       STOCK_TRANSFER: config.actions?.STOCK_TRANSFER !== false,
       INVOICE_CANCEL: config.actions?.INVOICE_CANCEL !== false,
@@ -155,6 +160,11 @@ export class DualControlService {
           ? config.cashOutApprovalLimit
           : DEFAULT_CASH_OUT_APPROVAL_LIMIT,
       requireOpenShift: config.requireOpenShift === true,
+      idleLockMinutes:
+        typeof config.idleLockMinutes === 'number' && config.idleLockMinutes >= 0
+          ? Math.min(240, Math.floor(config.idleLockMinutes))
+          : 0,
+      allowTrainingMode: config.allowTrainingMode === false ? false : true,
       /** Default on when WhatsApp is configured; false only when explicitly disabled */
       autoSendPosReceipts: config.autoSendPosReceipts === false ? false : true,
       autoSendPosReceiptEmail:
@@ -1085,6 +1095,15 @@ export class DualControlService {
     }
     if (dto.requireOpenShift !== undefined) {
       next.requireOpenShift = !!dto.requireOpenShift;
+    }
+    if (dto.idleLockMinutes !== undefined) {
+      next.idleLockMinutes = Math.max(
+        0,
+        Math.min(240, Math.floor(Number(dto.idleLockMinutes) || 0)),
+      );
+    }
+    if (dto.allowTrainingMode !== undefined) {
+      next.allowTrainingMode = !!dto.allowTrainingMode;
     }
     if (dto.autoSendPosReceipts !== undefined) {
       next.autoSendPosReceipts = !!dto.autoSendPosReceipts;

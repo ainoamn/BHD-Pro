@@ -20,6 +20,8 @@ type SecurityPublic = {
   shiftVarianceLimit?: number;
   cashOutApprovalLimit?: number;
   requireOpenShift?: boolean;
+  idleLockMinutes?: number;
+  allowTrainingMode?: boolean;
   autoSendPosReceipts?: boolean;
   autoSendPosReceiptEmail?: boolean;
   autoSendPosReceiptSms?: boolean;
@@ -37,6 +39,7 @@ type SecurityPublic = {
     POS_NO_SALE: boolean;
     POS_REFUND: boolean;
     POS_BLIND_RETURN: boolean;
+    POS_IDLE_UNLOCK: boolean;
     STOCK_ADJUST: boolean;
     STOCK_TRANSFER: boolean;
     INVOICE_CANCEL: boolean;
@@ -58,6 +61,7 @@ const ACTION_KEYS = [
   "POS_NO_SALE",
   "POS_REFUND",
   "POS_BLIND_RETURN",
+  "POS_IDLE_UNLOCK",
   "STOCK_ADJUST",
   "STOCK_TRANSFER",
   "INVOICE_CANCEL",
@@ -86,6 +90,7 @@ export function DualControlSettings() {
     POS_NO_SALE: true,
     POS_REFUND: true,
     POS_BLIND_RETURN: true,
+    POS_IDLE_UNLOCK: true,
     STOCK_ADJUST: true,
     STOCK_TRANSFER: true,
     INVOICE_CANCEL: true,
@@ -103,6 +108,8 @@ export function DualControlSettings() {
   const [varianceLimit, setVarianceLimit] = useState("1");
   const [cashOutLimit, setCashOutLimit] = useState("20");
   const [requireOpenShift, setRequireOpenShift] = useState(false);
+  const [idleLockMinutes, setIdleLockMinutes] = useState("0");
+  const [allowTrainingMode, setAllowTrainingMode] = useState(true);
   const [autoSendPosReceipts, setAutoSendPosReceipts] = useState(true);
   const [autoSendPosReceiptEmail, setAutoSendPosReceiptEmail] = useState(true);
   const [autoSendPosReceiptSms, setAutoSendPosReceiptSms] = useState(true);
@@ -132,6 +139,7 @@ export function DualControlSettings() {
       POS_NO_SALE: true,
       POS_REFUND: true,
       POS_BLIND_RETURN: true,
+      POS_IDLE_UNLOCK: true,
       STOCK_ADJUST: true,
       STOCK_TRANSFER: true,
       INVOICE_CANCEL: true,
@@ -147,6 +155,8 @@ export function DualControlSettings() {
     setVarianceLimit(String(data.shiftVarianceLimit ?? 1));
     setCashOutLimit(String(data.cashOutApprovalLimit ?? 20));
     setRequireOpenShift(data.requireOpenShift === true);
+    setIdleLockMinutes(String(data.idleLockMinutes ?? 0));
+    setAllowTrainingMode(data.allowTrainingMode !== false);
     setAutoSendPosReceipts(data.autoSendPosReceipts !== false);
     setAutoSendPosReceiptEmail(data.autoSendPosReceiptEmail !== false);
     setAutoSendPosReceiptSms(data.autoSendPosReceiptSms !== false);
@@ -178,6 +188,8 @@ export function DualControlSettings() {
     shiftVarianceLimit: Number(varianceLimit) || 0,
     cashOutApprovalLimit: Number(cashOutLimit) || 0,
     requireOpenShift,
+    idleLockMinutes: Number(idleLockMinutes) || 0,
+    allowTrainingMode,
     autoSendPosReceipts,
     autoSendPosReceiptEmail,
     autoSendPosReceiptSms,
@@ -280,6 +292,36 @@ export function DualControlSettings() {
               checked={requireOpenShift}
               disabled={!isAdmin || saveMutation.isPending}
               onChange={(e) => setRequireOpenShift(e.target.checked)}
+            />
+          </label>
+
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">{t("idleLockMinutes")}</label>
+            <input
+              type="number"
+              min={0}
+              max={240}
+              step={1}
+              value={idleLockMinutes}
+              onChange={(e) => setIdleLockMinutes(e.target.value)}
+              disabled={!isAdmin || saveMutation.isPending}
+              className="w-full sm:w-40 h-10 px-3 rounded-lg bg-slate-900/60 border border-white/10 text-sm text-white"
+            />
+            <p className="text-[11px] text-slate-500 mt-1">{t("idleLockMinutesHint")}</p>
+          </div>
+
+          <label className="flex items-center justify-between gap-4 text-sm text-slate-200">
+            <span>
+              <span className="block">{t("allowTrainingMode")}</span>
+              <span className="block text-[11px] text-slate-500 mt-0.5 font-normal">
+                {t("allowTrainingModeHint")}
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              checked={allowTrainingMode}
+              disabled={!isAdmin || saveMutation.isPending}
+              onChange={(e) => setAllowTrainingMode(e.target.checked)}
             />
           </label>
 

@@ -15,6 +15,7 @@ export type DualControlAction =
   | "POS_NO_SALE"
   | "POS_REFUND"
   | "POS_BLIND_RETURN"
+  | "POS_IDLE_UNLOCK"
   | "STOCK_ADJUST"
   | "STOCK_TRANSFER"
   | "INVOICE_CANCEL"

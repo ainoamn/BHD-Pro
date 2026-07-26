@@ -82,6 +82,7 @@ export const DUAL_CONTROL_ACTIONS = [
   'POS_NO_SALE',
   'POS_REFUND',
   'POS_BLIND_RETURN',
+  'POS_IDLE_UNLOCK',
   'STOCK_ADJUST',
   'STOCK_TRANSFER',
   'INVOICE_CANCEL',
@@ -123,6 +124,10 @@ export class DualControlActionsDto {
   @IsOptional()
   @IsBoolean()
   POS_BLIND_RETURN?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  POS_IDLE_UNLOCK?: boolean;
 
   @IsOptional()
   @IsBoolean()
@@ -231,6 +236,20 @@ export class UpdateSecurityConfigDto {
   @IsOptional()
   @IsBoolean()
   requireOpenShift?: boolean;
+
+  /** Idle minutes before POS locks (0 = off) */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  idleLockMinutes?: number;
+
+  /** Allow cashiers to enable training mode (default true) */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  allowTrainingMode?: boolean;
 
   /** Auto-send POS receipt WhatsApp to customer phone (default true when WA configured) */
   @ApiPropertyOptional()

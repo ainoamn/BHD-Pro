@@ -8,6 +8,7 @@ import {
   IsIn,
   IsNotEmpty,
   IsNumber,
+  IsObject,
   IsOptional,
   IsString,
   IsUUID,
@@ -294,6 +295,11 @@ export class ClosePosShiftDto {
   @IsOptional()
   @IsUUID()
   warehouseId?: string;
+
+  /** Counted till denominations: face value string → count */
+  @IsOptional()
+  @IsObject()
+  denominationCounts?: Record<string, number>;
 
   @IsOptional()
   @ValidateNested()

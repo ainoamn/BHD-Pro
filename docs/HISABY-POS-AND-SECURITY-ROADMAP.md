@@ -27,7 +27,7 @@ POS lives at **`/pos`**, optionally linked to Accounting via shared login or tec
 | **3 — Messaging** | WhatsApp OTP to manager + notify on `ApprovalRequest` create | Done (env-gated OTP + best-effort create alert) |
 | **4 — Badge** | NFC / proximity token (`NFC` + bcrypt `nfcBadgeHashes`) | Done (25 Jul 2026) — Web NFC on Android Chrome HTTPS; manual paste for desktop testing |
 
-Sensitive actions covered today: `POS_VOID`, `POS_PRICE_OVERRIDE`, `POS_LINE_DISCOUNT`, `POS_STOCK_OVERRIDE`, `POS_NO_SALE`, `POS_REFUND`, `POS_BLIND_RETURN`, `STOCK_ADJUST`, `STOCK_TRANSFER`, `INVOICE_CANCEL`, `PAYMENT_REVERSE`, `SHIFT_CLOSE_VARIANCE`, `SHIFT_CASH_OUT`, `PAYROLL_PAY`, `CLAIM_PAY`, `BANK_INTERNAL_TRANSFER`.
+Sensitive actions covered today: `POS_VOID`, `POS_PRICE_OVERRIDE`, `POS_LINE_DISCOUNT`, `POS_STOCK_OVERRIDE`, `POS_NO_SALE`, `POS_REFUND`, `POS_BLIND_RETURN`, `POS_IDLE_UNLOCK`, `STOCK_ADJUST`, `STOCK_TRANSFER`, `INVOICE_CANCEL`, `PAYMENT_REVERSE`, `SHIFT_CLOSE_VARIANCE`, `SHIFT_CASH_OUT`, `PAYROLL_PAY`, `CLAIM_PAY`, `BANK_INTERNAL_TRANSFER`.
 
 Config: `companies.security_config` + `GET/PATCH /companies/me/security`.  
 Async API: `POST/GET /dual-control/requests`, `POST .../decide`.  
@@ -193,6 +193,12 @@ Public flags: `asyncApprovals: true`, `nfcBadgesConfigured`, `shiftVarianceLimit
 - `Product.dayPartPrices` JSON overrides; menu/addItem resolve effective price by company day-part
 - Staff UI on `/resto/menu` + `PATCH /resto/menu/:id/day-part-prices`
 - Docs: [`UPGRADE-POS-WAVE21-2026-07.md`](./UPGRADE-POS-WAVE21-2026-07.md), [`UPGRADE-RESTO-WORLD-CLASS-2026-07.md`](./UPGRADE-RESTO-WORLD-CLASS-2026-07.md)
+
+### Done (Wave 22 — Idle lock, till count, training mode)
+- Idle screen lock (`idleLockMinutes` + `POS_IDLE_UNLOCK`)
+- Till denomination count on shift close → Z report + `closingDenominationJson`
+- Training mode (simulated checkout, no stock/GL)
+- Doc: [`UPGRADE-POS-WAVE22-2026-07.md`](./UPGRADE-POS-WAVE22-2026-07.md)
 
 ### Resto world-class (recent, same track)
 - Public online booking `/reserve/[slug]` + guest notify + `/book/[token]`
