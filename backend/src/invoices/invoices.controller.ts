@@ -117,6 +117,8 @@ export class InvoicesController {
   }
 
   @Post()
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 40, ttl: 60000 } })
   @ApiOperation({ summary: 'Create invoice' })
   create(@CurrentUser() user: TokenPayload, @Body() dto: CreateInvoiceDto) {
@@ -124,6 +126,8 @@ export class InvoicesController {
   }
 
   @Put(':id')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 40, ttl: 60000 } })
   @ApiOperation({ summary: 'Update invoice' })
   update(
@@ -135,6 +139,8 @@ export class InvoicesController {
   }
 
   @Patch(':id/status')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 40, ttl: 60000 } })
   @ApiOperation({ summary: 'Update invoice status' })
   async updateStatus(
@@ -184,13 +190,17 @@ export class InvoicesController {
   }
 
   @Post(':id/unsend')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Revert sent invoice back to draft (no payments recorded)' })
   unsend(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
-    return this.invoicesService.unsend(user.companyId, id);
+    return this.invoicesService.unsend(user.companyId, user.sub, id);
   }
 
   @Post(':id/convert-to-invoice')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   @ApiOperation({ summary: 'Convert quotation to sales invoice' })
   convertQuotation(
@@ -233,6 +243,8 @@ export class InvoicesController {
   }
 
   @Post(':id/send')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   @ApiOperation({ summary: 'Send invoice by email' })
   send(
@@ -244,6 +256,8 @@ export class InvoicesController {
   }
 
   @Delete(':id')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   @ApiOperation({ summary: 'Delete invoice' })
   remove(@CurrentUser() user: TokenPayload, @Param('id') id: string) {

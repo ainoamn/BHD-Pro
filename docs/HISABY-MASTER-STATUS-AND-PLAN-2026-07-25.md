@@ -84,6 +84,7 @@
 - موجة AE: صلاحيات أصول/صرف/FX/رصيد متجر/مراكز/مشاريع/موظفين/فروع/مستودعات — [`HISABY-WAVE-AE-ERP-ROLES-2026-07-26.md`](./HISABY-WAVE-AE-ERP-ROLES-2026-07-26.md)
 - موجة AF: تحصيل فواتير/مخزون + PartialType ERP + اشتراك ADMIN + صدق بنوك — [`HISABY-WAVE-AF-PAYMENTS-STOCK-PARTIALTYPE-2026-07-26.md`](./HISABY-WAVE-AF-PAYMENTS-STOCK-PARTIALTYPE-2026-07-26.md)
 - موجة AG: صلاحيات التزامات/جرد/تسليم/مجدولة + صدق بنوك التحصيل والمطالبات — [`HISABY-WAVE-AG-COMMITMENTS-STOCK-BANK-HONESTY-2026-07-26.md`](./HISABY-WAVE-AG-COMMITMENTS-STOCK-BANK-HONESTY-2026-07-26.md)
+- موجة AH: عكس GL عند unsend + حذف مسودة فقط + صلاحيات دورة فاتورة/أوامر شراء — [`HISABY-WAVE-AH-INVOICE-GL-LIFECYCLE-2026-07-26.md`](./HISABY-WAVE-AH-INVOICE-GL-LIFECYCLE-2026-07-26.md)
 
 ### 1.6 المنصة ولوحة الإدارة (محدث 26 يوليو مساءً)
 - اشتراكات، بوابات دفع، `/admin`، PWA، GeoIP، keep-warm

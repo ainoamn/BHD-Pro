@@ -703,7 +703,7 @@ export class InvoicesService {
     });
   }
 
-  async unsend(companyId: string, id: string) {
+  async unsend(companyId: string, userId: string, id: string) {
     const invoice = await this.findOne(companyId, id);
 
     if (invoice.status === InvoiceStatus.CANCELLED) {
@@ -720,6 +720,8 @@ export class InvoicesService {
     if (invoice.status === InvoiceStatus.PAID) {
       throw new BadRequestException('Cannot revert paid invoice');
     }
+
+    await this.glPosting.reverseInvoiceEntry(companyId, userId, invoice);
 
     return this.prisma.invoice.update({
       where: { id },
@@ -824,6 +826,21 @@ export class InvoicesService {
     const invoice = await this.findOne(companyId, id);
     if (invoice.status === InvoiceStatus.PAID) {
       throw new ForbiddenException('Cannot delete paid invoice');
+    }
+    if (Number(invoice.paidAmount) > 0 || invoice.payments.length > 0) {
+      throw new BadRequestException(
+        'Cannot delete invoice with payments — reverse receipts first',
+      );
+    }
+    if (invoice.status !== InvoiceStatus.DRAFT) {
+      throw new BadRequestException(
+        'Only draft invoices can be deleted — cancel sent invoices to reverse the journal',
+      );
+    }
+    if (invoice.glJournalId) {
+      throw new BadRequestException(
+        'Cannot delete posted invoice — cancel it to reverse the journal',
+      );
     }
     await this.prisma.invoice.delete({ where: { id } });
     return { message: 'Invoice deleted' };

@@ -37,7 +37,7 @@ export function canReversePayment(paidAmount?: number, paymentStatus?: string) {
 }
 
 export function canDeleteInvoice(status: string, paidAmount?: number) {
-  if (["PAID", "CANCELLED"].includes(status)) return false;
+  if (status !== "DRAFT") return false;
   if (paidAmount != null && Number(paidAmount) > 0) return false;
   return true;
 }
