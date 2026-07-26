@@ -509,7 +509,18 @@
     "customer": "العميل",
     "amountDue": "المبلغ المستحق",
     "invoiceNotPayable": "هذه الفاتورة غير متاحة للدفع",
-    "noGateways": "لم تُفعَّل بوابة دفع لهذه الشركة"
+    "noGateways": "لم تُفعَّل بوابة دفع لهذه الشركة",
+    "cardFormTitle": "أدخل بيانات البطاقة",
+    "cardFormHint": "وضع تجريبي — لا يتم خصم حقيقي. استخدم أي رقم بطاقة من 16 رقماً صالحاً.",
+    "cardNumber": "رقم البطاقة",
+    "cardExpiry": "الانتهاء (شهر/سنة)",
+    "cardCvv": "CVV",
+    "cardName": "الاسم على البطاقة",
+    "payNow": "ادفع الآن",
+    "invalidCardNumber": "أدخل رقم بطاقة صالحاً من 16 رقماً",
+    "invalidCardExpiry": "أدخل تاريخ الانتهاء بالشكل شهر/سنة",
+    "invalidCardCvv": "أدخل رمز CVV صالحاً",
+    "invalidCardName": "أدخل الاسم على البطاقة"
   },
   "subscription": {
     "title": "الاشتراك",

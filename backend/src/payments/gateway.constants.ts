@@ -64,6 +64,24 @@ export const GATEWAY_META: Record<
     online: false,
     configKeys: [{ key: 'instructions', labelAr: 'تعليمات', labelEn: 'Instructions' }],
   },
+  MOCK_CARD: {
+    nameAr: 'دفع تجريبي (بطاقة)',
+    nameEn: 'Test card payment',
+    sortOrder: 6,
+    online: true,
+    configKeys: [
+      {
+        key: 'instructions',
+        labelAr: 'تعليمات الاختبار',
+        labelEn: 'Test instructions',
+      },
+    ],
+  },
 };
 
-export const ONLINE_GATEWAYS: PaymentGatewaySlug[] = ['THAWANI', 'STRIPE', 'PAYPAL'];
+export const ONLINE_GATEWAYS: PaymentGatewaySlug[] = [
+  'THAWANI',
+  'STRIPE',
+  'PAYPAL',
+  'MOCK_CARD',
+];

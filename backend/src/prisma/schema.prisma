@@ -33,6 +33,8 @@ model Company {
   permanentDiscountPct Decimal @default(0) @map("permanent_discount_pct") @db.Decimal(5, 2)
   /// Optional label shown in admin (e.g. "عائلة", "مشترك أول")
   permanentDiscountNote String? @map("permanent_discount_note")
+  /// Last subscription expiry reminder email sent (throttle weekly)
+  subscriptionReminderSentAt DateTime? @map("subscription_reminder_sent_at")
   isActive    Boolean  @default(true) @map("is_active")
   timezone    String   @default("Asia/Muscat")
   currency    String   @default("OMR")
@@ -1427,6 +1429,7 @@ enum PaymentGatewaySlug {
   PAYPAL
   BANK_TRANSFER
   MANUAL
+  MOCK_CARD
 }
 
 enum BillingInvoiceStatus {
@@ -1578,6 +1581,8 @@ model PlatformOperator {
   /// Permission keys: full | overview | tenants | users | billing | plans | visits | gateways | operators
   permissions Json     @default("[\"full\"]")
   isActive    Boolean  @default(true) @map("is_active")
+  /// Deputy platform owner — only primary owner may appoint/deactivate
+  isDeputy    Boolean  @default(false) @map("is_deputy")
   createdBy   String?  @map("created_by")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")

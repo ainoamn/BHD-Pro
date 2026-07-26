@@ -509,7 +509,18 @@
     "customer": "Customer",
     "amountDue": "Amount due",
     "invoiceNotPayable": "This invoice is not available for payment",
-    "noGateways": "No payment gateway enabled for this company"
+    "noGateways": "No payment gateway enabled for this company",
+    "cardFormTitle": "Enter card details",
+    "cardFormHint": "Test mode — no real charge. Use any valid 16-digit card number.",
+    "cardNumber": "Card number",
+    "cardExpiry": "Expiry (MM/YY)",
+    "cardCvv": "CVV",
+    "cardName": "Name on card",
+    "payNow": "Pay now",
+    "invalidCardNumber": "Enter a valid 16-digit card number",
+    "invalidCardExpiry": "Enter expiry as MM/YY",
+    "invalidCardCvv": "Enter a valid CVV",
+    "invalidCardName": "Enter the name on the card"
   },
   "subscription": {
     "title": "Subscription",

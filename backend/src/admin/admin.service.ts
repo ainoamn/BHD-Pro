@@ -1,8 +1,11 @@
 import { Injectable, NotFoundException, BadRequestException, OnModuleInit } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, UserRole } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
+import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { PLAN_DETAILS } from '../common/plan-features';
 import { PlanCatalogService } from '../subscriptions/plan-catalog.service';
+import { EmailNotifyService } from '../notifications/email-notify.service';
 import {
   getBootstrapAdminEmails,
   isBootstrapAdminEmail,
@@ -30,6 +33,7 @@ export class AdminService implements OnModuleInit {
   constructor(
     private prisma: PrismaService,
     private planCatalog: PlanCatalogService,
+    private emailNotify: EmailNotifyService,
   ) {}
 
   async onModuleInit() {
@@ -110,10 +114,15 @@ export class AdminService implements OnModuleInit {
       ...r,
       isBootstrap: bootstrap.has(r.email),
       isProtected: isProtectedPlatformAdminEmail(r.email),
+      isDeputy: !!(r as { isDeputy?: boolean }).isDeputy,
       permissions: (r.permissions as string[]) || [],
       canEdit: true,
-      canDeactivate: !isProtectedPlatformAdminEmail(r.email),
-      canDelete: !isProtectedPlatformAdminEmail(r.email),
+      canDeactivate:
+        !isProtectedPlatformAdminEmail(r.email) &&
+        !(r as { isDeputy?: boolean }).isDeputy,
+      canDelete:
+        !isProtectedPlatformAdminEmail(r.email) &&
+        !(r as { isDeputy?: boolean }).isDeputy,
     }));
   }
 
@@ -122,12 +131,24 @@ export class AdminService implements OnModuleInit {
     name?: string;
     permissions?: string[];
     createdBy?: string;
+    isDeputy?: boolean;
+    actorEmail?: string;
   }) {
     const email = opts.email.trim().toLowerCase();
     if (!email.includes('@')) {
       throw new BadRequestException('Invalid email');
     }
     const perms = this.normalizePermissions(opts.permissions);
+    const wantsFullOrDeputy =
+      !!opts.isDeputy || perms.includes('full');
+    if (
+      wantsFullOrDeputy &&
+      !isProtectedPlatformAdminEmail(opts.actorEmail)
+    ) {
+      throw new BadRequestException(
+        'Only the primary platform owner can appoint a full/deputy operator',
+      );
+    }
     return this.prisma.platformOperator.upsert({
       where: { email },
       create: {
@@ -135,19 +156,27 @@ export class AdminService implements OnModuleInit {
         name: opts.name?.trim() || email.split('@')[0],
         permissions: perms,
         isActive: true,
+        isDeputy: !!opts.isDeputy,
         createdBy: opts.createdBy,
       },
       update: {
         name: opts.name?.trim() || undefined,
         permissions: perms,
         isActive: true,
+        ...(opts.isDeputy !== undefined && { isDeputy: !!opts.isDeputy }),
       },
     });
   }
 
   async updateOperator(
     id: string,
-    data: { name?: string; permissions?: string[]; isActive?: boolean },
+    data: {
+      name?: string;
+      permissions?: string[];
+      isActive?: boolean;
+      isDeputy?: boolean;
+    },
+    actorEmail?: string,
   ) {
     const existing = await this.prisma.platformOperator.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Operator not found');
@@ -163,24 +192,53 @@ export class AdminService implements OnModuleInit {
         );
       }
     }
+    if (
+      ((existing as { isDeputy?: boolean }).isDeputy || data.isDeputy) &&
+      !isProtectedPlatformAdminEmail(actorEmail)
+    ) {
+      if (data.isActive === false || data.permissions !== undefined || data.isDeputy === false) {
+        throw new BadRequestException(
+          'Only the primary owner can modify or deactivate a deputy operator',
+        );
+      }
+    }
+    const nextPerms =
+      data.permissions !== undefined
+        ? this.normalizePermissions(data.permissions)
+        : undefined;
+    if (
+      nextPerms?.includes('full') &&
+      !isProtectedPlatformAdminEmail(actorEmail)
+    ) {
+      throw new BadRequestException(
+        'Only the primary platform owner can grant full operator access',
+      );
+    }
     return this.prisma.platformOperator.update({
       where: { id },
       data: {
         ...(data.name !== undefined && { name: data.name }),
-        ...(data.permissions !== undefined && {
-          permissions: this.normalizePermissions(data.permissions),
-        }),
+        ...(nextPerms !== undefined && { permissions: nextPerms }),
         ...(data.isActive !== undefined && { isActive: data.isActive }),
+        ...(data.isDeputy !== undefined && { isDeputy: data.isDeputy }),
       },
     });
   }
 
-  async removeOperator(id: string) {
+  async removeOperator(id: string, actorEmail?: string) {
     const existing = await this.prisma.platformOperator.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Operator not found');
     if (isProtectedPlatformAdminEmail(existing.email)) {
       throw new BadRequestException(
         'Cannot delete the primary platform owner. You may restrict their permissions instead.',
+      );
+    }
+    if (
+      (existing as { isDeputy?: boolean }).isDeputy &&
+      !isProtectedPlatformAdminEmail(actorEmail)
+    ) {
+      throw new BadRequestException(
+        'Only the primary owner can remove a deputy operator',
       );
     }
     // Soft-remove: deactivate so seed/env emails lose access until re-appointed
@@ -422,11 +480,26 @@ export class AdminService implements OnModuleInit {
     };
   }
 
+  private overviewCache:
+    | { at: number; data: Awaited<ReturnType<AdminService['computeOverview']>> }
+    | null = null;
+
   async overview() {
+    const now = Date.now();
+    if (this.overviewCache && now - this.overviewCache.at < 45_000) {
+      return this.overviewCache.data;
+    }
+    const data = await this.computeOverview();
+    this.overviewCache = { at: now, data };
+    return data;
+  }
+
+  private async computeOverview() {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const yesterdayStart = new Date(startOfDay.getTime() - 24 * 60 * 60 * 1000);
 
     const [
       companiesTotal,
@@ -435,6 +508,7 @@ export class AdminService implements OnModuleInit {
       usersActive,
       registeredThisMonth,
       visitsToday,
+      visitsYesterday,
       visits7d,
       uniqueIps7d,
       subPaid,
@@ -451,6 +525,9 @@ export class AdminService implements OnModuleInit {
       this.prisma.user.count({ where: { isActive: true } }),
       this.prisma.user.count({ where: { createdAt: { gte: startOfMonth } } }),
       this.prisma.siteVisit.count({ where: { createdAt: { gte: startOfDay } } }),
+      this.prisma.siteVisit.count({
+        where: { createdAt: { gte: yesterdayStart, lt: startOfDay } },
+      }),
       this.prisma.siteVisit.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
       this.prisma.$queryRaw<Array<{ c: bigint }>>`
         SELECT COUNT(DISTINCT ip_address)::bigint AS c
@@ -515,6 +592,7 @@ export class AdminService implements OnModuleInit {
       },
       visits: {
         today: visitsToday,
+        yesterday: visitsYesterday,
         last7Days: visits7d,
         uniqueIps7d: Number(uniqueIps7d[0]?.c || 0),
         byCountry: countryGroups.map((g) => ({
@@ -850,19 +928,74 @@ export class AdminService implements OnModuleInit {
     };
   }
 
-  async listUsers(q?: string) {
+  async listUsers(opts?: {
+    q?: string;
+    role?: string;
+    isActive?: boolean;
+    plan?: string;
+    sort?: string;
+  }) {
     const where: Prisma.UserWhereInput = {};
-    if (q?.trim()) {
-      const term = q.trim();
+    if (opts?.q?.trim()) {
+      const term = opts.q.trim();
       where.OR = [
         { name: { contains: term, mode: 'insensitive' } },
         { email: { contains: term, mode: 'insensitive' } },
       ];
     }
+    if (opts?.role?.trim()) {
+      const role = opts.role.trim().toUpperCase();
+      if (Object.values(UserRole).includes(role as UserRole)) {
+        where.role = role as UserRole;
+      }
+    }
+    if (opts?.isActive !== undefined) {
+      where.isActive = opts.isActive;
+    }
+    if (opts?.plan?.trim()) {
+      where.company = { plan: opts.plan.trim().toUpperCase() };
+    }
+
+    const sortKey = (opts?.sort || 'createdAt_desc').toLowerCase();
+    let orderBy: Prisma.UserOrderByWithRelationInput = { createdAt: 'desc' };
+    switch (sortKey) {
+      case 'createdat_asc':
+      case 'oldest':
+        orderBy = { createdAt: 'asc' };
+        break;
+      case 'name_asc':
+      case 'name':
+        orderBy = { name: 'asc' };
+        break;
+      case 'name_desc':
+        orderBy = { name: 'desc' };
+        break;
+      case 'email_asc':
+      case 'email':
+        orderBy = { email: 'asc' };
+        break;
+      case 'email_desc':
+        orderBy = { email: 'desc' };
+        break;
+      case 'lastlogin_desc':
+      case 'lastloginat_desc':
+      case 'lastlogin':
+        orderBy = { lastLoginAt: 'desc' };
+        break;
+      case 'lastlogin_asc':
+      case 'lastloginat_asc':
+        orderBy = { lastLoginAt: 'asc' };
+        break;
+      case 'createdat_desc':
+      case 'newest':
+      default:
+        orderBy = { createdAt: 'desc' };
+        break;
+    }
 
     const users = await this.prisma.user.findMany({
       where,
-      orderBy: { createdAt: 'desc' },
+      orderBy,
       take: 300,
       include: {
         company: {
@@ -890,6 +1023,7 @@ export class AdminService implements OnModuleInit {
       lastIp: u.sessions[0]?.ipAddress || null,
       lastUserAgent: u.sessions[0]?.userAgent || null,
       sessionsCount: u._count.sessions,
+      isProtected: isProtectedPlatformAdminEmail(u.email),
     }));
   }
 
@@ -906,6 +1040,81 @@ export class AdminService implements OnModuleInit {
       data: { isActive },
       select: { id: true, email: true, isActive: true },
     });
+  }
+
+  async deleteUser(id: string) {
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    if (!user) throw new NotFoundException('User not found');
+    if (isProtectedPlatformAdminEmail(user.email)) {
+      throw new BadRequestException(
+        'Cannot delete the primary platform owner account (admin@hisaby.pro)',
+      );
+    }
+    await this.prisma.user.delete({ where: { id } });
+    return { ok: true, id };
+  }
+
+  async resetUserPassword(id: string) {
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    if (!user) throw new NotFoundException('User not found');
+    if (isProtectedPlatformAdminEmail(user.email)) {
+      throw new BadRequestException(
+        'Cannot reset password for the primary platform owner account (admin@hisaby.pro)',
+      );
+    }
+
+    const temporaryPassword = this.generateTempPassword(12);
+    const hashed = await bcrypt.hash(temporaryPassword, 12);
+    await this.prisma.user.update({
+      where: { id },
+      data: {
+        password: hashed,
+        loginAttempts: 0,
+        lockedUntil: null,
+      },
+    });
+
+    let emailSent = false;
+    let emailError: string | undefined;
+    try {
+      const result = await this.emailNotify.sendText({
+        to: user.email,
+        subject: 'Hisaby — temporary password / كلمة مرور مؤقتة',
+        text: [
+          `Hello ${user.name},`,
+          '',
+          'Your Hisaby password was reset by a platform administrator.',
+          `Temporary password: ${temporaryPassword}`,
+          '',
+          'Please sign in and change it immediately.',
+          '',
+          `مرحباً ${user.name}،`,
+          'تم إعادة تعيين كلمة مرور حسابي بواسطة مشرف المنصة.',
+          `كلمة المرور المؤقتة: ${temporaryPassword}`,
+          'يرجى تسجيل الدخول وتغييرها فوراً.',
+        ].join('\n'),
+      });
+      emailSent = result.ok;
+      emailError = result.error;
+    } catch (err) {
+      emailError = err instanceof Error ? err.message : 'email failed';
+    }
+
+    return {
+      ok: true,
+      id: user.id,
+      email: user.email,
+      emailSent,
+      ...(emailSent ? {} : { temporaryPassword }),
+      ...(emailError && !emailSent ? { emailError } : {}),
+    };
+  }
+
+  private generateTempPassword(length = 12): string {
+    const alphabet =
+      'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%';
+    const bytes = randomBytes(length);
+    return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join('');
   }
 
   async listBilling(status?: string) {
@@ -1154,6 +1363,22 @@ export class AdminService implements OnModuleInit {
       create: { key, valueJson: valueJson as Prisma.InputJsonValue },
       update: { valueJson: valueJson as Prisma.InputJsonValue },
     });
+  }
+
+  async getMaintenancePublic() {
+    const row = await this.prisma.platformSetting.findUnique({
+      where: { key: 'site.maintenance' },
+    });
+    const v = (row?.valueJson || {}) as {
+      enabled?: boolean;
+      messageAr?: string;
+      messageEn?: string;
+    };
+    return {
+      enabled: !!v.enabled,
+      messageAr: v.messageAr || '',
+      messageEn: v.messageEn || '',
+    };
   }
 
   async recentSessions(limit = 100) {

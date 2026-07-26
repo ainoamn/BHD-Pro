@@ -397,10 +397,67 @@ export class PaymentsService {
       };
     }
 
+    if (result.kind === 'card_form') {
+      return {
+        kind: result.kind,
+        externalId: result.externalId,
+        instructions: result.instructions,
+      };
+    }
+
     return {
       kind: result.kind,
       redirectUrl: result.redirectUrl,
       externalId: result.externalId,
+    };
+  }
+
+  async confirmMockCardPayment(opts: {
+    companyId: string;
+    invoiceNumber: string;
+    cardLast4: string;
+  }) {
+    const last4 = String(opts.cardLast4 || '').replace(/\D/g, '').slice(-4);
+    if (last4.length !== 4) {
+      throw new BadRequestException('cardLast4 must be 4 digits');
+    }
+
+    const billingInvoice = await this.prisma.billingInvoice.findFirst({
+      where: {
+        number: opts.invoiceNumber,
+        companyId: opts.companyId,
+        status: BillingInvoiceStatus.PENDING,
+        gatewaySlug: PaymentGatewaySlug.MOCK_CARD,
+        purpose: BillingPurpose.SUBSCRIPTION,
+      },
+    });
+    if (!billingInvoice) {
+      throw new NotFoundException('Pending mock card invoice not found');
+    }
+
+    const meta =
+      billingInvoice.metadataJson &&
+      typeof billingInvoice.metadataJson === 'object' &&
+      !Array.isArray(billingInvoice.metadataJson)
+        ? (billingInvoice.metadataJson as Record<string, unknown>)
+        : {};
+
+    await this.prisma.billingInvoice.update({
+      where: { id: billingInvoice.id },
+      data: {
+        metadataJson: { ...meta, cardLast4: last4 },
+      },
+    });
+
+    await this.fulfillBillingInvoice(
+      billingInvoice.id,
+      billingInvoice.externalPaymentId || `mock_paid_${last4}`,
+    );
+
+    return {
+      paid: true,
+      invoiceNumber: billingInvoice.number,
+      cardLast4: last4,
     };
   }
 

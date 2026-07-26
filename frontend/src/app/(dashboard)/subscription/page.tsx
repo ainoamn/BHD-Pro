@@ -78,6 +78,16 @@ function SubscriptionContent() {
     promoCode: string | null;
   } | null>(null);
   const [promoBusy, setPromoBusy] = useState(false);
+  const [cardCheckout, setCardCheckout] = useState<{
+    invoiceNumber: string;
+    instructions?: string;
+    plan: string;
+  } | null>(null);
+  const [cardNumber, setCardNumber] = useState("");
+  const [cardExpiry, setCardExpiry] = useState("");
+  const [cardCvv, setCardCvv] = useState("");
+  const [cardName, setCardName] = useState("");
+  const [cardBusy, setCardBusy] = useState(false);
 
   useEffect(() => {
     if (feature) {
@@ -139,9 +149,24 @@ function SubscriptionContent() {
       promoCode?: string;
     }) => api.createSubscriptionCheckout({ plan, billing, gatewaySlug, promoCode }),
     onSuccess: (res) => {
-      const data = res.data as { checkout?: { redirectUrl?: string; kind?: string } };
+      const data = res.data as {
+        invoiceNumber?: string;
+        checkout?: { redirectUrl?: string; kind?: string; instructions?: string };
+      };
       const paidPlan = checkoutPlan;
       setCheckoutPlan(null);
+      if (data.checkout?.kind === "card_form" && data.invoiceNumber) {
+        setCardCheckout({
+          invoiceNumber: data.invoiceNumber,
+          instructions: data.checkout.instructions,
+          plan: paidPlan || "",
+        });
+        setCardNumber("");
+        setCardExpiry("");
+        setCardCvv("");
+        setCardName("");
+        return;
+      }
       if (data.checkout?.redirectUrl) {
         window.location.href = data.checkout.redirectUrl;
       } else if (data.checkout?.kind === "free") {
@@ -155,6 +180,66 @@ function SubscriptionContent() {
     },
     onError: () => toast.error(tPay("paymentFailed")),
   });
+
+  const digitsOnly = (v: string) => v.replace(/\D/g, "");
+
+  /** Loose Luhn: require 16 digits and valid checksum. */
+  const luhnOk = (num: string) => {
+    const digits = digitsOnly(num);
+    if (digits.length !== 16) return false;
+    let sum = 0;
+    let alt = false;
+    for (let i = digits.length - 1; i >= 0; i--) {
+      let n = Number(digits[i]);
+      if (alt) {
+        n *= 2;
+        if (n > 9) n -= 9;
+      }
+      sum += n;
+      alt = !alt;
+    }
+    return sum % 10 === 0;
+  };
+
+  const submitMockCard = async () => {
+    if (!cardCheckout) return;
+    const digits = digitsOnly(cardNumber);
+    if (!luhnOk(digits)) {
+      toast.error(tPay("invalidCardNumber"));
+      return;
+    }
+    if (!/^\d{2}\/\d{2}$/.test(cardExpiry.trim())) {
+      toast.error(tPay("invalidCardExpiry"));
+      return;
+    }
+    if (digitsOnly(cardCvv).length < 3) {
+      toast.error(tPay("invalidCardCvv"));
+      return;
+    }
+    if (!cardName.trim()) {
+      toast.error(tPay("invalidCardName"));
+      return;
+    }
+    setCardBusy(true);
+    try {
+      await api.confirmMockSubscriptionPayment({
+        invoiceNumber: cardCheckout.invoiceNumber,
+        cardLast4: digits.slice(-4),
+      });
+      const paidPlan = cardCheckout.plan;
+      setCardCheckout(null);
+      queryClient.invalidateQueries({ queryKey: ["subscription-current"] });
+      toast.success(tPay("paymentSuccess"));
+      if (company && paidPlan) {
+        setCompany({ ...company, plan: paidPlan as typeof company.plan });
+      }
+      clearUpgradeIntent();
+    } catch {
+      toast.error(tPay("paymentFailed"));
+    } finally {
+      setCardBusy(false);
+    }
+  };
 
   const applyPromo = async () => {
     if (!checkoutPlan || !promoCode.trim()) {
@@ -534,7 +619,7 @@ function SubscriptionContent() {
                   }
                   className="w-full h-11 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-sm"
                 >
-                  {gw.nameAr}
+                  {en ? gw.nameEn || gw.nameAr : gw.nameAr}
                 </button>
               ))}
             </div>
@@ -545,6 +630,91 @@ function SubscriptionContent() {
                 setPromoCode("");
                 setPromoPreview(null);
               }}
+              className="w-full h-10 text-slate-400 text-sm"
+            >
+              {tCommon("cancel")}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {cardCheckout && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+            <div className="flex items-center gap-2">
+              <CreditCard className="w-5 h-5 text-emerald-400" />
+              <h3 className="text-lg font-semibold text-white">{tPay("cardFormTitle")}</h3>
+            </div>
+            <p className="text-sm text-slate-400">
+              {cardCheckout.instructions || tPay("cardFormHint")}
+            </p>
+            <label className="block space-y-1">
+              <span className="text-xs text-slate-400">{tPay("cardNumber")}</span>
+              <input
+                value={cardNumber}
+                onChange={(e) => setCardNumber(e.target.value.replace(/[^\d\s]/g, "").slice(0, 19))}
+                inputMode="numeric"
+                autoComplete="cc-number"
+                placeholder="4242 4242 4242 4242"
+                className="w-full h-10 rounded-lg bg-slate-800 border border-slate-700 px-3 text-sm text-white"
+                dir="ltr"
+              />
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block space-y-1">
+                <span className="text-xs text-slate-400">{tPay("cardExpiry")}</span>
+                <input
+                  value={cardExpiry}
+                  onChange={(e) => {
+                    let v = e.target.value.replace(/[^\d]/g, "").slice(0, 4);
+                    if (v.length > 2) v = `${v.slice(0, 2)}/${v.slice(2)}`;
+                    setCardExpiry(v);
+                  }}
+                  inputMode="numeric"
+                  autoComplete="cc-exp"
+                  placeholder="MM/YY"
+                  className="w-full h-10 rounded-lg bg-slate-800 border border-slate-700 px-3 text-sm text-white"
+                  dir="ltr"
+                />
+              </label>
+              <label className="block space-y-1">
+                <span className="text-xs text-slate-400">{tPay("cardCvv")}</span>
+                <input
+                  value={cardCvv}
+                  onChange={(e) => setCardCvv(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                  inputMode="numeric"
+                  autoComplete="cc-csc"
+                  placeholder="123"
+                  className="w-full h-10 rounded-lg bg-slate-800 border border-slate-700 px-3 text-sm text-white"
+                  dir="ltr"
+                />
+              </label>
+            </div>
+            <label className="block space-y-1">
+              <span className="text-xs text-slate-400">{tPay("cardName")}</span>
+              <input
+                value={cardName}
+                onChange={(e) => setCardName(e.target.value)}
+                autoComplete="cc-name"
+                className="w-full h-10 rounded-lg bg-slate-800 border border-slate-700 px-3 text-sm text-white"
+              />
+            </label>
+            <button
+              type="button"
+              disabled={cardBusy}
+              onClick={() => void submitMockCard()}
+              className="w-full h-11 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-600 text-white text-sm font-bold disabled:opacity-50"
+            >
+              {cardBusy ? (
+                <Loader2 className="w-4 h-4 animate-spin mx-auto" />
+              ) : (
+                tPay("payNow")
+              )}
+            </button>
+            <button
+              type="button"
+              disabled={cardBusy}
+              onClick={() => setCardCheckout(null)}
               className="w-full h-10 text-slate-400 text-sm"
             >
               {tCommon("cancel")}

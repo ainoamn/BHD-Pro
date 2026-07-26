@@ -19,7 +19,13 @@ type Overview = {
     registeredThisMonth: number;
     avgPerCompany: number;
   };
-  visits: { today: number; last7Days: number; uniqueIps7d: number };
+  visits: {
+    today: number;
+    yesterday?: number;
+    last7Days: number;
+    uniqueIps7d: number;
+    byCountry?: { country: string; count: number }[];
+  };
   subscriptions: {
     revenueTotalOmr: number;
     revenueThisMonthOmr: number;
@@ -116,7 +122,7 @@ export default function AdminHomePage() {
     {
       label: t.visits,
       value: data.visits.today,
-      hint: `7d: ${data.visits.last7Days} · IP: ${data.visits.uniqueIps7d}`,
+      hint: `${en ? "Yesterday" : "أمس"}: ${data.visits.yesterday ?? 0} · 7d: ${data.visits.last7Days} · IP: ${data.visits.uniqueIps7d}`,
       href: "/admin/visits",
     },
     {
@@ -183,6 +189,30 @@ export default function AdminHomePage() {
           ))}
         </div>
       </div>
+
+      {data.visits.byCountry && data.visits.byCountry.length > 0 ? (
+        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <h2 className="font-bold">
+              {en ? "Visits by country (7d)" : "الزيارات حسب الدولة (7 أيام)"}
+            </h2>
+            <Link href="/admin/visits" className="text-xs font-bold text-teal-700 hover:underline">
+              {t.visits}
+            </Link>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-2">
+            {data.visits.byCountry.map((c) => (
+              <div
+                key={c.country}
+                className="rounded-xl bg-slate-50 px-3 py-2 flex justify-between gap-2 text-sm"
+              >
+                <span className="font-semibold text-slate-700">{c.country}</span>
+                <span className="font-extrabold text-teal-800 tabular-nums">{c.count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
 import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 import { DashboardStats } from "@/components/dashboard/stats";
@@ -14,6 +15,12 @@ import { SmartKpis } from "@/components/dashboard/smart-kpis";
 import { OnboardingChecklist, OnboardingState } from "@/components/dashboard/onboarding-checklist";
 import { HisabyAppsPanel } from "@/components/dashboard/hisaby-apps-panel";
 import { RecordPaymentModal } from "@/components/invoices/record-payment-modal";
+import {
+  isChildGranted,
+  type PlanModuleGrant,
+} from "@/lib/plan-access-catalog";
+import { UpgradeBadge } from "@/components/billing/plan-upgrade-gate";
+import { subscriptionUpgradeHref } from "@/lib/plan-upgrade";
 
 interface DashboardData {
   revenue: number;
@@ -49,6 +56,20 @@ interface DashboardData {
   cashFlow: { month: string; revenue: number; expenses: number }[];
 }
 
+function LockedHint({ label }: { label: string }) {
+  return (
+    <Link
+      href={subscriptionUpgradeHref("advancedReports", "/dashboard")}
+      className="rounded-xl border border-dashed border-amber-300 bg-amber-50/50 px-4 py-6 text-center text-sm text-amber-800"
+    >
+      <span className="font-bold">{label}</span>
+      <div className="mt-2 flex justify-center">
+        <UpgradeBadge />
+      </div>
+    </Link>
+  );
+}
+
 export default function DashboardPage() {
   const t = useTranslations("dashboard");
   const { company } = useAuthStore();
@@ -62,6 +83,17 @@ export default function DashboardPage() {
       return res.data as DashboardData;
     },
   });
+
+  const { data: modules } = useQuery({
+    queryKey: ["subscription-modules"],
+    queryFn: async () => {
+      const res = await api.getCurrentSubscription();
+      return (res.data as { modules?: Record<string, PlanModuleGrant> }).modules || null;
+    },
+  });
+
+  const grant = (child: string) =>
+    isChildGranted(modules || undefined, "dashboard", child);
 
   const { data: invoices = [] } = useQuery({
     queryKey: ["invoices"],
@@ -87,76 +119,101 @@ export default function DashboardPage() {
     <div className="space-y-5 sm:space-y-6">
       <PageHeader title={t("title")} subtitle={t("subtitle")} />
 
-      {data?.onboarding && <OnboardingChecklist data={data.onboarding} />}
+      {grant("onboarding") && data?.onboarding ? (
+        <OnboardingChecklist data={data.onboarding} />
+      ) : null}
 
-      <HisabyAppsPanel />
+      {grant("appsPanel") ? <HisabyAppsPanel /> : null}
 
-      <QuickActions
-        todayReceived={data?.todayReceived ?? 0}
-        todayExpenses={data?.todayExpenses ?? 0}
-        pendingCollection={data?.pendingCollectionCount ?? 0}
-        currency={currency}
-        onCollect={() => setCollectOpen(true)}
-      />
+      {grant("quickActions") ? (
+        <QuickActions
+          todayReceived={data?.todayReceived ?? 0}
+          todayExpenses={data?.todayExpenses ?? 0}
+          pendingCollection={data?.pendingCollectionCount ?? 0}
+          currency={currency}
+          onCollect={
+            grant("collectPayment") ? () => setCollectOpen(true) : () => undefined
+          }
+        />
+      ) : null}
 
       {isLoading || !data ? (
         <LoadingSpinner />
       ) : (
         <>
-          <SmartKpis
-            data={{
-              todaySales: data.todaySales ?? 0,
-              todaySalesCount: data.todaySalesCount ?? 0,
-              overdueCount: data.overdueCount ?? 0,
-              overdueAmount: data.overdueAmount ?? 0,
-              lowStockCount: data.lowStockCount ?? 0,
-              vatPendingCount: data.vatPendingCount ?? 0,
-              pendingCollectionCount: data.pendingCollectionCount ?? 0,
-              pendingApprovalsCount: data.pendingApprovalsCount ?? 0,
-              todayPosSales: data.todayPosSales ?? 0,
-              todayPosSalesCount: data.todayPosSalesCount ?? 0,
-              todayPosVoidedCount: data.todayPosVoidedCount ?? 0,
-              openPosShiftsCount: data.openPosShiftsCount ?? 0,
-              openManagementAlertsCount: data.openManagementAlertsCount ?? 0,
-            }}
-            currency={currency}
-          />
+          {grant("smartKpis") ? (
+            <SmartKpis
+              data={{
+                todaySales: data.todaySales ?? 0,
+                todaySalesCount: data.todaySalesCount ?? 0,
+                overdueCount: data.overdueCount ?? 0,
+                overdueAmount: data.overdueAmount ?? 0,
+                lowStockCount: data.lowStockCount ?? 0,
+                vatPendingCount: data.vatPendingCount ?? 0,
+                pendingCollectionCount: data.pendingCollectionCount ?? 0,
+                pendingApprovalsCount: data.pendingApprovalsCount ?? 0,
+                todayPosSales: data.todayPosSales ?? 0,
+                todayPosSalesCount: data.todayPosSalesCount ?? 0,
+                todayPosVoidedCount: data.todayPosVoidedCount ?? 0,
+                openPosShiftsCount: data.openPosShiftsCount ?? 0,
+                openManagementAlertsCount: data.openManagementAlertsCount ?? 0,
+              }}
+              currency={currency}
+            />
+          ) : (
+            <LockedHint label={t("title")} />
+          )}
 
-          <DashboardStats
-            data={{
-              revenue: data.revenue,
-              expenses: data.expenses,
-              profit: data.profit,
-              invoiceCount: data.invoiceCount,
-              customerCount: data.customerCount,
-              productCount: data.productCount,
-            }}
-            currency={currency}
-          />
+          {grant("stats") ? (
+            <DashboardStats
+              data={{
+                revenue: data.revenue,
+                expenses: data.expenses,
+                profit: data.profit,
+                invoiceCount: data.invoiceCount,
+                customerCount: data.customerCount,
+                productCount: data.productCount,
+              }}
+              currency={currency}
+            />
+          ) : null}
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
             <div className="lg:col-span-2 min-w-0">
-              <RevenueChart data={data.cashFlow} />
+              {grant("cashFlow") ? (
+                <RevenueChart data={data.cashFlow} />
+              ) : (
+                <LockedHint label="Cash flow" />
+              )}
             </div>
             <div className="min-w-0">
-              <RecentInvoices invoices={data.recentInvoices} currency={currency} />
+              {grant("recentInvoices") ? (
+                <RecentInvoices
+                  invoices={data.recentInvoices}
+                  currency={currency}
+                />
+              ) : (
+                <LockedHint label="Invoices" />
+              )}
             </div>
           </div>
         </>
       )}
 
-      <RecordPaymentModal
-        open={collectOpen}
-        invoices={invoices
-          .filter((i) => i.type === "SALES")
-          .map((i) => ({
-            ...i,
-            total: Number(i.total),
-            paidAmount: Number(i.paidAmount || 0),
-          }))}
-        currency={currency}
-        onClose={() => setCollectOpen(false)}
-      />
+      {grant("collectPayment") ? (
+        <RecordPaymentModal
+          open={collectOpen}
+          invoices={invoices
+            .filter((i) => i.type === "SALES")
+            .map((i) => ({
+              ...i,
+              total: Number(i.total),
+              paidAmount: Number(i.paidAmount || 0),
+            }))}
+          currency={currency}
+          onClose={() => setCollectOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }

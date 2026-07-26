@@ -534,8 +534,23 @@ class ApiClient {
     return this.patch(`/admin/tenants/${id}`, data);
   }
 
-  getAdminUsers(q?: string) {
-    return this.get(`/admin/users${q ? `?q=${encodeURIComponent(q)}` : ''}`);
+  getAdminUsers(params?: {
+    q?: string;
+    role?: string;
+    isActive?: string | boolean;
+    plan?: string;
+    sort?: string;
+  }) {
+    const qs = new URLSearchParams();
+    if (params?.q) qs.set('q', params.q);
+    if (params?.role) qs.set('role', params.role);
+    if (params?.isActive !== undefined && params.isActive !== '') {
+      qs.set('isActive', String(params.isActive));
+    }
+    if (params?.plan) qs.set('plan', params.plan);
+    if (params?.sort) qs.set('sort', params.sort);
+    const q = qs.toString();
+    return this.get(`/admin/users${q ? `?${q}` : ''}`);
   }
 
   getAdminUser(id: string) {
@@ -544,6 +559,14 @@ class ApiClient {
 
   updateAdminUser(id: string, data: { isActive: boolean }) {
     return this.patch(`/admin/users/${id}`, data);
+  }
+
+  deleteAdminUser(id: string) {
+    return this.delete(`/admin/users/${id}`);
+  }
+
+  resetAdminUserPassword(id: string) {
+    return this.post(`/admin/users/${id}/reset-password`);
   }
 
   getAdminBilling(status?: string) {
@@ -668,6 +691,14 @@ class ApiClient {
     }>('/public/customer-logos');
   }
 
+  getPublicMaintenance() {
+    return this.client.get<{
+      enabled: boolean;
+      messageAr: string;
+      messageEn: string;
+    }>('/public/maintenance');
+  }
+
   getCompanyGateways() {
     return this.get('/payments/company-gateways');
   }
@@ -678,6 +709,13 @@ class ApiClient {
 
   createSubscriptionCheckout(data: unknown) {
     return this.post('/payments/subscription/checkout', data);
+  }
+
+  confirmMockSubscriptionPayment(data: {
+    invoiceNumber: string;
+    cardLast4: string;
+  }) {
+    return this.post('/payments/subscription/mock-confirm', data);
   }
 
   validateSubscriptionPromo(plan: string, billing: string, code: string) {

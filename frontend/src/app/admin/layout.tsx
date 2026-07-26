@@ -11,6 +11,7 @@ import {
   MapPin,
   Menu,
   Package,
+  Settings,
   Shield,
   Users,
   Wallet,
@@ -32,6 +33,7 @@ const NAV = [
   { href: "/admin/plans", key: "plans" as const, perm: "plans" as const, icon: Package },
   { href: "/admin/visits", key: "visits" as const, perm: "visits" as const, icon: MapPin },
   { href: "/admin/gateways", key: "gateways" as const, perm: "gateways" as const, icon: Wallet },
+  { href: "/admin/settings", key: "settings" as const, perm: "overview" as const, icon: Settings },
 ];
 
 const ADMIN_ME_CACHE = "hisaby-admin-me-v2";

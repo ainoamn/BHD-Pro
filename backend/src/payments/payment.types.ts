@@ -3,7 +3,7 @@ import { PaymentGatewaySlug } from '@prisma/client';
 export type GatewayConfig = Record<string, string>;
 
 export type CheckoutResult = {
-  kind: 'redirect' | 'offline' | 'free';
+  kind: 'redirect' | 'offline' | 'free' | 'card_form';
   redirectUrl?: string;
   externalId?: string;
   instructions?: string;

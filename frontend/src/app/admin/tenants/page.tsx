@@ -48,6 +48,14 @@ function fmt(d?: string | null, en?: boolean) {
   return new Date(d).toLocaleDateString(en ? "en-GB" : "ar");
 }
 
+function daysRemaining(planExpiry?: string | null) {
+  if (!planExpiry) return null;
+  const end = new Date(planExpiry);
+  if (Number.isNaN(end.getTime())) return null;
+  const ms = end.getTime() - Date.now();
+  return Math.ceil(ms / (24 * 60 * 60 * 1000));
+}
+
 type TenantDetail = Tenant & {
   users?: Staff[];
   billingInvoices?: Array<{
@@ -180,6 +188,9 @@ export default function AdminTenantsPage() {
           const staff = row.sampleUsers || [];
           const activeCount = row.activeUsersCount ?? staff.filter((u) => u.isActive !== false).length;
           const open = !!expanded[row.id];
+          const days = daysRemaining(row.planExpiry);
+          const lastIp = staff[0]?.lastIp || null;
+          const location = [row.city, row.country].filter(Boolean).join(", ") || "—";
           return (
             <div
               key={row.id}
@@ -204,11 +215,42 @@ export default function AdminTenantsPage() {
                     </span>
                   </div>
                   <p className="text-xs text-slate-500" dir="ltr">
-                    {row.email || "—"} {row.phone ? `· ${row.phone}` : ""}
+                    {row.email || "—"}
+                    {row.phone ? ` · ${row.phone}` : ""}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {t.location}: {location}
+                    {lastIp ? (
+                      <span className="ms-2 font-mono text-[10px]" dir="ltr">
+                        · {t.lastIp} {lastIp}
+                      </span>
+                    ) : null}
                   </p>
                   <p className="text-xs text-slate-500">
                     {en ? "Started" : "البداية"}: {fmt(row.planStartedAt || row.createdAt, en)} ·{" "}
                     {en ? "Expires" : "الانتهاء"}: {fmt(row.planExpiry, en)}
+                    {days != null ? (
+                      <span
+                        className={cn(
+                          "ms-1 font-bold",
+                          days < 0
+                            ? "text-rose-700"
+                            : days <= 7
+                              ? "text-amber-700"
+                              : "text-teal-800",
+                        )}
+                      >
+                        (
+                        {days < 0
+                          ? en
+                            ? `${Math.abs(days)}d overdue`
+                            : `متأخر ${Math.abs(days)} يوم`
+                          : en
+                            ? `${days}d left`
+                            : `${days} يوم متبقي`}
+                        )
+                      </span>
+                    ) : null}
                   </p>
                   <p className="text-sm font-semibold text-teal-900 mt-2">
                     {en ? "Authorized staff" : "الموظفون المخوّلون"}:{" "}

@@ -47,13 +47,20 @@ export class AdminController {
   appointOperator(
     @CurrentUser() user: TokenPayload,
     @Body()
-    body: { email: string; name?: string; permissions?: string[] },
+    body: {
+      email: string;
+      name?: string;
+      permissions?: string[];
+      isDeputy?: boolean;
+    },
   ) {
     return this.admin.appointOperator({
       email: body.email,
       name: body.name,
       permissions: body.permissions,
+      isDeputy: body.isDeputy,
       createdBy: user.email,
+      actorEmail: user.email,
     });
   }
 
@@ -61,18 +68,24 @@ export class AdminController {
   @UseGuards(JwtAuthGuard, PlatformAdminGuard)
   @ApiBearerAuth()
   updateOperator(
+    @CurrentUser() user: TokenPayload,
     @Param('id') id: string,
     @Body()
-    body: { name?: string; permissions?: string[]; isActive?: boolean },
+    body: {
+      name?: string;
+      permissions?: string[];
+      isActive?: boolean;
+      isDeputy?: boolean;
+    },
   ) {
-    return this.admin.updateOperator(id, body);
+    return this.admin.updateOperator(id, body, user.email);
   }
 
   @Delete('operators/:id')
   @UseGuards(JwtAuthGuard, PlatformAdminGuard)
   @ApiBearerAuth()
-  removeOperator(@Param('id') id: string) {
-    return this.admin.removeOperator(id);
+  removeOperator(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
+    return this.admin.removeOperator(id, user.email);
   }
 
   @Get('overview')
@@ -126,8 +139,16 @@ export class AdminController {
   @Get('users')
   @UseGuards(JwtAuthGuard, PlatformAdminGuard)
   @ApiBearerAuth()
-  users(@Query('q') q?: string) {
-    return this.admin.listUsers(q);
+  users(
+    @Query('q') q?: string,
+    @Query('role') role?: string,
+    @Query('isActive') isActive?: string,
+    @Query('plan') plan?: string,
+    @Query('sort') sort?: string,
+  ) {
+    const isActiveBool =
+      isActive === 'true' ? true : isActive === 'false' ? false : undefined;
+    return this.admin.listUsers({ q, role, isActive: isActiveBool, plan, sort });
   }
 
   @Get('users/:id')
@@ -142,6 +163,22 @@ export class AdminController {
   @ApiBearerAuth()
   setUserActive(@Param('id') id: string, @Body() body: { isActive: boolean }) {
     return this.admin.setUserActive(id, !!body.isActive);
+  }
+
+  @Delete('users/:id')
+  @UseGuards(JwtAuthGuard, PlatformAdminGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Hard-delete a platform user' })
+  deleteUser(@Param('id') id: string) {
+    return this.admin.deleteUser(id);
+  }
+
+  @Post('users/:id/reset-password')
+  @UseGuards(JwtAuthGuard, PlatformAdminGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Reset user password and email temporary credentials' })
+  resetUserPassword(@Param('id') id: string) {
+    return this.admin.resetUserPassword(id);
   }
 
   @Get('billing')
@@ -253,6 +290,13 @@ export class PublicVisitsController {
   @ApiOperation({ summary: 'Public platform metrics for the landing page' })
   stats() {
     return this.admin.publicStats();
+  }
+
+  @Get('maintenance')
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Public maintenance mode status' })
+  getMaintenance() {
+    return this.admin.getMaintenancePublic();
   }
 
   @Get('customer-logos')

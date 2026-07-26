@@ -3,6 +3,7 @@
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { CommandPalette } from "@/components/dashboard/command-palette";
+import { MaintenanceGate } from "@/components/layout/maintenance-gate";
 import { useUIStore } from "@/store/ui";
 import { useAuthStore } from "@/store/auth";
 import { cn } from "@/lib/utils";
@@ -100,26 +101,28 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen bg-app">
-      {sidebarOpen && (
-        <button
-          type="button"
-          aria-label="Close menu"
-          className="fixed inset-0 bg-black/60 z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-      <Sidebar />
-      <div
-        className={cn(
-          "transition-all duration-300 mr-0",
-          sidebarCollapsed ? "lg:mr-20" : "lg:mr-72"
+    <MaintenanceGate>
+      <div className="min-h-screen bg-app">
+        {sidebarOpen && (
+          <button
+            type="button"
+            aria-label="Close menu"
+            className="fixed inset-0 bg-black/60 z-40 lg:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
         )}
-      >
-        <Topbar />
-        <main className="p-3 sm:p-4 md:p-6 max-w-[100vw] overflow-x-hidden">{children}</main>
+        <Sidebar />
+        <div
+          className={cn(
+            "transition-all duration-300 mr-0",
+            sidebarCollapsed ? "lg:mr-20" : "lg:mr-72"
+          )}
+        >
+          <Topbar />
+          <main className="p-3 sm:p-4 md:p-6 max-w-[100vw] overflow-x-hidden">{children}</main>
+        </div>
+        <CommandPalette />
       </div>
-      <CommandPalette />
-    </div>
+    </MaintenanceGate>
   );
 }

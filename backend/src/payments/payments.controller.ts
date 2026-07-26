@@ -93,6 +93,24 @@ export class PaymentsController {
     });
   }
 
+  @Post('subscription/mock-confirm')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Confirm mock card subscription payment (test gateway)' })
+  confirmMockSubscription(
+    @CurrentUser() user: TokenPayload,
+    @Body() body: { invoiceNumber?: string; cardLast4?: string },
+  ) {
+    if (!body?.invoiceNumber?.trim() || !body?.cardLast4?.trim()) {
+      throw new BadRequestException('invoiceNumber and cardLast4 are required');
+    }
+    return this.payments.confirmMockCardPayment({
+      companyId: user.companyId,
+      invoiceNumber: body.invoiceNumber.trim(),
+      cardLast4: body.cardLast4.trim(),
+    });
+  }
+
   @Get('subscription/promo')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
