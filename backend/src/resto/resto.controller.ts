@@ -36,6 +36,7 @@ import {
   CreateRestoWaitlistDto,
   CreateRestoZoneDto,
   FireRestoCourseDto,
+  IngestExternalRestoOrderDto,
   LinkRestoDto,
   MergeRestoOrderDto,
   OpenRestoOrderDto,
@@ -229,6 +230,19 @@ export class RestoController {
     @Body() dto: OpenRestoOrderDto,
   ) {
     return this.resto.openOrder(user.companyId, user.sub, dto);
+  }
+
+  @Post('external/orders')
+  @Roles(...RESTO_STAFF)
+  @ApiOperation({
+    summary:
+      'Ingest delivery/takeaway from aggregators (Talabat/Jahez/Careem) — idempotent by externalChannel+externalOrderId; supports x-api-key',
+  })
+  ingestExternal(
+    @CurrentUser() user: TokenPayload,
+    @Body() dto: IngestExternalRestoOrderDto,
+  ) {
+    return this.resto.ingestExternalOrder(user.companyId, user.sub, dto);
   }
 
   @Get('orders')

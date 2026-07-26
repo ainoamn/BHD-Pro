@@ -1,4 +1,4 @@
-import { IsArray, IsBoolean, IsEnum, IsIn, IsInt, IsNumber, IsOptional, IsString, IsUUID, Max, MaxLength, Min, MinLength, ValidateNested } from 'class-validator';
+import { ArrayMinSize, IsArray, IsBoolean, IsEnum, IsIn, IsInt, IsNumber, IsOptional, IsString, IsUUID, Max, MaxLength, Min, MinLength, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { PaymentMethod, RestoOrderChannel } from '@prisma/client';
 import { DualApprovalDto } from '../../dual-control/dto/approval.dto';
@@ -735,6 +735,90 @@ export class UpdateRestoConfigDto {
   @ValidateNested()
   @Type(() => RestoDayPartsScheduleDto)
   dayParts?: RestoDayPartsScheduleDto;
+}
+
+export class ExternalRestoOrderItemDto {
+  @IsOptional()
+  @IsUUID()
+  productId?: string;
+
+  /** Match Product.sku */
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  sku?: string;
+
+  /** Match Product.barcode */
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  barcode?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.001)
+  @Max(999)
+  qty?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  notes?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => RestoModifierChoiceDto)
+  modifiers?: RestoModifierChoiceDto[];
+}
+
+/** Ingest delivery/takeaway from Talabat / Jahez / Careem / custom middleware */
+export class IngestExternalRestoOrderDto {
+  @IsEnum(RestoOrderChannel)
+  @IsIn([RestoOrderChannel.TAKEAWAY, RestoOrderChannel.DELIVERY])
+  channel: RestoOrderChannel;
+
+  @IsString()
+  @MinLength(2)
+  @MaxLength(40)
+  externalChannel: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(120)
+  externalOrderId: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  guestName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  guestPhone?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  deliveryAddress?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  notes?: string;
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => ExternalRestoOrderItemDto)
+  items: ExternalRestoOrderItemDto[];
+
+  /** Fire to KDS after create (default true) */
+  @IsOptional()
+  @IsBoolean()
+  autoSend?: boolean;
 }
 
 

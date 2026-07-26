@@ -22,6 +22,8 @@ type DeliveryOrder = {
   deliveryStatus?: string | null;
   driverName?: string | null;
   driverPhone?: string | null;
+  externalChannel?: string | null;
+  externalOrderId?: string | null;
   createdAt: string;
   itemCount: number;
   total: number;
@@ -169,6 +171,11 @@ export default function RestoDeliveryPage() {
           {t.deliveryTitle}
         </h1>
         <p className="text-sm text-stone-400 mt-1">{t.deliverySub}</p>
+        <p className="text-[11px] text-stone-500 mt-2 leading-relaxed">
+          {locale === "en"
+            ? "Aggregator ingest: POST /api/resto/external/orders with x-api-key (idempotent by channel + order id)."
+            : "استقبال المنصات: POST /api/resto/external/orders مع x-api-key (متكرر آمن عبر القناة ورقم الطلب)."}
+        </p>
       </div>
 
       <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 space-y-2">
@@ -226,6 +233,12 @@ export default function RestoDeliveryPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="font-bold">{o.number}</p>
+                      {o.externalChannel ? (
+                        <span className="mt-1 inline-block text-[10px] font-bold uppercase tracking-wide rounded-md bg-sky-500/15 text-sky-200 px-1.5 py-0.5">
+                          {o.externalChannel}
+                          {o.externalOrderId ? ` · ${o.externalOrderId}` : ""}
+                        </span>
+                      ) : null}
                       <p className="text-xs text-stone-500 mt-0.5">
                         {o.guestName || "—"}
                         {o.guestPhone ? ` · ${o.guestPhone}` : ""} ·{" "}

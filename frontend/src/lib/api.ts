@@ -31,6 +31,8 @@ export type RestoOrderPayload = {
   contactId?: string | null;
   openedBy?: { id: string; name: string; email: string } | null;
   tipAssignee?: { id: string; name: string; email: string } | null;
+  externalChannel?: string | null;
+  externalOrderId?: string | null;
   loyalty?: {
     contactId: string;
     name: string;
@@ -1743,6 +1745,30 @@ class ApiClient {
     return this.post<RestoOrderPayload>('/resto/orders', data);
   }
 
+  ingestRestoExternalOrder(data: {
+    channel: 'TAKEAWAY' | 'DELIVERY';
+    externalChannel: string;
+    externalOrderId: string;
+    guestName?: string;
+    guestPhone?: string;
+    deliveryAddress?: string;
+    notes?: string;
+    autoSend?: boolean;
+    items: Array<{
+      productId?: string;
+      sku?: string;
+      barcode?: string;
+      qty?: number;
+      notes?: string;
+      modifiers?: Array<{ name: string; priceDelta?: number }>;
+    }>;
+  }) {
+    return this.post<RestoOrderPayload & { idempotent: boolean }>(
+      '/resto/external/orders',
+      data,
+    );
+  }
+
   getRestoActiveOrders(channel?: 'DINE_IN' | 'TAKEAWAY' | 'DELIVERY') {
     return this.get<{
       count: number;
@@ -1757,6 +1783,11 @@ class ApiClient {
         guestName?: string | null;
         guestPhone?: string | null;
         deliveryAddress?: string | null;
+        deliveryStatus?: string | null;
+        driverName?: string | null;
+        driverPhone?: string | null;
+        externalChannel?: string | null;
+        externalOrderId?: string | null;
         createdAt: string;
         table: { id: string; code: string; name: string | null } | null;
         itemCount: number;

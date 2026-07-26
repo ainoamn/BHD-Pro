@@ -59,6 +59,7 @@ import {
   PublicGuestCallDto,
   AssignRestoSectionDto,
   UpdateRestoConfigDto,
+  IngestExternalRestoOrderDto,
 } from './dto/resto.dto';
 import { productWhereForWarehouse } from '../common/warehouse-product-scope';
 
@@ -1139,6 +1140,8 @@ export class RestoService {
     openedById?: string | null;
     tipAssigneeId?: string | null;
     contactId?: string | null;
+    externalChannel?: string | null;
+    externalOrderId?: string | null;
     sentAt: Date | null;
     closedAt: Date | null;
     createdAt: Date;
@@ -1221,6 +1224,8 @@ export class RestoService {
       openedById: order.openedById ?? null,
       tipAssigneeId: order.tipAssigneeId ?? null,
       contactId: order.contactId ?? null,
+      externalChannel: order.externalChannel ?? null,
+      externalOrderId: order.externalOrderId ?? null,
       openedBy: mapUser(order.openedBy),
       tipAssignee: mapUser(order.tipAssignee),
       loyalty: order.contact
@@ -1397,6 +1402,150 @@ export class RestoService {
       },
     });
     return this.getOrder(companyId, order.id);
+  }
+
+  /**
+   * Idempotent ingest from delivery aggregators (Talabat / Jahez / Careem / middleware).
+   * Auth: JWT staff or company x-api-key (qk_*).
+   */
+  async ingestExternalOrder(
+    companyId: string,
+    userId: string | null,
+    dto: IngestExternalRestoOrderDto,
+  ) {
+    const channel =
+      dto.channel === RestoOrderChannel.TAKEAWAY
+        ? RestoOrderChannel.TAKEAWAY
+        : RestoOrderChannel.DELIVERY;
+    const externalChannel = dto.externalChannel.trim().toUpperCase();
+    const externalOrderId = dto.externalOrderId.trim();
+    if (!externalChannel || !externalOrderId) {
+      throw new BadRequestException('externalChannel and externalOrderId required');
+    }
+
+    const existing = await this.prisma.restoOrder.findFirst({
+      where: { companyId, externalChannel, externalOrderId },
+      select: { id: true },
+    });
+    if (existing) {
+      const order = await this.getOrder(companyId, existing.id);
+      return { ...order, idempotent: true as const };
+    }
+
+    if (!dto.items?.length) {
+      throw new BadRequestException('At least one item required');
+    }
+
+    const resolved: Array<{
+      productId: string;
+      qty: number;
+      notes?: string;
+      modifiers?: AddRestoOrderItemDto['modifiers'];
+    }> = [];
+
+    for (const line of dto.items) {
+      const qty = Number(line.qty) > 0 ? Number(line.qty) : 1;
+      let product: { id: string } | null = null;
+      if (line.productId) {
+        product = await this.prisma.product.findFirst({
+          where: { id: line.productId, companyId, isActive: true },
+          select: { id: true },
+        });
+      } else if (line.sku?.trim()) {
+        product = await this.prisma.product.findFirst({
+          where: {
+            companyId,
+            isActive: true,
+            sku: { equals: line.sku.trim(), mode: 'insensitive' },
+          },
+          select: { id: true },
+        });
+      } else if (line.barcode?.trim()) {
+        product = await this.prisma.product.findFirst({
+          where: {
+            companyId,
+            isActive: true,
+            barcode: line.barcode.trim(),
+          },
+          select: { id: true },
+        });
+      }
+      if (!product) {
+        throw new BadRequestException(
+          `Product not found for line (sku=${line.sku || ''} barcode=${line.barcode || ''} id=${line.productId || ''})`,
+        );
+      }
+      resolved.push({
+        productId: product.id,
+        qty,
+        notes: line.notes?.trim() || undefined,
+        modifiers: line.modifiers,
+      });
+    }
+
+    const opened = await this.openOrder(companyId, userId || '', {
+      channel,
+      guests: 1,
+      guestName: dto.guestName,
+      guestPhone: dto.guestPhone,
+      deliveryAddress: dto.deliveryAddress,
+      notes: [
+        dto.notes?.trim(),
+        `[${externalChannel} #${externalOrderId}]`,
+      ]
+        .filter(Boolean)
+        .join(' · '),
+    });
+
+    try {
+      await this.prisma.restoOrder.update({
+        where: { id: opened.id },
+        data: { externalChannel, externalOrderId },
+      });
+    } catch (err) {
+      // Parallel ingest race — keep first winner, cancel this empty shell
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2002'
+      ) {
+        await this.prisma.restoOrder
+          .update({
+            where: { id: opened.id },
+            data: { status: RestoOrderStatus.CANCELLED, closedAt: new Date() },
+          })
+          .catch(() => undefined);
+        const winner = await this.prisma.restoOrder.findFirst({
+          where: { companyId, externalChannel, externalOrderId },
+          select: { id: true },
+        });
+        if (winner) {
+          const order = await this.getOrder(companyId, winner.id);
+          return { ...order, idempotent: true as const };
+        }
+      }
+      throw err;
+    }
+
+    for (const line of resolved) {
+      await this.addItem(companyId, opened.id, {
+        productId: line.productId,
+        qty: line.qty,
+        notes: line.notes,
+        modifiers: line.modifiers,
+      });
+    }
+
+    const autoSend = dto.autoSend !== false;
+    if (autoSend) {
+      try {
+        await this.sendToKitchen(companyId, opened.id);
+      } catch {
+        // Items may still be pending if 86/stock blocked mid-add — return order as-is
+      }
+    }
+
+    const order = await this.getOrder(companyId, opened.id);
+    return { ...order, idempotent: false as const };
   }
 
   async addItem(companyId: string, orderId: string, dto: AddRestoOrderItemDto) {
