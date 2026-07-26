@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Loader2, Search, UtensilsCrossed, Pencil } from "lucide-react";
 import toast from "react-hot-toast";
@@ -167,6 +167,7 @@ export default function RestoMenuPage() {
   const [q, setQ] = useState("");
   const [items, setItems] = useState<MenuItem[]>([]);
   const [stations, setStations] = useState<Station[]>([]);
+  const [stationsError, setStationsError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -204,15 +205,21 @@ export default function RestoMenuPage() {
     }
   };
 
-  useEffect(() => {
-    void api
-      .getRestoStations()
-      .then((res) => {
-        setStations(res.data.stations || []);
-      })
-      .catch(() => undefined);
-    void load86();
+  const loadStations = useCallback(async () => {
+    try {
+      const res = await api.getRestoStations();
+      setStations(res.data.stations || []);
+      setStationsError(false);
+    } catch {
+      setStations([]);
+      setStationsError(true);
+    }
   }, []);
+
+  useEffect(() => {
+    void loadStations();
+    void load86();
+  }, [loadStations]);
 
   useEffect(() => {
     let cancelled = false;
@@ -444,6 +451,19 @@ export default function RestoMenuPage() {
           className="w-full h-11 rounded-xl bg-[#1a1614] border border-white/10 ps-10 pe-3 text-sm focus:outline-none focus:border-amber-500"
         />
       </div>
+
+      {stationsError && canManage ? (
+        <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2.5 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm text-rose-300">{t.loadFailed}</p>
+          <button
+            type="button"
+            onClick={() => void loadStations()}
+            className="rounded-lg bg-amber-500 px-3 py-1 text-xs font-bold text-[#14110f]"
+          >
+            {t.retry}
+          </button>
+        </div>
+      ) : null}
 
       {loading ? (
         <div className="flex justify-center py-16 text-stone-400">

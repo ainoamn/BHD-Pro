@@ -36,6 +36,8 @@ const copy = {
     ok: "تم",
     fail: "تعذر تنفيذ العملية",
     forbidden: "غير مسموح لهذه الصلاحية",
+    loadFailed: "تعذر تحميل حالة الربط",
+    retry: "إعادة المحاولة",
   },
   en: {
     title: "Three Hisaby apps",
@@ -54,6 +56,8 @@ const copy = {
     ok: "Done",
     fail: "Action failed",
     forbidden: "Not allowed for this role",
+    loadFailed: "Could not load link status",
+    retry: "Retry",
   },
 } as const;
 
@@ -83,14 +87,23 @@ export function HisabyAppsLinkHub({
   const [posLinked, setPosLinked] = useState<boolean | null>(null);
   const [restoLinked, setRestoLinked] = useState<boolean | null>(null);
   const [busy, setBusy] = useState<"pos" | "resto" | null>(null);
+  const [loadError, setLoadError] = useState(false);
 
   const refresh = useCallback(async () => {
-    const [pos, resto] = await Promise.all([
-      api.getPosLinkStatus().catch(() => null),
-      api.getRestoLinkStatus().catch(() => null),
-    ]);
-    setPosLinked(pos ? !!pos.data.linked : null);
-    setRestoLinked(resto ? !!resto.data.linked : null);
+    setLoadError(false);
+    try {
+      const [pos, resto] = await Promise.all([
+        api.getPosLinkStatus(),
+        api.getRestoLinkStatus(),
+      ]);
+      setPosLinked(!!pos.data.linked);
+      setRestoLinked(!!resto.data.linked);
+      setLoadError(false);
+    } catch {
+      setPosLinked(null);
+      setRestoLinked(null);
+      setLoadError(true);
+    }
   }, []);
 
   useEffect(() => {
@@ -216,6 +229,18 @@ export function HisabyAppsLinkHub({
         </h2>
         <p className="text-xs opacity-60 mt-1 leading-relaxed">{t.hint}</p>
       </div>
+      {loadError ? (
+        <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs text-rose-300">{t.loadFailed}</p>
+          <button
+            type="button"
+            onClick={() => void refresh()}
+            className="rounded-md bg-amber-500 px-2.5 py-1 text-[10px] font-bold text-slate-950"
+          >
+            {t.retry}
+          </button>
+        </div>
+      ) : null}
       <div className="grid gap-2 sm:grid-cols-3">
         {apps.map((app) => {
           const Icon = app.icon;

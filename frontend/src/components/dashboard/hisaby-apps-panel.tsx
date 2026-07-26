@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
+import toast from "react-hot-toast";
 import {
   Calculator,
   Link2,
@@ -20,15 +21,24 @@ export function HisabyAppsPanel({ className }: { className?: string }) {
   const [posLinked, setPosLinked] = useState<LinkState>(null);
   const [restoLinked, setRestoLinked] = useState<LinkState>(null);
   const [busy, setBusy] = useState<"pos" | "resto" | null>(null);
+  const [loadError, setLoadError] = useState(false);
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
+    setLoadError(false);
     const [pos, resto] = await Promise.all([
       api.getPosLinkStatus().catch(() => null),
       api.getRestoLinkStatus().catch(() => null),
     ]);
+    if (!pos && !resto) {
+      setPosLinked(null);
+      setRestoLinked(null);
+      setLoadError(true);
+      return;
+    }
     setPosLinked(pos ? !!pos.data.linked : null);
     setRestoLinked(resto ? !!resto.data.linked : null);
-  };
+    setLoadError(false);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -39,13 +49,14 @@ export function HisabyAppsPanel({ className }: { className?: string }) {
         if (!cancelled) {
           setPosLinked(null);
           setRestoLinked(null);
+          setLoadError(true);
         }
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [refresh]);
 
   const quickLink = async (which: "pos" | "resto") => {
     setBusy(which);
@@ -53,8 +64,9 @@ export function HisabyAppsPanel({ className }: { className?: string }) {
       if (which === "pos") await api.activatePosLink();
       else await api.activateRestoLink();
       await refresh();
+      toast.success(t("appLinked"));
     } catch {
-      /* settings fallback */
+      toast.error(t("appLinkFail"));
     } finally {
       setBusy(null);
     }
@@ -109,6 +121,18 @@ export function HisabyAppsPanel({ className }: { className?: string }) {
         <h2 className="text-lg font-semibold text-white">{t("hisabyApps")}</h2>
         <p className="text-sm text-slate-400 mt-0.5">{t("hisabyAppsHint")}</p>
       </div>
+      {loadError ? (
+        <div className="mb-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2.5 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm text-rose-300">{t("appsLoadFailed")}</p>
+          <button
+            type="button"
+            onClick={() => void refresh()}
+            className="rounded-lg bg-amber-500 px-3 py-1 text-xs font-bold text-slate-950"
+          >
+            {t("appsRetry")}
+          </button>
+        </div>
+      ) : null}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {apps.map((app) => {
           const Icon = app.icon;

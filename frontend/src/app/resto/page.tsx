@@ -123,6 +123,7 @@ export default function RestoFloorPage() {
   const [modifiers, setModifiers] = useState<
     Array<{ id: string; name: string; nameEn: string | null; priceDelta: number }>
   >([]);
+  const [opsExtrasError, setOpsExtrasError] = useState(false);
   const [selectedMods, setSelectedMods] = useState<string[]>([]);
   const [opsMode, setOpsMode] = useState<"none" | "transfer" | "merge" | "split">(
     "none",
@@ -185,22 +186,26 @@ export default function RestoFloorPage() {
     setTipAssigneeId(order.tipAssigneeId || order.openedById || "");
   }, [order?.id, order?.tipAssigneeId, order?.openedById]);
 
-  useEffect(() => {
-    void (async () => {
-      try {
-        const res = await api.getRestoStations();
-        setStations(res.data.stations || []);
-      } catch {
-        /* ignore */
-      }
-      try {
-        const res = await api.getRestoModifiers();
-        setModifiers(res.data.modifiers || []);
-      } catch {
-        /* ignore */
-      }
-    })();
+  const loadOpsExtras = useCallback(async () => {
+    setOpsExtrasError(false);
+    try {
+      const [stRes, modRes] = await Promise.all([
+        api.getRestoStations(),
+        api.getRestoModifiers(),
+      ]);
+      setStations(stRes.data.stations || []);
+      setModifiers(modRes.data.modifiers || []);
+      setOpsExtrasError(false);
+    } catch {
+      setStations([]);
+      setModifiers([]);
+      setOpsExtrasError(true);
+    }
   }, []);
+
+  useEffect(() => {
+    void loadOpsExtras();
+  }, [loadOpsExtras]);
 
   useEffect(() => {
     if (!order) return;
@@ -1658,6 +1663,18 @@ export default function RestoFloorPage() {
                     placeholder={t.itemNotesPh}
                     className="w-full h-9 rounded-lg bg-black/30 border border-white/10 px-3 text-sm"
                   />
+                  {opsExtrasError ? (
+                    <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-2.5 py-2 flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-[11px] text-rose-300">{t.loadFailed}</p>
+                      <button
+                        type="button"
+                        onClick={() => void loadOpsExtras()}
+                        className="rounded-md bg-amber-500 px-2 py-0.5 text-[10px] font-bold text-slate-950"
+                      >
+                        {t.retry}
+                      </button>
+                    </div>
+                  ) : null}
                   {modifiers.length > 0 ? (
                     <div className="space-y-1">
                       <p className="text-[11px] text-stone-500">{t.modifiers}</p>
