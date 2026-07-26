@@ -3,7 +3,7 @@ import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { UserRole } from '@prisma/client';
 import { ErpService } from './erp.service';
-import { EmployeeDto } from './dto/erp.dto';
+import { EmployeeDto, UpdateEmployeeDto } from './dto/erp.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -31,7 +31,7 @@ export class EmployeesController {
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 40, ttl: 60000 } })
-  update(@CurrentUser() u: TokenPayload, @Param('id') id: string, @Body() dto: Partial<EmployeeDto>) {
+  update(@CurrentUser() u: TokenPayload, @Param('id') id: string, @Body() dto: UpdateEmployeeDto) {
     return this.erp.updateEmployee(u.companyId, id, dto);
   }
   @Delete(':id')

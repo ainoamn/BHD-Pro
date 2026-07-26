@@ -82,13 +82,13 @@ export default function CommitmentsPage() {
     queryFn: async () => (await api.getCommitments()).data as Commitment[],
   });
 
-  const { data: banks = [] } = useQuery({
+  const { data: banks = [], isError: banksError } = useQuery({
     queryKey: ["bank-accounts"],
     queryFn: async () =>
       (await api.getBankAccounts()).data as { id: string; name: string; bankName: string }[],
   });
 
-  const { data: accounts = [] } = useQuery({
+  const { data: accounts = [], isError: accountsError } = useQuery({
     queryKey: ["accounts"],
     queryFn: async () => (await api.getAccounts()).data as AccountRow[],
   });
@@ -211,6 +211,11 @@ export default function CommitmentsPage() {
       {open && (
         <GlassCard className="p-4 space-y-3">
           <p className="text-sm text-slate-300">{editingId ? t("edit") : t("add")}</p>
+          {banksError || accountsError ? (
+            <p className="text-xs text-amber-300/90 border border-amber-500/30 rounded-lg px-3 py-2">
+              {tCommon("error")}
+            </p>
+          ) : null}
           <input
             value={form.name}
             onChange={(e) => setField("name", e.target.value)}

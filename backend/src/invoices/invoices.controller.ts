@@ -17,9 +17,11 @@ import { DocumentShareService, DocumentShareVariant } from './document-share.ser
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
 import { UpdateInvoiceDto } from './dto/update-invoice.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
-import { InvoiceStatus, InvoiceType, PaymentStatus } from '@prisma/client';
+import { InvoiceStatus, InvoiceType, PaymentStatus, UserRole } from '@prisma/client';
 import { RecordPaymentDto } from './dto/record-payment.dto';
 import { BatchRecordPaymentDto } from './dto/batch-record-payment.dto';
 import {
@@ -157,6 +159,8 @@ export class InvoicesController {
   }
 
   @Post('payments/batch')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   @ApiOperation({ summary: 'Record payment across multiple invoices (FIFO / manual split)' })
   recordBatchPayment(
@@ -167,6 +171,8 @@ export class InvoicesController {
   }
 
   @Post(':id/payments')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 40, ttl: 60000 } })
   @ApiOperation({ summary: 'Record payment / receipt against invoice' })
   recordPayment(
@@ -195,6 +201,8 @@ export class InvoicesController {
   }
 
   @Delete(':id/payments/:paymentId')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Reverse / undo a payment receipt' })
   reversePayment(
@@ -206,6 +214,8 @@ export class InvoicesController {
   }
 
   @Post(':id/payments/reverse-all')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 15, ttl: 60000 } })
   @ApiOperation({ summary: 'Reverse all payment receipts on an invoice' })
   async reverseAllPayments(

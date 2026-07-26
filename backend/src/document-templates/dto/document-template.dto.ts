@@ -5,7 +5,7 @@ import {
   IsString,
   MinLength,
 } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { DocumentTemplateType } from '@prisma/client';
 
 export class DocumentTemplateDto {
@@ -38,3 +38,6 @@ export class DocumentTemplateDto {
   @IsBoolean()
   isActive?: boolean;
 }
+
+export class UpdateDocumentTemplateDto extends PartialType(DocumentTemplateDto) {}
+

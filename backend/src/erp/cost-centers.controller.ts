@@ -3,7 +3,7 @@ import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { UserRole } from '@prisma/client';
 import { ErpService } from './erp.service';
-import { CostCenterDto } from './dto/erp.dto';
+import { CostCenterDto, UpdateCostCenterDto } from './dto/erp.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -38,7 +38,7 @@ export class CostCentersController {
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 40, ttl: 60000 } })
-  update(@CurrentUser() u: TokenPayload, @Param('id') id: string, @Body() dto: Partial<CostCenterDto>) {
+  update(@CurrentUser() u: TokenPayload, @Param('id') id: string, @Body() dto: UpdateCostCenterDto) {
     return this.erp.updateCostCenter(u.companyId, id, dto);
   }
   @Delete(':id')

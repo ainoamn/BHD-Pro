@@ -78,7 +78,8 @@ export class PaymentsController {
 
   @Post('subscription/checkout')
   @Throttle({ default: { limit: 15, ttl: 60000 } })
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create subscription payment checkout' })
   createSubscriptionCheckout(
@@ -97,7 +98,8 @@ export class PaymentsController {
 
   @Post('subscription/mock-confirm')
   @Throttle({ default: { limit: 20, ttl: 60000 } })
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Confirm mock card subscription payment (test gateway)' })
   confirmMockSubscription(

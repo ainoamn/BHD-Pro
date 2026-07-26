@@ -12,7 +12,7 @@
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { ErpService } from './erp.service';
-import { BankAccountDto, BankStatementLineDto, BankTransferDto } from './dto/erp.dto';
+import { BankAccountDto, BankStatementLineDto, BankTransferDto, UpdateBankAccountDto } from './dto/erp.dto';
 import { UserRole } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -123,7 +123,7 @@ export class BankAccountsController {
   update(
     @CurrentUser() u: TokenPayload,
     @Param('id') id: string,
-    @Body() dto: Partial<BankAccountDto>,
+    @Body() dto: UpdateBankAccountDto,
   ) {
     return this.erp.updateBankAccount(u.companyId, id, dto);
   }

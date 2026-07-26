@@ -9,7 +9,7 @@ import {
   Min,
   MinLength,
 } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { CustomFieldEntity, CustomFieldType } from '@prisma/client';
 
 export class CustomFieldDefinitionDto {
@@ -61,3 +61,8 @@ export class CustomFieldDefinitionDto {
   @IsBoolean()
   isActive?: boolean;
 }
+
+export class UpdateCustomFieldDefinitionDto extends PartialType(
+  CustomFieldDefinitionDto,
+) {}
+

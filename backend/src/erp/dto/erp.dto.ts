@@ -14,7 +14,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { ProjectStatus, AssetCategory, PayrollStatus, PaymentMethod } from '@prisma/client';
 import { DualApprovalDto } from '../../dual-control/dto/approval.dto';
 
@@ -29,6 +29,8 @@ export class BranchDto {
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
 }
 
+export class UpdateBranchDto extends PartialType(BranchDto) {}
+
 export class CostCenterDto {
   @ApiProperty() @IsString() code: string;
   @ApiProperty() @IsString() name: string;
@@ -37,6 +39,8 @@ export class CostCenterDto {
   @ApiPropertyOptional() @IsOptional() @IsString() branchId?: string;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
 }
+
+export class UpdateCostCenterDto extends PartialType(CostCenterDto) {}
 
 export class ProjectDto {
   @ApiProperty() @IsString() code: string;
@@ -52,6 +56,8 @@ export class ProjectDto {
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
 }
 
+export class UpdateProjectDto extends PartialType(ProjectDto) {}
+
 export class EmployeeDto {
   @ApiProperty() @IsString() employeeNumber: string;
   @ApiProperty() @IsString() name: string;
@@ -65,6 +71,8 @@ export class EmployeeDto {
   @ApiPropertyOptional() @IsOptional() @IsString() branchId?: string;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
 }
+
+export class UpdateEmployeeDto extends PartialType(EmployeeDto) {}
 
 export class AssetDto {
   @ApiProperty() @IsString() code: string;
@@ -81,6 +89,8 @@ export class AssetDto {
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
 }
 
+export class UpdateAssetDto extends PartialType(AssetDto) {}
+
 export class BankAccountDto {
   @ApiProperty() @IsString() name: string;
   @ApiProperty() @IsString() bankName: string;
@@ -92,6 +102,8 @@ export class BankAccountDto {
   @ApiPropertyOptional() @IsOptional() @IsString() accountId?: string;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
 }
+
+export class UpdateBankAccountDto extends PartialType(BankAccountDto) {}
 
 export class BankStatementLineDto {
   @ApiProperty() @IsDateString() date: string;
@@ -153,6 +165,8 @@ export class WarehouseDto {
   @ApiPropertyOptional() @IsOptional() @IsUUID() branchId?: string;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
 }
+
+export class UpdateWarehouseDto extends PartialType(WarehouseDto) {}
 
 export class CreatePayrollDto {
   @ApiProperty() @IsInt() @Min(1) @Max(12) periodMonth: number;
