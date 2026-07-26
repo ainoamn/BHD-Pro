@@ -451,7 +451,7 @@ export function PosShiftsView({
   const live = data?.live as ZReport | undefined;
   const expectedCash = Number(live?.expectedCash ?? 0);
 
-  const { data: parkedDrafts = [] } = useQuery({
+  const { data: parkedDrafts, isError: parkedLoadError } = useQuery({
     queryKey: ["pos-drafts-eod"],
     queryFn: async () => {
       const res = await api.listPosDrafts();
@@ -459,27 +459,22 @@ export function PosShiftsView({
     },
     refetchInterval: 20000,
   });
-  const parkedCount = parkedDrafts.length;
+  const parkedCount = parkedDrafts?.length ?? 0;
 
-  const [quarantineCount, setQuarantineCount] = useState(0);
+  const [quarantineCount, setQuarantineCount] = useState<number | null>(null);
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    const refreshQ = async () => {
       try {
         const { quarantinedAllCount } = await import("@/lib/pos-offline-sync");
         const n = await quarantinedAllCount();
         if (!cancelled) setQuarantineCount(n);
       } catch {
-        if (!cancelled) setQuarantineCount(0);
+        /* keep prior — do not pretend the offline queue is empty */
       }
-    })();
-    const id = window.setInterval(() => {
-      void import("@/lib/pos-offline-sync").then(({ quarantinedAllCount }) =>
-        quarantinedAllCount().then((n) => {
-          if (!cancelled) setQuarantineCount(n);
-        }),
-      );
-    }, 20000);
+    };
+    void refreshQ();
+    const id = window.setInterval(() => void refreshQ(), 20000);
     return () => {
       cancelled = true;
       window.clearInterval(id);
@@ -567,7 +562,9 @@ export function PosShiftsView({
     const cash = Number(closingCash);
     if (Number.isNaN(cash) || cash < 0) return;
     const variance = Math.abs(cash - expectedCash);
-    if ((parkedCount || 0) > 0) {
+    if (parkedLoadError) {
+      if (!window.confirm(t.eodConfirmParkedUnknown)) return;
+    } else if ((parkedCount || 0) > 0) {
       if (!window.confirm(t.eodConfirmParked)) return;
     }
     setPendingCloseCash(cash);
@@ -897,13 +894,19 @@ export function PosShiftsView({
                   <span className="text-slate-300">{t.eodParked}</span>
                   <span
                     className={`tabular-nums font-semibold ${
-                      parkedCount > 0 ? "text-amber-300" : "text-emerald-300"
+                      parkedLoadError
+                        ? "text-amber-300"
+                        : parkedCount > 0
+                          ? "text-amber-300"
+                          : "text-emerald-300"
                     }`}
                   >
-                    {parkedCount}
+                    {parkedLoadError ? "?" : parkedCount}
                   </span>
                 </li>
-                {parkedCount > 0 ? (
+                {parkedLoadError ? (
+                  <li className="text-[11px] text-amber-200/90">{t.eodParkedUnknown}</li>
+                ) : parkedCount > 0 ? (
                   <li className="text-[11px] text-amber-200/90">{t.eodParkedWarn}</li>
                 ) : null}
                 <li className="flex items-center justify-between gap-2">
@@ -916,12 +919,19 @@ export function PosShiftsView({
                   <span className="text-slate-300">{t.eodOfflineQ}</span>
                   <span
                     className={`tabular-nums font-semibold ${
-                      quarantineCount > 0 ? "text-rose-300" : "text-emerald-300"
+                      quarantineCount == null
+                        ? "text-amber-300"
+                        : quarantineCount > 0
+                          ? "text-rose-300"
+                          : "text-emerald-300"
                     }`}
                   >
-                    {quarantineCount}
+                    {quarantineCount == null ? "?" : quarantineCount}
                   </span>
                 </li>
+                {quarantineCount == null ? (
+                  <li className="text-[11px] text-amber-200/90">{t.eodOfflineUnknown}</li>
+                ) : null}
                 <li className="flex items-center justify-between gap-2">
                   <span className="text-slate-300">{t.eodAnomalies}</span>
                   <span
@@ -933,7 +943,10 @@ export function PosShiftsView({
                   </span>
                 </li>
               </ul>
-              {parkedCount === 0 && quarantineCount === 0 && anomalyCount === 0 ? (
+              {!parkedLoadError &&
+              parkedCount === 0 &&
+              quarantineCount === 0 &&
+              anomalyCount === 0 ? (
                 <p className="text-[11px] text-emerald-300/90">{t.eodOk}</p>
               ) : null}
             </div>

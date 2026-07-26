@@ -618,9 +618,10 @@ export function AccountingModule() {
       setPrintInvoice(res.data as Invoice);
       setDocumentVariant("receipt");
     } catch {
+      toast.error(t("actionError"));
       const inv = invoices.find((i) => i.id === invoiceId);
       if (inv) {
-        setPrintInvoice({ ...inv, status: "PAID", paymentStatus: "PAID" });
+        setPrintInvoice(inv);
         setDocumentVariant("receipt");
       }
     }

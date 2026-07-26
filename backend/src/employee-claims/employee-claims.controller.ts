@@ -17,7 +17,10 @@ import {
   RejectClaimDto,
   MarkClaimPaidDto,
 } from './dto/employee-claim.dto';
+import { UserRole } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
 import { DualControlService } from '../dual-control/dual-control.service';
@@ -66,12 +69,16 @@ export class EmployeeClaimsController {
   }
 
   @Post(':id/approve')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   approve(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.service.approve(user.companyId, user.sub, id);
   }
 
   @Post(':id/reject')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   reject(
     @CurrentUser() user: TokenPayload,
@@ -82,6 +89,8 @@ export class EmployeeClaimsController {
   }
 
   @Post(':id/pay')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   @ApiOperation({ summary: 'Mark approved claim as paid/reimbursed' })
   async markPaid(

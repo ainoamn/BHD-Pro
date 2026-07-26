@@ -45,6 +45,7 @@ export default function RestoOrderPage() {
   const [menu, setMenu] = useState<MenuItem[]>([]);
   const [menuError, setMenuError] = useState(false);
   const [stations, setStations] = useState<Station[]>([]);
+  const [stationsError, setStationsError] = useState(false);
   const [stationId, setStationId] = useState("");
   const [itemNote, setItemNote] = useState("");
   const [tipAmount, setTipAmount] = useState("");
@@ -88,10 +89,14 @@ export default function RestoOrderPage() {
         if (cancelled) return;
         const list = res.data.stations || [];
         setStations(list);
+        setStationsError(false);
         setStationId((prev) => prev || list[0]?.id || "");
       })
       .catch(() => {
-        if (!cancelled) setStations([]);
+        if (!cancelled) {
+          setStations([]);
+          setStationsError(true);
+        }
       });
     const timer = window.setTimeout(() => {
       void (async () => {
@@ -455,6 +460,28 @@ export default function RestoOrderPage() {
 
       {showMenu && !closed ? (
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 space-y-3">
+          {stationsError ? (
+            <p className="text-xs text-rose-300">
+              {t.loadFailed}{" "}
+              <button
+                type="button"
+                className="underline text-amber-300"
+                onClick={() => {
+                  setStationsError(false);
+                  void api
+                    .getRestoStations()
+                    .then((res) => {
+                      const list = res.data.stations || [];
+                      setStations(list);
+                      setStationId((prev) => prev || list[0]?.id || "");
+                    })
+                    .catch(() => setStationsError(true));
+                }}
+              >
+                {t.retry}
+              </button>
+            </p>
+          ) : null}
           {stations.length > 0 ? (
             <label className="block space-y-1">
               <span className="text-[11px] text-stone-400">{t.toStation}</span>

@@ -15,11 +15,11 @@ import { PurchaseOrdersService } from './purchase-orders.service';
 import {
   CreatePurchaseOrderDto,
   UpdatePurchaseOrderDto,
+  UpdatePoStatusDto,
 } from './dto/procurement.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
-import { PurchaseOrderStatus } from '@prisma/client';
 
 @ApiTags('Purchase Orders')
 @ApiBearerAuth()
@@ -59,9 +59,9 @@ export class PurchaseOrdersController {
   updateStatus(
     @CurrentUser() user: TokenPayload,
     @Param('id') id: string,
-    @Body('status') status: PurchaseOrderStatus,
+    @Body() dto: UpdatePoStatusDto,
   ) {
-    return this.service.updateStatus(user.companyId, id, status);
+    return this.service.updateStatus(user.companyId, id, dto.status);
   }
 
   @Post(':id/convert')

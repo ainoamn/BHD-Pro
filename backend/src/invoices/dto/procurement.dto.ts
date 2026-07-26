@@ -56,6 +56,11 @@ export class UpdatePurchaseOrderDto extends CreatePurchaseOrderDto {
   status?: PurchaseOrderStatus;
 }
 
+export class UpdatePoStatusDto {
+  @IsEnum(PurchaseOrderStatus)
+  status: PurchaseOrderStatus;
+}
+
 export class CreateScheduledInvoiceDto {
   @IsString()
   @IsNotEmpty()

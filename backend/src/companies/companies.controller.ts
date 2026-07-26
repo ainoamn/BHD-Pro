@@ -28,6 +28,8 @@ export class CompaniesController {
   }
 
   @Put('me')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   updateMyCompany(@CurrentUser() user: TokenPayload, @Body() dto: UpdateCompanyDto) {
     return this.companiesService.updateCompany(user.companyId, dto);

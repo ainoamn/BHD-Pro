@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { BarChart3, Loader2, Printer } from "lucide-react";
+import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
 import { restoCopy } from "@/lib/resto-copy";
@@ -91,7 +92,7 @@ th,td{border-bottom:1px solid #ddd;padding:6px 4px;text-align:start;font-size:13
 </body></html>`);
       w.document.close();
     } catch {
-      /* ignore */
+      toast.error(t.actionFail);
     } finally {
       setFlashBusy(false);
     }

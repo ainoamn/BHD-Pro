@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { IsOptional, IsString, MinLength } from 'class-validator';
+import { IsIn, IsOptional, IsString, MinLength } from 'class-validator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -20,8 +20,7 @@ import { SmsNotifyService } from './sms-notify.service';
 import { StorageService } from '../storage/storage.service';
 
 class TestMessageDto {
-  @IsString()
-  @MinLength(3)
+  @IsIn(['whatsapp', 'email', 'sms'])
   channel: 'whatsapp' | 'email' | 'sms';
 
   @IsString()

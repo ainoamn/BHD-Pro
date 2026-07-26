@@ -79,6 +79,7 @@
 - موجة Z: صدق وردية الشِل + throttles فواتير/بنوك/أصول/رواتب/مراكز/مشاريع — [`HISABY-WAVE-Z-SHELL-INVOICE-ERP-2026-07-26.md`](./HISABY-WAVE-Z-SHELL-INVOICE-ERP-2026-07-26.md)
 - موجة AA: صدق حالة الربط POS·مطاعم + throttles مرفقات/ضريبة/قوالب/صرف/مطالبات — [`HISABY-WAVE-AA-LINK-STATUS-MISC-THROTTLE-2026-07-26.md`](./HISABY-WAVE-AA-LINK-STATUS-MISC-THROTTLE-2026-07-26.md)
 - موجة AB: إكمال throttles CRUD (التزامات/أوامر شراء/مجدولة/جرد/تسليم/API keys…) + صدق تذييل إيصال الكاشير — [`HISABY-WAVE-AB-CRUD-THROTTLE-COMPLETE-2026-07-26.md`](./HISABY-WAVE-AB-CRUD-THROTTLE-COMPLETE-2026-07-26.md)
+- موجة AC: صلاحيات VIEWER/مطالبات/شركة/فترات + صدق EOD ورديات وKDS وولاء — [`HISABY-WAVE-AC-ROLES-EOD-HONESTY-2026-07-26.md`](./HISABY-WAVE-AC-ROLES-EOD-HONESTY-2026-07-26.md)
 
 ### 1.6 المنصة ولوحة الإدارة (محدث 26 يوليو مساءً)
 - اشتراكات، بوابات دفع، `/admin`، PWA، GeoIP، keep-warm

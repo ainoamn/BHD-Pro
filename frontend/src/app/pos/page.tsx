@@ -648,6 +648,9 @@ export default function PosCheckoutPage() {
     let cancelled = false;
     setCustomerPurchasesLoading(true);
     setPurchasesError(false);
+    setLoyaltyEnabled(false);
+    setRedeemEnabled(false);
+    setCustomerLoyaltyPoints(null);
     (async () => {
       try {
         const res = await api.getPosCustomerRecentSales(contactId);
@@ -679,14 +682,14 @@ export default function PosCheckoutPage() {
       } catch {
         if (!cancelled) {
           setCustomerLoyaltyPoints(null);
-          setLoyaltyEnabled(false);
+          toast.error(t.loadFailed);
         }
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [contactId]);
+  }, [contactId, t.loadFailed]);
 
   const refreshCustomerPurchases = useCallback(async () => {
     if (!contactId) return;

@@ -76,6 +76,8 @@ export default function RestoKitchenPage() {
   const [sla, setSla] = useState({ warnMinutes: 8, criticalMinutes: 15 });
   const knownIds = useRef<Set<string>>(new Set());
   const primed = useRef(false);
+  const soundOnRef = useRef(soundOn);
+  soundOnRef.current = soundOn;
 
   useEffect(() => {
     try {
@@ -99,7 +101,7 @@ export default function RestoKitchenPage() {
       const res = await api.getRestoKitchen(stationId || undefined);
       const next = res.data.items || [];
       if (res.data.sla) setSla(res.data.sla);
-      if (primed.current && soundOn) {
+      if (primed.current && soundOnRef.current) {
         const fresh = next.filter((it) => !knownIds.current.has(it.id));
         if (fresh.length > 0) playChime();
       }
@@ -113,7 +115,7 @@ export default function RestoKitchenPage() {
     } finally {
       setLoading(false);
     }
-  }, [stationId, soundOn, t.actionFail]);
+  }, [stationId, t.actionFail]);
 
   useEffect(() => {
     setLoading(true);
@@ -144,7 +146,7 @@ export default function RestoKitchenPage() {
           };
           const next = payload.items || [];
           if (payload.sla) setSla(payload.sla);
-          if (primed.current && soundOn) {
+          if (primed.current && soundOnRef.current) {
             const fresh = next.filter((it) => !knownIds.current.has(it.id));
             if (fresh.length > 0) playChime();
           }
@@ -173,7 +175,7 @@ export default function RestoKitchenPage() {
       es?.close();
       if (pollId) window.clearInterval(pollId);
     };
-  }, [load, stationId, soundOn]);
+  }, [load, stationId]);
 
   const setStatus = async (
     itemId: string,

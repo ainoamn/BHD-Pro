@@ -10,7 +10,10 @@ import {
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { PeriodsService } from './periods.service';
+import { UserRole } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
 
@@ -33,6 +36,8 @@ export class PeriodsController {
   }
 
   @Post(':year/:month/lock')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @ApiOperation({ summary: 'Lock an accounting period' })
   lock(
@@ -44,6 +49,8 @@ export class PeriodsController {
   }
 
   @Post(':year/:month/unlock')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN)
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @ApiOperation({ summary: 'Unlock an accounting period (admin only)' })
   unlock(
