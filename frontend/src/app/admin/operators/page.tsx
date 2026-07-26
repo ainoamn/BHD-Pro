@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Power, Shield, Trash2, UserPlus } from "lucide-react";
+import { Loader2, Power, Shield, Trash2, UserPlus, Save } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
@@ -31,6 +31,14 @@ type Operator = {
   canDelete?: boolean;
 };
 
+function normalizePerms(list: string[]): string[] {
+  const cleaned = Array.from(
+    new Set(list.map((p) => p.trim().toLowerCase()).filter(Boolean)),
+  );
+  if (!cleaned.length || cleaned.includes("full")) return ["full"];
+  return cleaned;
+}
+
 export default function AdminOperatorsPage() {
   const locale = useLocaleStore((s) => s.locale);
   const t = adminCopy[locale === "en" ? "en" : "ar"];
@@ -41,10 +49,20 @@ export default function AdminOperatorsPage() {
   const [name, setName] = useState("");
   const [perms, setPerms] = useState<string[]>(["full"]);
   const [busy, setBusy] = useState(false);
+  const [drafts, setDrafts] = useState<Record<string, string[]>>({});
+  const [savingId, setSavingId] = useState<string | null>(null);
 
   const load = async () => {
     const res = await api.getAdminOperators();
-    setRows(res.data as Operator[]);
+    const list = res.data as Operator[];
+    setRows(list);
+    const next: Record<string, string[]> = {};
+    for (const op of list) {
+      next[op.id] = normalizePerms(
+        op.isProtected ? ["full"] : (op.permissions as string[]) || ["full"],
+      );
+    }
+    setDrafts(next);
   };
 
   useEffect(() => {
@@ -86,15 +104,18 @@ export default function AdminOperatorsPage() {
       await api.appointAdminOperator({
         email: email.trim(),
         name: name.trim() || undefined,
-        permissions: perms,
+        permissions: normalizePerms(perms),
       });
       setEmail("");
       setName("");
       setPerms(["full"]);
       await load();
       toast.success(en ? "Operator appointed" : "تم تعيين المشرف");
-    } catch {
-      toast.error(en ? "Could not appoint operator" : "تعذر التعيين");
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message || (en ? "Could not appoint operator" : "تعذر التعيين");
+      toast.error(msg);
     } finally {
       setBusy(false);
     }
@@ -115,13 +136,41 @@ export default function AdminOperatorsPage() {
     });
   };
 
-  const setOperatorPerms = async (id: string, next: string[]) => {
+  const toggleDraft = (opId: string, p: string) => {
+    setDrafts((prev) => {
+      const cur = prev[opId] || ["full"];
+      if (p === "full") return { ...prev, [opId]: ["full"] };
+      const withoutFull = cur.filter((x) => x !== "full");
+      const next = withoutFull.includes(p)
+        ? withoutFull.filter((x) => x !== p)
+        : [...withoutFull, p];
+      return { ...prev, [opId]: next.length ? next : ["full"] };
+    });
+  };
+
+  const dirty = (op: Operator) => {
+    const a = normalizePerms(drafts[op.id] || []);
+    const b = normalizePerms(op.permissions || ["full"]);
+    if (a.length !== b.length) return true;
+    return a.some((x) => !b.includes(x));
+  };
+
+  const savePerms = async (op: Operator) => {
+    if (op.isProtected) return;
+    setSavingId(op.id);
     try {
-      await api.updateAdminOperator(id, { permissions: next });
+      const next = normalizePerms(drafts[op.id] || ["full"]);
+      await api.updateAdminOperator(op.id, { permissions: next });
       await load();
-      toast.success(en ? "Permissions updated" : "تم تحديث الصلاحيات");
-    } catch {
-      toast.error(en ? "Update failed" : "تعذر التحديث");
+      toast.success(en ? "Permissions saved" : "تم حفظ الصلاحيات");
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { message?: string | string[] } } })
+          ?.response?.data?.message;
+      const text = Array.isArray(msg) ? msg.join(", ") : msg;
+      toast.error(text || (en ? "Update failed" : "تعذر التحديث"));
+    } finally {
+      setSavingId(null);
     }
   };
 
@@ -150,8 +199,8 @@ export default function AdminOperatorsPage() {
     if (op.isProtected) {
       toast.error(
         en
-          ? "Primary owner cannot be deleted — restrict permissions instead"
-          : "لا يمكن حذف المالك الأساسي — قيّد صلاحياته بدلاً من الحذف",
+          ? "Primary owner cannot be deleted"
+          : "لا يمكن حذف المالك الأساسي",
       );
       return;
     }
@@ -184,8 +233,8 @@ export default function AdminOperatorsPage() {
         </h1>
         <p className="text-sm text-slate-500 mt-1">
           {en
-            ? "Appoint, restrict, deactivate, or remove platform operators."
-            : "عيّن المشرفين، قيّد صلاحياتهم، أوقفهم أو احذفهم من الإشراف."}
+            ? "Toggle permission chips, then press Save. Owner stays full access."
+            : "فعّل/ألغِ شارات الصلاحيات ثم اضغط حفظ. المالك يبقى بصلاحية كاملة."}
         </p>
       </div>
 
@@ -217,7 +266,7 @@ export default function AdminOperatorsPage() {
               type="button"
               onClick={() => togglePerm(p)}
               className={cn(
-                "text-xs font-bold px-2.5 py-1 rounded-full border",
+                "text-xs font-bold px-2.5 py-1.5 rounded-full border",
                 perms.includes(p)
                   ? "bg-teal-700 text-white border-teal-700"
                   : "bg-white text-slate-600 border-slate-200",
@@ -244,118 +293,126 @@ export default function AdminOperatorsPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {rows.map((op) => (
-            <div
-              key={op.id}
-              className={cn(
-                "rounded-2xl border bg-white p-4 space-y-3",
-                op.isActive ? "border-slate-200" : "border-amber-200 bg-amber-50/40",
-              )}
-            >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="font-bold text-slate-900">{op.name || op.email}</p>
-                  <p className="text-xs font-mono text-slate-500" dir="ltr">
-                    {op.email}
-                  </p>
-                  <div className="flex flex-wrap gap-1.5 mt-2">
-                    {op.isProtected ? (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-100 text-violet-800">
-                        {en ? "Owner" : "مالك"}
+          {rows.map((op) => {
+            const draft = drafts[op.id] || ["full"];
+            const isDirty = !op.isProtected && dirty(op);
+            return (
+              <div
+                key={op.id}
+                className={cn(
+                  "rounded-2xl border bg-white p-4 space-y-3",
+                  op.isActive ? "border-slate-200" : "border-amber-200 bg-amber-50/40",
+                )}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="font-bold text-slate-900">{op.name || op.email}</p>
+                    <p className="text-xs font-mono text-slate-500" dir="ltr">
+                      {op.email}
+                    </p>
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {op.isProtected ? (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-100 text-violet-800">
+                          {en ? "Owner" : "مالك"}
+                        </span>
+                      ) : op.isBootstrap ? (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                          {en ? "Seeded" : "افتراضي"}
+                        </span>
+                      ) : null}
+                      <span
+                        className={cn(
+                          "text-[10px] font-bold px-2 py-0.5 rounded-full",
+                          op.isActive
+                            ? "bg-emerald-100 text-emerald-800"
+                            : "bg-amber-100 text-amber-900",
+                        )}
+                      >
+                        {op.isActive ? t.active : t.inactive}
                       </span>
-                    ) : op.isBootstrap ? (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
-                        {en ? "Seeded" : "افتراضي"}
-                      </span>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {!op.isProtected ? (
+                      <button
+                        type="button"
+                        onClick={() => void toggleActive(op)}
+                        className="inline-flex items-center gap-1 text-sm font-bold text-slate-700 hover:underline"
+                      >
+                        <Power className="w-4 h-4" />
+                        {op.isActive
+                          ? en
+                            ? "Deactivate"
+                            : "إيقاف"
+                          : en
+                            ? "Activate"
+                            : "تفعيل"}
+                      </button>
                     ) : null}
-                    <span
-                      className={cn(
-                        "text-[10px] font-bold px-2 py-0.5 rounded-full",
-                        op.isActive
-                          ? "bg-emerald-100 text-emerald-800"
-                          : "bg-amber-100 text-amber-900",
-                      )}
-                    >
-                      {op.isActive ? t.active : t.inactive}
-                    </span>
+                    {!op.isProtected ? (
+                      <button
+                        type="button"
+                        onClick={() => void remove(op)}
+                        className="inline-flex items-center gap-1 text-sm font-bold text-rose-700 hover:underline"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        {en ? "Remove" : "حذف الإشراف"}
+                      </button>
+                    ) : null}
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
+
+                <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-3 space-y-3">
+                  <p className="text-xs font-bold text-slate-600">
+                    {op.isProtected
+                      ? en
+                        ? "Owner permissions (locked)"
+                        : "صلاحيات المالك (مقفلة)"
+                      : en
+                        ? "Edit console permissions"
+                        : "تعديل صلاحيات لوحة التحكم"}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {PERMS.map((p) => {
+                      const active = op.isProtected ? p === "full" : draft.includes(p);
+                      return (
+                        <button
+                          key={p}
+                          type="button"
+                          disabled={!!op.isProtected}
+                          onClick={() => toggleDraft(op.id, p)}
+                          className={cn(
+                            "text-xs font-bold px-3 py-1.5 rounded-full border transition",
+                            active
+                              ? "bg-teal-700 text-white border-teal-700"
+                              : "bg-white text-slate-600 border-slate-200 hover:border-teal-400",
+                            op.isProtected && "cursor-not-allowed opacity-90",
+                          )}
+                        >
+                          {permLabels[p]}
+                        </button>
+                      );
+                    })}
+                  </div>
                   {!op.isProtected ? (
                     <button
                       type="button"
-                      onClick={() => void toggleActive(op)}
-                      className="inline-flex items-center gap-1 text-sm font-bold text-slate-700 hover:underline"
+                      disabled={!isDirty || savingId === op.id}
+                      onClick={() => void savePerms(op)}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-teal-700 text-white px-3 py-2 text-xs font-bold disabled:opacity-40"
                     >
-                      <Power className="w-4 h-4" />
-                      {op.isActive
-                        ? en
-                          ? "Deactivate"
-                          : "إيقاف"
-                        : en
-                          ? "Activate"
-                          : "تفعيل"}
-                    </button>
-                  ) : null}
-                  {!op.isProtected ? (
-                    <button
-                      type="button"
-                      onClick={() => void remove(op)}
-                      className="inline-flex items-center gap-1 text-sm font-bold text-rose-700 hover:underline"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      {en ? "Remove" : "حذف الإشراف"}
+                      {savingId === op.id ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Save className="w-3.5 h-3.5" />
+                      )}
+                      {en ? "Save permissions" : "حفظ الصلاحيات"}
                     </button>
                   ) : null}
                 </div>
               </div>
-              <p className="text-[11px] text-slate-500">
-                {op.isProtected
-                  ? en
-                    ? "Owner always has full console access."
-                    : "المالك يحتفظ بصلاحية كاملة دائماً."
-                  : en
-                    ? "Click chips to grant or revoke console sections."
-                    : "اضغط الشارات لمنح أو سحب أقسام لوحة التحكم."}
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {PERMS.map((p) => {
-                  const active = op.isProtected
-                    ? p === "full"
-                    : (op.permissions || []).includes(p);
-                  return (
-                    <button
-                      key={p}
-                      type="button"
-                      disabled={!!op.isProtected}
-                      onClick={() => {
-                        if (op.isProtected) return;
-                        let next: string[];
-                        if (p === "full") next = ["full"];
-                        else {
-                          const base = (op.permissions || []).filter((x) => x !== "full");
-                          next = active
-                            ? base.filter((x) => x !== p)
-                            : [...base, p];
-                          if (!next.length) next = ["full"];
-                        }
-                        void setOperatorPerms(op.id, next);
-                      }}
-                      className={cn(
-                        "text-[10px] font-bold px-2 py-0.5 rounded-full border",
-                        active
-                          ? "bg-teal-700 text-white border-teal-700"
-                          : "bg-white text-slate-500 border-slate-200 hover:border-teal-400",
-                        op.isProtected && "cursor-not-allowed",
-                      )}
-                    >
-                      {permLabels[p]}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
+            );
+          })}
           {rows.length === 0 ? (
             <p className="text-sm text-slate-500">{t.empty}</p>
           ) : null}

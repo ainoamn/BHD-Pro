@@ -40,6 +40,7 @@ const PATH_PERMISSIONS: { match: RegExp; perm: PlatformPermission }[] = [
   { match: /\/admin\/users(\/|$)/, perm: 'users' },
   { match: /\/admin\/billing(\/|$)/, perm: 'billing' },
   { match: /\/admin\/offers(\/|$)/, perm: 'plans' },
+  { match: /\/admin\/plans(\/|$)/, perm: 'plans' },
   { match: /\/admin\/visits(\/|$)/, perm: 'visits' },
   { match: /\/admin\/sessions(\/|$)/, perm: 'visits' },
   { match: /\/admin\/payment-gateways(\/|$)/, perm: 'gateways' },

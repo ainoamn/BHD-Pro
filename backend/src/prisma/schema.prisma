@@ -23,7 +23,7 @@ model Company {
   email       String?
   website     String?
   logo        String?
-  plan        Plan     @default(STARTER)
+  plan        String   @default("STARTER")
   planExpiry  DateTime? @map("plan_expiry")
   planStartedAt DateTime? @map("plan_started_at")
   /// null = use plan default; -1 = unlimited
@@ -1253,12 +1253,6 @@ model AuditLog {
 
 // ==================== ENUMS ====================
 
-enum Plan {
-  STARTER
-  PROFESSIONAL
-  ENTERPRISE
-}
-
 /// Inventory sector — separate retail vs F&B catalogs per warehouse
 enum WarehouseSector {
   GENERAL
@@ -1519,7 +1513,7 @@ model SiteVisit {
 
 model PlanOffer {
   id           String    @id @default(uuid())
-  plan         Plan
+  plan         String
   nameAr       String    @map("name_ar")
   nameEn       String    @map("name_en")
   discountPct  Decimal   @default(0) @map("discount_pct") @db.Decimal(5, 2)
@@ -1536,6 +1530,31 @@ model PlanOffer {
   @@index([isActive])
   @@index([plan])
   @@map("plan_offers")
+}
+
+/// Editable subscription plan catalog (prices, limits, feature locks).
+model PlanDefinition {
+  id            String   @id @default(uuid())
+  code          String   @unique
+  nameAr        String   @map("name_ar")
+  nameEn        String   @map("name_en")
+  monthlyPrice  Decimal  @map("monthly_price") @db.Decimal(12, 3)
+  yearlyPrice   Decimal  @map("yearly_price") @db.Decimal(12, 3)
+  invoicesLimit Int      @map("invoices_limit")
+  usersLimit    Int      @map("users_limit")
+  support       String   @default("email")
+  /// Feature flags: accounting, inventory, pos, resto, aiAnalytics, multiBranch, apiKeys, advancedReports
+  features      Json
+  isActive      Boolean  @default(true) @map("is_active")
+  /// System plans (STARTER/PRO/ENT) cannot be deleted — only edited / deactivated
+  isSystem      Boolean  @default(false) @map("is_system")
+  sortOrder     Int      @default(0) @map("sort_order")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@index([isActive])
+  @@index([sortOrder])
+  @@map("plan_definitions")
 }
 
 model PlatformSetting {

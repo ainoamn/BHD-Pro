@@ -10,13 +10,12 @@ import {
   PaymentGatewaySlug,
   PaymentMethod,
   PaymentStatus,
-  Plan,
   RestoOrderChannel,
   RestoOrderStatus,
   RestoTableStatus,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { PLAN_DETAILS } from '../subscriptions/subscriptions.service';
+import { PlanCatalogService } from '../subscriptions/plan-catalog.service';
 import { getPaymentAdapter } from './adapters';
 import { GATEWAY_META, ONLINE_GATEWAYS } from './gateway.constants';
 import { baisaToOmr, CheckoutInput, omrToBaisa } from './payment.types';
@@ -36,6 +35,7 @@ export class PaymentsService {
     private prisma: PrismaService,
     private platformGateways: PlatformGatewaysService,
     private companyGateways: CompanyGatewaysService,
+    private planCatalog: PlanCatalogService,
   ) {}
 
   private getOrigin(): string {
@@ -86,7 +86,7 @@ export class PaymentsService {
   async createSubscriptionCheckout(opts: {
     companyId: string;
     userEmail: string;
-    plan: Plan;
+    plan: string;
     billing: 'monthly' | 'yearly';
     gatewaySlug: PaymentGatewaySlug;
     promoCode?: string;
@@ -101,7 +101,7 @@ export class PaymentsService {
       );
     }
 
-    const planDetails = PLAN_DETAILS[opts.plan];
+    const planDetails = await this.planCatalog.detailsFor(opts.plan);
     const priced = await this.resolveSubscriptionPrice(
       opts.plan,
       opts.billing,
@@ -195,16 +195,16 @@ export class PaymentsService {
   }
 
   /** Resolve active PlanOffer by promo code for a given plan + billing period. */
-  async validatePromoCode(plan: Plan, billing: 'monthly' | 'yearly', promoCode?: string) {
+  async validatePromoCode(plan: string, billing: 'monthly' | 'yearly', promoCode?: string) {
     return this.resolveSubscriptionPrice(plan, billing, promoCode);
   }
 
   private async resolveSubscriptionPrice(
-    plan: Plan,
+    plan: string,
     billing: 'monthly' | 'yearly',
     promoCode?: string,
   ) {
-    const planDetails = PLAN_DETAILS[plan];
+    const planDetails = await this.planCatalog.detailsFor(plan);
     const listPriceOmr =
       billing === 'yearly' ? planDetails.yearlyPrice : planDetails.monthlyPrice;
 
@@ -518,7 +518,7 @@ export class PaymentsService {
       });
 
       if (locked.purpose === BillingPurpose.SUBSCRIPTION) {
-        const plan = metadata.plan as Plan;
+        const plan = String(metadata.plan || 'STARTER');
         const billing = metadata.billing as 'monthly' | 'yearly';
         const expiry = new Date();
         if (billing === 'yearly') expiry.setFullYear(expiry.getFullYear() + 1);

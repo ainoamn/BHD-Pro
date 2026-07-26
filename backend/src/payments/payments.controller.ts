@@ -13,7 +13,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { PaymentGatewaySlug, Plan, UserRole } from '@prisma/client';
+import { PaymentGatewaySlug, UserRole } from '@prisma/client';
 import { Request, Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -102,11 +102,10 @@ export class PaymentsController {
     @Query('billing') billing: string,
     @Query('code') code?: string,
   ) {
-    const plans = Object.values(Plan) as string[];
-    if (!plans.includes(plan) || (billing !== 'monthly' && billing !== 'yearly')) {
+    if (!plan?.trim() || (billing !== 'monthly' && billing !== 'yearly')) {
       throw new BadRequestException('plan and billing are required');
     }
-    return this.payments.validatePromoCode(plan as Plan, billing, code);
+    return this.payments.validatePromoCode(plan, billing, code);
   }
 
   @Post('invoices/:invoiceId/checkout')

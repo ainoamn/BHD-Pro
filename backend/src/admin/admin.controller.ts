@@ -11,7 +11,6 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { Plan } from '@prisma/client';
 import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -88,7 +87,7 @@ export class AdminController {
   @ApiBearerAuth()
   tenants(
     @Query('q') q?: string,
-    @Query('plan') plan?: Plan,
+    @Query('plan') plan?: string,
     @Query('active') active?: string,
   ) {
     const activeBool =
@@ -111,7 +110,7 @@ export class AdminController {
     @Body()
     body: {
       isActive?: boolean;
-      plan?: Plan;
+      plan?: string;
       planExpiry?: string | null;
       planStartedAt?: string | null;
       name?: string;
@@ -179,6 +178,38 @@ export class AdminController {
   @ApiBearerAuth()
   deleteOffer(@Param('id') id: string) {
     return this.admin.deleteOffer(id);
+  }
+
+  @Get('plans')
+  @UseGuards(JwtAuthGuard, PlatformAdminGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List editable plan definitions with feature flags' })
+  listPlans() {
+    return this.admin.listPlanDefinitions();
+  }
+
+  @Post('plans')
+  @UseGuards(JwtAuthGuard, PlatformAdminGuard)
+  @ApiBearerAuth()
+  createPlan(@Body() body: Parameters<AdminService['createPlanDefinition']>[0]) {
+    return this.admin.createPlanDefinition(body);
+  }
+
+  @Patch('plans/:code')
+  @UseGuards(JwtAuthGuard, PlatformAdminGuard)
+  @ApiBearerAuth()
+  updatePlan(
+    @Param('code') code: string,
+    @Body() body: Parameters<AdminService['updatePlanDefinition']>[1],
+  ) {
+    return this.admin.updatePlanDefinition(code, body);
+  }
+
+  @Delete('plans/:code')
+  @UseGuards(JwtAuthGuard, PlatformAdminGuard)
+  @ApiBearerAuth()
+  deletePlan(@Param('code') code: string) {
+    return this.admin.deletePlanDefinition(code);
   }
 
   @Get('visits')

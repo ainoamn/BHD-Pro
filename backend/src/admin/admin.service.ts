@@ -1,7 +1,8 @@
 import { Injectable, NotFoundException, BadRequestException, OnModuleInit } from '@nestjs/common';
-import { Plan, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { PLAN_DETAILS } from '../subscriptions/subscriptions.service';
+import { PLAN_DETAILS } from '../common/plan-features';
+import { PlanCatalogService } from '../subscriptions/plan-catalog.service';
 import {
   getBootstrapAdminEmails,
   isBootstrapAdminEmail,
@@ -26,7 +27,10 @@ export class AdminService implements OnModuleInit {
       }
     | null = null;
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private planCatalog: PlanCatalogService,
+  ) {}
 
   async onModuleInit() {
     for (const email of getBootstrapAdminEmails()) {
@@ -212,10 +216,10 @@ export class AdminService implements OnModuleInit {
       return this.publicLogosCache.data;
     }
 
-    const planRank: Record<Plan, number> = {
-      [Plan.ENTERPRISE]: 3,
-      [Plan.PROFESSIONAL]: 2,
-      [Plan.STARTER]: 1,
+    const planRank: Record<string, number> = {
+      ENTERPRISE: 3,
+      PROFESSIONAL: 2,
+      STARTER: 1,
     };
 
     const rows = await this.prisma.company.findMany({
@@ -510,7 +514,15 @@ export class AdminService implements OnModuleInit {
         byPlan: planGroups.map((g) => ({
           plan: g.plan,
           count: g._count,
-          ...PLAN_DETAILS[g.plan],
+          ...(PLAN_DETAILS[g.plan] || {
+            nameAr: g.plan,
+            nameEn: g.plan,
+            monthlyPrice: 0,
+            yearlyPrice: 0,
+            invoicesLimit: 50,
+            usersLimit: 2,
+            support: 'email',
+          }),
         })),
         revenueTotalOmr: Number(subPaid._sum.amount || 0),
         paidInvoices: subPaid._count,
@@ -518,15 +530,11 @@ export class AdminService implements OnModuleInit {
         revenueThisMonthOmr: Number(paidThisMonth._sum.amount || 0),
         paidThisMonth: paidThisMonth._count,
       },
-      plansCatalog: Object.entries(PLAN_DETAILS).map(([id, d]) => ({
-        id,
-        ...d,
-        currency: 'OMR',
-      })),
+      plansCatalog: await this.planCatalog.listAll(true),
     };
   }
 
-  async listTenants(q?: string, plan?: Plan, active?: boolean) {
+  async listTenants(q?: string, plan?: string, active?: boolean) {
     const where: Prisma.CompanyWhereInput = { deletedAt: null };
     if (plan) where.plan = plan;
     if (active !== undefined) where.isActive = active;
@@ -578,8 +586,17 @@ export class AdminService implements OnModuleInit {
       activeByCompany.map((r) => [r.companyId, r._count._all]),
     );
 
+    const catalog = await this.planCatalog.listAll(true);
+    const byCode = new Map(catalog.map((p) => [p.code, p]));
+
     return rows.map((c) => {
-      const planDetails = PLAN_DETAILS[c.plan];
+      const fromDb = byCode.get(c.plan);
+      const planDetails = fromDb
+        ? {
+            usersLimit: fromDb.usersLimit,
+            invoicesLimit: fromDb.invoicesLimit,
+          }
+        : PLAN_DETAILS[c.plan] || PLAN_DETAILS.STARTER;
       const usersLimit =
         c.usersLimitOverride != null ? c.usersLimitOverride : planDetails.usersLimit;
       const invoicesLimit =
@@ -656,7 +673,7 @@ export class AdminService implements OnModuleInit {
       },
     });
     if (!c) throw new NotFoundException('Company not found');
-    const planDetails = PLAN_DETAILS[c.plan];
+    const planDetails = await this.planCatalog.detailsFor(c.plan);
     return {
       ...c,
       usersLimit:
@@ -673,7 +690,7 @@ export class AdminService implements OnModuleInit {
     id: string,
     data: {
       isActive?: boolean;
-      plan?: Plan;
+      plan?: string;
       planExpiry?: string | null;
       planStartedAt?: string | null;
       name?: string;
@@ -757,7 +774,7 @@ export class AdminService implements OnModuleInit {
       orderBy: { createdAt: 'desc' },
       take: 30,
     });
-    const planDetails = PLAN_DETAILS[u.company.plan];
+    const planDetails = await this.planCatalog.detailsFor(u.company.plan);
     return {
       id: u.id,
       name: u.name,
@@ -869,7 +886,7 @@ export class AdminService implements OnModuleInit {
   }
 
   async createOffer(data: {
-    plan: Plan;
+    plan: string;
     nameAr: string;
     nameEn: string;
     discountPct?: number;
@@ -942,6 +959,68 @@ export class AdminService implements OnModuleInit {
       throw new NotFoundException('Offer not found');
     });
     return { ok: true };
+  }
+
+  async listPlanDefinitions() {
+    return this.planCatalog.listAll(true);
+  }
+
+  async createPlanDefinition(body: {
+    code: string;
+    nameAr: string;
+    nameEn: string;
+    monthlyPrice: number;
+    yearlyPrice: number;
+    invoicesLimit: number;
+    usersLimit: number;
+    support?: string;
+    features?: Record<string, boolean>;
+    isActive?: boolean;
+    sortOrder?: number;
+  }) {
+    try {
+      return await this.planCatalog.create(body);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Could not create plan';
+      if (msg.includes('Unique') || msg.toLowerCase().includes('unique')) {
+        throw new BadRequestException('Plan code already exists');
+      }
+      throw new BadRequestException(msg);
+    }
+  }
+
+  async updatePlanDefinition(
+    code: string,
+    body: Partial<{
+      nameAr: string;
+      nameEn: string;
+      monthlyPrice: number;
+      yearlyPrice: number;
+      invoicesLimit: number;
+      usersLimit: number;
+      support: string;
+      features: Record<string, boolean>;
+      isActive: boolean;
+      sortOrder: number;
+    }>,
+  ) {
+    try {
+      return await this.planCatalog.update(code, body);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Could not update plan';
+      if (msg === 'Plan not found') throw new NotFoundException(msg);
+      throw new BadRequestException(msg);
+    }
+  }
+
+  async deletePlanDefinition(code: string) {
+    try {
+      return await this.planCatalog.remove(code);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Could not delete plan';
+      if (msg === 'Plan not found') throw new NotFoundException(msg);
+      throw new BadRequestException(msg);
+    }
   }
 
   async listVisits(limit = 100) {

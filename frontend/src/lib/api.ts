@@ -566,6 +566,22 @@ class ApiClient {
     return this.delete(`/admin/offers/${id}`);
   }
 
+  getAdminPlans() {
+    return this.get('/admin/plans');
+  }
+
+  createAdminPlan(data: unknown) {
+    return this.post('/admin/plans', data);
+  }
+
+  updateAdminPlan(code: string, data: unknown) {
+    return this.patch(`/admin/plans/${encodeURIComponent(code)}`, data);
+  }
+
+  deleteAdminPlan(code: string) {
+    return this.delete(`/admin/plans/${encodeURIComponent(code)}`);
+  }
+
   getAdminVisits(limit?: number) {
     return this.get(`/admin/visits${limit ? `?limit=${limit}` : ''}`);
   }

@@ -5,7 +5,7 @@ import * as bcrypt from 'bcrypt';
 import { OAuth2Client } from 'google-auth-library';
 
 import { PrismaService } from '../prisma/prisma.service';
-import { AccountCategory, AccountType, Plan } from '@prisma/client';
+import { AccountCategory, AccountType } from '@prisma/client';
 import { ensureDefaultCostCentersAndProjects } from '../erp/default-analytics.seed';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -250,7 +250,7 @@ export class AuthService {
     const company = await this.prisma.company.create({
       data: {
         name: dto.companyName,
-        plan: Plan.STARTER,
+        plan: 'STARTER',
         currency: 'OMR',
         language: 'ar',
         country: 'OM',
@@ -384,7 +384,7 @@ export class AuthService {
       data: {
         name: (companyName || `شركة ${name}`).trim(),
         email,
-        plan: Plan.STARTER,
+        plan: 'STARTER',
         currency: 'OMR',
         language: 'ar',
         country: 'OM',

@@ -1,5 +1,5 @@
-import { IsBoolean, IsEnum, IsObject, IsOptional, IsString } from 'class-validator';
-import { PaymentGatewaySlug, Plan } from '@prisma/client';
+import { IsBoolean, IsEnum, IsObject, IsOptional, IsString, IsIn } from 'class-validator';
+import { PaymentGatewaySlug } from '@prisma/client';
 
 export class UpdateCompanyGatewayDto {
   @IsOptional()
@@ -16,13 +16,13 @@ export class UpdateCompanyGatewayDto {
 }
 
 export class CreateSubscriptionCheckoutDto {
-  @IsEnum(Plan)
-  plan: Plan;
-
   @IsString()
+  plan: string;
+
+  @IsIn(['monthly', 'yearly'])
   billing: 'monthly' | 'yearly';
 
-  @IsEnum(PaymentGatewaySlug)
+  @IsString()
   gatewaySlug: PaymentGatewaySlug;
 
   @IsOptional()

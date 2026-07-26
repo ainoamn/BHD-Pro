@@ -4,12 +4,11 @@ import { SubscriptionsService } from './subscriptions.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
-import { Plan } from '@prisma/client';
-import { IsEnum, IsIn } from 'class-validator';
+import { IsIn, IsString } from 'class-validator';
 
 class UpgradePlanDto {
-  @IsEnum(Plan)
-  plan: Plan;
+  @IsString()
+  plan: string;
 
   @IsIn(['monthly', 'yearly'])
   billing: 'monthly' | 'yearly';
