@@ -1,16 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { Suspense } from "react";
 import toast from "react-hot-toast";
 import {
+  Building2,
   KeyRound,
   Loader2,
   Power,
   RefreshCw,
   Save,
+  Search,
   Trash2,
+  UserRound,
+  X,
 } from "lucide-react";
 import api from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
@@ -71,13 +74,6 @@ type UserDetail = {
     userAgent: string | null;
     createdAt: string;
   }[];
-  auditLogs: {
-    id: string;
-    action: string;
-    entity: string;
-    ipAddress: string | null;
-    createdAt: string;
-  }[];
   subscriptionPayments: {
     id: string;
     number: string;
@@ -102,12 +98,17 @@ const ROLES = [
   "VIEWER",
 ] as const;
 
+type Tab = "plan" | "payments" | "sessions";
+
 function fmt(d?: string | null, en?: boolean) {
   if (!d) return "—";
-  return new Date(d).toLocaleString(en ? "en-GB" : "ar");
+  return new Date(d).toLocaleString(en ? "en-GB" : "ar", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
 }
 
-function roleBadgeClass(role: string) {
+function roleTone(role: string) {
   switch (role) {
     case "ADMIN":
       return "bg-violet-100 text-violet-800";
@@ -115,17 +116,14 @@ function roleBadgeClass(role: string) {
     case "RESTO_MANAGER":
       return "bg-sky-100 text-sky-800";
     case "ACCOUNTANT":
-      return "bg-teal-100 text-teal-800";
+      return "bg-emerald-100 text-emerald-800";
     case "CASHIER":
       return "bg-amber-100 text-amber-900";
     case "WAITER":
-      return "bg-orange-100 text-orange-800";
     case "KITCHEN":
-      return "bg-rose-100 text-rose-800";
-    case "VIEWER":
-      return "bg-slate-100 text-slate-700";
+      return "bg-orange-100 text-orange-900";
     default:
-      return "bg-slate-100 text-slate-600";
+      return "bg-slate-100 text-slate-700";
   }
 }
 
@@ -135,6 +133,11 @@ function errMsg(err: unknown, fallback: string) {
       ?.message || fallback
   );
 }
+
+const field =
+  "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-600/25 focus:border-teal-600";
+const select =
+  "rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-700";
 
 function UsersInner() {
   const locale = useLocaleStore((s) => s.locale);
@@ -152,6 +155,7 @@ function UsersInner() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [detail, setDetail] = useState<UserDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [tab, setTab] = useState<Tab>("plan");
   const [planCodes, setPlanCodes] = useState<string[]>([
     "STARTER",
     "PROFESSIONAL",
@@ -203,6 +207,7 @@ function UsersInner() {
 
   const openDetail = async (id: string) => {
     setDetailLoading(true);
+    setTab("plan");
     try {
       const res = await api.getAdminUser(id);
       const d = res.data as UserDetail;
@@ -271,9 +276,7 @@ function UsersInner() {
     try {
       await api.updateAdminUser(u.id, { isActive: !u.isActive });
       setRows((prev) =>
-        prev.map((r) =>
-          r.id === u.id ? { ...r, isActive: !u.isActive } : r,
-        ),
+        prev.map((r) => (r.id === u.id ? { ...r, isActive: !u.isActive } : r)),
       );
       if (detail?.id === u.id) {
         setDetail({ ...detail, isActive: !u.isActive });
@@ -320,15 +323,12 @@ function UsersInner() {
         emailSent?: boolean;
         temporaryPassword?: string;
       };
-      if (data.emailSent) {
-        toast.success(t.passwordSent);
-      } else if (data.temporaryPassword) {
+      if (data.emailSent) toast.success(t.passwordSent);
+      else if (data.temporaryPassword) {
         toast.success(`${t.tempPassword}: ${data.temporaryPassword}`, {
           duration: 12000,
         });
-      } else {
-        toast.success(en ? "Password reset" : "تمت إعادة التعيين");
-      }
+      } else toast.success(en ? "Password reset" : "تمت إعادة التعيين");
     } catch (err: unknown) {
       toast.error(errMsg(err, en ? "Reset failed" : "تعذر إعادة التعيين"));
     } finally {
@@ -336,18 +336,27 @@ function UsersInner() {
     }
   };
 
-  const selectClass =
-    "rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm min-w-[8.5rem]";
-
   return (
     <div className="space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-teal-950">
             {t.users}
           </h1>
-          <p className="text-sm text-slate-500 mt-1">{t.usersHint}</p>
+          <p className="text-sm text-slate-500 mt-1">
+            {en
+              ? "Select a user to manage plan, discount, payments, and sessions."
+              : "اختر مستخدمًا لإدارة الباقة والتخفيض والمدفوعات والجلسات."}
+          </p>
         </div>
+        <button
+          type="button"
+          onClick={() => void load()}
+          className="inline-flex items-center gap-1.5 self-start rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50"
+        >
+          <RefreshCw className={cn("w-3.5 h-3.5", loading && "animate-spin")} />
+          {t.refresh}
+        </button>
       </div>
 
       <form
@@ -357,18 +366,16 @@ function UsersInner() {
           setAppliedQ(q.trim());
         }}
       >
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder={t.search}
-          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm w-full sm:w-52 grow sm:grow-0"
-        />
-        <select
-          value={role}
-          onChange={(e) => setRole(e.target.value)}
-          className={selectClass}
-          aria-label={t.role}
-        >
+        <div className="relative grow min-w-[12rem] max-w-xs">
+          <Search className="absolute start-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder={t.search}
+            className={cn(field, "ps-8")}
+          />
+        </div>
+        <select value={role} onChange={(e) => setRole(e.target.value)} className={select}>
           <option value="">{t.allRoles}</option>
           {ROLES.map((r) => (
             <option key={r} value={r}>
@@ -376,12 +383,7 @@ function UsersInner() {
             </option>
           ))}
         </select>
-        <select
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
-          className={selectClass}
-          aria-label={t.status}
-        >
+        <select value={status} onChange={(e) => setStatus(e.target.value)} className={select}>
           <option value="">{t.allStatuses}</option>
           <option value="true">{t.active}</option>
           <option value="false">{t.inactive}</option>
@@ -389,8 +391,7 @@ function UsersInner() {
         <select
           value={planFilter}
           onChange={(e) => setPlanFilter(e.target.value)}
-          className={selectClass}
-          aria-label={t.plan}
+          className={select}
         >
           <option value="">{t.allPlans}</option>
           {planCodes.map((c) => (
@@ -399,12 +400,7 @@ function UsersInner() {
             </option>
           ))}
         </select>
-        <select
-          value={sort}
-          onChange={(e) => setSort(e.target.value)}
-          className={selectClass}
-          aria-label={en ? "Sort" : "ترتيب"}
-        >
+        <select value={sort} onChange={(e) => setSort(e.target.value)} className={select}>
           <option value="createdAt_desc">{t.sortNewest}</option>
           <option value="createdAt_asc">{t.sortOldest}</option>
           <option value="name_asc">{t.sortName}</option>
@@ -412,384 +408,469 @@ function UsersInner() {
         </select>
         <button
           type="submit"
-          className="rounded-xl bg-teal-700 text-white px-4 py-2 text-sm font-bold"
+          className="rounded-xl bg-teal-700 hover:bg-teal-800 text-white px-4 py-2 text-xs font-bold"
         >
           {t.search}
         </button>
-        <button
-          type="button"
-          onClick={() => void load()}
-          className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
-        >
-          <RefreshCw className={cn("w-3.5 h-3.5", loading && "animate-spin")} />
-          {t.refresh}
-        </button>
       </form>
 
-      <div
-        className={cn(
-          "overflow-x-auto rounded-2xl border border-slate-200 bg-white transition-opacity",
-          loading && rows.length > 0 && "opacity-60",
-        )}
-      >
-        <table className="w-full text-sm min-w-[980px]">
-          <thead className="bg-slate-50 text-slate-500 text-xs">
-            <tr>
-              <th className="text-start p-3">{t.users}</th>
-              <th className="text-start p-3">{t.role}</th>
-              <th className="text-start p-3">{t.company}</th>
-              <th className="text-start p-3">{t.plan}</th>
-              <th className="text-start p-3">
-                {en ? "Last login" : "آخر دخول"}
-              </th>
-              <th className="text-start p-3">{t.status}</th>
-              <th className="text-start p-3" />
-            </tr>
-          </thead>
-          <tbody>
-            {loading && rows.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="p-8 text-center text-slate-500">
-                  <Loader2 className="w-5 h-5 animate-spin inline-block me-2" />
-                  {t.loading}
-                </td>
-              </tr>
-            ) : rows.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="p-8 text-center text-slate-500">
-                  {t.empty}
-                </td>
-              </tr>
-            ) : (
-              rows.map((u) => {
-                const protectedOwner = !!u.isProtected;
+      <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(18rem,24rem)] gap-4 items-start">
+        <div
+          className={cn(
+            "rounded-2xl border border-slate-200 bg-white overflow-hidden",
+            loading && rows.length > 0 && "opacity-70",
+          )}
+        >
+          {loading && rows.length === 0 ? (
+            <div className="p-12 text-center text-slate-500 text-sm">
+              <Loader2 className="w-5 h-5 animate-spin inline-block me-2 text-teal-700" />
+              {t.loading}
+            </div>
+          ) : rows.length === 0 ? (
+            <div className="p-12 text-center text-slate-400 text-sm">{t.empty}</div>
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {rows.map((u) => {
+                const selected = detail?.id === u.id;
                 const busy = busyId === u.id;
                 return (
-                  <tr
-                    key={u.id}
-                    className={cn(
-                      "border-t border-slate-100",
-                      !u.isActive && "bg-amber-50/40",
-                    )}
-                  >
-                    <td className="p-3">
-                      <div className="font-bold flex items-center gap-2 flex-wrap">
-                        {u.name}
-                        {protectedOwner && (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-violet-100 text-violet-800">
-                            {t.ownerLocked}
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-xs text-slate-500">{u.email}</div>
-                    </td>
-                    <td className="p-3">
-                      <span
-                        className={cn(
-                          "inline-block text-[11px] font-bold px-2 py-0.5 rounded-md",
-                          roleBadgeClass(u.role),
-                        )}
-                      >
-                        {u.role}
-                      </span>
-                    </td>
-                    <td className="p-3">
-                      {u.company.name}
-                      <div className="text-[11px] text-slate-400">
-                        {[u.company.city, u.company.country]
-                          .filter(Boolean)
-                          .join(", ")}
-                      </div>
-                    </td>
-                    <td className="p-3 font-semibold">{u.company.plan}</td>
-                    <td className="p-3 text-xs text-slate-600">
-                      {fmt(u.lastLoginAt, en)}
-                    </td>
-                    <td className="p-3">
-                      <span
-                        className={cn(
-                          "text-xs font-bold",
-                          u.isActive ? "text-teal-700" : "text-rose-600",
-                        )}
-                      >
-                        {u.isActive ? t.active : t.inactive}
-                      </span>
-                    </td>
-                    <td className="p-3">
-                      <div className="flex flex-wrap items-center gap-1.5 justify-end">
-                        <button
-                          type="button"
-                          disabled={detailLoading}
-                          onClick={() => void openDetail(u.id)}
-                          className="text-xs font-bold text-teal-800 hover:underline px-1.5"
-                        >
-                          {t.details}
-                        </button>
-                        {!protectedOwner && (
-                          <>
-                            <button
-                              type="button"
-                              disabled={busy}
-                              title={u.isActive ? t.deactivate : t.activate}
-                              onClick={() => void toggleActive(u)}
-                              className="inline-flex items-center justify-center rounded-lg border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-50 disabled:opacity-40"
-                            >
-                              {busy ? (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              ) : (
-                                <Power className="w-3.5 h-3.5" />
+                  <li key={u.id}>
+                    <button
+                      type="button"
+                      onClick={() => void openDetail(u.id)}
+                      className={cn(
+                        "w-full text-start px-4 py-3.5 transition-colors",
+                        selected
+                          ? "bg-teal-50 border-s-[3px] border-teal-700"
+                          : "hover:bg-slate-50 border-s-[3px] border-transparent",
+                        !u.isActive && "opacity-70",
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-teal-950 truncate">
+                              {u.name}
+                            </span>
+                            {u.isProtected ? (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-800">
+                                {en ? "Owner" : "مالك"}
+                              </span>
+                            ) : null}
+                            {!u.isActive ? (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-800">
+                                {t.inactive}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                                {t.active}
+                              </span>
+                            )}
+                          </div>
+                          <p
+                            className="text-xs text-slate-500 font-mono truncate mt-0.5"
+                            dir="ltr"
+                          >
+                            {u.email}
+                          </p>
+                          <div className="flex flex-wrap items-center gap-2 mt-2">
+                            <span
+                              className={cn(
+                                "text-[10px] font-bold px-1.5 py-0.5 rounded-full",
+                                roleTone(u.role),
                               )}
-                            </button>
-                            <button
-                              type="button"
-                              disabled={busy}
-                              title={t.resetPassword}
-                              onClick={() => void resetPassword(u)}
-                              className="inline-flex items-center justify-center rounded-lg border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-50 disabled:opacity-40"
                             >
-                              <KeyRound className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              disabled={busy}
-                              title={t.delete}
-                              onClick={() => void deleteUser(u)}
-                              className="inline-flex items-center justify-center rounded-lg border border-rose-200 p-1.5 text-rose-700 hover:bg-rose-50 disabled:opacity-40"
+                              {u.role}
+                            </span>
+                            <span className="text-[11px] text-slate-500 flex items-center gap-1">
+                              <Building2 className="w-3 h-3" />
+                              {u.company.name}
+                            </span>
+                            <span className="text-[11px] font-bold text-teal-800">
+                              {u.company.plan}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-end shrink-0">
+                          <p className="text-[10px] text-slate-400">
+                            {en ? "Last login" : "آخر دخول"}
+                          </p>
+                          <p className="text-[11px] text-slate-600 mt-0.5">
+                            {fmt(u.lastLoginAt, en)}
+                          </p>
+                          {!u.isProtected ? (
+                            <div
+                              className="flex gap-0.5 mt-2 justify-end"
+                              onClick={(e) => e.stopPropagation()}
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </>
-                        )}
+                              <button
+                                type="button"
+                                disabled={busy}
+                                title={u.isActive ? t.deactivate : t.activate}
+                                onClick={() => void toggleActive(u)}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-teal-800 hover:bg-teal-50 disabled:opacity-40"
+                              >
+                                {busy ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <Power className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                              <button
+                                type="button"
+                                disabled={busy}
+                                title={t.resetPassword}
+                                onClick={() => void resetPassword(u)}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-teal-800 hover:bg-teal-50 disabled:opacity-40"
+                              >
+                                <KeyRound className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                disabled={busy}
+                                title={t.delete}
+                                onClick={() => void deleteUser(u)}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-700 hover:bg-rose-50 disabled:opacity-40"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
                       </div>
-                    </td>
-                  </tr>
+                    </button>
+                  </li>
                 );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {detailLoading && !detail ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/20">
-          <Loader2 className="w-7 h-7 animate-spin text-teal-700" />
+              })}
+            </ul>
+          )}
         </div>
-      ) : null}
-      {detail && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <button
-            type="button"
-            className="absolute inset-0 bg-slate-900/40"
-            onClick={() => setDetail(null)}
-          />
-          <div className="relative w-full sm:max-w-2xl bg-white rounded-t-2xl sm:rounded-2xl p-5 space-y-4 max-h-[92vh] overflow-y-auto">
-            <div className="flex justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-extrabold">{detail.name}</h2>
-                <p className="text-sm text-slate-500">{detail.email}</p>
-                <p className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-2 flex-wrap">
-                  <span
-                    className={cn(
-                      "inline-block text-[11px] font-bold px-2 py-0.5 rounded-md",
-                      roleBadgeClass(detail.role),
-                    )}
-                  >
-                    {detail.role}
-                  </span>
-                  <span>{detail.googleLinked ? "Google" : "password"}</span>
-                </p>
+
+        <aside className="lg:sticky lg:top-4 rounded-2xl border border-slate-200 bg-white min-h-[26rem] overflow-hidden shadow-sm">
+          {detailLoading && !detail ? (
+            <div className="flex items-center justify-center h-64 text-slate-400">
+              <Loader2 className="w-6 h-6 animate-spin text-teal-700" />
+            </div>
+          ) : !detail ? (
+            <div className="flex flex-col items-center justify-center h-64 px-6 text-center">
+              <div className="w-12 h-12 rounded-2xl bg-teal-50 border border-teal-100 flex items-center justify-center text-teal-700">
+                <UserRound className="w-5 h-5" />
               </div>
-              {detail.isProtected ? (
-                <span className="text-xs font-bold h-fit px-3 py-1.5 rounded-lg bg-violet-100 text-violet-800">
-                  {t.ownerLocked}
-                </span>
-              ) : (
-                <div className="flex flex-wrap gap-1.5 h-fit justify-end">
+              <p className="text-sm text-slate-500 mt-3 leading-relaxed">
+                {en
+                  ? "Select a user from the list to open their profile here."
+                  : "اختر مستخدمًا من القائمة لفتح ملفه هنا."}
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col max-h-[min(78vh,40rem)]">
+              <div className="px-4 pt-4 pb-3 border-b border-slate-100 bg-[#f8faf9]">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <h2 className="font-extrabold text-teal-950 truncate">
+                      {detail.name}
+                    </h2>
+                    <p
+                      className="text-xs text-slate-500 font-mono truncate mt-0.5"
+                      dir="ltr"
+                    >
+                      {detail.email}
+                    </p>
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      <span
+                        className={cn(
+                          "text-[10px] font-bold px-1.5 py-0.5 rounded-full",
+                          roleTone(detail.role),
+                        )}
+                      >
+                        {detail.role}
+                      </span>
+                      {detail.isProtected ? (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-800">
+                          {t.ownerLocked}
+                        </span>
+                      ) : (
+                        <span
+                          className={cn(
+                            "text-[10px] font-bold px-1.5 py-0.5 rounded-full",
+                            detail.isActive
+                              ? "bg-emerald-100 text-emerald-800"
+                              : "bg-rose-100 text-rose-800",
+                          )}
+                        >
+                          {detail.isActive ? t.active : t.inactive}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-2 flex items-center gap-1">
+                      <Building2 className="w-3 h-3 shrink-0" />
+                      <span className="truncate">
+                        {detail.company.name}
+                        {detail.company.phone
+                          ? ` · ${detail.company.phone}`
+                          : ""}
+                      </span>
+                    </p>
+                  </div>
                   <button
                     type="button"
-                    disabled={busyId === detail.id}
-                    className="text-xs font-bold border rounded-lg px-3 py-1.5 inline-flex items-center gap-1"
-                    onClick={() => void toggleActive(detail)}
+                    onClick={() => setDetail(null)}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-white"
+                    aria-label="close"
                   >
-                    <Power className="w-3.5 h-3.5" />
-                    {detail.isActive ? t.deactivate : t.activate}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busyId === detail.id}
-                    className="text-xs font-bold border rounded-lg px-3 py-1.5 inline-flex items-center gap-1"
-                    onClick={() => void resetPassword(detail)}
-                  >
-                    <KeyRound className="w-3.5 h-3.5" />
-                    {t.resetPassword}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busyId === detail.id}
-                    className="text-xs font-bold border border-rose-200 text-rose-700 rounded-lg px-3 py-1.5 inline-flex items-center gap-1"
-                    onClick={() => void deleteUser(detail)}
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    {t.delete}
+                    <X className="w-4 h-4" />
                   </button>
                 </div>
-              )}
-            </div>
 
-            <div className="rounded-xl border border-teal-100 bg-teal-50/40 p-3 space-y-3">
-              <p className="text-xs font-extrabold text-teal-950">
-                {en
-                  ? "Company plan & permanent discount"
-                  : "باقة الشركة والتخفيض المستمر"}
-              </p>
-              <p className="text-[11px] text-slate-600">
-                {detail.company.name}
-                {detail.company.email ? ` · ${detail.company.email}` : ""}
-              </p>
-              <div className="grid sm:grid-cols-2 gap-3">
-                <label className="text-xs space-y-1">
-                  <span className="text-slate-500">{t.plan}</span>
-                  <select
-                    value={plan}
-                    onChange={(e) => setPlan(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
-                  >
-                    {planCodes.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                    {!planCodes.includes(plan) ? (
-                      <option value={plan}>{plan}</option>
-                    ) : null}
-                  </select>
-                </label>
-                <label className="text-xs space-y-1">
-                  <span className="text-slate-500">{t.expires}</span>
-                  <input
-                    type="date"
-                    value={planExpiry}
-                    onChange={(e) => setPlanExpiry(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
-                  />
-                </label>
-                <label className="text-xs space-y-1">
-                  <span className="text-slate-500">{t.usersLimit} (-1 = ∞)</span>
-                  <input
-                    value={usersLimit}
-                    onChange={(e) => setUsersLimit(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
-                  />
-                </label>
-                <label className="text-xs space-y-1">
-                  <span className="text-slate-500">
-                    {t.invoicesLimit} (-1 = ∞)
-                  </span>
-                  <input
-                    value={invoicesLimit}
-                    onChange={(e) => setInvoicesLimit(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
-                  />
-                </label>
-                <label className="text-xs space-y-1">
-                  <span className="text-slate-500">{t.permanentDiscount}</span>
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    step={0.01}
-                    value={discountPct}
-                    onChange={(e) => setDiscountPct(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
-                  />
-                </label>
-                <label className="text-xs space-y-1">
-                  <span className="text-slate-500">{t.permanentDiscountNote}</span>
-                  <input
-                    value={discountNote}
-                    onChange={(e) => setDiscountNote(e.target.value)}
-                    placeholder={
-                      en ? "Family / early / staff…" : "عائلة / مشترك أول / شركتي…"
-                    }
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
-                  />
-                </label>
-              </div>
-              <button
-                type="button"
-                disabled={saving}
-                onClick={() => void saveCompany()}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-teal-700 text-white px-4 py-2.5 text-sm font-bold disabled:opacity-50"
-              >
-                {saving ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Save className="w-4 h-4" />
-                )}
-                {en ? "Save plan & discount" : "حفظ الباقة والتخفيض"}
-              </button>
-            </div>
-
-            <div>
-              <h3 className="font-bold mb-2">{t.payments}</h3>
-              <div className="space-y-2">
-                {detail.subscriptionPayments.length === 0 && (
-                  <p className="text-sm text-slate-500">{t.empty}</p>
-                )}
-                {detail.subscriptionPayments.map((p) => (
-                  <div
-                    key={p.id}
-                    className="rounded-xl border border-slate-100 p-3 text-sm flex justify-between gap-3"
-                  >
-                    <div>
-                      <p className="font-semibold">{p.number}</p>
-                      <p className="text-xs text-slate-500">{p.description}</p>
-                      <p className="text-[11px] text-slate-400">
-                        {fmt(p.paidAt || p.createdAt, en)}
-                      </p>
-                    </div>
-                    <div className="text-end">
-                      <p className="font-bold">
-                        {Number(p.amount).toFixed(3)} {p.currency}
-                      </p>
-                      <p className="text-xs">{p.status}</p>
-                      <p className="text-[11px] text-slate-400">
-                        {p.gatewaySlug || "—"}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <h3 className="font-bold mb-2">{t.sessions}</h3>
-              <div className="space-y-1 max-h-40 overflow-y-auto">
-                {detail.sessions.length === 0 ? (
-                  <p className="text-sm text-slate-500">—</p>
-                ) : (
-                  detail.sessions.map((s) => (
-                    <div
-                      key={s.id}
-                      className="text-xs flex justify-between gap-2 border-b border-slate-50 py-1.5"
+                {!detail.isProtected ? (
+                  <div className="flex flex-wrap gap-1.5 mt-3">
+                    <button
+                      type="button"
+                      disabled={busyId === detail.id}
+                      onClick={() => void toggleActive(detail)}
+                      className="text-[11px] font-bold px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 inline-flex items-center gap-1"
                     >
-                      <span className="font-mono">{s.ipAddress || "—"}</span>
-                      <span className="text-slate-500">{fmt(s.createdAt, en)}</span>
+                      <Power className="w-3 h-3" />
+                      {detail.isActive ? t.deactivate : t.activate}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busyId === detail.id}
+                      onClick={() => void resetPassword(detail)}
+                      className="text-[11px] font-bold px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 inline-flex items-center gap-1"
+                    >
+                      <KeyRound className="w-3 h-3" />
+                      {t.resetPassword}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busyId === detail.id}
+                      onClick={() => void deleteUser(detail)}
+                      className="text-[11px] font-bold px-2.5 py-1.5 rounded-lg border border-rose-200 bg-white text-rose-700 hover:bg-rose-50 inline-flex items-center gap-1"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      {t.delete}
+                    </button>
+                  </div>
+                ) : null}
+
+                <div className="flex gap-1 mt-3 p-1 rounded-xl bg-white border border-slate-200">
+                  {(
+                    [
+                      ["plan", en ? "Plan" : "الباقة"],
+                      ["payments", t.payments],
+                      ["sessions", t.sessions],
+                    ] as const
+                  ).map(([id, label]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setTab(id)}
+                      className={cn(
+                        "flex-1 text-[11px] font-bold py-1.5 rounded-lg transition-colors",
+                        tab === id
+                          ? "bg-teal-700 text-white"
+                          : "text-slate-500 hover:text-teal-900 hover:bg-teal-50",
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                {tab === "plan" ? (
+                  <>
+                    <p className="text-[11px] text-slate-500">
+                      {en
+                        ? "Company subscription linked to this account"
+                        : "اشتراك الشركة المرتبطة بهذا الحساب"}
+                    </p>
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <label className="space-y-1 col-span-2 sm:col-span-1">
+                        <span className="text-[10px] font-bold text-slate-500">
+                          {t.plan}
+                        </span>
+                        <select
+                          value={plan}
+                          onChange={(e) => setPlan(e.target.value)}
+                          className={field}
+                        >
+                          {planCodes.map((c) => (
+                            <option key={c} value={c}>
+                              {c}
+                            </option>
+                          ))}
+                          {!planCodes.includes(plan) ? (
+                            <option value={plan}>{plan}</option>
+                          ) : null}
+                        </select>
+                      </label>
+                      <label className="space-y-1">
+                        <span className="text-[10px] font-bold text-slate-500">
+                          {t.expires}
+                        </span>
+                        <input
+                          type="date"
+                          value={planExpiry}
+                          onChange={(e) => setPlanExpiry(e.target.value)}
+                          className={field}
+                        />
+                      </label>
+                      <label className="space-y-1">
+                        <span className="text-[10px] font-bold text-slate-500">
+                          {t.usersLimit}
+                        </span>
+                        <input
+                          value={usersLimit}
+                          onChange={(e) => setUsersLimit(e.target.value)}
+                          className={field}
+                        />
+                      </label>
+                      <label className="space-y-1">
+                        <span className="text-[10px] font-bold text-slate-500">
+                          {t.invoicesLimit}
+                        </span>
+                        <input
+                          value={invoicesLimit}
+                          onChange={(e) => setInvoicesLimit(e.target.value)}
+                          className={field}
+                        />
+                      </label>
+                      <label className="space-y-1">
+                        <span className="text-[10px] font-bold text-slate-500">
+                          {t.permanentDiscount}
+                        </span>
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          step={0.01}
+                          value={discountPct}
+                          onChange={(e) => setDiscountPct(e.target.value)}
+                          className={field}
+                        />
+                      </label>
+                      <label className="space-y-1 col-span-2">
+                        <span className="text-[10px] font-bold text-slate-500">
+                          {t.permanentDiscountNote}
+                        </span>
+                        <input
+                          value={discountNote}
+                          onChange={(e) => setDiscountNote(e.target.value)}
+                          placeholder={
+                            en
+                              ? "Family / early / staff…"
+                              : "عائلة / مشترك أول / شركتي…"
+                          }
+                          className={field}
+                        />
+                      </label>
                     </div>
-                  ))
-                )}
+                    <button
+                      type="button"
+                      disabled={saving}
+                      onClick={() => void saveCompany()}
+                      className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-teal-700 hover:bg-teal-800 text-white px-3 py-2.5 text-sm font-bold disabled:opacity-50"
+                    >
+                      {saving ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Save className="w-4 h-4" />
+                      )}
+                      {t.save}
+                    </button>
+                  </>
+                ) : null}
+
+                {tab === "payments" ? (
+                  detail.subscriptionPayments.length === 0 ? (
+                    <p className="text-sm text-slate-400 py-8 text-center">
+                      {t.empty}
+                    </p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {detail.subscriptionPayments.map((p) => (
+                        <li
+                          key={p.id}
+                          className="rounded-xl border border-slate-200 bg-[#f8faf9] px-3 py-2.5"
+                        >
+                          <div className="flex justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="text-xs font-bold text-slate-800 font-mono">
+                                {p.number}
+                              </p>
+                              <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                                {p.description}
+                              </p>
+                            </div>
+                            <div className="text-end shrink-0">
+                              <p className="text-sm font-bold text-teal-950">
+                                {Number(p.amount).toFixed(3)} {p.currency}
+                              </p>
+                              <p
+                                className={cn(
+                                  "text-[10px] font-bold mt-0.5",
+                                  p.status === "PAID"
+                                    ? "text-emerald-700"
+                                    : "text-amber-700",
+                                )}
+                              >
+                                {p.status}
+                              </p>
+                            </div>
+                          </div>
+                          <p className="text-[10px] text-slate-400 mt-1.5">
+                            {fmt(p.paidAt || p.createdAt, en)}
+                            {p.gatewaySlug ? ` · ${p.gatewaySlug}` : ""}
+                          </p>
+                        </li>
+                      ))}
+                    </ul>
+                  )
+                ) : null}
+
+                {tab === "sessions" ? (
+                  detail.sessions.length === 0 ? (
+                    <p className="text-sm text-slate-400 py-8 text-center">—</p>
+                  ) : (
+                    <ul className="divide-y divide-slate-100">
+                      {detail.sessions.map((s) => (
+                        <li
+                          key={s.id}
+                          className="flex justify-between gap-2 text-xs py-2.5"
+                        >
+                          <span className="font-mono text-slate-600" dir="ltr">
+                            {s.ipAddress || "—"}
+                          </span>
+                          <span className="text-slate-400">
+                            {fmt(s.createdAt, en)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )
+                ) : null}
               </div>
             </div>
-          </div>
-        </div>
-      )}
+          )}
+        </aside>
+      </div>
     </div>
   );
 }
 
 export default function AdminUsersPage() {
   return (
-    <Suspense fallback={<div className="text-sm text-slate-500">…</div>}>
+    <Suspense
+      fallback={
+        <div className="text-sm text-slate-500 flex items-center gap-2 py-10">
+          <Loader2 className="w-4 h-4 animate-spin text-teal-700" />
+          …
+        </div>
+      }
+    >
       <UsersInner />
     </Suspense>
   );
