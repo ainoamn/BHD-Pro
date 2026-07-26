@@ -33,6 +33,49 @@ export class AdminController {
     return this.admin.me(user.email);
   }
 
+  @Get('operators')
+  @UseGuards(JwtAuthGuard, PlatformAdminGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List platform operators' })
+  listOperators() {
+    return this.admin.listOperators();
+  }
+
+  @Post('operators')
+  @UseGuards(JwtAuthGuard, PlatformAdminGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Appoint a platform operator' })
+  appointOperator(
+    @CurrentUser() user: TokenPayload,
+    @Body()
+    body: { email: string; name?: string; permissions?: string[] },
+  ) {
+    return this.admin.appointOperator({
+      email: body.email,
+      name: body.name,
+      permissions: body.permissions,
+      createdBy: user.email,
+    });
+  }
+
+  @Patch('operators/:id')
+  @UseGuards(JwtAuthGuard, PlatformAdminGuard)
+  @ApiBearerAuth()
+  updateOperator(
+    @Param('id') id: string,
+    @Body()
+    body: { name?: string; permissions?: string[]; isActive?: boolean },
+  ) {
+    return this.admin.updateOperator(id, body);
+  }
+
+  @Delete('operators/:id')
+  @UseGuards(JwtAuthGuard, PlatformAdminGuard)
+  @ApiBearerAuth()
+  removeOperator(@Param('id') id: string) {
+    return this.admin.removeOperator(id);
+  }
+
   @Get('overview')
   @UseGuards(JwtAuthGuard, PlatformAdminGuard)
   @ApiBearerAuth()

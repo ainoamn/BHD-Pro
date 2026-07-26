@@ -582,8 +582,31 @@ class ApiClient {
     return this.get('/admin/payment-gateways');
   }
 
+  getAdminPaymentGateway(slug: string) {
+    return this.get(`/admin/payment-gateways/${encodeURIComponent(slug)}`);
+  }
+
   updateAdminPaymentGateway(slug: string, data: unknown) {
     return this.patch(`/admin/payment-gateways/${slug}`, data);
+  }
+
+  getAdminOperators() {
+    return this.get('/admin/operators');
+  }
+
+  appointAdminOperator(data: { email: string; name?: string; permissions?: string[] }) {
+    return this.post('/admin/operators', data);
+  }
+
+  updateAdminOperator(
+    id: string,
+    data: { name?: string; permissions?: string[]; isActive?: boolean },
+  ) {
+    return this.patch(`/admin/operators/${id}`, data);
+  }
+
+  removeAdminOperator(id: string) {
+    return this.delete(`/admin/operators/${id}`);
   }
 
   trackSiteVisit(data: { path: string; referrer?: string; country?: string; city?: string }) {

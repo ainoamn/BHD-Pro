@@ -200,6 +200,11 @@ export class PlatformGatewaysController {
     return this.platformGateways.listAllSafe();
   }
 
+  @Get(':slug')
+  getOne(@Param('slug') slug: PaymentGatewaySlug) {
+    return this.platformGateways.getBySlug(slug).then((g) => this.platformGateways.toSafeAdmin(g));
+  }
+
   @Patch(':slug')
   update(
     @Param('slug') slug: PaymentGatewaySlug,

@@ -4,10 +4,11 @@ import {
   ForbiddenException,
   Injectable,
 } from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service';
 
 /**
- * Bootstrap operators always allowed, plus any emails in PLATFORM_ADMIN_EMAILS.
- * Set PLATFORM_ADMIN_EMAILS on Render to add more operators.
+ * Bootstrap operators always allowed, plus PLATFORM_ADMIN_EMAILS,
+ * plus active rows in platform_operators (managed in /admin/operators).
  */
 const DEFAULT_PLATFORM_ADMINS = [
   'admin@bhd.om',
@@ -15,33 +16,70 @@ const DEFAULT_PLATFORM_ADMINS = [
   'ammar89555200@gmail.com',
 ];
 
-export function getPlatformAdminEmails(): string[] {
-  const fromEnv = (process.env.PLATFORM_ADMIN_EMAILS || '')
+export const PLATFORM_PERMISSIONS = [
+  'full',
+  'overview',
+  'tenants',
+  'users',
+  'billing',
+  'plans',
+  'visits',
+  'gateways',
+  'operators',
+] as const;
+
+export type PlatformPermission = (typeof PLATFORM_PERMISSIONS)[number];
+
+export function getEnvPlatformAdminEmails(): string[] {
+  return (process.env.PLATFORM_ADMIN_EMAILS || '')
     .split(',')
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
-
-  return Array.from(new Set([...DEFAULT_PLATFORM_ADMINS, ...fromEnv]));
 }
 
-export function isPlatformAdminEmail(email?: string | null): boolean {
+export function getBootstrapAdminEmails(): string[] {
+  return Array.from(
+    new Set([...DEFAULT_PLATFORM_ADMINS, ...getEnvPlatformAdminEmails()]),
+  );
+}
+
+export function isBootstrapAdminEmail(email?: string | null): boolean {
   if (!email) return false;
-  return getPlatformAdminEmails().includes(email.toLowerCase());
-}
-
-export function assertPlatformAdminEmail(email?: string | null): void {
-  if (!isPlatformAdminEmail(email)) {
-    throw new ForbiddenException(
-      'Not a platform administrator. Add your email to PLATFORM_ADMIN_EMAILS on the API host.',
-    );
-  }
+  return getBootstrapAdminEmails().includes(email.toLowerCase());
 }
 
 @Injectable()
 export class PlatformAdminGuard implements CanActivate {
-  canActivate(context: ExecutionContext): boolean {
+  constructor(private prisma: PrismaService) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest();
-    assertPlatformAdminEmail(req.user?.email);
-    return true;
+    const email = (req.user?.email as string | undefined)?.toLowerCase();
+    if (!email) {
+      throw new ForbiddenException('Not a platform administrator.');
+    }
+    if (isBootstrapAdminEmail(email)) return true;
+
+    const op = await this.prisma.platformOperator.findUnique({
+      where: { email },
+    });
+    if (op?.isActive) return true;
+
+    throw new ForbiddenException(
+      'Not a platform administrator. Appoint this email from /admin/operators.',
+    );
+  }
+}
+
+/** Sync check for bootstrap/env only — prefer AdminService.isPlatformAdmin for full check. */
+export function isPlatformAdminEmail(email?: string | null): boolean {
+  return isBootstrapAdminEmail(email);
+}
+
+export function assertPlatformAdminEmail(email?: string | null): void {
+  if (!isBootstrapAdminEmail(email)) {
+    throw new ForbiddenException(
+      'Not a platform administrator. Appoint this email from /admin/operators.',
+    );
   }
 }

@@ -3,10 +3,16 @@ import { PaymentsService } from './payments.service';
 import { CompanyGatewaysService } from './company-gateways.service';
 import { PlatformGatewaysService } from './platform-gateways.service';
 import { PaymentsController, PlatformGatewaysController } from './payments.controller';
+import { PlatformAdminGuard } from '../common/guards/platform-admin.guard';
 
 @Module({
   controllers: [PaymentsController, PlatformGatewaysController],
-  providers: [PaymentsService, CompanyGatewaysService, PlatformGatewaysService],
+  providers: [
+    PaymentsService,
+    CompanyGatewaysService,
+    PlatformGatewaysService,
+    PlatformAdminGuard,
+  ],
   exports: [PaymentsService, CompanyGatewaysService, PlatformGatewaysService],
 })
 export class PaymentsModule {}

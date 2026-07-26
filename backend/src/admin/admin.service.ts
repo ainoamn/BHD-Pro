@@ -1,11 +1,16 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, OnModuleInit } from '@nestjs/common';
 import { Plan, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PLAN_DETAILS } from '../subscriptions/subscriptions.service';
-import { isPlatformAdminEmail } from '../common/guards/platform-admin.guard';
+import {
+  getBootstrapAdminEmails,
+  isBootstrapAdminEmail,
+  PLATFORM_PERMISSIONS,
+  PlatformPermission,
+} from '../common/guards/platform-admin.guard';
 
 @Injectable()
-export class AdminService {
+export class AdminService implements OnModuleInit {
   private publicStatsCache:
     | { at: number; data: Awaited<ReturnType<AdminService['computePublicStats']>> }
     | null = null;
@@ -22,11 +27,127 @@ export class AdminService {
 
   constructor(private prisma: PrismaService) {}
 
-  me(email: string) {
+  async onModuleInit() {
+    for (const email of getBootstrapAdminEmails()) {
+      await this.prisma.platformOperator.upsert({
+        where: { email },
+        create: {
+          email,
+          name: email.split('@')[0],
+          permissions: ['full'],
+          isActive: true,
+          createdBy: 'bootstrap',
+        },
+        update: {},
+      });
+    }
+  }
+
+  async isPlatformAdmin(email?: string | null): Promise<boolean> {
+    if (!email) return false;
+    const normalized = email.toLowerCase();
+    if (isBootstrapAdminEmail(normalized)) return true;
+    const op = await this.prisma.platformOperator.findUnique({
+      where: { email: normalized },
+    });
+    return !!(op?.isActive);
+  }
+
+  async me(email: string) {
+    const normalized = email.toLowerCase();
+    const isPlatformAdmin = await this.isPlatformAdmin(normalized);
+    const op = await this.prisma.platformOperator.findUnique({
+      where: { email: normalized },
+    });
+    const permissions = isBootstrapAdminEmail(normalized)
+      ? (['full'] as PlatformPermission[])
+      : ((op?.permissions as PlatformPermission[]) || []);
     return {
-      isPlatformAdmin: isPlatformAdminEmail(email),
-      email,
+      isPlatformAdmin,
+      email: normalized,
+      permissions,
+      operatorId: op?.id ?? null,
     };
+  }
+
+  async listOperators() {
+    const rows = await this.prisma.platformOperator.findMany({
+      orderBy: { createdAt: 'asc' },
+    });
+    const bootstrap = new Set(getBootstrapAdminEmails());
+    return rows.map((r) => ({
+      ...r,
+      isBootstrap: bootstrap.has(r.email),
+      permissions: (r.permissions as string[]) || [],
+    }));
+  }
+
+  async appointOperator(opts: {
+    email: string;
+    name?: string;
+    permissions?: string[];
+    createdBy?: string;
+  }) {
+    const email = opts.email.trim().toLowerCase();
+    if (!email.includes('@')) {
+      throw new BadRequestException('Invalid email');
+    }
+    const perms = this.normalizePermissions(opts.permissions);
+    return this.prisma.platformOperator.upsert({
+      where: { email },
+      create: {
+        email,
+        name: opts.name?.trim() || email.split('@')[0],
+        permissions: perms,
+        isActive: true,
+        createdBy: opts.createdBy,
+      },
+      update: {
+        name: opts.name?.trim() || undefined,
+        permissions: perms,
+        isActive: true,
+      },
+    });
+  }
+
+  async updateOperator(
+    id: string,
+    data: { name?: string; permissions?: string[]; isActive?: boolean },
+  ) {
+    const existing = await this.prisma.platformOperator.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Operator not found');
+    if (isBootstrapAdminEmail(existing.email) && data.isActive === false) {
+      throw new BadRequestException('Cannot deactivate a bootstrap platform operator');
+    }
+    return this.prisma.platformOperator.update({
+      where: { id },
+      data: {
+        ...(data.name !== undefined && { name: data.name }),
+        ...(data.permissions !== undefined && {
+          permissions: this.normalizePermissions(data.permissions),
+        }),
+        ...(data.isActive !== undefined && { isActive: data.isActive }),
+      },
+    });
+  }
+
+  async removeOperator(id: string) {
+    const existing = await this.prisma.platformOperator.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Operator not found');
+    if (isBootstrapAdminEmail(existing.email)) {
+      throw new BadRequestException('Cannot remove a bootstrap platform operator');
+    }
+    await this.prisma.platformOperator.delete({ where: { id } });
+    return { ok: true };
+  }
+
+  private normalizePermissions(raw?: string[]): PlatformPermission[] {
+    if (!raw?.length) return ['full'];
+    const allowed = new Set<string>(PLATFORM_PERMISSIONS);
+    const next = Array.from(
+      new Set(raw.map((p) => p.trim().toLowerCase()).filter((p) => allowed.has(p))),
+    ) as PlatformPermission[];
+    return next.length ? next : ['full'];
   }
 
   /** Public marketing metrics for the landing page (cached ~60s). */

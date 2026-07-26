@@ -95,6 +95,14 @@ export function Sidebar() {
   const { user } = useAuthStore();
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [openAlerts, setOpenAlerts] = useState(0);
+  const [features, setFeatures] = useState<Record<string, boolean>>({
+    pos: true,
+    resto: true,
+    aiAnalytics: true,
+    apiKeys: true,
+    multiBranch: true,
+    advancedReports: true,
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -110,6 +118,23 @@ export function Sidebar() {
       cancelled = true;
     };
   }, [user?.email]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!user) return;
+    (async () => {
+      try {
+        const res = await api.getCurrentSubscription();
+        const f = (res.data as { features?: Record<string, boolean> })?.features;
+        if (!cancelled && f) setFeatures((prev) => ({ ...prev, ...f }));
+      } catch {
+        /* keep defaults until subscription loads */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -158,41 +183,61 @@ export function Sidebar() {
       </div>
 
       <div className="px-3 pt-3 shrink-0 space-y-2">
-        <Link
-          href="/pos"
-          onClick={() => {
-            closeMobile();
-          }}
-          className={cn(
-            "flex items-center gap-3 px-3 py-2.5 rounded-lg bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/20 hover:bg-sky-500/20 transition-all",
-            sidebarCollapsed && "justify-center px-2"
-          )}
-        >
-          <Store className="w-5 h-5 flex-shrink-0" />
-          {!sidebarCollapsed && (
-            <span className="text-sm font-bold">الكاشير / POS</span>
-          )}
-        </Link>
-        <Link
-          href="/resto"
-          onClick={() => {
-            closeMobile();
-          }}
-          className={cn(
-            "flex items-center gap-3 px-3 py-2.5 rounded-lg bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-500/20 hover:bg-amber-500/20 transition-all",
-            sidebarCollapsed && "justify-center px-2"
-          )}
-        >
-          <UtensilsCrossed className="w-5 h-5 flex-shrink-0" />
-          {!sidebarCollapsed && (
-            <span className="text-sm font-bold">المطاعم</span>
-          )}
-        </Link>
+        {features.pos !== false && (
+          <Link
+            href="/pos"
+            onClick={() => {
+              closeMobile();
+            }}
+            className={cn(
+              "flex items-center gap-3 px-3 py-2.5 rounded-lg bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/20 hover:bg-sky-500/20 transition-all",
+              sidebarCollapsed && "justify-center px-2"
+            )}
+          >
+            <Store className="w-5 h-5 flex-shrink-0" />
+            {!sidebarCollapsed && (
+              <span className="text-sm font-bold">الكاشير / POS</span>
+            )}
+          </Link>
+        )}
+        {features.resto !== false && (
+          <Link
+            href="/resto"
+            onClick={() => {
+              closeMobile();
+            }}
+            className={cn(
+              "flex items-center gap-3 px-3 py-2.5 rounded-lg bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-500/20 hover:bg-amber-500/20 transition-all",
+              sidebarCollapsed && "justify-center px-2"
+            )}
+          >
+            <UtensilsCrossed className="w-5 h-5 flex-shrink-0" />
+            {!sidebarCollapsed && (
+              <span className="text-sm font-bold">المطاعم</span>
+            )}
+          </Link>
+        )}
+        {features.pos === false && features.resto === false && !sidebarCollapsed && (
+          <Link
+            href="/subscription"
+            onClick={closeMobile}
+            className="block text-[11px] text-center text-amber-700 dark:text-amber-400/90 px-2 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20"
+          >
+            رقِّ الباقة لتفعيل الكاشير والمطاعم
+          </Link>
+        )}
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
         <nav className="px-3 py-4 space-y-1">
-          {navItems.map((item) => {
+          {navItems
+            .filter((item) => {
+              if (item.href === "/ai-analytics") return features.aiAnalytics !== false;
+              if (item.href === "/branches" || item.href === "/projects")
+                return features.multiBranch !== false;
+              return true;
+            })
+            .map((item) => {
             const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
             const Icon = item.icon;
             return (
@@ -241,7 +286,12 @@ export function Sidebar() {
               )}
             </Link>
           )}
-          {settingsItems.map((item) => {
+          {settingsItems
+            .filter((item) => {
+              if (item.href === "/api-keys") return features.apiKeys !== false;
+              return true;
+            })
+            .map((item) => {
             const isActive = pathname === item.href;
             const Icon = item.icon;
             return (

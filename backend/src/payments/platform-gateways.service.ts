@@ -154,9 +154,12 @@ export class PlatformGatewaysService implements OnModuleInit {
     const config = (gateway.configJson as Record<string, string>) || {};
     const meta = GATEWAY_META[gateway.slug as keyof typeof GATEWAY_META];
     const safeConfig: Record<string, string> = {};
+    let hasSecrets = false;
     for (const key of meta?.configKeys ?? []) {
       if (key.secret) {
-        safeConfig[key.key] = config[key.key] ? '••••••••' : '';
+        const present = !!config[key.key];
+        if (present) hasSecrets = true;
+        safeConfig[key.key] = present ? '••••••••' : '';
       } else {
         safeConfig[key.key] = config[key.key] ?? '';
       }
@@ -167,6 +170,8 @@ export class PlatformGatewaysService implements OnModuleInit {
       nameEn: gateway.nameEn,
       isEnabled: gateway.isEnabled,
       isTestMode: gateway.isTestMode,
+      online: meta?.online ?? false,
+      hasCredentials: hasSecrets || (meta && !meta.online),
       configJson: safeConfig,
       configKeys: meta?.configKeys ?? [],
     };

@@ -64,7 +64,10 @@ export class PaymentsService {
 
   async listPlatformGatewaysPublic() {
     const gateways = await this.platformGateways.listEnabled();
-    return gateways.map((g) => this.platformGateways.toPublic(g));
+    // Subscription checkout only supports online adapters (Stripe / Thawani / PayPal)
+    return gateways
+      .filter((g) => ONLINE_GATEWAYS.includes(g.slug))
+      .map((g) => this.platformGateways.toPublic(g));
   }
 
   async listCompanyGatewaysPublic(companyId: string) {
@@ -91,6 +94,11 @@ export class PaymentsService {
     const gateway = await this.platformGateways.getBySlug(opts.gatewaySlug);
     if (!gateway.isEnabled) {
       throw new BadRequestException('Payment gateway is not enabled');
+    }
+    if (!ONLINE_GATEWAYS.includes(opts.gatewaySlug)) {
+      throw new BadRequestException(
+        'Only online gateways (Thawani, Stripe, PayPal) support subscription checkout',
+      );
     }
 
     const planDetails = PLAN_DETAILS[opts.plan];

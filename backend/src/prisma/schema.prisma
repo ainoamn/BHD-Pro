@@ -1547,6 +1547,22 @@ model PlatformSetting {
   @@map("platform_settings")
 }
 
+/// Platform console operators (appoint/remove in /admin/operators). Bootstrap emails still always allowed.
+model PlatformOperator {
+  id          String   @id @default(uuid())
+  email       String   @unique
+  name        String?
+  /// Permission keys: full | overview | tenants | users | billing | plans | visits | gateways | operators
+  permissions Json     @default("[\"full\"]")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdBy   String?  @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([isActive])
+  @@map("platform_operators")
+}
+
 model PosDraft {
   id              String   @id @default(uuid())
   companyId       String   @map("company_id")

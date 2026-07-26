@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Plan } from '@prisma/client';
+import { featuresForPlan, PlanFeatureKey } from '../common/plan-features';
 
 export const PLAN_DETAILS: Record<
   Plan,
@@ -51,6 +52,7 @@ export class SubscriptionsService {
     return Object.entries(PLAN_DETAILS).map(([key, details]) => ({
       id: key as Plan,
       ...details,
+      features: featuresForPlan(key as Plan),
       currency: 'OMR',
     }));
   }
@@ -73,6 +75,7 @@ export class SubscriptionsService {
       company.invoicesLimitOverride != null
         ? company.invoicesLimitOverride
         : planDetails.invoicesLimit;
+    const features = featuresForPlan(company.plan);
 
     const invoiceCount = await this.prisma.invoice.count({
       where: {
@@ -90,6 +93,7 @@ export class SubscriptionsService {
         usersLimit,
         invoicesLimit,
       },
+      features,
       planExpiry: company.planExpiry,
       planStartedAt: company.planStartedAt,
       currency: company.currency,
@@ -100,6 +104,16 @@ export class SubscriptionsService {
         usersLimit,
       },
     };
+  }
+
+  async assertFeature(companyId: string, feature: PlanFeatureKey) {
+    const company = await this.assertSubscriptionActive(companyId);
+    const features = featuresForPlan(company.plan);
+    if (!features[feature]) {
+      throw new ForbiddenException(
+        `Feature "${feature}" requires a higher plan. Upgrade from Subscription.`,
+      );
+    }
   }
 
   async assertSubscriptionActive(companyId: string) {
