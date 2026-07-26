@@ -121,6 +121,7 @@ export class RestoController {
 
   @Post('link/warehouse')
   @Roles(...RESTO_FLOOR_MGR)
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @ApiOperation({ summary: 'Bind restaurants to a warehouse sector' })
   setWarehouse(
     @CurrentUser() user: TokenPayload,
@@ -179,6 +180,7 @@ export class RestoController {
 
   @Post('floor/seed')
   @Roles(...RESTO_FLOOR_MGR)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiOperation({ summary: 'Seed default zone + tables if empty' })
   seedFloor(
     @CurrentUser() user: TokenPayload,
@@ -189,6 +191,7 @@ export class RestoController {
 
   @Post('demo/seed')
   @Roles(...RESTO_FLOOR_MGR)
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
   @ApiOperation({
     summary:
       'Seed multi-branch demo: restaurants + cafe + grocery warehouses, meals with images, retail SKUs',
@@ -199,6 +202,7 @@ export class RestoController {
 
   @Post('demo/purge')
   @Roles(UserRole.ADMIN)
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
   @ApiOperation({ summary: 'Delete DEMO-* branches/warehouses/products only' })
   purgeDemo(@CurrentUser() user: TokenPayload) {
     return this.demoSeed.purge(user.companyId);
@@ -224,6 +228,7 @@ export class RestoController {
 
   @Post('tables/guest-tokens')
   @Roles(...RESTO_FLOOR_MGR)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @ApiOperation({ summary: 'Ensure guest QR tokens for all tables' })
   ensureGuestTokens(@CurrentUser() user: TokenPayload) {
     return this.resto.ensureGuestTokens(user.companyId);
@@ -231,6 +236,7 @@ export class RestoController {
 
   @Post('tables/:id/clear-call')
   @Roles(...RESTO_STAFF)
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @ApiOperation({ summary: 'Clear guest call-waiter flag on a table' })
   clearGuestCall(
     @CurrentUser() user: TokenPayload,
@@ -241,6 +247,7 @@ export class RestoController {
 
   @Post('orders')
   @Roles(...RESTO_STAFF)
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
   openOrder(
     @CurrentUser() user: TokenPayload,
     @Body() dto: OpenRestoOrderDto,
@@ -250,6 +257,7 @@ export class RestoController {
 
   @Post('external/orders')
   @Roles(...RESTO_STAFF)
+  @Throttle({ default: { limit: 40, ttl: 60000 } })
   @ApiOperation({
     summary:
       'Ingest delivery/takeaway from aggregators (Talabat/Jahez/Careem) — idempotent by externalChannel+externalOrderId; supports x-api-key',
@@ -461,6 +469,7 @@ export class RestoController {
 
   @Patch('orders/:id/delivery')
   @Roles(...RESTO_STAFF)
+  @Throttle({ default: { limit: 40, ttl: 60000 } })
   @ApiOperation({ summary: 'Update delivery dispatch status / driver' })
   updateDelivery(
     @CurrentUser() user: TokenPayload,
@@ -782,6 +791,7 @@ export class RestoController {
 
   @Patch('reservations/:id/status')
   @Roles(...RESTO_FLOOR_MGR, UserRole.WAITER)
+  @Throttle({ default: { limit: 40, ttl: 60000 } })
   @ApiOperation({ summary: 'Update reservation status' })
   updateReservationStatus(
     @CurrentUser() user: TokenPayload,
@@ -853,6 +863,7 @@ export class RestoController {
 
   @Patch('waitlist/:id/status')
   @Roles(...RESTO_STAFF)
+  @Throttle({ default: { limit: 40, ttl: 60000 } })
   @ApiOperation({
     summary:
       'Update waitlist status (NOTIFIED sends WhatsApp/SMS when configured)',

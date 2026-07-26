@@ -264,6 +264,7 @@ export default function PosCheckoutPage() {
     voidCount: number;
     mine?: { salesCount: number; salesTotal: number };
   } | null>(null);
+  const [opsStripError, setOpsStripError] = useState(false);
   const [addCustomerOpen, setAddCustomerOpen] = useState(false);
   const [newCustomerName, setNewCustomerName] = useState("");
   const [newCustomerDial, setNewCustomerDial] = useState(DEFAULT_DIAL_CODE);
@@ -566,8 +567,9 @@ export default function PosCheckoutPage() {
             }
           : null,
       );
+      setOpsStripError(false);
     } catch {
-      /* ignore */
+      setOpsStripError(true);
     }
   }, [warehouseId]);
 
@@ -3049,6 +3051,18 @@ export default function PosCheckoutPage() {
         ) : null}
 
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2.5 space-y-2">
+          {opsStripError ? (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-rose-500/30 bg-rose-500/10 px-2.5 py-1.5">
+              <p className="text-[11px] text-rose-300">{t.loadFailed}</p>
+              <button
+                type="button"
+                onClick={() => void loadOpsStrip()}
+                className="rounded-md bg-amber-500 px-2 py-0.5 text-[10px] font-bold text-slate-950"
+              >
+                {t.retry}
+              </button>
+            </div>
+          ) : null}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
             <Link
               href="/pos/shifts"

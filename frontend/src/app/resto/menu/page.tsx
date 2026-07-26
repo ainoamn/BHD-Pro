@@ -179,16 +179,19 @@ export default function RestoMenuPage() {
       product: { name: string; nameEn: string | null } | null;
     }>
   >([]);
+  const [eightySixError, setEightySixError] = useState(false);
   const [reconciling, setReconciling] = useState(false);
 
-  const load86 = async () => {
+  const load86 = useCallback(async () => {
     try {
       const res = await api.getRestoMenu86();
       setEightySix(res.data.items || []);
+      setEightySixError(false);
     } catch {
-      /* ignore */
+      setEightySix([]);
+      setEightySixError(true);
     }
-  };
+  }, []);
 
   const reconcile86 = async () => {
     setReconciling(true);
@@ -219,7 +222,7 @@ export default function RestoMenuPage() {
   useEffect(() => {
     void loadStations();
     void load86();
-  }, [loadStations]);
+  }, [loadStations, load86]);
 
   useEffect(() => {
     let cancelled = false;
@@ -705,7 +708,18 @@ export default function RestoMenuPage() {
             </button>
           ) : null}
         </div>
-        {eightySix.length === 0 ? (
+        {eightySixError ? (
+          <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-2.5 py-2 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm text-rose-300">{t.loadFailed}</p>
+            <button
+              type="button"
+              onClick={() => void load86()}
+              className="rounded-md bg-amber-500 px-2 py-0.5 text-[10px] font-bold text-[#14110f]"
+            >
+              {t.retry}
+            </button>
+          </div>
+        ) : eightySix.length === 0 ? (
           <p className="text-sm text-stone-500">{t.menu86Empty}</p>
         ) : (
           <ul className="space-y-2">

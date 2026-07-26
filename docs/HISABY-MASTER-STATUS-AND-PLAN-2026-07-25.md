@@ -73,6 +73,7 @@
 - موجة T: throttles مطالبات/التزامات/مجدولة/أوامر شراء/مشاركة فواتير + نقل·دمج·تقسيم مطاعم — [`HISABY-WAVE-T-MONEY-RESTO-THROTTLE-2026-07-26.md`](./HISABY-WAVE-T-MONEY-RESTO-THROTTLE-2026-07-26.md)
 - موجة U: KDS/86/إشعارات + تسوية بنوك + صدق طاقم الصالة — [`HISABY-WAVE-U-KDS-BANK-STAFF-2026-07-26.md`](./HISABY-WAVE-U-KDS-BANK-STAFF-2026-07-26.md)
 - موجة V: صدق محطات/معدّلات صالة + قائمة + ربط التطبيقات — [`HISABY-WAVE-V-RESTO-APPS-HONESTY-2026-07-26.md`](./HISABY-WAVE-V-RESTO-APPS-HONESTY-2026-07-26.md)
+- موجة W: صدق شريط كاشير/قائمة 86 + throttles صالة وربط مخزن — [`HISABY-WAVE-W-POS-OPS-86-RESTO-THROTTLE-2026-07-26.md`](./HISABY-WAVE-W-POS-OPS-86-RESTO-THROTTLE-2026-07-26.md)
 
 ### 1.6 المنصة ولوحة الإدارة (محدث 26 يوليو مساءً)
 - اشتراكات، بوابات دفع، `/admin`، PWA، GeoIP، keep-warm

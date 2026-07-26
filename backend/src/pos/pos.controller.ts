@@ -200,6 +200,7 @@ export class PosController {
 
   @Post('link/warehouse')
   @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @ApiOperation({ summary: 'Bind POS catalog to a warehouse sector' })
   setWarehouse(
     @CurrentUser() user: TokenPayload,
