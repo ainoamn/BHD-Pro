@@ -465,14 +465,9 @@ export class AdminService implements OnModuleInit {
       }),
     ]);
 
-    const companiesWithUsers = await this.prisma.company.findMany({
-      where: { deletedAt: null },
-      select: { id: true, _count: { select: { users: true } } },
-    });
     const avgUsersPerCompany =
-      companiesWithUsers.length > 0
-        ? companiesWithUsers.reduce((s, c) => s + c._count.users, 0) /
-          companiesWithUsers.length
+      companiesTotal > 0
+        ? Number((usersTotal / companiesTotal).toFixed(2))
         : 0;
 
     return {
@@ -552,9 +547,22 @@ export class AdminService implements OnModuleInit {
             },
           },
           orderBy: [{ isActive: 'desc' }, { createdAt: 'asc' }],
+          take: 25,
         },
       },
     });
+
+    const activeByCompany = await this.prisma.user.groupBy({
+      by: ['companyId'],
+      where: {
+        companyId: { in: rows.map((r) => r.id) },
+        isActive: true,
+      },
+      _count: { _all: true },
+    });
+    const activeMap = new Map(
+      activeByCompany.map((r) => [r.companyId, r._count._all]),
+    );
 
     return rows.map((c) => {
       const planDetails = PLAN_DETAILS[c.plan];
@@ -575,7 +583,6 @@ export class AdminService implements OnModuleInit {
         lastUserAgent: u.sessions[0]?.userAgent || null,
         lastSessionAt: u.sessions[0]?.createdAt || null,
       }));
-      const activeStaff = staff.filter((u) => u.isActive);
       return {
         id: c.id,
         name: c.name,
@@ -593,7 +600,7 @@ export class AdminService implements OnModuleInit {
         isActive: c.isActive,
         createdAt: c.createdAt,
         usersCount: c._count.users,
-        activeUsersCount: activeStaff.length,
+        activeUsersCount: activeMap.get(c.id) ?? staff.filter((u) => u.isActive).length,
         invoicesCount: c._count.invoices,
         posLinked: !!c.posLinkedAt,
         restoLinked: !!c.restoLinkedAt,

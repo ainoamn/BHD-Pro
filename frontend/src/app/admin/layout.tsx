@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Building2,
   CreditCard,
@@ -15,6 +15,7 @@ import {
   Users,
   Wallet,
   X,
+  RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
@@ -33,9 +34,59 @@ const NAV = [
   { href: "/admin/gateways", key: "gateways" as const, perm: "gateways" as const, icon: Wallet },
 ];
 
+const ADMIN_ME_CACHE = "hisaby-admin-me-v1";
+
 function canAccess(perms: string[], needed: string) {
   if (!perms.length || perms.includes("full")) return true;
   return perms.includes(needed);
+}
+
+function readCachedAdminMe(email?: string | null): { permissions: string[] } | null {
+  if (typeof window === "undefined" || !email) return null;
+  try {
+    const raw = sessionStorage.getItem(ADMIN_ME_CACHE);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as {
+      email: string;
+      permissions: string[];
+      at: number;
+    };
+    if (parsed.email !== email.toLowerCase()) return null;
+    if (Date.now() - parsed.at > 5 * 60 * 1000) return null;
+    return { permissions: parsed.permissions };
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedAdminMe(email: string, permissions: string[]) {
+  try {
+    sessionStorage.setItem(
+      ADMIN_ME_CACHE,
+      JSON.stringify({
+        email: email.toLowerCase(),
+        permissions,
+        at: Date.now(),
+      }),
+    );
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Ping API so Render cold-start begins as early as possible. */
+function wakeApi() {
+  if (typeof window === "undefined") return;
+  const ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const t = window.setTimeout(() => ctrl?.abort(), 25000);
+  fetch("/backend-api/health", {
+    method: "GET",
+    credentials: "omit",
+    cache: "no-store",
+    signal: ctrl?.signal,
+  }).catch(() => {
+    /* ignore — wake is best-effort */
+  }).finally(() => window.clearTimeout(t));
 }
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -49,60 +100,129 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [perms, setPerms] = useState<string[]>(["full"]);
+  const [slow, setSlow] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
+  const verifying = useRef(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const ok = await api.restoreSession();
-      if (cancelled) return;
+  const pathnameRef = useRef(pathname);
+  pathnameRef.current = pathname;
+
+  const verify = useCallback(async () => {
+    if (verifying.current) return;
+    verifying.current = true;
+    setSlow(false);
+    setError(null);
+    wakeApi();
+
+    const slowTimer = window.setTimeout(() => setSlow(true), 2500);
+
+    try {
       const auth = useAuthStore.getState();
-      if (!ok || !auth.isAuthenticated) {
-        router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+      let ok = auth.isAuthenticated && !!auth.user;
+      if (!ok) {
+        ok = await api.restoreSession();
+      }
+      const nextAuth = useAuthStore.getState();
+      if (!ok || !nextAuth.isAuthenticated || !nextAuth.user) {
+        router.replace(`/login?next=${encodeURIComponent(pathnameRef.current || "/admin")}`);
         return;
       }
-      try {
-        const res = await api.getAdminMe();
-        if (cancelled) return;
-        if (!res.data.isPlatformAdmin) {
-          setAllowed(false);
-          setError(
-            locale === "en"
-              ? "Your account is not a platform operator."
-              : "حسابك ليس ضمن مشرفي المنصة."
-          );
-          return;
-        }
-        const p = (res.data as { permissions?: string[] }).permissions;
-        setPerms(Array.isArray(p) && p.length ? p : ["full"]);
+
+      const cached = readCachedAdminMe(nextAuth.user.email);
+      if (cached) {
+        setPerms(cached.permissions.length ? cached.permissions : ["full"]);
         setAllowed(true);
-      } catch (err: unknown) {
-        if (cancelled) return;
-        const status = (err as { response?: { status?: number } })?.response?.status;
-        if (status === 401) {
-          router.replace(`/login?next=${encodeURIComponent(pathname)}`);
-          return;
-        }
+        void api
+          .getAdminMe()
+          .then((res) => {
+            if (!res.data.isPlatformAdmin) {
+              setAllowed(false);
+              setError(
+                locale === "en"
+                  ? "Your account is not a platform operator."
+                  : "حسابك ليس ضمن مشرفي المنصة.",
+              );
+              return;
+            }
+            const p = (res.data as { permissions?: string[] }).permissions;
+            const next = Array.isArray(p) && p.length ? p : ["full"];
+            setPerms(next);
+            writeCachedAdminMe(nextAuth.user!.email, next);
+          })
+          .catch(() => {
+            /* keep cached allow */
+          });
+        return;
+      }
+
+      const res = await api.getAdminMe();
+      if (!res.data.isPlatformAdmin) {
         setAllowed(false);
         setError(
-          status === 404
-            ? locale === "en"
-              ? "Admin API not deployed yet (404)."
-              : "واجهة الإدارة غير منشورة بعد (404)."
-            : locale === "en"
-              ? `Could not verify operator access (${status || "error"}).`
-              : `تعذر التحقق من صلاحية المشرف (${status || "خطأ"}).`
+          locale === "en"
+            ? "Your account is not a platform operator."
+            : "حسابك ليس ضمن مشرفي المنصة.",
         );
+        return;
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [router, pathname, locale]);
+      const p = (res.data as { permissions?: string[] }).permissions;
+      const next = Array.isArray(p) && p.length ? p : ["full"];
+      setPerms(next);
+      writeCachedAdminMe(nextAuth.user.email, next);
+      setAllowed(true);
+    } catch (err: unknown) {
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      if (status === 401) {
+        router.replace(`/login?next=${encodeURIComponent(pathnameRef.current || "/admin")}`);
+        return;
+      }
+      setAllowed(false);
+      setError(
+        status === 404
+          ? locale === "en"
+            ? "Admin API not deployed yet (404)."
+            : "واجهة الإدارة غير منشورة بعد (404)."
+          : locale === "en"
+            ? `Could not reach the API (${status || "timeout/network"}). The server may be waking up — retry in a moment.`
+            : `تعذر الوصول للخادم (${status || "انتهاء المهلة/شبكة"}). قد يكون الخادم يستيقظ — أعد المحاولة بعد لحظات.`,
+      );
+    } finally {
+      window.clearTimeout(slowTimer);
+      verifying.current = false;
+    }
+  }, [locale, router]);
+
+  useEffect(() => {
+    void verify();
+  }, [verify, retryKey, user?.id]);
 
   if (allowed === null) {
     return (
-      <div className="min-h-screen bg-[#f4f7f6] flex items-center justify-center text-teal-800 text-sm">
-        {t.loading}
+      <div className="min-h-screen bg-[#f4f7f6] flex items-center justify-center p-6">
+        <div className="max-w-sm text-center space-y-3">
+          <div className="mx-auto h-8 w-8 rounded-full border-2 border-teal-700 border-t-transparent animate-spin" />
+          <p className="text-teal-900 text-sm font-bold">{t.loading}</p>
+          {slow ? (
+            <>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                {locale === "en"
+                  ? "The API is waking up (Render free tier). First load can take 20–40 seconds."
+                  : "الخادم يستيقظ الآن (استضافة Render المجانية). أول تحميل قد يستغرق 20–40 ثانية."}
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setAllowed(null);
+                  setRetryKey((k) => k + 1);
+                }}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-teal-800 hover:underline"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                {locale === "en" ? "Retry now" : "إعادة المحاولة"}
+              </button>
+            </>
+          ) : null}
+        </div>
       </div>
     );
   }
@@ -114,7 +234,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <p className="text-lg font-bold text-slate-900">{t.console}</p>
           <p className="text-sm text-slate-600">{error}</p>
           <p className="text-xs text-slate-500">{user?.email}</p>
-          <Link href="/dashboard" className="text-teal-700 text-sm font-semibold hover:underline">
+          <button
+            type="button"
+            onClick={() => {
+              setAllowed(null);
+              setRetryKey((k) => k + 1);
+            }}
+            className="inline-flex items-center gap-1.5 mx-auto text-sm font-bold text-teal-800 hover:underline"
+          >
+            <RefreshCw className="w-4 h-4" />
+            {locale === "en" ? "Retry" : "إعادة المحاولة"}
+          </button>
+          <Link href="/dashboard" className="block text-teal-700 text-sm font-semibold hover:underline">
             {t.backApp}
           </Link>
           <Link
@@ -144,7 +275,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               "flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors",
               active
                 ? "bg-teal-700 text-white"
-                : "text-slate-600 hover:bg-teal-50 hover:text-teal-900"
+                : "text-slate-600 hover:bg-teal-50 hover:text-teal-900",
             )}
           >
             <Icon className="w-4 h-4 shrink-0" />
