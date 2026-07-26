@@ -1982,6 +1982,10 @@ model RestoReservation {
   reservedAt DateTime               @map("reserved_at")
   status     RestoReservationStatus @default(PENDING)
   notes      String?
+  /// Public confirm/cancel token
+  confirmToken   String?   @unique @map("confirm_token")
+  confirmedAt    DateTime? @map("confirmed_at")
+  reminderSentAt DateTime? @map("reminder_sent_at")
   createdAt  DateTime               @default(now()) @map("created_at")
   updatedAt  DateTime               @updatedAt @map("updated_at")
 
@@ -2120,6 +2124,10 @@ model RestoWaitlistEntry {
   tableId        String?             @map("table_id")
   seatedOrderId  String?             @map("seated_order_id")
   notifiedAt     DateTime?           @map("notified_at")
+  /// WHATSAPP | SMS | null
+  notifyChannel  String?             @map("notify_channel")
+  notifyResult   String?             @map("notify_result")
+  notifyAttempts Int                 @default(0) @map("notify_attempts")
   seatedAt       DateTime?           @map("seated_at")
   createdAt      DateTime            @default(now()) @map("created_at")
   updatedAt      DateTime            @updatedAt @map("updated_at")

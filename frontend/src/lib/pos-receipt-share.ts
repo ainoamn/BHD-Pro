@@ -37,6 +37,7 @@ export type PosShiftReportShareData = {
   closingCash?: number | null;
   variance?: number | null;
   varianceStatus?: string | null;
+  tipsTotal?: number | null;
 };
 
 export function buildPosReceiptPlainText(receipt: PosReceiptShareData): string {
@@ -147,6 +148,7 @@ export function buildPosShiftReportPlainText(report: PosShiftReportShareData): s
     `Cash out: ${money(report.cashOut)}`,
     `Refunds: ${money(report.refundTotal)}`,
     `Voids: ${money(report.voidedTotal)}`,
+    `Tips: ${money(report.tipsTotal)}`,
     `Expected cash: ${money(report.expectedCash)}`,
   ];
   if (report.kind === "Z") {

@@ -917,6 +917,11 @@ export default function PosCheckoutPage() {
       toast.error(t.parkEmpty);
       return;
     }
+    const reason = (parkSuspendReason || cartNotes).trim();
+    if (reason.length < 3) {
+      toast.error(t.parkReasonRequired);
+      return;
+    }
     try {
       const cust = customers.find((c) => c.id === contactId);
       const autoName = cust?.name
@@ -925,6 +930,7 @@ export default function PosCheckoutPage() {
       await api.createPosDraft({
         name: autoName,
         notes: cartNotes.trim() || undefined,
+        suspendReason: reason.slice(0, 120),
         warehouseId: warehouseId || undefined,
         contactId: contactId || undefined,
         heldAmount: opts?.heldAmount,
@@ -945,6 +951,7 @@ export default function PosCheckoutPage() {
       });
       setCart([]);
       setCartNotes("");
+      setParkSuspendReason("");
       setTipAmount(0);
       setTipCustom("");
       setRedeemPointsInput("");
@@ -1624,11 +1631,12 @@ export default function PosCheckoutPage() {
   };
 
   const printReceiptSnapshot = useCallback(
-    async (receipt: ReceiptSnapshot) => {
+    async (receipt: ReceiptSnapshot, opts?: { gift?: boolean }) => {
+      const gift = !!opts?.gift;
       const receiptLines = (receipt.lines || []).map((l) => ({
         name: l.name,
         qty: l.qty,
-        lineTotal: l.lineTotal,
+        lineTotal: gift ? 0 : l.lineTotal,
         barcode: l.barcode || null,
         sku: l.sku || null,
         note: l.note || null,
@@ -1647,13 +1655,14 @@ export default function PosCheckoutPage() {
           logo: company?.logo || "/brand/hisaby-mark.png",
         },
         number: receipt.number,
-        paymentMethod: receipt.paymentMethod,
+        paymentMethod: gift ? undefined : receipt.paymentMethod,
         warehouseLabel: receipt.warehouseLabel,
-        total: receipt.total || 0,
+        total: gift ? 0 : receipt.total || 0,
         currency,
         lines: receiptLines,
         locale: locale === "en" ? "en" : "ar",
         footerNote: receiptFooter || t.brand,
+        gift,
         labels: {
           vat: locale === "en" ? "VAT" : "الرقم الضريبي",
           cr: locale === "en" ? "CR" : "السجل التجاري",
@@ -1664,6 +1673,7 @@ export default function PosCheckoutPage() {
           total: t.total,
           barcode: locale === "en" ? "Scan barcode for returns" : "امسح الباركود للإرجاع",
           printBtn: locale === "en" ? "Print receipt" : "طباعة الإيصال",
+          giftTitle: t.giftReceipt,
         },
       };
 
@@ -1730,11 +1740,18 @@ export default function PosCheckoutPage() {
     return method;
   };
 
-  const reprintSale = async (sale: RecentCashSale) => {
+  const reprintSale = async (
+    sale: RecentCashSale,
+    opts?: { gift?: boolean },
+  ) => {
+    const gift = !!opts?.gift;
     let reprintCount = sale.reprintCount || 0;
     if (sale.id && !String(sale.id).startsWith("OFF-")) {
       try {
-        const res = await api.recordPosSaleReprint(sale.id);
+        const res = await api.recordPosSaleReprint(
+          sale.id,
+          gift ? "GIFT" : "STANDARD",
+        );
         reprintCount = Number(res.data.reprintCount) || reprintCount + 1;
         setRecentSales((prev) =>
           prev.map((r) =>
@@ -1748,37 +1765,37 @@ export default function PosCheckoutPage() {
     const payMethods = (sale.payments || [])
       .map((p) => paymentLabel(p.method))
       .filter(Boolean);
-    printReceiptSnapshot({
-      id: sale.id,
-      number: sale.number,
-      total: Number(sale.total),
-      paymentMethod: payMethods.length
-        ? payMethods.join(" + ")
-        : paymentLabel(sale.payments?.[0]?.method),
-      warehouseLabel: warehouseLabel || undefined,
-      lines: (sale.items || []).map((item) => {
-        const fromCatalog = item.productId
-          ? catalog.find((c) => c.id === item.productId)
-          : undefined;
-        const barcode =
-          item.product?.barcode ||
-          fromCatalog?.barcode ||
-          item.product?.sku ||
-          fromCatalog?.sku ||
-          null;
-        return {
-          name: item.description,
-          qty: Number(item.quantity),
-          lineTotal: Number(item.total),
-          barcode,
-          sku: item.product?.sku || fromCatalog?.sku || null,
-          note: item.notes || null,
-        };
-      }),
-    });
-    if (reprintCount > 0) {
-      /* count shown on drawer badge */
-    }
+    printReceiptSnapshot(
+      {
+        id: sale.id,
+        number: sale.number,
+        total: Number(sale.total),
+        paymentMethod: payMethods.length
+          ? payMethods.join(" + ")
+          : paymentLabel(sale.payments?.[0]?.method),
+        warehouseLabel: warehouseLabel || undefined,
+        lines: (sale.items || []).map((item) => {
+          const fromCatalog = item.productId
+            ? catalog.find((c) => c.id === item.productId)
+            : undefined;
+          const barcode =
+            item.product?.barcode ||
+            fromCatalog?.barcode ||
+            item.product?.sku ||
+            fromCatalog?.sku ||
+            null;
+          return {
+            name: item.description,
+            qty: Number(item.quantity),
+            lineTotal: Number(item.total),
+            barcode,
+            sku: item.product?.sku || fromCatalog?.sku || null,
+            note: item.notes || null,
+          };
+        }),
+      },
+      { gift },
+    );
   };
 
   const voidSale = (sale: RecentCashSale) => {
@@ -2164,6 +2181,8 @@ export default function PosCheckoutPage() {
         ? effectivePayments.map((p) => ({ method: p.method, amount: p.amount }))
         : undefined,
       tipAmount: tipValue > 0.0005 ? tipValue : undefined,
+      tipAssigneeId:
+        tipValue > 0.0005 && tipAssigneeId ? tipAssigneeId : undefined,
       useStoreCredit: useStoreCredit || undefined,
       loyaltyPointsToRedeem:
         redeemPointsToSend > 0.0005 ? redeemPointsToSend : undefined,
@@ -2806,6 +2825,23 @@ export default function PosCheckoutPage() {
         {catalogStale ? (
           <p className="text-[11px] text-amber-300/90 px-1">{t.catalogStale}</p>
         ) : null}
+        {!shiftOpen ? (
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100 flex items-center justify-between gap-2">
+            <span>{t.shiftBannerClosed}</span>
+            <Link href="/pos/shifts" className="font-bold underline shrink-0">
+              {t.openShiftsLink}
+            </Link>
+          </div>
+        ) : shiftOpenedAt &&
+          Date.now() - new Date(shiftOpenedAt).getTime() >
+            10 * 60 * 60 * 1000 ? (
+          <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-[11px] text-rose-100 flex items-center justify-between gap-2">
+            <span>{t.shiftBannerLate}</span>
+            <Link href="/pos/shifts" className="font-bold underline shrink-0">
+              {t.closeShift}
+            </Link>
+          </div>
+        ) : null}
 
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2.5 space-y-2">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
@@ -3366,9 +3402,32 @@ export default function PosCheckoutPage() {
                 </div>
               </div>
               {tipValue > 0.0005 ? (
-                <div className="flex justify-between text-slate-400">
-                  <span>{t.tip}</span>
-                  <span>{formatMoney(tipValue, currency)}</span>
+                <div className="space-y-1.5">
+                  <div className="flex justify-between text-slate-400">
+                    <span>{t.tip}</span>
+                    <span>{formatMoney(tipValue, currency)}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="text-[10px] text-slate-500 shrink-0">
+                      {t.tipAssignee}
+                    </label>
+                    <select
+                      value={tipAssigneeId}
+                      onChange={(e) => setTipAssigneeId(e.target.value)}
+                      className="flex-1 h-8 rounded-md bg-black/30 border border-white/10 px-2 text-[11px] text-white"
+                    >
+                      {(tipStaff.length
+                        ? tipStaff
+                        : user
+                          ? [{ id: user.id, name: user.name || user.email || "Me" }]
+                          : []
+                      ).map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               ) : null}
             </div>
@@ -3585,6 +3644,60 @@ export default function PosCheckoutPage() {
               >
                 {t.printReceipt} · {lastInvoice.number}
               </button>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (lastInvoice.id) {
+                      void reprintSale(
+                        {
+                          id: lastInvoice.id,
+                          number: lastInvoice.number || "",
+                          total: lastInvoice.total || 0,
+                          items: (lastInvoice.lines || []).map((l) => ({
+                            description: l.name,
+                            quantity: l.qty,
+                            total: l.lineTotal,
+                            product: { barcode: l.barcode, sku: l.sku },
+                            notes: l.note,
+                          })),
+                          payments: lastInvoice.paymentMethod
+                            ? [{ method: lastInvoice.paymentMethod }]
+                            : undefined,
+                        },
+                        { gift: true },
+                      );
+                    } else {
+                      void printReceiptSnapshot(lastInvoice, { gift: true });
+                    }
+                  }}
+                  className="h-9 rounded-xl border border-violet-500/30 text-[11px] font-semibold text-violet-200 hover:bg-violet-500/15"
+                >
+                  {t.giftReceipt}
+                </button>
+                <button
+                  type="button"
+                  disabled={!lastInvoice.id || String(lastInvoice.id).startsWith("OFF-")}
+                  onClick={() => {
+                    if (!lastInvoice.id) return;
+                    void openRefund({
+                      id: lastInvoice.id,
+                      number: lastInvoice.number || "",
+                      total: lastInvoice.total || 0,
+                      items: (lastInvoice.lines || []).map((l) => ({
+                        description: l.name,
+                        quantity: l.qty,
+                        total: l.lineTotal,
+                        product: { barcode: l.barcode, sku: l.sku },
+                        notes: l.note,
+                      })),
+                    });
+                  }}
+                  className="h-9 rounded-xl border border-amber-500/30 text-[11px] font-semibold text-amber-200 hover:bg-amber-500/15 disabled:opacity-40"
+                >
+                  {t.refundLastSale}
+                </button>
+              </div>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
@@ -4380,6 +4493,36 @@ export default function PosCheckoutPage() {
           >
             <p className="font-bold text-white">{t.parkHoldTitle}</p>
             <p className="text-xs text-slate-400">{t.parkHoldHint}</p>
+            <div className="flex flex-wrap gap-1">
+              {[
+                t.parkReasonWaitPay,
+                t.parkReasonCustomerAway,
+                t.parkReasonHold,
+                t.parkReasonOther,
+              ].map((reason) => (
+                <button
+                  key={reason}
+                  type="button"
+                  onClick={() => {
+                    setParkSuspendReason(reason);
+                    applyParkReason(reason);
+                  }}
+                  className={`h-7 px-2 rounded-md text-[10px] font-semibold border ${
+                    parkSuspendReason === reason
+                      ? "border-amber-400/50 bg-amber-500/20 text-amber-100"
+                      : "border-white/10 text-slate-300 hover:bg-white/5"
+                  }`}
+                >
+                  {reason}
+                </button>
+              ))}
+            </div>
+            <input
+              value={parkSuspendReason}
+              onChange={(e) => setParkSuspendReason(e.target.value.slice(0, 120))}
+              placeholder={t.parkReasonRequired}
+              className="w-full h-9 px-3 rounded-xl bg-black/40 border border-white/10 text-xs text-white"
+            />
             <input
               value={parkHoldAmount}
               onChange={(e) => setParkHoldAmount(e.target.value.replace(/[^\d.]/g, ""))}
@@ -4627,6 +4770,16 @@ export default function PosCheckoutPage() {
                         className="h-8 px-2.5 rounded-lg border border-sky-500/30 text-[11px] font-semibold text-sky-200 hover:bg-sky-500/15"
                       >
                         {t.reprint}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void reprintSale(sale, { gift: true });
+                          setReceiptsOpen(false);
+                        }}
+                        className="h-8 px-2.5 rounded-lg border border-violet-500/30 text-[11px] font-semibold text-violet-200 hover:bg-violet-500/15"
+                      >
+                        {t.giftReceipt}
                       </button>
                       <button
                         type="button"

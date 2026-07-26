@@ -97,6 +97,7 @@ export class RestoService {
     private readonly pos: PosService,
     private readonly incentives: PosIncentivesService,
     private readonly dualControl: DualControlService,
+    private readonly guestNotify: RestoGuestNotifyService,
   ) {}
 
   private kitchenBus(companyId: string) {

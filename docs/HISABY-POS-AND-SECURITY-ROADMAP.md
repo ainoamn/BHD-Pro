@@ -177,6 +177,12 @@ Public flags: `asyncApprovals: true`, `nfcBadgesConfigured`, `shiftVarianceLimit
 - In-POS store-credit top-up + shift-open notes UI
 - Doc: [`UPGRADE-POS-WAVE18-2026-07.md`](./UPGRADE-POS-WAVE18-2026-07.md)
 
+### Done (Wave 19 — Park reason, gift/refund, tip assignee)
+- Required park suspend reason + closed/late shift banners
+- Gift receipt reprint (no prices) + one-tap last-sale refund
+- Tip assignee picker + tipsTotal / tipsByAssignee on X/Z
+- Doc: [`UPGRADE-POS-WAVE19-2026-07.md`](./UPGRADE-POS-WAVE19-2026-07.md)
+
 - [x] Full catalog sync API `GET /pos/catalog/sync` + offline IDB per warehouse
 - [x] Broader refunds + store-credit MVP (hardened debit / void restore / UI)
 - [x] Cash change due + receipt number lookup for refunds
