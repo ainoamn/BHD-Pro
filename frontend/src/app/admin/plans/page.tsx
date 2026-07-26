@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { Loader2, Plus, Save, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
@@ -10,13 +10,9 @@ import { adminCopy } from "@/lib/admin-copy";
 import { cn } from "@/lib/utils";
 import { PermissionTree } from "@/components/admin/permission-tree";
 import {
-  PLAN_ACCESS_GROUPS,
-  defaultGrantsForModule,
   defaultModulesFromLegacy,
-  isChildGranted,
   normalizePlanAccess,
   planCardColor,
-  type PlanAccessModule,
   type PlanModuleGrant,
 } from "@/lib/plan-access-catalog";
 import { PLAN_FEATURES } from "@/lib/plan-features-defaults";
@@ -59,22 +55,6 @@ type Draft = {
   modules: Record<string, PlanModuleGrant>;
 };
 
-type MatrixRow =
-  | { kind: "group"; id: string; labelAr: string; labelEn: string }
-  | {
-      kind: "module";
-      module: PlanAccessModule;
-      labelAr: string;
-      labelEn: string;
-    }
-  | {
-      kind: "child";
-      module: PlanAccessModule;
-      childCode: string;
-      labelAr: string;
-      labelEn: string;
-    };
-
 const emptyOffer = {
   plan: "STARTER",
   nameAr: "",
@@ -112,38 +92,6 @@ function toDraft(p: PlanDef): Draft {
   };
 }
 
-function flattenAccessRows(): MatrixRow[] {
-  const rows: MatrixRow[] = [];
-  for (const g of PLAN_ACCESS_GROUPS) {
-    rows.push({
-      kind: "group",
-      id: g.id,
-      labelAr: g.labelAr,
-      labelEn: g.labelEn,
-    });
-    for (const m of g.modules) {
-      rows.push({
-        kind: "module",
-        module: m,
-        labelAr: m.labelAr,
-        labelEn: m.labelEn,
-      });
-      if (m.children?.length) {
-        for (const c of m.children) {
-          rows.push({
-            kind: "child",
-            module: m,
-            childCode: c.code,
-            labelAr: c.labelAr,
-            labelEn: c.labelEn,
-          });
-        }
-      }
-    }
-  }
-  return rows;
-}
-
 export default function AdminPlansPage() {
   const locale = useLocaleStore((s) => s.locale);
   const t = adminCopy[locale === "en" ? "en" : "ar"];
@@ -151,15 +99,12 @@ export default function AdminPlansPage() {
   const [plans, setPlans] = useState<PlanDef[]>([]);
   const [offers, setOffers] = useState<Offer[]>([]);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
-  const [selectedCode, setSelectedCode] = useState<string | null>(null);
   const [form, setForm] = useState(emptyOffer);
   const [newPlan, setNewPlan] = useState(emptyNewPlan);
   const [savingCode, setSavingCode] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [offerSaving, setOfferSaving] = useState(false);
   const [loading, setLoading] = useState(true);
-
-  const matrixRows = useMemo(() => flattenAccessRows(), []);
 
   const load = async () => {
     const [p, o] = await Promise.all([api.getAdminPlans(), api.getAdminOffers()]);
@@ -169,10 +114,6 @@ export default function AdminPlansPage() {
     for (const row of list) d[row.code] = toDraft(row);
     setDrafts(d);
     setOffers(o.data as Offer[]);
-    setSelectedCode((prev) => {
-      if (prev && list.some((x) => x.code === prev)) return prev;
-      return list[0]?.code ?? null;
-    });
   };
 
   useEffect(() => {
@@ -186,9 +127,6 @@ export default function AdminPlansPage() {
       }
     })();
   }, [en]);
-
-  const selectedPlan = plans.find((p) => p.code === selectedCode) ?? null;
-  const selectedDraft = selectedCode ? drafts[selectedCode] : undefined;
 
   const savePlan = async (code: string) => {
     const d = drafts[code];
@@ -231,10 +169,8 @@ export default function AdminPlansPage() {
         usersLimit: Number(newPlan.usersLimit) || 2,
         modules: defaultModulesFromLegacy(PLAN_FEATURES.STARTER),
       });
-      const createdCode = newPlan.code.trim().toUpperCase();
       setNewPlan(emptyNewPlan);
       await load();
-      setSelectedCode(createdCode);
       toast.success(en ? "Plan created" : "تم إنشاء الباقة");
     } catch (err: unknown) {
       const msg =
@@ -276,56 +212,6 @@ export default function AdminPlansPage() {
     });
   };
 
-  const toggleMatrixModule = (planCode: string, m: PlanAccessModule, enabled: boolean) => {
-    setDrafts((prev) => {
-      const d = prev[planCode];
-      if (!d) return prev;
-      const cur = d.modules[m.code] || { enabled: false, transactionLimit: null };
-      return {
-        ...prev,
-        [planCode]: {
-          ...d,
-          modules: {
-            ...d.modules,
-            [m.code]: {
-              ...cur,
-              enabled,
-              grants: defaultGrantsForModule(m, enabled),
-            },
-          },
-        },
-      };
-    });
-  };
-
-  const toggleMatrixChild = (
-    planCode: string,
-    m: PlanAccessModule,
-    childCode: string,
-    on: boolean,
-  ) => {
-    setDrafts((prev) => {
-      const d = prev[planCode];
-      if (!d) return prev;
-      const cur = d.modules[m.code] || { enabled: true, transactionLimit: null };
-      const base = cur.grants || defaultGrantsForModule(m, !!cur.enabled) || {};
-      return {
-        ...prev,
-        [planCode]: {
-          ...d,
-          modules: {
-            ...d.modules,
-            [m.code]: {
-              ...cur,
-              enabled: true,
-              grants: { ...base, [childCode]: on },
-            },
-          },
-        },
-      };
-    });
-  };
-
   const onCreateOffer = async (e: FormEvent) => {
     e.preventDefault();
     setOfferSaving(true);
@@ -356,350 +242,139 @@ export default function AdminPlansPage() {
   }
 
   return (
-    <div className="space-y-8 max-w-6xl">
+    <div className="space-y-8 max-w-[100rem]">
       <div>
         <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">{t.plans}</h1>
         <p className="text-sm text-slate-500 mt-1">
           {en
-            ? "Select a plan card to edit names, prices, limits, and nested permissions. Use the matrix below for a side-by-side comparison."
-            : "اختر بطاقة باقة لتعديل الأسماء والأسعار والحدود والصلاحيات المتداخلة. استخدم المصفوفة أدناه للمقارنة جنباً إلى جنب."}
+            ? "Each plan is a full column — scroll sideways to compare names, prices, limits, and every permission side by side."
+            : "كل باقة عمود كامل — مرّر أفقياً لمقارنة الأسماء والأسعار والحدود وكل الصلاحيات جنباً إلى جنب."}
         </p>
       </div>
 
-      {/* Plan cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-        {plans.map((p) => {
-          const d = drafts[p.code];
-          if (!d) return null;
-          const colors = planCardColor(p.code);
-          const selected = selectedCode === p.code;
-          return (
-            <button
-              key={p.code}
-              type="button"
-              onClick={() => setSelectedCode(p.code)}
-              className={cn(
-                "text-start rounded-2xl border-2 p-4 transition shadow-sm",
-                colors.bg,
-                colors.border,
-                selected
-                  ? "ring-2 ring-offset-2 ring-teal-600 border-teal-600"
-                  : "hover:shadow-md",
-                !d.isActive && "opacity-70",
-              )}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <p className={cn("font-extrabold text-base", colors.accent)}>
-                    {en ? d.nameEn : d.nameAr}
-                  </p>
-                  <p className="text-[11px] font-mono text-slate-500 mt-0.5" dir="ltr">
-                    {p.code}
-                  </p>
+      {/* Side-by-side plan columns */}
+      <div className="overflow-x-auto pb-2 -mx-1 px-1">
+        <div className="flex gap-4 min-w-min items-start">
+          {plans.map((p) => {
+            const d = drafts[p.code];
+            if (!d) return null;
+            const colors = planCardColor(p.code);
+            return (
+              <section
+                key={p.code}
+                className={cn(
+                  "w-[min(100vw-2rem,22rem)] sm:w-[22rem] shrink-0 rounded-2xl border-2 bg-white shadow-sm flex flex-col max-h-[min(88vh,56rem)]",
+                  colors.border,
+                  !d.isActive && "opacity-85",
+                )}
+              >
+                <div className={cn("rounded-t-[0.9rem] p-4 border-b border-slate-100", colors.bg)}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className={cn("font-extrabold text-lg truncate", colors.accent)}>
+                        {en ? d.nameEn : d.nameAr}
+                      </p>
+                      <p className="text-[11px] font-mono text-slate-500 mt-0.5" dir="ltr">
+                        {p.code}
+                      </p>
+                    </div>
+                    {!d.isActive ? (
+                      <span className="text-[10px] font-bold text-amber-800 bg-amber-100 border border-amber-200 px-1.5 py-0.5 rounded shrink-0">
+                        {en ? "Hidden" : "مخفي"}
+                      </span>
+                    ) : null}
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    {(
+                      [
+                        ["nameAr", en ? "Name AR" : "الاسم عربي", d.nameAr, "text"],
+                        ["nameEn", en ? "Name EN" : "الاسم إنجليزي", d.nameEn, "text"],
+                        ["monthlyPrice", en ? "Monthly" : "شهري", d.monthlyPrice, "number"],
+                        ["yearlyPrice", en ? "Yearly" : "سنوي", d.yearlyPrice, "number"],
+                        [
+                          "invoicesLimit",
+                          en ? "Invoices/mo" : "فواتير/شهر",
+                          d.invoicesLimit,
+                          "number",
+                        ],
+                        ["usersLimit", en ? "Users" : "مستخدمون", d.usersLimit, "number"],
+                      ] as const
+                    ).map(([key, label, val, kind]) => (
+                      <label key={key} className="text-[10px] space-y-0.5 col-span-1">
+                        <span className="text-slate-500 font-bold">{label}</span>
+                        <input
+                          type={kind}
+                          value={val as string | number}
+                          onChange={(e) =>
+                            patchDraft(p.code, {
+                              [key]:
+                                kind === "number"
+                                  ? Number(e.target.value)
+                                  : e.target.value,
+                            } as Partial<Draft>)
+                          }
+                          className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs"
+                        />
+                      </label>
+                    ))}
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <label className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={d.isActive}
+                        onChange={(e) =>
+                          patchDraft(p.code, { isActive: e.target.checked })
+                        }
+                        className="rounded border-slate-300 text-teal-700 focus:ring-teal-600"
+                      />
+                      {en ? "Active" : "نشط"}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => void deletePlan(p.code, p.isSystem)}
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 hover:underline ms-auto"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      {en ? "Delete" : "حذف"}
+                    </button>
+                  </div>
                 </div>
-                {!d.isActive ? (
-                  <span className="text-[10px] font-bold text-amber-800 bg-amber-100 border border-amber-200 px-1.5 py-0.5 rounded">
-                    {en ? "Hidden" : "مخفي"}
-                  </span>
-                ) : null}
-              </div>
-              <div className="mt-3 space-y-1 text-xs text-slate-700">
-                <p>
-                  <span className="font-bold" dir="ltr">
-                    {d.monthlyPrice}
-                  </span>{" "}
-                  {en ? "/ mo" : "/ شهر"}
-                  <span className="text-slate-400 mx-1">·</span>
-                  <span className="font-bold" dir="ltr">
-                    {d.yearlyPrice}
-                  </span>{" "}
-                  {en ? "/ yr" : "/ سنة"}
-                </p>
-                <p>
-                  {en ? "Invoices" : "فواتير"}:{" "}
-                  <span className="font-bold" dir="ltr">
-                    {d.invoicesLimit}
-                  </span>
-                  <span className="text-slate-400 mx-1">·</span>
-                  {en ? "Users" : "مستخدمون"}:{" "}
-                  <span className="font-bold" dir="ltr">
-                    {d.usersLimit}
-                  </span>
-                </p>
-              </div>
-            </button>
-          );
-        })}
-      </div>
 
-      {/* Selected plan editor */}
-      {selectedPlan && selectedDraft ? (
-        <div
-          className={cn(
-            "rounded-2xl border bg-white p-4 sm:p-5 space-y-4",
-            selectedDraft.isActive ? "border-slate-200" : "border-amber-200 bg-amber-50/30",
-          )}
-        >
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="font-extrabold text-teal-950 text-lg">
-                {en ? selectedDraft.nameEn : selectedDraft.nameAr}{" "}
-                <span className="text-xs font-mono text-slate-500" dir="ltr">
-                  {selectedPlan.code}
-                </span>
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2 text-xs font-bold">
-              <button
-                type="button"
-                onClick={() =>
-                  patchDraft(selectedPlan.code, {
-                    isActive: !selectedDraft.isActive,
-                  })
-                }
-                className="text-slate-700 hover:underline"
-              >
-                {selectedDraft.isActive
-                  ? en
-                    ? "Hide from catalog"
-                    : "إخفاء من الكتالوج"
-                  : en
-                    ? "Show in catalog"
-                    : "إظهار في الكتالوج"}
-              </button>
-              <button
-                type="button"
-                onClick={() => void deletePlan(selectedPlan.code, selectedPlan.isSystem)}
-                className="inline-flex items-center gap-1 text-rose-700 hover:underline"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                {en ? "Delete" : "حذف"}
-              </button>
-            </div>
-          </div>
+                <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">
+                    {en ? "Permissions" : "الصلاحيات"}
+                  </p>
+                  <PermissionTree
+                    en={en}
+                    showLimits
+                    compact
+                    value={d.modules}
+                    onChange={(modules) => patchDraft(p.code, { modules })}
+                  />
+                </div>
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            {(
-              [
-                ["nameAr", en ? "Name AR" : "الاسم عربي", selectedDraft.nameAr],
-                ["nameEn", en ? "Name EN" : "الاسم إنجليزي", selectedDraft.nameEn],
-                ["monthlyPrice", en ? "Monthly" : "شهري", selectedDraft.monthlyPrice],
-                ["yearlyPrice", en ? "Yearly" : "سنوي", selectedDraft.yearlyPrice],
-                [
-                  "invoicesLimit",
-                  en ? "Invoices/mo" : "فواتير/شهر",
-                  selectedDraft.invoicesLimit,
-                ],
-                ["usersLimit", en ? "Users" : "مستخدمون", selectedDraft.usersLimit],
-              ] as const
-            ).map(([key, label, val]) => (
-              <label key={key} className="text-xs space-y-1">
-                <span className="text-slate-500">{label}</span>
-                <input
-                  type={typeof val === "number" ? "number" : "text"}
-                  value={val as string | number}
-                  onChange={(e) =>
-                    patchDraft(selectedPlan.code, {
-                      [key]:
-                        typeof val === "number"
-                          ? Number(e.target.value)
-                          : e.target.value,
-                    } as Partial<Draft>)
-                  }
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                />
-              </label>
-            ))}
-          </div>
-
-          <label className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={selectedDraft.isActive}
-              onChange={(e) =>
-                patchDraft(selectedPlan.code, { isActive: e.target.checked })
-              }
-              className="rounded border-slate-300 text-teal-700 focus:ring-teal-600"
-            />
-            {en ? "Active in catalog" : "نشط في الكتالوج"}
-          </label>
-
-          <div>
-            <p className="text-xs font-bold text-slate-600 mb-2">
-              {en
-                ? "Allowed pages & apps (checkbox = included)"
-                : "الصفحات والأنظمة المسموحة (علامة صح = مفعّل)"}
-            </p>
-            <PermissionTree
-              en={en}
-              showLimits
-              value={selectedDraft.modules}
-              onChange={(modules) =>
-                patchDraft(selectedPlan.code, { modules })
-              }
-            />
-          </div>
-
-          <button
-            type="button"
-            disabled={savingCode === selectedPlan.code}
-            onClick={() => void savePlan(selectedPlan.code)}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-teal-700 text-white px-4 py-2.5 text-sm font-bold disabled:opacity-50"
-          >
-            {savingCode === selectedPlan.code ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Save className="w-4 h-4" />
-            )}
-            {en ? "Save plan" : "حفظ الباقة"}
-          </button>
+                <div className="p-3 border-t border-slate-100">
+                  <button
+                    type="button"
+                    disabled={savingCode === p.code}
+                    onClick={() => void savePlan(p.code)}
+                    className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-teal-700 hover:bg-teal-800 text-white px-3 py-2.5 text-sm font-bold disabled:opacity-50"
+                  >
+                    {savingCode === p.code ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Save className="w-4 h-4" />
+                    )}
+                    {en ? "Save plan" : "حفظ الباقة"}
+                  </button>
+                </div>
+              </section>
+            );
+          })}
         </div>
-      ) : null}
-
-      {/* Comparison matrix */}
-      <div className="space-y-3">
-        <h2 className="font-extrabold text-lg">
-          {en ? "Permissions comparison" : "مقارنة الصلاحيات"}
-        </h2>
-        <div className="overflow-auto max-h-[32rem] rounded-2xl border border-slate-200 bg-white">
-          <table className="min-w-full text-sm border-collapse">
-            <thead>
-              <tr className="bg-slate-50">
-                <th
-                  className={cn(
-                    "sticky top-0 z-20 bg-slate-50 border-b border-slate-200 px-3 py-2.5 text-start font-extrabold text-slate-700 min-w-[14rem]",
-                    en ? "left-0" : "right-0",
-                  )}
-                >
-                  {en ? "Permission" : "الصلاحية"}
-                </th>
-                {plans.map((p) => {
-                  const colors = planCardColor(p.code);
-                  return (
-                    <th
-                      key={p.code}
-                      className={cn(
-                        "sticky top-0 z-10 border-b border-slate-200 px-3 py-2.5 text-center font-extrabold whitespace-nowrap",
-                        colors.bg,
-                        colors.accent,
-                      )}
-                    >
-                      {en ? drafts[p.code]?.nameEn || p.nameEn : drafts[p.code]?.nameAr || p.nameAr}
-                    </th>
-                  );
-                })}
-              </tr>
-            </thead>
-            <tbody>
-              {matrixRows.map((row) => {
-                if (row.kind === "group") {
-                  return (
-                    <tr key={`g-${row.id}`} className="bg-slate-100/80">
-                      <td
-                        colSpan={plans.length + 1}
-                        className={cn(
-                          "sticky z-[15] bg-slate-100/95 border-b border-slate-200 px-3 py-2 font-extrabold text-teal-950 text-xs uppercase tracking-wide",
-                          en ? "left-0" : "right-0",
-                        )}
-                      >
-                        {en ? row.labelEn : row.labelAr}
-                      </td>
-                    </tr>
-                  );
-                }
-
-                if (row.kind === "module") {
-                  return (
-                    <tr key={`m-${row.module.code}`} className="hover:bg-slate-50/60">
-                      <td
-                        className={cn(
-                          "sticky z-10 bg-white border-b border-slate-100 px-3 py-2 font-semibold text-slate-800",
-                          en ? "left-0" : "right-0",
-                        )}
-                      >
-                        {en ? row.labelEn : row.labelAr}
-                      </td>
-                      {plans.map((p) => {
-                        const d = drafts[p.code];
-                        const enabled = !!d?.modules[row.module.code]?.enabled;
-                        return (
-                          <td
-                            key={p.code}
-                            className="border-b border-slate-100 px-3 py-2 text-center"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={enabled}
-                              onChange={(e) =>
-                                toggleMatrixModule(
-                                  p.code,
-                                  row.module,
-                                  e.target.checked,
-                                )
-                              }
-                              className="rounded border-slate-300 text-teal-700 focus:ring-teal-600"
-                              aria-label={`${p.code} ${row.module.code}`}
-                            />
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  );
-                }
-
-                // child row
-                return (
-                  <tr key={`c-${row.module.code}-${row.childCode}`} className="hover:bg-slate-50/40">
-                    <td
-                      className={cn(
-                        "sticky z-10 bg-white border-b border-slate-100 py-1.5 text-xs text-slate-600",
-                        en ? "left-0 ps-8 pe-3" : "right-0 pe-8 ps-3",
-                      )}
-                    >
-                      {en ? row.labelEn : row.labelAr}
-                    </td>
-                    {plans.map((p) => {
-                      const d = drafts[p.code];
-                      const checked = isChildGranted(
-                        d?.modules,
-                        row.module.code,
-                        row.childCode,
-                      );
-                      const parentOn = !!d?.modules[row.module.code]?.enabled;
-                      return (
-                        <td
-                          key={p.code}
-                          className="border-b border-slate-100 px-3 py-1.5 text-center"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            disabled={!parentOn}
-                            onChange={(e) =>
-                              toggleMatrixChild(
-                                p.code,
-                                row.module,
-                                row.childCode,
-                                e.target.checked,
-                              )
-                            }
-                            className="rounded border-slate-300 text-teal-700 focus:ring-teal-600 disabled:opacity-40"
-                            aria-label={`${p.code} ${row.module.code}.${row.childCode}`}
-                          />
-                        </td>
-                      );
-                    })}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        <p className="text-xs text-slate-500">
-          {en
-            ? "Matrix edits update drafts only — open a plan and click Save to persist."
-            : "تعديلات المصفوفة تحدّث المسودة فقط — افتح الباقة واضغط حفظ للحفظ النهائي."}
-        </p>
       </div>
 
       {/* Add plan */}
@@ -708,7 +383,7 @@ export default function AdminPlansPage() {
           <Plus className="w-4 h-4" />
           {en ? "Add plan" : "إضافة باقة"}
         </h2>
-        <div className="grid sm:grid-cols-3 gap-2">
+        <div className="grid sm:grid-cols-3 gap-2 max-w-3xl">
           <input
             dir="ltr"
             value={newPlan.code}
@@ -728,7 +403,7 @@ export default function AdminPlansPage() {
             type="button"
             disabled={creating || !newPlan.code || !newPlan.nameAr}
             onClick={() => void createPlan()}
-            className="rounded-xl bg-teal-700 text-white text-sm font-bold disabled:opacity-50"
+            className="rounded-xl bg-teal-700 text-white text-sm font-bold disabled:opacity-50 py-2"
           >
             {en ? "Create" : "إنشاء"}
           </button>
@@ -738,7 +413,7 @@ export default function AdminPlansPage() {
       {/* Promo offers */}
       <div className="space-y-3 border-t pt-6">
         <h2 className="font-extrabold">{en ? "Promo offers" : "عروض التخفيض"}</h2>
-        <form onSubmit={onCreateOffer} className="grid sm:grid-cols-4 gap-2">
+        <form onSubmit={onCreateOffer} className="grid sm:grid-cols-4 gap-2 max-w-3xl">
           <select
             value={form.plan}
             onChange={(e) => setForm((f) => ({ ...f, plan: e.target.value }))}
@@ -773,7 +448,7 @@ export default function AdminPlansPage() {
             {en ? "Save offer" : "حفظ العرض"}
           </button>
         </form>
-        <ul className="text-sm space-y-1">
+        <ul className="text-sm space-y-1 max-w-3xl">
           {offers.map((o) => (
             <li key={o.id} className="flex justify-between gap-2 border-b py-2">
               <span>

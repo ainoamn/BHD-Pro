@@ -18,6 +18,8 @@ type Props = {
   showLimits?: boolean;
   en?: boolean;
   disabled?: boolean;
+  /** Denser tree for side-by-side plan columns */
+  compact?: boolean;
 };
 
 export function PermissionTree({
@@ -27,6 +29,7 @@ export function PermissionTree({
   showLimits = true,
   en = false,
   disabled = false,
+  compact = false,
 }: Props) {
   const [open, setOpen] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(groups.map((g) => [g.id, true])),
@@ -70,7 +73,7 @@ export function PermissionTree({
   };
 
   return (
-    <div className="space-y-3">
+    <div className={cn("space-y-2", compact && "space-y-1.5")}>
       {groups.map((g) => {
         const expanded = open[g.id] !== false;
         const allOn = g.modules.every((m) => value[m.code]?.enabled);
@@ -80,7 +83,12 @@ export function PermissionTree({
             key={g.id}
             className="rounded-xl border border-slate-200 bg-white overflow-hidden"
           >
-            <div className="flex items-center gap-2 px-3 py-2.5 bg-slate-50 border-b border-slate-100">
+            <div
+              className={cn(
+                "flex items-center gap-2 bg-slate-50 border-b border-slate-100",
+                compact ? "px-2 py-1.5" : "px-3 py-2.5",
+              )}
+            >
               <button
                 type="button"
                 onClick={() => setOpen((o) => ({ ...o, [g.id]: !expanded }))}
@@ -93,7 +101,7 @@ export function PermissionTree({
                   <ChevronLeft className="w-4 h-4 text-slate-600" />
                 )}
               </button>
-              <label className="flex items-center gap-2 flex-1 cursor-pointer select-none">
+              <label className="flex items-center gap-2 flex-1 cursor-pointer select-none min-w-0">
                 <input
                   type="checkbox"
                   checked={allOn}
@@ -102,9 +110,14 @@ export function PermissionTree({
                   }}
                   disabled={disabled}
                   onChange={(e) => toggleGroup(g, e.target.checked)}
-                  className="rounded border-slate-300 text-teal-700 focus:ring-teal-600"
+                  className="rounded border-slate-300 text-teal-700 focus:ring-teal-600 shrink-0"
                 />
-                <span className="font-extrabold text-sm text-teal-950">
+                <span
+                  className={cn(
+                    "font-extrabold text-teal-950 truncate",
+                    compact ? "text-xs" : "text-sm",
+                  )}
+                >
                   {en ? g.labelEn : g.labelAr}
                 </span>
               </label>
@@ -117,10 +130,15 @@ export function PermissionTree({
                     transactionLimit: null,
                   };
                   const hasKids = !!m.children?.length;
-                  const kidsOpen = modOpen[m.code] === true;
+                  const kidsOpen = compact || modOpen[m.code] === true;
                   return (
                     <li key={m.code} className={grant.enabled ? "bg-white" : "bg-slate-50/50"}>
-                      <div className="flex flex-wrap items-center gap-2 px-3 py-2 text-sm">
+                      <div
+                        className={cn(
+                          "flex flex-wrap items-center gap-1.5 text-sm",
+                          compact ? "px-2 py-1.5" : "px-3 py-2",
+                        )}
+                      >
                         {hasKids ? (
                           <button
                             type="button"
@@ -138,36 +156,37 @@ export function PermissionTree({
                         ) : (
                           <span className="w-4" />
                         )}
-                        <label className="flex items-center gap-2 flex-1 min-w-[12rem] cursor-pointer">
+                        <label
+                          className={cn(
+                            "flex items-center gap-2 flex-1 cursor-pointer min-w-0",
+                            !compact && "min-w-[12rem]",
+                          )}
+                        >
                           <input
                             type="checkbox"
                             checked={!!grant.enabled}
                             disabled={disabled}
                             onChange={(e) => toggleModule(m, e.target.checked)}
-                            className="rounded border-slate-300 text-teal-700 focus:ring-teal-600"
+                            className="rounded border-slate-300 text-teal-700 focus:ring-teal-600 shrink-0"
                           />
                           <span
                             className={cn(
-                              "font-semibold",
+                              "font-semibold leading-snug",
+                              compact ? "text-xs" : "text-sm",
                               grant.enabled ? "text-slate-800" : "text-slate-400",
                             )}
                           >
                             {en ? m.labelEn : m.labelAr}
                           </span>
                           {!grant.enabled ? (
-                            <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                            <span className="text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1 py-0.5 rounded shrink-0">
                               {en ? "Upgrade" : "ترقية"}
-                            </span>
-                          ) : null}
-                          {hasKids ? (
-                            <span className="text-[10px] text-slate-400">
-                              ({m.children!.length})
                             </span>
                           ) : null}
                         </label>
                         {showLimits && m.supportsLimit ? (
-                          <label className="flex items-center gap-1.5 text-xs text-slate-500">
-                            <span>{en ? "Tx limit" : "حد المعاملات"}</span>
+                          <label className="flex items-center gap-1 text-[10px] text-slate-500 w-full ps-6">
+                            <span>{en ? "Tx" : "حد"}</span>
                             <input
                               type="number"
                               disabled={disabled || !grant.enabled}
@@ -185,13 +204,18 @@ export function PermissionTree({
                                     v === "" ? null : Number(v) || 0,
                                 });
                               }}
-                              className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-sm disabled:opacity-40"
+                              className="w-16 rounded-lg border border-slate-200 px-1.5 py-0.5 text-xs disabled:opacity-40"
                             />
                           </label>
                         ) : null}
                       </div>
                       {hasKids && kidsOpen && grant.enabled ? (
-                        <ul className="ms-8 me-3 mb-2 rounded-lg border border-slate-100 bg-slate-50/80 divide-y divide-slate-100">
+                        <ul
+                          className={cn(
+                            "mb-2 rounded-lg border border-slate-100 bg-slate-50/80 divide-y divide-slate-100",
+                            compact ? "ms-5 me-2" : "ms-8 me-3",
+                          )}
+                        >
                           {m.children!.map((c) => {
                             const on =
                               grant.grants?.[c.code] !== false &&
@@ -199,7 +223,7 @@ export function PermissionTree({
                                 grant.grants?.[c.code] === undefined);
                             return (
                               <li key={c.code}>
-                                <label className="flex items-center gap-2 px-3 py-1.5 text-xs cursor-pointer">
+                                <label className="flex items-center gap-2 px-2.5 py-1 text-[11px] cursor-pointer">
                                   <input
                                     type="checkbox"
                                     checked={!!on}
