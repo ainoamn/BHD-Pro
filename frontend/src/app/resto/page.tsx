@@ -95,6 +95,7 @@ export default function RestoFloorPage() {
   const [error, setError] = useState("");
   const [order, setOrder] = useState<RestoOrderPayload | null>(null);
   const [menu, setMenu] = useState<MenuItem[]>([]);
+  const [menuError, setMenuError] = useState(false);
   const [menuQ, setMenuQ] = useState("");
   const [guests, setGuests] = useState(2);
   const [stations, setStations] = useState<Station[]>([]);
@@ -199,9 +200,15 @@ export default function RestoFloorPage() {
       void (async () => {
         try {
           const res = await api.getRestoMenu(menuQ.trim() || undefined, "now");
-          if (!cancelled) setMenu(res.data.items || []);
+          if (!cancelled) {
+            setMenu(res.data.items || []);
+            setMenuError(false);
+          }
         } catch {
-          if (!cancelled) setMenu([]);
+          if (!cancelled) {
+            setMenu([]);
+            setMenuError(true);
+          }
         }
       })();
     }, 150);
@@ -1687,6 +1694,24 @@ export default function RestoFloorPage() {
                     className="w-full h-9 rounded-lg bg-black/30 border border-white/10 px-3 text-sm focus:outline-none focus:border-amber-500"
                   />
                   <ul className="max-h-56 overflow-y-auto space-y-1">
+                    {menuError ? (
+                      <li className="text-xs text-rose-300 py-2 px-1">
+                        {t.loadFailed}
+                        <button
+                          type="button"
+                          className="ms-2 underline text-amber-300"
+                          onClick={() => {
+                            setMenuError(false);
+                            void api
+                              .getRestoMenu(menuQ.trim() || undefined, "now")
+                              .then((res) => setMenu(res.data.items || []))
+                              .catch(() => setMenuError(true));
+                          }}
+                        >
+                          {t.retry}
+                        </button>
+                      </li>
+                    ) : null}
                     {menu.slice(0, 40).map((m) => {
                       const label =
                         locale === "en" && m.nameEn ? m.nameEn : m.name;

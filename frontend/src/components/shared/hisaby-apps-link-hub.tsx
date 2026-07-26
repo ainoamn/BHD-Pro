@@ -89,8 +89,8 @@ export function HisabyAppsLinkHub({
       api.getPosLinkStatus().catch(() => null),
       api.getRestoLinkStatus().catch(() => null),
     ]);
-    setPosLinked(pos ? !!pos.data.linked : false);
-    setRestoLinked(resto ? !!resto.data.linked : false);
+    setPosLinked(pos ? !!pos.data.linked : null);
+    setRestoLinked(resto ? !!resto.data.linked : null);
   }, []);
 
   useEffect(() => {

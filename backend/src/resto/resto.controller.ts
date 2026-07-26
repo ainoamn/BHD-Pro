@@ -370,6 +370,7 @@ export class RestoController {
   }
 
   @Post('orders/:id/items/:itemId/void')
+  @Throttle({ default: { limit: 40, ttl: 60000 } })
   @Roles(...RESTO_FLOOR_MGR, UserRole.WAITER)
   @ApiOperation({ summary: 'Void or comp a sent kitchen line (reason required)' })
   voidItem(
@@ -401,6 +402,7 @@ export class RestoController {
   }
 
   @Post('orders/:id/close')
+  @Throttle({ default: { limit: 40, ttl: 60000 } })
   @Roles(...RESTO_STAFF)
   close(
     @CurrentUser() user: TokenPayload,
@@ -438,6 +440,7 @@ export class RestoController {
   }
 
   @Post('orders/:id/pay-link')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @Roles(...RESTO_STAFF)
   @ApiOperation({
     summary: 'Create online pay link for table check (partner checkout)',
@@ -462,6 +465,7 @@ export class RestoController {
   }
 
   @Post('orders/:id/cancel')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @Roles(...RESTO_FLOOR_MGR)
   cancel(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.resto.cancelOrder(user.companyId, id);

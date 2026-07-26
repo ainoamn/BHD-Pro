@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, useSearchParams } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { CreditCard, Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
@@ -13,6 +13,7 @@ export default function PayInvoiceContent() {
   const searchParams = useSearchParams();
   const invoiceId = params.invoiceId as string;
   const t = useTranslations("payments");
+  const locale = useLocale();
   const cancelled = searchParams.get("cancelled");
 
   const { data, isLoading, error } = useQuery({
@@ -106,7 +107,7 @@ export default function PayInvoiceContent() {
                 {payMutation.isPending ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : null}
-                {gw.nameAr}
+                {gw.nameEn && locale.startsWith("en") ? gw.nameEn : gw.nameAr}
               </button>
             ))
           )}

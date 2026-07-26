@@ -10,6 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiQuery, ApiOperation } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { ContactsService } from './contacts.service';
 import { CreateContactDto } from './dto/create-contact.dto';
 import { UpdateContactDto } from './dto/update-contact.dto';
@@ -49,6 +50,7 @@ export class ContactsController {
   }
 
   @Post(':id/store-credit-adjust')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({
     summary: 'Top up or reduce customer store-credit wallet with GL posting to 2130',
   })

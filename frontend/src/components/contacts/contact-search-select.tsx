@@ -66,6 +66,7 @@ export function ContactSearchSelect({
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [remote, setRemote] = useState<ContactSearchItem[]>([]);
+  const [searchError, setSearchError] = useState(false);
   const [selected, setSelected] = useState<ContactSearchItem | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -99,15 +100,18 @@ export function ContactSearchSelect({
       const term = q.trim();
       if (!term) {
         setRemote([]);
+        setSearchError(false);
         setLoading(false);
         return;
       }
       setLoading(true);
+      setSearchError(false);
       try {
         const res = await api.getContacts(type, term);
         setRemote((res.data as ContactSearchItem[]) || []);
       } catch {
         setRemote([]);
+        setSearchError(true);
       } finally {
         setLoading(false);
       }
@@ -214,7 +218,11 @@ export function ContactSearchSelect({
               …
             </p>
           ) : null}
-          {!loading && options.length === 0 && query.trim() ? (
+          {!loading && searchError && query.trim() ? (
+            <p className="px-3 py-2 text-xs text-rose-400">
+              Search failed / فشل البحث
+            </p>
+          ) : !loading && options.length === 0 && query.trim() ? (
             <p className="px-3 py-2 text-xs text-slate-500">—</p>
           ) : null}
           {options.map((c) => {

@@ -26,8 +26,8 @@ export function HisabyAppsPanel({ className }: { className?: string }) {
       api.getPosLinkStatus().catch(() => null),
       api.getRestoLinkStatus().catch(() => null),
     ]);
-    setPosLinked(pos ? !!pos.data.linked : false);
-    setRestoLinked(resto ? !!resto.data.linked : false);
+    setPosLinked(pos ? !!pos.data.linked : null);
+    setRestoLinked(resto ? !!resto.data.linked : null);
   };
 
   useEffect(() => {
@@ -37,8 +37,8 @@ export function HisabyAppsPanel({ className }: { className?: string }) {
         await refresh();
       } catch {
         if (!cancelled) {
-          setPosLinked(false);
-          setRestoLinked(false);
+          setPosLinked(null);
+          setRestoLinked(null);
         }
       }
     })();

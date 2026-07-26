@@ -41,6 +41,7 @@ export default function PublicReservePage() {
   const [date, setDate] = useState("");
   const [slots, setSlots] = useState<Slot[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
+  const [slotsError, setSlotsError] = useState(false);
   const [selectedAt, setSelectedAt] = useState<string | null>(null);
   const [guestName, setGuestName] = useState("");
   const [phone, setPhone] = useState("");
@@ -100,6 +101,7 @@ export default function PublicReservePage() {
   const loadSlots = useCallback(async () => {
     if (!slug || !date || !page) return;
     setSlotsLoading(true);
+    setSlotsError(false);
     setSelectedAt(null);
     try {
       const res = await fetch(
@@ -111,6 +113,7 @@ export default function PublicReservePage() {
       setSlots(data.slots || []);
     } catch {
       setSlots([]);
+      setSlotsError(true);
     } finally {
       setSlotsLoading(false);
     }
@@ -312,6 +315,19 @@ export default function PublicReservePage() {
                 {slotsLoading ? (
                   <div className="flex justify-center py-6 text-stone-400">
                     <Loader2 className="w-5 h-5 animate-spin" />
+                  </div>
+                ) : slotsError ? (
+                  <div className="space-y-2 py-3">
+                    <p className="text-sm text-rose-300">
+                      {ar ? "تعذر تحميل الأوقات" : "Could not load times"}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => void loadSlots()}
+                      className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-bold text-[#14110f]"
+                    >
+                      {ar ? "إعادة المحاولة" : "Retry"}
+                    </button>
                   </div>
                 ) : openSlots.length === 0 ? (
                   <p className="text-sm text-stone-500 py-3">

@@ -67,6 +67,7 @@
 - موجة N: فواتير محاسبة + بوابات دفع + ورديات/سفري/توصيل + throttles دفعات/مستخدمين/VAT — [`HISABY-WAVE-N-INVOICES-PAYMENTS-SHIFTS-2026-07-26.md`](./HISABY-WAVE-N-INVOICES-PAYMENTS-SHIFTS-2026-07-26.md)
 - موجة O: قائمة انتظار/حجوزات/مرفقات + إصلاح upsell كتب POS + throttles فترات/اشتراك/API/ورديات — [`HISABY-WAVE-O-WAITLIST-ATTACHMENTS-THROTTLE-2026-07-26.md`](./HISABY-WAVE-O-WAITLIST-ATTACHMENTS-THROTTLE-2026-07-26.md)
 - موجة P: حوافز/ربط POS·مطاعم/تنبيهات + throttles checkout عام وAI وFX — [`HISABY-WAVE-P-INCENTIVES-LINKS-ALERTS-2026-07-26.md`](./HISABY-WAVE-P-INCENTIVES-LINKS-ALERTS-2026-07-26.md)
+- موجة Q: لوحات التطبيقات/حجز عام/قائمة صالة + throttles void/close/رصيد متجر — [`HISABY-WAVE-Q-APPS-RESERVE-MENU-2026-07-26.md`](./HISABY-WAVE-Q-APPS-RESERVE-MENU-2026-07-26.md)
 
 ### 1.6 المنصة ولوحة الإدارة (محدث 26 يوليو مساءً)
 - اشتراكات، بوابات دفع، `/admin`، PWA، GeoIP، keep-warm
