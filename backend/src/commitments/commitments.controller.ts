@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
+import { UserRole } from '@prisma/client';
 import { CommitmentsService } from './commitments.service';
 import {
   CreateCommitmentDto,
@@ -17,6 +18,8 @@ import {
   PauseCommitmentDto,
 } from './dto/commitment.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
 
@@ -33,6 +36,8 @@ export class CommitmentsController {
   }
 
   @Post('run-due')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @ApiOperation({ summary: 'Manually post due commitments for this company' })
   runDue(@CurrentUser() user: TokenPayload) {
@@ -45,12 +50,16 @@ export class CommitmentsController {
   }
 
   @Post()
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   create(@CurrentUser() user: TokenPayload, @Body() dto: CreateCommitmentDto) {
     return this.service.create(user.companyId, dto);
   }
 
   @Put(':id')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 40, ttl: 60000 } })
   update(
     @CurrentUser() user: TokenPayload,
@@ -61,6 +70,8 @@ export class CommitmentsController {
   }
 
   @Post(':id/pause')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Pause or defer commitment (day/month/year)' })
   pause(
@@ -72,12 +83,16 @@ export class CommitmentsController {
   }
 
   @Post(':id/resume')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   resume(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.service.resume(user.companyId, id);
   }
 
   @Delete(':id')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   remove(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.service.remove(user.companyId, id);

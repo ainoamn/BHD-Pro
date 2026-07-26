@@ -10,12 +10,15 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
+import { UserRole } from '@prisma/client';
 import { ScheduledInvoicesService } from './scheduled-invoices.service';
 import {
   CreateScheduledInvoiceDto,
   UpdateScheduledInvoiceDto,
 } from './dto/procurement.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
 
@@ -37,12 +40,16 @@ export class ScheduledInvoicesController {
   }
 
   @Post()
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   create(@CurrentUser() user: TokenPayload, @Body() dto: CreateScheduledInvoiceDto) {
     return this.service.create(user.companyId, user.sub, dto);
   }
 
   @Post('process-due')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @ApiOperation({
     summary: 'Generate due scheduled invoices for the current company only',
@@ -52,6 +59,8 @@ export class ScheduledInvoicesController {
   }
 
   @Put(':id')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 40, ttl: 60000 } })
   update(
     @CurrentUser() user: TokenPayload,
@@ -62,6 +71,8 @@ export class ScheduledInvoicesController {
   }
 
   @Post(':id/toggle-active')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Pause or resume a scheduled invoice' })
   toggleActive(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
@@ -69,6 +80,8 @@ export class ScheduledInvoicesController {
   }
 
   @Post(':id/generate')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   @ApiOperation({ summary: 'Generate sales invoice from schedule now' })
   generateNow(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
@@ -76,6 +89,8 @@ export class ScheduledInvoicesController {
   }
 
   @Delete(':id')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   remove(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.service.remove(user.companyId, id);

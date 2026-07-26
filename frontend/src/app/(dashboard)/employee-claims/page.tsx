@@ -83,7 +83,7 @@ export default function EmployeeClaimsPage() {
     },
   });
 
-  const { data: banks = [] } = useQuery({
+  const { data: banks = [], isError: banksError, refetch: refetchBanks } = useQuery({
     queryKey: ["bank-accounts"],
     queryFn: async () =>
       (await api.getBankAccounts()).data as { id: string; name: string; bankName: string }[],
@@ -215,6 +215,19 @@ export default function EmployeeClaimsPage() {
           </button>
         }
       />
+
+      {banksError ? (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm text-amber-100">{tCommon("error")}</p>
+          <button
+            type="button"
+            onClick={() => void refetchBanks()}
+            className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-bold text-slate-900"
+          >
+            {tCommon("retry")}
+          </button>
+        </div>
+      ) : null}
 
       {isLoading ? (
         <LoadingSpinner />

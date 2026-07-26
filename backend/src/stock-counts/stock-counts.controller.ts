@@ -10,12 +10,15 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
+import { UserRole } from '@prisma/client';
 import { StockCountsService } from './stock-counts.service';
 import {
   CreateStockCountDto,
   UpdateStockCountLinesDto,
 } from './dto/stock-count.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
 
@@ -37,6 +40,8 @@ export class StockCountsController {
   }
 
   @Post()
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   @ApiOperation({ summary: 'Create stock count (seeds tracked products by default)' })
   create(@CurrentUser() user: TokenPayload, @Body() dto: CreateStockCountDto) {
@@ -44,6 +49,8 @@ export class StockCountsController {
   }
 
   @Put(':id/lines')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 40, ttl: 60000 } })
   @ApiOperation({ summary: 'Update counted quantities' })
   updateLines(
@@ -55,6 +62,8 @@ export class StockCountsController {
   }
 
   @Post(':id/complete')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   @ApiOperation({ summary: 'Complete count and apply stock variances' })
   complete(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
@@ -62,12 +71,16 @@ export class StockCountsController {
   }
 
   @Post(':id/cancel')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   cancel(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.service.cancel(user.companyId, id);
   }
 
   @Delete(':id')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   remove(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.service.remove(user.companyId, id);
