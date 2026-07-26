@@ -38,6 +38,8 @@ export default function RestoSettingsPage() {
     user?.role === "RESTO_MANAGER";
   const canAssign = canManage || user?.role === "WAITER";
   const [stations, setStations] = useState<Station[]>([]);
+  const [loadError, setLoadError] = useState(false);
+  const [bootLoading, setBootLoading] = useState(true);
   const [name, setName] = useState("");
   const [nameEn, setNameEn] = useState("");
   const [busy, setBusy] = useState(false);
@@ -104,67 +106,66 @@ export default function RestoSettingsPage() {
   };
 
   const loadStations = async () => {
-    try {
-      const res = await api.getRestoStations();
-      setStations(res.data.stations || []);
-    } catch {
-      /* ignore */
-    }
+    const res = await api.getRestoStations();
+    setStations(res.data.stations || []);
   };
 
   const loadSections = async () => {
-    try {
-      const [sec, st] = await Promise.all([
-        api.getRestoSectionAssignments(),
-        api.getRestoStaff(),
-      ]);
-      setSections(sec.data.assignments || []);
-      setStaff(st.data.staff || []);
-      const picks: Record<string, string> = {};
-      for (const a of sec.data.assignments || []) {
-        picks[a.zoneId] = a.userId || "";
-      }
-      setPickByZone(picks);
-    } catch {
-      /* ignore */
+    const [sec, st] = await Promise.all([
+      api.getRestoSectionAssignments(),
+      api.getRestoStaff(),
+    ]);
+    setSections(sec.data.assignments || []);
+    setStaff(st.data.staff || []);
+    const picks: Record<string, string> = {};
+    for (const a of sec.data.assignments || []) {
+      picks[a.zoneId] = a.userId || "";
     }
+    setPickByZone(picks);
   };
 
   const loadDayParts = async () => {
-    try {
-      const res = await api.getRestoConfig();
-      setDayParts(res.data.dayParts || dayParts);
-      if (res.data.kitchenSla) setKitchenSla(res.data.kitchenSla);
-      if (res.data.booking) {
-        setBooking({
-          enabled: !!res.data.booking.enabled,
-          publicSlug: res.data.booking.publicSlug || "",
-          publicUrl: res.data.booking.publicUrl,
-          maxParty: res.data.booking.maxParty,
-          minParty: res.data.booking.minParty,
-          slotMinutes: res.data.booking.slotMinutes,
-          horizonDays: res.data.booking.horizonDays,
-          openHour: res.data.booking.openHour,
-          closeHour: res.data.booking.closeHour,
-          turnMinutes: res.data.booking.turnMinutes,
-          autoConfirm: !!res.data.booking.autoConfirm,
-          autoNotify: res.data.booking.autoNotify !== false,
-        });
-      }
-      setDayPartMeta({
-        timezone: res.data.timezone,
-        currentDayPart: res.data.currentDayPart,
-        currentHour: res.data.currentHour,
+    const res = await api.getRestoConfig();
+    setDayParts(res.data.dayParts || dayParts);
+    if (res.data.kitchenSla) setKitchenSla(res.data.kitchenSla);
+    if (res.data.booking) {
+      setBooking({
+        enabled: !!res.data.booking.enabled,
+        publicSlug: res.data.booking.publicSlug || "",
+        publicUrl: res.data.booking.publicUrl,
+        maxParty: res.data.booking.maxParty,
+        minParty: res.data.booking.minParty,
+        slotMinutes: res.data.booking.slotMinutes,
+        horizonDays: res.data.booking.horizonDays,
+        openHour: res.data.booking.openHour,
+        closeHour: res.data.booking.closeHour,
+        turnMinutes: res.data.booking.turnMinutes,
+        autoConfirm: !!res.data.booking.autoConfirm,
+        autoNotify: res.data.booking.autoNotify !== false,
       });
+    }
+    setDayPartMeta({
+      timezone: res.data.timezone,
+      currentDayPart: res.data.currentDayPart,
+      currentHour: res.data.currentHour,
+    });
+  };
+
+  const boot = async () => {
+    setBootLoading(true);
+    setLoadError(false);
+    try {
+      await Promise.all([loadStations(), loadSections(), loadDayParts()]);
     } catch {
-      /* ignore */
+      setLoadError(true);
+    } finally {
+      setBootLoading(false);
     }
   };
 
   useEffect(() => {
-    void loadStations();
-    void loadSections();
-    void loadDayParts();
+    void boot();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const saveDayParts = async () => {
@@ -347,6 +348,21 @@ export default function RestoSettingsPage() {
       <HisabyAppsLinkHub tone="resto" />
       <RestoLinkSettings variant="resto" />
 
+      {bootLoading ? (
+        <p className="text-sm text-stone-400 py-8 text-center">…</p>
+      ) : loadError ? (
+        <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-6 text-center space-y-3">
+          <p className="text-sm text-rose-300">{t.loadFailed}</p>
+          <button
+            type="button"
+            onClick={() => void boot()}
+            className="rounded-xl bg-amber-500 text-[#14110f] px-4 py-2 text-sm font-bold"
+          >
+            {t.retry}
+          </button>
+        </div>
+      ) : (
+        <>
       {canManage ? (
         <div className="rounded-2xl border border-indigo-500/25 bg-indigo-500/5 p-4 space-y-3">
           <div>
@@ -809,6 +825,8 @@ export default function RestoSettingsPage() {
           </form>
         ) : null}
       </div>
+        </>
+      )}
     </div>
   );
 }

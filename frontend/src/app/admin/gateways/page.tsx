@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ChevronLeft } from "lucide-react";
 import api from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
@@ -24,34 +24,26 @@ export default function AdminGatewaysPage() {
   const t = adminCopy[locale === "en" ? "en" : "ar"];
   const en = locale === "en";
   const [rows, setRows] = useState<Gateway[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(false);
+    try {
+      const res = await api.getAdminPaymentGateways();
+      setRows(res.data as Gateway[]);
+    } catch {
+      setRows([]);
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await api.getAdminPaymentGateways();
-        if (!cancelled) {
-          setRows(res.data as Gateway[]);
-          setError(null);
-        }
-      } catch {
-        if (!cancelled) {
-          setError(
-            en
-              ? "Could not load gateways — ensure platform admin access."
-              : "تعذر تحميل بوابات الدفع — تأكد أن حسابك مشرف منصة.",
-          );
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [en]);
+    void load();
+  }, [load]);
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -67,9 +59,16 @@ export default function AdminGatewaysPage() {
       </div>
 
       {error ? (
-        <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
-          {error}
-        </p>
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-center space-y-3">
+          <p className="text-sm text-rose-700">{t.loadFailed}</p>
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="rounded-xl bg-teal-700 text-white px-4 py-2 text-sm font-bold"
+          >
+            {t.retry}
+          </button>
+        </div>
       ) : null}
 
       {loading ? (
@@ -78,7 +77,7 @@ export default function AdminGatewaysPage() {
             <div key={i} className="h-40 rounded-2xl bg-slate-200/70 animate-pulse" />
           ))}
         </div>
-      ) : (
+      ) : !error ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {rows.map((g) => (
             <Link
@@ -125,7 +124,7 @@ export default function AdminGatewaysPage() {
             </Link>
           ))}
         </div>
-      )}
+      ) : null}
 
       {!loading && rows.length === 0 && !error ? (
         <p className="text-sm text-slate-500">{t.empty}</p>

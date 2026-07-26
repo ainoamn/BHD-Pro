@@ -121,6 +121,7 @@ export class AdminController {
   }
 
   @Patch('tenants/:id')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @UseGuards(JwtAuthGuard, PlatformAdminGuard)
   @ApiBearerAuth()
   updateTenant(
@@ -164,6 +165,7 @@ export class AdminController {
   }
 
   @Patch('users/:id')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @UseGuards(JwtAuthGuard, PlatformAdminGuard)
   @ApiBearerAuth()
   setUserActive(@Param('id') id: string, @Body() body: { isActive: boolean }) {
@@ -171,6 +173,7 @@ export class AdminController {
   }
 
   @Delete('users/:id')
+  @Throttle({ default: { limit: 15, ttl: 60_000 } })
   @UseGuards(JwtAuthGuard, PlatformAdminGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Hard-delete a platform user' })
@@ -179,6 +182,7 @@ export class AdminController {
   }
 
   @Post('users/:id/reset-password')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @UseGuards(JwtAuthGuard, PlatformAdminGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Reset user password and email temporary credentials' })
@@ -201,6 +205,7 @@ export class AdminController {
   }
 
   @Post('offers')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @UseGuards(JwtAuthGuard, PlatformAdminGuard)
   @ApiBearerAuth()
   createOffer(@Body() body: Parameters<AdminService['createOffer']>[0]) {
@@ -208,6 +213,7 @@ export class AdminController {
   }
 
   @Patch('offers/:id')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @UseGuards(JwtAuthGuard, PlatformAdminGuard)
   @ApiBearerAuth()
   updateOffer(
@@ -218,6 +224,7 @@ export class AdminController {
   }
 
   @Delete('offers/:id')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @UseGuards(JwtAuthGuard, PlatformAdminGuard)
   @ApiBearerAuth()
   deleteOffer(@Param('id') id: string) {
@@ -233,6 +240,7 @@ export class AdminController {
   }
 
   @Post('plans')
+  @Throttle({ default: { limit: 15, ttl: 60_000 } })
   @UseGuards(JwtAuthGuard, PlatformAdminGuard)
   @ApiBearerAuth()
   createPlan(@Body() body: Parameters<AdminService['createPlanDefinition']>[0]) {

@@ -36,6 +36,7 @@ export class DualControlController {
   }
 
   @Post('requests')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Create async approval request (any staff)' })
   createRequest(
     @CurrentUser() user: TokenPayload,
@@ -84,6 +85,7 @@ export class DualControlController {
   }
 
   @Post('requests/:id/decide')
+  @Throttle({ default: { limit: 40, ttl: 60000 } })
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({ summary: 'Approve or reject a pending request (ADMIN/MANAGER)' })

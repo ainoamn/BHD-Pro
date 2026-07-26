@@ -52,7 +52,7 @@ export default function PosInventoryPage() {
   const [form, setForm] = useState(emptyForm());
   const [codesLoading, setCodesLoading] = useState(false);
 
-  const { data: products = [], isLoading, refetch } = useQuery({
+  const { data: products = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["pos-inventory-products"],
     queryFn: async () => {
       const res = await api.getProducts();
@@ -206,6 +206,17 @@ export default function PosInventoryPage() {
       {isLoading ? (
         <div className="py-16 flex justify-center text-slate-400">
           <Loader2 className="w-6 h-6 animate-spin" />
+        </div>
+      ) : isError ? (
+        <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-6 py-12 text-center space-y-3">
+          <p className="text-sm text-rose-300">{t.loadFailed}</p>
+          <button
+            type="button"
+            onClick={() => void refetch()}
+            className="rounded-xl bg-amber-500 text-slate-950 px-4 py-2 text-sm font-bold"
+          >
+            {t.retry}
+          </button>
         </div>
       ) : filtered.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-white/15 px-6 py-12 text-center text-slate-400 text-sm">
