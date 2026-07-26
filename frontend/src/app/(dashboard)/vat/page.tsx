@@ -8,7 +8,7 @@ import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { cn, formatMoney, formatDate } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
-import { PageHeader, EmptyState, LoadingSpinner, GlassCard } from "@/components/ui/page-shell";
+import { PageHeader, EmptyState, LoadingSpinner, QueryError, GlassCard } from "@/components/ui/page-shell";
 
 interface VatInvoice {
   id: string;
@@ -46,7 +46,7 @@ export default function VatPage() {
   const [clientId, setClientId] = useState("");
   const [taxpayerTin, setTaxpayerTin] = useState("");
 
-  const { data: invoices = [], isLoading } = useQuery({
+  const { data: invoices = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["vat-invoices"],
     queryFn: async () => {
       const res = await api.getVatInvoices();
@@ -210,6 +210,8 @@ export default function VatPage() {
       <GlassCard>
         {isLoading ? (
           <LoadingSpinner />
+        ) : isError ? (
+          <QueryError onRetry={() => refetch()} />
         ) : invoices.length === 0 ? (
           <EmptyState icon={FileText} title={t("noInvoices")} description={t("noInvoicesDesc")} />
         ) : (

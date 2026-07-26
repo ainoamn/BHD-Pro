@@ -8,7 +8,7 @@ import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { formatMoney, formatDate, cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
-import { PageHeader, LoadingSpinner, EmptyState, GlassCard } from "@/components/ui/page-shell";
+import { PageHeader, LoadingSpinner, QueryError, EmptyState, GlassCard } from "@/components/ui/page-shell";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { FormLabel, LineFieldLabel, LineItemsGrid } from "@/components/ui/form-field";
 
@@ -81,7 +81,7 @@ export function ProcurementPage({ mode }: ProcurementPageProps) {
     },
   });
 
-  const { data: rows = [], isLoading } = useQuery({
+  const { data: rows = [], isLoading, isError, refetch } = useQuery({
     queryKey: [queryKey],
     queryFn: async () => {
       const res = isPO ? await api.getPurchaseOrders() : await api.getScheduledInvoices();
@@ -216,6 +216,8 @@ export function ProcurementPage({ mode }: ProcurementPageProps) {
 
       {isLoading ? (
         <LoadingSpinner />
+      ) : isError ? (
+        <QueryError onRetry={() => refetch()} />
       ) : rows.length === 0 ? (
         <EmptyState icon={FileInput} title={t("empty")} />
       ) : (

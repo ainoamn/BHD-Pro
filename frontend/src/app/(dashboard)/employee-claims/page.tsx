@@ -18,7 +18,7 @@ import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { formatDate, formatMoney, cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
-import { PageHeader, LoadingSpinner, EmptyState, GlassCard } from "@/components/ui/page-shell";
+import { PageHeader, LoadingSpinner, QueryError, EmptyState, GlassCard } from "@/components/ui/page-shell";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { EntityAttachments } from "@/components/attachments/entity-attachments";
 import {
@@ -89,7 +89,7 @@ export default function EmployeeClaimsPage() {
       (await api.getBankAccounts()).data as { id: string; name: string; bankName: string }[],
   });
 
-  const { data: rows = [], isLoading } = useQuery({
+  const { data: rows = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["employee-claims"],
     queryFn: async () => {
       const res = await api.getEmployeeClaims();
@@ -218,6 +218,8 @@ export default function EmployeeClaimsPage() {
 
       {isLoading ? (
         <LoadingSpinner />
+      ) : isError ? (
+        <QueryError onRetry={() => refetch()} />
       ) : rows.length === 0 ? (
         <EmptyState icon={Wallet} title={t("empty")} />
       ) : (

@@ -189,7 +189,7 @@ function LoginForm() {
           <p className="text-slate-500 dark:text-slate-400 mt-1">{tApp("tagline")}</p>
           {isAdminNext && (
             <p className="mt-3 text-sm text-amber-600 dark:text-amber-400 font-medium">
-              تسجيل دخول مشرف المنصة
+              {t("adminLoginHint")}
             </p>
           )}
         </div>
@@ -197,7 +197,7 @@ function LoginForm() {
         {stillLoggedIn && isAdminNext && (
           <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-800 dark:text-amber-200 space-y-2">
             <p>
-              أنت مسجّل حاليًا كـ <strong>{currentEmail}</strong> وليس لديه صلاحية إدارة المنصة.
+              {t("adminWrongAccount", { email: currentEmail || "—" })}
             </p>
             <button
               type="button"
@@ -205,14 +205,14 @@ function LoginForm() {
               disabled={switching}
               className="text-sm font-bold underline underline-offset-2"
             >
-              {switching ? "…" : "تسجيل الخروج والدخول بحساب المشرف"}
+              {switching ? "…" : t("adminSwitchAccount")}
             </button>
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="glass rounded-2xl p-6 space-y-4">
           <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
-            {tempToken ? t("totpTitle") : isAdminNext ? "دخول الإدارة" : t("login")}
+            {tempToken ? t("totpTitle") : isAdminNext ? t("adminLoginTitle") : t("login")}
           </h2>
 
           {!tempToken ? (

@@ -1,5 +1,6 @@
 import { Controller, Get, Put, Patch, Body, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { UserRole } from '@prisma/client';
 import { CompaniesService } from './companies.service';
 import { UpdateCompanyDto } from './dto/update-company.dto';
@@ -38,6 +39,7 @@ export class CompaniesController {
   }
 
   @Patch('me/security')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Update dual-control settings (ADMIN)' })

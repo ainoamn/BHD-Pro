@@ -7,7 +7,7 @@ import { Eye, Download, Send, Receipt } from "lucide-react";
 import api from "@/lib/api";
 import { formatMoney, formatDate } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
-import { PageHeader, LoadingSpinner, EmptyState, GlassCard } from "@/components/ui/page-shell";
+import { PageHeader, LoadingSpinner, QueryError, EmptyState, GlassCard } from "@/components/ui/page-shell";
 import { InvoiceDocument, InvoiceDocumentData } from "@/components/invoices/invoice-document";
 import { SendDocumentModal } from "@/components/invoices/send-document-modal";
 import { downloadInvoicePdf } from "@/lib/invoice-print";
@@ -77,7 +77,7 @@ export function ReceiptsListPage({
   const [shareDocument, setShareDocument] = useState<InvoiceDocumentData | null>(null);
   const [loadingDoc, setLoadingDoc] = useState<string | null>(null);
 
-  const { data: rows = [], isLoading } = useQuery({
+  const { data: rows = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["payment-vouchers", direction],
     queryFn: async () => {
       const res = await api.getPaymentVouchers(direction);
@@ -212,6 +212,8 @@ export function ReceiptsListPage({
 
       {isLoading ? (
         <LoadingSpinner />
+      ) : isError ? (
+        <QueryError onRetry={() => refetch()} />
       ) : rows.length === 0 ? (
         <EmptyState icon={Receipt} title={emptyLabel} />
       ) : (

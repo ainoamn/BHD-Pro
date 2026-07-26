@@ -17,7 +17,7 @@ import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { formatMoney } from "@/components/erp/erp-crud-page";
 import { useAuthStore } from "@/store/auth";
-import { PageHeader, GlassCard, LoadingSpinner, EmptyState } from "@/components/ui/page-shell";
+import { PageHeader, GlassCard, LoadingSpinner, EmptyState, QueryError } from "@/components/ui/page-shell";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { EntityAttachments } from "@/components/attachments/entity-attachments";
 
@@ -77,7 +77,7 @@ export default function CommitmentsPage() {
   const [deferUnit, setDeferUnit] = useState<"DAY" | "MONTH" | "YEAR">("MONTH");
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const { data: rows = [], isLoading } = useQuery({
+  const { data: rows = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["commitments"],
     queryFn: async () => (await api.getCommitments()).data as Commitment[],
   });
@@ -331,6 +331,8 @@ export default function CommitmentsPage() {
 
       {isLoading ? (
         <LoadingSpinner />
+      ) : isError ? (
+        <QueryError onRetry={() => refetch()} />
       ) : rows.length === 0 ? (
         <EmptyState icon={CalendarClock} title={t("empty")} />
       ) : (

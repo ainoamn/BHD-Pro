@@ -33,7 +33,11 @@
     "orContinueWith": "Or continue with",
     "googleError": "Google sign-in failed — please try again",
     "googleNeeds2fa": "This account has 2FA enabled — sign in with email first",
-    "googleLoading": "Signing in with Google… may take up to 30s if the server was asleep"
+    "googleLoading": "Signing in with Google… may take up to 30s if the server was asleep",
+    "adminLoginTitle": "Admin sign-in",
+    "adminLoginHint": "Platform administrator sign-in",
+    "adminWrongAccount": "You are signed in as {email} without platform admin access.",
+    "adminSwitchAccount": "Sign out and use an admin account"
   },
   "twoFactor": {
     "title": "Two-factor authentication (2FA)",

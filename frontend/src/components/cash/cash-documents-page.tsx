@@ -8,7 +8,7 @@ import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { formatDate, formatMoney, cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
-import { PageHeader, LoadingSpinner, EmptyState, GlassCard } from "@/components/ui/page-shell";
+import { PageHeader, LoadingSpinner, QueryError, EmptyState, GlassCard } from "@/components/ui/page-shell";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { FormLabel, LineFieldLabel, LineItemsGrid } from "@/components/ui/form-field";
 
@@ -80,7 +80,7 @@ export function CashDocumentsPage({
     },
   });
 
-  const { data: rows = [], isLoading } = useQuery({
+  const { data: rows = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["cash-invoices", docType],
     queryFn: async () => {
       const res = await api.getInvoices({ isCash: true, type: docType });
@@ -216,6 +216,8 @@ export function CashDocumentsPage({
 
       {isLoading ? (
         <LoadingSpinner />
+      ) : isError ? (
+        <QueryError onRetry={() => refetch()} />
       ) : rows.length === 0 ? (
         <EmptyState icon={Banknote} title={empty} />
       ) : (

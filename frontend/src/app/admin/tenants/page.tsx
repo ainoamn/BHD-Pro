@@ -83,14 +83,25 @@ export default function AdminTenantsPage() {
   const [discountPct, setDiscountPct] = useState("0");
   const [discountNote, setDiscountNote] = useState("");
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   const load = async (query?: string) => {
-    const res = await api.getAdminTenants({ q: query || undefined });
-    setRows(res.data as Tenant[]);
+    setLoading(true);
+    setLoadError(false);
+    try {
+      const res = await api.getAdminTenants({ q: query || undefined });
+      setRows(res.data as Tenant[]);
+    } catch {
+      setLoadError(true);
+      setRows([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
-    load();
+    void load();
   }, []);
 
   const openEdit = async (row: Tenant) => {
@@ -184,7 +195,25 @@ export default function AdminTenantsPage() {
       </div>
 
       <div className="space-y-3">
-        {rows.map((row) => {
+        {loading ? (
+          <p className="text-sm text-slate-500 py-8 text-center">{t.loading}</p>
+        ) : loadError ? (
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-center space-y-3">
+            <p className="text-sm text-rose-700">
+              {en ? "Could not load tenants" : "تعذر تحميل الشركات"}
+            </p>
+            <button
+              type="button"
+              onClick={() => void load(q)}
+              className="rounded-xl bg-teal-700 text-white px-4 py-2 text-sm font-bold"
+            >
+              {en ? "Retry" : "إعادة المحاولة"}
+            </button>
+          </div>
+        ) : rows.length === 0 ? (
+          <p className="text-sm text-slate-400 py-8 text-center">{t.empty}</p>
+        ) : (
+        rows.map((row) => {
           const staff = row.sampleUsers || [];
           const activeCount = row.activeUsersCount ?? staff.filter((u) => u.isActive !== false).length;
           const open = !!expanded[row.id];
@@ -363,11 +392,7 @@ export default function AdminTenantsPage() {
               </div>
             </div>
           );
-        })}
-        {rows.length === 0 && (
-          <p className="p-8 text-center text-slate-500 text-sm rounded-2xl border border-slate-200 bg-white">
-            {t.empty}
-          </p>
+        })
         )}
       </div>
 

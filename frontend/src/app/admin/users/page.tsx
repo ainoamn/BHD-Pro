@@ -168,9 +168,11 @@ function UsersInner() {
   const [discountPct, setDiscountPct] = useState("0");
   const [discountNote, setDiscountNote] = useState("");
   const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const res = await api.getAdminUsers({
         q: appliedQ.trim() || undefined,
@@ -181,6 +183,8 @@ function UsersInner() {
       });
       setRows(res.data as UserRow[]);
     } catch (err: unknown) {
+      setLoadError(true);
+      setRows([]);
       toast.error(errMsg(err, en ? "Failed to load" : "تعذر التحميل"));
     } finally {
       setLoading(false);
@@ -425,6 +429,19 @@ function UsersInner() {
             <div className="p-12 text-center text-slate-500 text-sm">
               <Loader2 className="w-5 h-5 animate-spin inline-block me-2 text-teal-700" />
               {t.loading}
+            </div>
+          ) : loadError ? (
+            <div className="p-12 text-center space-y-3">
+              <p className="text-sm text-rose-600">
+                {en ? "Could not load users" : "تعذر تحميل المستخدمين"}
+              </p>
+              <button
+                type="button"
+                onClick={() => void load()}
+                className="rounded-lg bg-teal-700 px-3 py-2 text-sm font-semibold text-white"
+              >
+                {en ? "Retry" : "إعادة المحاولة"}
+              </button>
             </div>
           ) : rows.length === 0 ? (
             <div className="p-12 text-center text-slate-400 text-sm">{t.empty}</div>

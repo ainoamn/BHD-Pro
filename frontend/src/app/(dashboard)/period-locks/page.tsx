@@ -8,7 +8,7 @@ import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { formatDate, cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
-import { PageHeader, LoadingSpinner, GlassCard } from "@/components/ui/page-shell";
+import { PageHeader, LoadingSpinner, QueryError, GlassCard } from "@/components/ui/page-shell";
 
 interface PeriodRow {
   id: string;
@@ -32,7 +32,7 @@ export default function PeriodLocksPage() {
   const queryClient = useQueryClient();
   const [year, setYear] = useState(new Date().getFullYear());
 
-  const { data: periods = [], isLoading } = useQuery({
+  const { data: periods = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["periods", year],
     queryFn: async () => {
       const res = await api.getPeriods(year);
@@ -92,6 +92,8 @@ export default function PeriodLocksPage() {
 
       {isLoading ? (
         <LoadingSpinner />
+      ) : isError ? (
+        <QueryError onRetry={() => refetch()} />
       ) : (
         <>
           <div className="md:hidden space-y-3">

@@ -50,7 +50,7 @@ export default function StockCountsPage() {
     },
   });
 
-  const { data: rows = [], isLoading } = useQuery({
+  const { data: rows = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["stock-counts"],
     queryFn: async () => {
       const res = await api.getStockCounts();
@@ -185,6 +185,8 @@ export default function StockCountsPage() {
 
       {isLoading ? (
         <LoadingSpinner />
+      ) : isError ? (
+        <QueryError onRetry={() => refetch()} />
       ) : rows.length === 0 ? (
         <EmptyState icon={ClipboardList} title={t("empty")} />
       ) : (

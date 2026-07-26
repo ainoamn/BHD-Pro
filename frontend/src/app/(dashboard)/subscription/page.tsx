@@ -10,7 +10,7 @@ import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
-import { LoadingSpinner } from "@/components/ui/page-shell";
+import { LoadingSpinner, QueryError } from "@/components/ui/page-shell";
 import {
   clearUpgradeIntent,
   parseUpgradeFeature,
@@ -112,7 +112,7 @@ function SubscriptionContent() {
     },
   });
 
-  const { data: current, isLoading } = useQuery({
+  const { data: current, isLoading, isError, refetch } = useQuery({
     queryKey: ["subscription-current"],
     queryFn: async () => {
       const res = await api.getCurrentSubscription();
@@ -351,6 +351,8 @@ function SubscriptionContent() {
         <div className="flex justify-center py-8">
           <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
         </div>
+      ) : isError ? (
+        <QueryError onRetry={() => refetch()} />
       ) : (
         current && (
           <div className="glass rounded-xl p-6 border border-emerald-500/20">

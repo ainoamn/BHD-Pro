@@ -7,7 +7,7 @@ import { Plus, Loader2, X, Truck, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { formatDate, cn } from "@/lib/utils";
-import { PageHeader, LoadingSpinner, EmptyState, GlassCard } from "@/components/ui/page-shell";
+import { PageHeader, LoadingSpinner, QueryError, EmptyState, GlassCard } from "@/components/ui/page-shell";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { FormLabel, LineFieldLabel, LineItemsGrid } from "@/components/ui/form-field";
 
@@ -79,7 +79,7 @@ export default function DeliveryNotesPage() {
     },
   });
 
-  const { data: rows = [], isLoading } = useQuery({
+  const { data: rows = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["delivery-notes"],
     queryFn: async () => {
       const res = await api.getDeliveryNotes();
@@ -191,6 +191,8 @@ export default function DeliveryNotesPage() {
 
       {isLoading ? (
         <LoadingSpinner />
+      ) : isError ? (
+        <QueryError onRetry={() => refetch()} />
       ) : rows.length === 0 ? (
         <EmptyState icon={Truck} title={t("empty")} />
       ) : (

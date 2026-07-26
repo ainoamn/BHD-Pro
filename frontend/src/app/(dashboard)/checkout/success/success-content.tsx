@@ -8,6 +8,7 @@ import Link from "next/link";
 import { CheckCircle, Loader2, XCircle, Sparkles } from "lucide-react";
 import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
+import { useLocaleStore } from "@/store/locale";
 import {
   clearUpgradeIntent,
   readUpgradeIntent,
@@ -23,6 +24,7 @@ export default function CheckoutSuccessContent() {
   const queryClient = useQueryClient();
   const setCompany = useAuthStore((s) => s.setCompany);
   const company = useAuthStore((s) => s.company);
+  const locale = useLocaleStore((s) => s.locale);
   const [intent, setIntent] = useState(() => readUpgradeIntent());
 
   const { data, isLoading } = useQuery({
@@ -83,7 +85,10 @@ export default function CheckoutSuccessContent() {
               {tSub("featureUnlockedTitle")}
             </p>
             <p className="text-xs text-emerald-100/80">
-              {tSub("featureUnlockedBody", { feature: featureMeta.labelAr })}
+              {tSub("featureUnlockedBody", {
+                feature:
+                  locale === "en" ? featureMeta.labelEn : featureMeta.labelAr,
+              })}
             </p>
             <Link
               href={openHref}

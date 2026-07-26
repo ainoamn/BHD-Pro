@@ -61,6 +61,7 @@
 - موجة H جزئية: [`HISABY-WAVE-H-SECURITY-UX-2026-07-26.md`](./HISABY-WAVE-H-SECURITY-UX-2026-07-26.md)
 - موجة I: تدقيق دخول + إصلاح دوران صفحات إضافية + منارة أخطاء متصفح — [`HISABY-WAVE-I-STABILITY-AUDIT-2026-07-26.md`](./HISABY-WAVE-I-STABILITY-AUDIT-2026-07-26.md)
 - موجة J: صدق أخطاء القوائم/التقارير + تحسين الدخول/التسجيل — [`HISABY-WAVE-J-ERROR-HONESTY-AUTH-2026-07-26.md`](./HISABY-WAVE-J-ERROR-HONESTY-AUTH-2026-07-26.md)
+- موجة K: صدق قوائم إضافية + إدارة مستأجرين/مستخدمين + throttle أمن الشركة — [`HISABY-WAVE-K-LISTS-ADMIN-SECURITY-2026-07-26.md`](./HISABY-WAVE-K-LISTS-ADMIN-SECURITY-2026-07-26.md)
 
 ### 1.6 المنصة ولوحة الإدارة (محدث 26 يوليو مساءً)
 - اشتراكات، بوابات دفع، `/admin`، PWA، GeoIP، keep-warm

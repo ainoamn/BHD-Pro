@@ -9,7 +9,7 @@ import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { ErpCrudPage, formatMoney } from "@/components/erp/erp-crud-page";
 import { useAuthStore } from "@/store/auth";
-import { PageHeader, GlassCard, LoadingSpinner } from "@/components/ui/page-shell";
+import { PageHeader, GlassCard, LoadingSpinner, QueryError } from "@/components/ui/page-shell";
 import {
   DualApprovalModal,
   type DualApprovalPayload,
@@ -53,7 +53,7 @@ export default function EmployeesPage() {
   const [payingId, setPayingId] = useState<string | null>(null);
   const [dualPayOpen, setDualPayOpen] = useState(false);
 
-  const { data: payroll = [], isLoading } = useQuery({
+  const { data: payroll = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["payroll"],
     queryFn: async () => (await api.getPayrollRuns()).data as PayrollRun[],
     enabled: tab === "payroll",
@@ -214,6 +214,8 @@ export default function EmployeesPage() {
           />
           {isLoading ? (
             <LoadingSpinner />
+          ) : isError ? (
+            <QueryError onRetry={() => refetch()} />
           ) : payroll.length === 0 ? (
             <GlassCard className="p-8 text-center text-slate-400 text-sm">{t("noPayroll")}</GlassCard>
           ) : (

@@ -76,7 +76,7 @@ export default function RestoLiveBoardPage() {
           ) : (
             <RefreshCw className="w-3.5 h-3.5" />
           )}
-          {t.liveAsOf}
+          {t.refresh}
         </button>
       </div>
 
@@ -85,7 +85,16 @@ export default function RestoLiveBoardPage() {
           <Loader2 className="w-6 h-6 animate-spin" />
         </div>
       ) : error && !data ? (
-        <p className="text-center text-sm text-rose-300 py-16">{error}</p>
+        <div className="flex flex-col items-center gap-3 py-16 text-center">
+          <p className="text-sm text-rose-300">{error}</p>
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white"
+          >
+            {t.refresh}
+          </button>
+        </div>
       ) : data ? (
         <>
           <section className="space-y-2">
