@@ -66,6 +66,7 @@ export default function PosApprovalsPage() {
   const [tab, setTab] = useState<Tab>("pending");
   const [rows, setRows] = useState<ApprovalRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const canDecide = user?.role === "ADMIN" || user?.role === "MANAGER";
@@ -74,9 +75,11 @@ export default function PosApprovalsPage() {
     if (!canDecide) {
       setLoading(false);
       setRows([]);
+      setLoadError(false);
       return;
     }
     setLoading(true);
+    setLoadError(false);
     try {
       if (tab === "pending") {
         const res = await api.listPendingDualControlRequests();
@@ -86,6 +89,8 @@ export default function PosApprovalsPage() {
         setRows((res.data as ApprovalRow[]) || []);
       }
     } catch {
+      setRows([]);
+      setLoadError(true);
       toast.error(t.approvalsFail);
     } finally {
       setLoading(false);
@@ -161,6 +166,17 @@ export default function PosApprovalsPage() {
       {loading ? (
         <div className="flex justify-center py-12">
           <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+        </div>
+      ) : loadError ? (
+        <div className="text-center py-10 space-y-3">
+          <p className="text-sm text-rose-300">{t.approvalsFail}</p>
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="rounded-xl bg-amber-500 text-slate-950 px-4 py-2 text-sm font-bold"
+          >
+            {t.retry}
+          </button>
         </div>
       ) : !rows.length ? (
         <p className="text-sm text-slate-500 text-center py-10">

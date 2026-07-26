@@ -7,7 +7,7 @@ import { useTranslations } from "next-intl";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
-import { PageHeader, GlassCard, LoadingSpinner, EmptyState } from "@/components/ui/page-shell";
+import { PageHeader, GlassCard, LoadingSpinner, EmptyState, QueryError } from "@/components/ui/page-shell";
 import { cn } from "@/lib/utils";
 
 type AlertStatus = "OPEN" | "ACKNOWLEDGED" | "RESOLVED" | "DISMISSED" | "ALL";
@@ -46,12 +46,18 @@ export default function ManagementAlertsPage() {
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<AlertStatus>("OPEN");
 
-  const { data: rows = [], isLoading, error } = useQuery({
+  const { data: rows = [], isLoading, isError, error, refetch } = useQuery({
     queryKey: ["management-alerts", status],
     queryFn: async () =>
       (await api.getManagementAlerts(status === "ALL" ? undefined : status)).data as AlertRow[],
     retry: false,
   });
+
+  const isForbidden =
+    !!error &&
+    typeof error === "object" &&
+    "response" in error &&
+    (error as { response?: { status?: number } }).response?.status === 403;
 
   const patchMutation = useMutation({
     mutationFn: ({ id, next }: { id: string; next: string }) =>
@@ -90,8 +96,10 @@ export default function ManagementAlertsPage() {
         ))}
       </div>
 
-      {error ? (
+      {isForbidden ? (
         <GlassCard className="p-6 text-amber-300 text-sm">{t("forbidden")}</GlassCard>
+      ) : isError ? (
+        <QueryError onRetry={() => refetch()} />
       ) : isLoading ? (
         <LoadingSpinner />
       ) : sorted.length === 0 ? (

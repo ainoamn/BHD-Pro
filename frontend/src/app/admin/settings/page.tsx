@@ -17,12 +17,15 @@ export default function AdminSettingsPage() {
   const t = adminCopy[locale === "en" ? "en" : "ar"];
   const en = locale === "en";
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [enabled, setEnabled] = useState(false);
   const [messageAr, setMessageAr] = useState("");
   const [messageEn, setMessageEn] = useState("");
 
-  useEffect(() => {
+  const load = () => {
+    setLoading(true);
+    setLoadError(false);
     api
       .getAdminSettings()
       .then((res) => {
@@ -33,9 +36,15 @@ export default function AdminSettingsPage() {
         setMessageEn(m.messageEn || "");
       })
       .catch(() => {
+        setLoadError(true);
         toast.error(en ? "Could not load settings" : "تعذر تحميل الإعدادات");
       })
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [en]);
 
   const save = async () => {
@@ -56,6 +65,21 @@ export default function AdminSettingsPage() {
 
   if (loading) {
     return <p className="text-sm text-slate-500">{t.loading}</p>;
+  }
+
+  if (loadError) {
+    return (
+      <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-center space-y-3 max-w-md">
+        <p className="text-sm text-rose-700">{t.loadFailed}</p>
+        <button
+          type="button"
+          onClick={() => load()}
+          className="rounded-xl bg-teal-700 text-white px-4 py-2 text-sm font-bold"
+        >
+          {t.retry}
+        </button>
+      </div>
+    );
   }
 
   return (

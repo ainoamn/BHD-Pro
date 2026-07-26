@@ -8,7 +8,7 @@ import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { formatMoney } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
-import { PageHeader, LoadingSpinner, GlassCard } from "@/components/ui/page-shell";
+import { PageHeader, LoadingSpinner, GlassCard, QueryError } from "@/components/ui/page-shell";
 import { FormLabel } from "@/components/ui/form-field";
 
 interface TreeNode {
@@ -110,7 +110,7 @@ export default function ChartOfAccountsPage() {
   });
   const [editForm, setEditForm] = useState({ code: "", name: "" });
 
-  const { data: tree = [], isLoading } = useQuery({
+  const { data: tree = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["accounts-tree"],
     queryFn: async () => {
       const res = await api.getAccountsTree();
@@ -190,6 +190,8 @@ export default function ChartOfAccountsPage() {
 
       {isLoading ? (
         <LoadingSpinner />
+      ) : isError ? (
+        <QueryError onRetry={() => refetch()} />
       ) : (
         <>
           <div className="md:hidden space-y-3">

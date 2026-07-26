@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Param, Body, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { IsBoolean, IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
 import { VatService } from './vat.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -61,6 +62,7 @@ export class VatController {
   }
 
   @Post('ota-config')
+  @Throttle({ default: { limit: 15, ttl: 60_000 } })
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Update OTA mode: mock | sandbox | live' })
   updateOta(@CurrentUser() user: TokenPayload, @Body() dto: UpdateOtaConfigDto) {

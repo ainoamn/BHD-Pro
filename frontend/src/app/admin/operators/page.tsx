@@ -33,6 +33,7 @@ export default function AdminOperatorsPage() {
   const en = locale === "en";
   const [rows, setRows] = useState<Operator[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [perms, setPerms] = useState<string[]>(["full"]);
@@ -58,10 +59,15 @@ export default function AdminOperatorsPage() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      setLoading(true);
+      setLoadError(false);
       try {
         await load();
       } catch {
-        if (!cancelled) toast.error(en ? "Failed to load" : "تعذر التحميل");
+        if (!cancelled) {
+          setLoadError(true);
+          toast.error(en ? "Failed to load" : "تعذر التحميل");
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -223,6 +229,26 @@ export default function AdminOperatorsPage() {
       {loading ? (
         <div className="flex justify-center py-10">
           <Loader2 className="w-6 h-6 animate-spin text-teal-700" />
+        </div>
+      ) : loadError ? (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-center space-y-3">
+          <p className="text-sm text-rose-700">{t.loadFailed}</p>
+          <button
+            type="button"
+            onClick={() => {
+              setLoading(true);
+              setLoadError(false);
+              void load()
+                .catch(() => {
+                  setLoadError(true);
+                  toast.error(en ? "Failed to load" : "تعذر التحميل");
+                })
+                .finally(() => setLoading(false));
+            }}
+            className="rounded-xl bg-teal-700 text-white px-4 py-2 text-sm font-bold"
+          >
+            {t.retry}
+          </button>
         </div>
       ) : (
         <div className="space-y-3">

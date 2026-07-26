@@ -19,16 +19,19 @@ export default function RestoReportsPage() {
   const [days, setDays] = useState(7);
   const [data, setData] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [flashBusy, setFlashBusy] = useState(false);
   const [hourMode, setHourMode] = useState<"orders" | "revenue">("orders");
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const res = await api.getRestoReportsSummary(days);
       setData(res.data);
     } catch {
       setData(null);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -152,6 +155,17 @@ th,td{border-bottom:1px solid #ddd;padding:6px 4px;text-align:start;font-size:13
       {loading ? (
         <div className="flex justify-center py-20 text-stone-400">
           <Loader2 className="w-6 h-6 animate-spin" />
+        </div>
+      ) : loadError ? (
+        <div className="text-center py-16 space-y-3">
+          <p className="text-sm text-rose-300">{t.loadFailed}</p>
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="rounded-xl bg-amber-500 text-[#14110f] px-4 py-2 text-sm font-bold"
+          >
+            {t.retry}
+          </button>
         </div>
       ) : !data || data.orders === 0 ? (
         <p className="text-center text-sm text-stone-400 py-16">{t.reportEmpty}</p>

@@ -43,6 +43,7 @@ export class AdminController {
   }
 
   @Post('operators')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @UseGuards(JwtAuthGuard, PlatformAdminGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Appoint a platform operator' })
@@ -67,6 +68,7 @@ export class AdminController {
   }
 
   @Patch('operators/:id')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @UseGuards(JwtAuthGuard, PlatformAdminGuard)
   @ApiBearerAuth()
   updateOperator(
@@ -84,6 +86,7 @@ export class AdminController {
   }
 
   @Delete('operators/:id')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @UseGuards(JwtAuthGuard, PlatformAdminGuard)
   @ApiBearerAuth()
   removeOperator(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
@@ -275,6 +278,7 @@ export class AdminController {
   }
 
   @Patch('settings/:key')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @UseGuards(JwtAuthGuard, PlatformAdminGuard)
   @ApiBearerAuth()
   upsertSetting(@Param('key') key: string, @Body() body: { value: unknown }) {

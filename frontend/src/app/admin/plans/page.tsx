@@ -118,6 +118,7 @@ export default function AdminPlansPage() {
   const [creating, setCreating] = useState(false);
   const [offerSaving, setOfferSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   const load = async () => {
     const [p, o] = await Promise.all([api.getAdminPlans(), api.getAdminOffers()]);
@@ -131,9 +132,12 @@ export default function AdminPlansPage() {
 
   useEffect(() => {
     (async () => {
+      setLoading(true);
+      setLoadError(false);
       try {
         await load();
       } catch {
+        setLoadError(true);
         toast.error(en ? "Failed to load plans" : "تعذر تحميل الباقات");
       } finally {
         setLoading(false);
@@ -301,6 +305,30 @@ export default function AdminPlansPage() {
     return (
       <div className="flex justify-center py-16">
         <Loader2 className="w-6 h-6 animate-spin text-teal-700" />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-center space-y-3 max-w-md mx-auto">
+        <p className="text-sm text-rose-700">{t.loadFailed}</p>
+        <button
+          type="button"
+          onClick={() => {
+            setLoading(true);
+            setLoadError(false);
+            void load()
+              .catch(() => {
+                setLoadError(true);
+                toast.error(en ? "Failed to load plans" : "تعذر تحميل الباقات");
+              })
+              .finally(() => setLoading(false));
+          }}
+          className="rounded-xl bg-teal-700 text-white px-4 py-2 text-sm font-bold"
+        >
+          {t.retry}
+        </button>
       </div>
     );
   }

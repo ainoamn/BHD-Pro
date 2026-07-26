@@ -168,6 +168,7 @@ export default function RestoMenuPage() {
   const [items, setItems] = useState<MenuItem[]>([]);
   const [stations, setStations] = useState<Station[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [eightySix, setEightySix] = useState<
     Array<{
@@ -218,11 +219,15 @@ export default function RestoMenuPage() {
     const timer = window.setTimeout(() => {
       void (async () => {
         setLoading(true);
+        setLoadError(false);
         try {
           const res = await api.getRestoMenu(q.trim() || undefined);
           if (!cancelled) setItems(res.data.items || []);
         } catch {
-          if (!cancelled) setItems([]);
+          if (!cancelled) {
+            setItems([]);
+            setLoadError(true);
+          }
         } finally {
           if (!cancelled) setLoading(false);
         }
@@ -233,6 +238,22 @@ export default function RestoMenuPage() {
       window.clearTimeout(timer);
     };
   }, [q]);
+
+  const reloadMenu = () => {
+    setLoading(true);
+    setLoadError(false);
+    void (async () => {
+      try {
+        const res = await api.getRestoMenu(q.trim() || undefined);
+        setItems(res.data.items || []);
+      } catch {
+        setItems([]);
+        setLoadError(true);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  };
 
   const fmt = (price: string | number) => {
     const n = typeof price === "number" ? price : Number(price);
@@ -427,6 +448,17 @@ export default function RestoMenuPage() {
       {loading ? (
         <div className="flex justify-center py-16 text-stone-400">
           <Loader2 className="w-6 h-6 animate-spin" />
+        </div>
+      ) : loadError ? (
+        <div className="text-center py-16 space-y-3">
+          <p className="text-sm text-rose-300">{t.loadFailed}</p>
+          <button
+            type="button"
+            onClick={() => reloadMenu()}
+            className="rounded-xl bg-amber-500 text-[#14110f] px-4 py-2 text-sm font-bold"
+          >
+            {t.retry}
+          </button>
         </div>
       ) : items.length === 0 ? (
         <p className="text-center text-sm text-stone-400 py-16">{t.menuEmpty}</p>

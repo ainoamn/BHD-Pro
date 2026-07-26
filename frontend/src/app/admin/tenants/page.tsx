@@ -199,15 +199,13 @@ export default function AdminTenantsPage() {
           <p className="text-sm text-slate-500 py-8 text-center">{t.loading}</p>
         ) : loadError ? (
           <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-center space-y-3">
-            <p className="text-sm text-rose-700">
-              {en ? "Could not load tenants" : "تعذر تحميل الشركات"}
-            </p>
+            <p className="text-sm text-rose-700">{t.loadFailed}</p>
             <button
               type="button"
               onClick={() => void load(q)}
               className="rounded-xl bg-teal-700 text-white px-4 py-2 text-sm font-bold"
             >
-              {en ? "Retry" : "إعادة المحاولة"}
+              {t.retry}
             </button>
           </div>
         ) : rows.length === 0 ? (
