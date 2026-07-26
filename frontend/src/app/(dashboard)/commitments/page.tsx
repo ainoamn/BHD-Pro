@@ -158,11 +158,13 @@ export default function CommitmentsPage() {
       invalidate();
       toast.success(t("paused"));
     },
+    onError: () => toast.error(tCommon("error")),
   });
 
   const resumeMutation = useMutation({
     mutationFn: (id: string) => api.resumeCommitment(id),
     onSuccess: invalidate,
+    onError: () => toast.error(tCommon("error")),
   });
 
   const runMutation = useMutation({
@@ -171,11 +173,13 @@ export default function CommitmentsPage() {
       invalidate();
       toast.success(`${t("ran")}: ${(res.data as { processed: number }).processed}`);
     },
+    onError: () => toast.error(tCommon("error")),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.deleteCommitment(id),
     onSuccess: invalidate,
+    onError: () => toast.error(tCommon("error")),
   });
 
   const setField = <K extends keyof FormState>(key: K, value: FormState[K]) =>

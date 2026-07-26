@@ -174,7 +174,113 @@ export class JournalService {
   async remove(companyId: string, id: string) {
     const journal = await this.findOne(companyId, id);
     await this.periods.assertOpen(companyId, journal.date);
-    await this.prisma.journal.delete({ where: { id } });
+
+    const [
+      invoiceLink,
+      paymentLink,
+      payrollAccrual,
+      payrollPayment,
+      claimAccrual,
+      claimPayment,
+      posCash,
+    ] = await Promise.all([
+      this.prisma.invoice.findFirst({
+        where: { companyId, glJournalId: id },
+        select: { number: true },
+      }),
+      this.prisma.payment.findFirst({
+        where: { glJournalId: id, invoice: { companyId } },
+        select: { id: true },
+      }),
+      this.prisma.payrollRun.findFirst({
+        where: { companyId, glAccrualJournalId: id },
+        select: { number: true },
+      }),
+      this.prisma.payrollRun.findFirst({
+        where: { companyId, glPaymentJournalId: id },
+        select: { number: true },
+      }),
+      this.prisma.employeeClaim.findFirst({
+        where: { companyId, glAccrualJournalId: id },
+        select: { number: true },
+      }),
+      this.prisma.employeeClaim.findFirst({
+        where: { companyId, glPaymentJournalId: id },
+        select: { number: true },
+      }),
+      this.prisma.posCashMovement.findFirst({
+        where: { companyId, journalId: id },
+        select: { id: true },
+      }),
+    ]);
+
+    if (invoiceLink) {
+      throw new BadRequestException(
+        `Journal linked to invoice ${invoiceLink.number} — unsend or cancel the invoice instead`,
+      );
+    }
+    if (paymentLink) {
+      throw new BadRequestException(
+        'Journal linked to a payment — reverse the payment instead of deleting the journal',
+      );
+    }
+    if (payrollAccrual || payrollPayment) {
+      throw new BadRequestException(
+        'Journal linked to payroll — reverse/delete the payroll run instead',
+      );
+    }
+    if (claimAccrual || claimPayment) {
+      throw new BadRequestException(
+        'Journal linked to an employee claim — reverse via claim workflow instead',
+      );
+    }
+    if (posCash) {
+      throw new BadRequestException(
+        'Journal linked to a POS cash movement — reverse that movement instead',
+      );
+    }
+
+    const accountIds = [...new Set(journal.lines.map((l) => l.accountId))];
+    const accountRows = await this.prisma.account.findMany({
+      where: { companyId, id: { in: accountIds } },
+    });
+    const typeMap = new Map(accountRows.map((a) => [a.id, a.type]));
+
+    await this.prisma.$transaction(async (tx) => {
+      for (const line of journal.lines) {
+        const accountType = typeMap.get(line.accountId);
+        if (!accountType) continue;
+        const debit = Number(line.debit);
+        const credit = Number(line.credit);
+        const net = debit - credit;
+        const delta = accountType === 'ASSET' || accountType === 'EXPENSE' ? net : -net;
+        if (Math.abs(delta) < 0.0005) continue;
+        await tx.account.update({
+          where: { id: line.accountId },
+          data: { currentBalance: { decrement: delta } },
+        });
+      }
+
+      const bankRows = await tx.bankAccount.findMany({
+        where: { companyId, accountId: { in: accountIds }, isActive: true },
+      });
+      for (const bank of bankRows) {
+        if (!bank.accountId) continue;
+        const related = journal.lines.filter((l) => l.accountId === bank.accountId);
+        const bankDelta = related.reduce(
+          (s, l) => s + (Number(l.debit) - Number(l.credit)),
+          0,
+        );
+        if (Math.abs(bankDelta) < 0.0005) continue;
+        await tx.bankAccount.update({
+          where: { id: bank.id },
+          data: { currentBalance: { decrement: bankDelta } },
+        });
+      }
+
+      await tx.journal.delete({ where: { id } });
+    });
+
     return { message: 'Journal deleted' };
   }
 }

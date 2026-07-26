@@ -13,6 +13,7 @@ import {
   ArrayMinSize,
   IsBoolean,
 } from 'class-validator';
+import { PartialType } from '@nestjs/swagger';
 import { PurchaseOrderStatus, ScheduleFrequency } from '@prisma/client';
 import { InvoiceItemDto } from './create-invoice.dto';
 
@@ -50,7 +51,7 @@ export class CreatePurchaseOrderDto {
   items: InvoiceItemDto[];
 }
 
-export class UpdatePurchaseOrderDto extends CreatePurchaseOrderDto {
+export class UpdatePurchaseOrderDto extends PartialType(CreatePurchaseOrderDto) {
   @IsOptional()
   @IsEnum(PurchaseOrderStatus)
   status?: PurchaseOrderStatus;
@@ -102,4 +103,4 @@ export class CreateScheduledInvoiceDto {
   items: InvoiceItemDto[];
 }
 
-export class UpdateScheduledInvoiceDto extends CreateScheduledInvoiceDto {}
+export class UpdateScheduledInvoiceDto extends PartialType(CreateScheduledInvoiceDto) {}

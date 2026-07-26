@@ -491,7 +491,7 @@ export class RestoController {
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   @Roles(...RESTO_FLOOR_MGR)
   cancel(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
-    return this.resto.cancelOrder(user.companyId, id);
+    return this.resto.cancelOrder(user.companyId, user.sub, id);
   }
 
   @Get('stations')

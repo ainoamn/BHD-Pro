@@ -36,6 +36,8 @@ export class AttachmentsController {
   }
 
   @Post()
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 40, ttl: 60000 } })
   create(@CurrentUser() user: TokenPayload, @Body() dto: CreateAttachmentDto) {
     return this.service.create(user.companyId, user.sub, dto);

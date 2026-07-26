@@ -131,29 +131,64 @@ export class ScheduledInvoicesService {
   }
 
   async update(companyId: string, id: string, dto: UpdateScheduledInvoiceDto) {
-    await this.findOne(companyId, id);
-    const taxRate = dto.taxRate ?? OMAN_VAT_RATE;
-    const { subtotal, taxAmount, items } = this.buildItems(dto.items, taxRate);
-    const discount = dto.discount || 0;
-    const total = Number((subtotal + taxAmount - discount).toFixed(3));
+    const existing = await this.findOne(companyId, id);
+    const taxRate =
+      dto.taxRate != null ? Number(dto.taxRate) : Number(existing.taxRate);
+    const discount =
+      dto.discount != null ? Number(dto.discount) : Number(existing.discount);
 
-    await this.prisma.scheduledInvoiceItem.deleteMany({ where: { scheduleId: id } });
+    if (dto.items) {
+      const { subtotal, taxAmount, items } = this.buildItems(dto.items, taxRate);
+      const total = Number((subtotal + taxAmount - discount).toFixed(3));
+      await this.prisma.scheduledInvoiceItem.deleteMany({ where: { scheduleId: id } });
+      return this.prisma.scheduledInvoice.update({
+        where: { id },
+        data: {
+          name: dto.name ?? existing.name,
+          contactId: dto.contactId ?? existing.contactId,
+          frequency: dto.frequency ?? existing.frequency,
+          nextDate: dto.nextDate ? new Date(dto.nextDate) : existing.nextDate,
+          isActive: dto.isActive ?? existing.isActive,
+          subtotal,
+          discount,
+          taxRate,
+          taxAmount,
+          total,
+          notes: dto.notes !== undefined ? dto.notes : existing.notes,
+          items: { create: items },
+        },
+        include: { contact: true, items: true },
+      });
+    }
+
+    const subtotal = Number(existing.subtotal);
+    const nextTaxAmount =
+      dto.taxRate != null
+        ? Number(
+            existing.items
+              .reduce((s, it) => {
+                const lineSub =
+                  Number(it.quantity) * Number(it.unitPrice) - Number(it.discount || 0);
+                return s + lineSub * (taxRate / 100);
+              }, 0)
+              .toFixed(3),
+          )
+        : Number(existing.taxAmount);
+    const total = Number((subtotal + nextTaxAmount - discount).toFixed(3));
 
     return this.prisma.scheduledInvoice.update({
       where: { id },
       data: {
-        name: dto.name,
-        contactId: dto.contactId,
-        frequency: dto.frequency,
-        nextDate: new Date(dto.nextDate),
-        isActive: dto.isActive ?? true,
-        subtotal,
+        name: dto.name ?? existing.name,
+        contactId: dto.contactId ?? existing.contactId,
+        frequency: dto.frequency ?? existing.frequency,
+        nextDate: dto.nextDate ? new Date(dto.nextDate) : existing.nextDate,
+        isActive: dto.isActive ?? existing.isActive,
         discount,
         taxRate,
-        taxAmount,
+        taxAmount: nextTaxAmount,
         total,
-        notes: dto.notes,
-        items: { create: items },
+        notes: dto.notes !== undefined ? dto.notes : existing.notes,
       },
       include: { contact: true, items: true },
     });

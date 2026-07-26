@@ -137,27 +137,71 @@ export class PurchaseOrdersService {
       throw new ForbiddenException('Cannot edit received purchase order');
     }
 
-    const taxRate = dto.taxRate ?? Number(existing.taxRate);
-    const { subtotal, taxAmount, items } = this.buildItems(dto.items, taxRate);
-    const discount = dto.discount || 0;
-    const total = Number((subtotal + taxAmount - discount).toFixed(3));
+    const taxRate =
+      dto.taxRate != null ? Number(dto.taxRate) : Number(existing.taxRate);
+    const discount =
+      dto.discount != null ? Number(dto.discount) : Number(existing.discount);
 
-    await this.prisma.purchaseOrderItem.deleteMany({ where: { orderId: id } });
+    if (dto.items) {
+      const { subtotal, taxAmount, items } = this.buildItems(dto.items, taxRate);
+      const total = Number((subtotal + taxAmount - discount).toFixed(3));
+      await this.prisma.purchaseOrderItem.deleteMany({ where: { orderId: id } });
+      return this.prisma.purchaseOrder.update({
+        where: { id },
+        data: {
+          contactId: dto.contactId ?? existing.contactId,
+          date: dto.date ? new Date(dto.date) : existing.date,
+          expectedDate:
+            dto.expectedDate !== undefined
+              ? dto.expectedDate
+                ? new Date(dto.expectedDate)
+                : null
+              : existing.expectedDate,
+          subtotal,
+          discount,
+          taxRate,
+          taxAmount,
+          total,
+          notes: dto.notes !== undefined ? dto.notes : existing.notes,
+          status: dto.status ?? existing.status,
+          items: { create: items },
+        },
+        include: { contact: true, items: true },
+      });
+    }
+
+    const subtotal = Number(existing.subtotal);
+    const nextTaxAmount =
+      dto.taxRate != null
+        ? Number(
+            existing.items
+              .reduce((s, it) => {
+                const lineSub =
+                  Number(it.quantity) * Number(it.unitPrice) - Number(it.discount || 0);
+                return s + lineSub * (taxRate / 100);
+              }, 0)
+              .toFixed(3),
+          )
+        : Number(existing.taxAmount);
+    const total = Number((subtotal + nextTaxAmount - discount).toFixed(3));
 
     return this.prisma.purchaseOrder.update({
       where: { id },
       data: {
-        contactId: dto.contactId,
-        date: new Date(dto.date),
-        expectedDate: dto.expectedDate ? new Date(dto.expectedDate) : null,
-        subtotal,
+        contactId: dto.contactId ?? existing.contactId,
+        date: dto.date ? new Date(dto.date) : existing.date,
+        expectedDate:
+          dto.expectedDate !== undefined
+            ? dto.expectedDate
+              ? new Date(dto.expectedDate)
+              : null
+            : existing.expectedDate,
         discount,
         taxRate,
-        taxAmount,
+        taxAmount: nextTaxAmount,
         total,
-        notes: dto.notes,
+        notes: dto.notes !== undefined ? dto.notes : existing.notes,
         status: dto.status ?? existing.status,
-        items: { create: items },
       },
       include: { contact: true, items: true },
     });

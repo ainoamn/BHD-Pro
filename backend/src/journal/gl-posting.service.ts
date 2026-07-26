@@ -461,6 +461,18 @@ export class GlPostingService {
   ) {
     if (!payment.glJournalId) return null;
 
+    const revRef = `REV-PAY:${payment.id}`;
+    const existing = await this.prisma.journal.findFirst({
+      where: { companyId, reference: revRef },
+    });
+    if (existing) {
+      await this.prisma.payment.update({
+        where: { id: payment.id },
+        data: { glJournalId: null },
+      });
+      return existing;
+    }
+
     const accounts = await this.resolveAccounts(companyId);
     const amount = Number(payment.amount);
     const storeCredit = this.isStoreCreditPayment(payment);

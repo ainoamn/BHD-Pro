@@ -13,6 +13,8 @@ import {
   RestoOrderStatus,
   RestoTableStatus,
   UserRole,
+  InvoiceStatus,
+  PaymentStatus,
 } from '@prisma/client';
 import { Observable, Subject, from, interval, merge, of } from 'rxjs';
 import { map, switchMap } from 'rxjs/operators';
@@ -21,6 +23,7 @@ import { PosService } from '../pos/pos.service';
 import { PosIncentivesService } from '../pos/pos-incentives.service';
 import { DualControlService } from '../dual-control/dual-control.service';
 import { RestoGuestNotifyService } from '../notifications/resto-guest-notify.service';
+import { InvoicesService } from '../invoices/invoices.service';
 import { DualApprovalDto } from '../dual-control/dto/approval.dto';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
 import {
@@ -100,6 +103,7 @@ export class RestoService {
     private readonly incentives: PosIncentivesService,
     private readonly dualControl: DualControlService,
     private readonly guestNotify: RestoGuestNotifyService,
+    private readonly invoices: InvoicesService,
   ) {}
 
   private kitchenBus(companyId: string) {
@@ -3713,10 +3717,36 @@ export class RestoService {
     return this.getOrder(companyId, orderId);
   }
 
-  async cancelOrder(companyId: string, orderId: string) {
+  async cancelOrder(companyId: string, userId: string, orderId: string) {
     const order = await this.loadOrder(companyId, orderId);
     if (order.status === RestoOrderStatus.CLOSED) {
       throw new BadRequestException('Order already closed');
+    }
+    if (order.invoiceId) {
+      const inv = await this.prisma.invoice.findFirst({
+        where: { id: order.invoiceId, companyId },
+        select: { id: true, status: true, paymentStatus: true, paidAmount: true },
+      });
+      if (inv) {
+        if (
+          inv.status === InvoiceStatus.PAID ||
+          Number(inv.paidAmount) > 0.0005 ||
+          inv.paymentStatus === PaymentStatus.PAID ||
+          inv.paymentStatus === PaymentStatus.PARTIAL
+        ) {
+          throw new BadRequestException(
+            'Cannot cancel order with paid invoice — void/reverse the sale instead',
+          );
+        }
+        if (inv.status !== InvoiceStatus.CANCELLED) {
+          await this.invoices.updateStatus(
+            companyId,
+            userId,
+            inv.id,
+            InvoiceStatus.CANCELLED,
+          );
+        }
+      }
     }
     await this.prisma.$transaction(async (tx) => {
       await tx.restoOrderItem.updateMany({

@@ -405,6 +405,38 @@ export class InvoicesService {
   async updateStatus(companyId: string, userId: string, id: string, status: InvoiceStatus) {
     const invoice = await this.findOne(companyId, id);
 
+    if (
+      status !== InvoiceStatus.CANCELLED &&
+      status !== InvoiceStatus.PAID &&
+      (invoice.paymentStatus === PaymentStatus.PAID ||
+        invoice.paymentStatus === PaymentStatus.PARTIAL ||
+        Number(invoice.paidAmount) > 0.0005 ||
+        invoice.payments.length > 0)
+    ) {
+      throw new BadRequestException(
+        'Reverse payments first before changing status away from paid/partial',
+      );
+    }
+
+    // Cancel: reverse payment GL first (POS void already does this; accounting cancel did not)
+    if (status === InvoiceStatus.CANCELLED) {
+      if (invoice.status === InvoiceStatus.CANCELLED) {
+        return invoice;
+      }
+      await this.clearPaymentsForLifecycle(companyId, userId, invoice);
+      const fresh = await this.findOne(companyId, id);
+      await this.glPosting.reverseInvoiceEntry(companyId, userId, fresh);
+      return this.prisma.invoice.update({
+        where: { id },
+        data: {
+          status: InvoiceStatus.CANCELLED,
+          paymentStatus: PaymentStatus.UNPAID,
+          paidAmount: 0,
+        },
+        include: { contact: true, items: true, payments: true },
+      });
+    }
+
     const data: {
       status: InvoiceStatus;
       paymentStatus?: PaymentStatus;
@@ -414,7 +446,6 @@ export class InvoicesService {
     if (status === InvoiceStatus.PAID) {
       data.paymentStatus = PaymentStatus.PAID;
       data.paidAmount = Number(invoice.total);
-      // Create payment record if none exists (legacy mark-paid flow)
       const existingPayments = await this.prisma.payment.count({ where: { invoiceId: id } });
       if (existingPayments === 0) {
         await this.prisma.payment.create({
@@ -427,13 +458,6 @@ export class InvoicesService {
           },
         });
       }
-    } else if (status === InvoiceStatus.CANCELLED) {
-      data.paymentStatus = PaymentStatus.UNPAID;
-      data.paidAmount = 0;
-    } else if (invoice.paymentStatus === PaymentStatus.PAID) {
-      // Reverting from paid
-      data.paymentStatus = PaymentStatus.UNPAID;
-      data.paidAmount = 0;
     }
 
     const updated = await this.prisma.invoice.update({
@@ -441,11 +465,6 @@ export class InvoicesService {
       data,
       include: { contact: true, items: true, payments: true },
     });
-
-    if (status === InvoiceStatus.CANCELLED) {
-      // Use pre-update invoice so glJournalId is still available (even after payment reversal)
-      await this.glPosting.reverseInvoiceEntry(companyId, userId, invoice);
-    }
 
     if (
       ([InvoiceStatus.SENT, InvoiceStatus.VIEWED, InvoiceStatus.OVERDUE, InvoiceStatus.PAID] as InvoiceStatus[]).includes(
@@ -462,6 +481,21 @@ export class InvoicesService {
     }
 
     return updated;
+  }
+
+  /** Reverse payment journals + delete rows without touching invoice status. */
+  private async clearPaymentsForLifecycle(
+    companyId: string,
+    userId: string,
+    invoice: Awaited<ReturnType<InvoicesService['findOne']>>,
+  ) {
+    if (!invoice.payments.length && Number(invoice.paidAmount) <= 0.0005) return;
+    for (const pay of invoice.payments) {
+      await this.glPosting.reversePaymentEntry(companyId, userId, pay, invoice);
+    }
+    if (invoice.payments.length) {
+      await this.prisma.payment.deleteMany({ where: { invoiceId: invoice.id } });
+    }
   }
 
   /** Fix legacy rows where status=PAID but paymentStatus was not updated */
