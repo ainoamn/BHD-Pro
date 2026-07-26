@@ -101,6 +101,8 @@ type ParkedCart = {
   contactId?: string;
   contactPhone?: string;
   contactName?: string;
+  heldAmount?: number | null;
+  heldMethod?: string | null;
   lines: CartLine[];
 };
 
@@ -255,6 +257,22 @@ export default function PosCheckoutPage() {
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [cartNotes, setCartNotes] = useState("");
+  const [parkHoldOpen, setParkHoldOpen] = useState(false);
+  const [parkHoldAmount, setParkHoldAmount] = useState("");
+  const [parkHoldMethod, setParkHoldMethod] = useState<
+    "CASH" | "CREDIT_CARD" | "BANK_TRANSFER"
+  >("CASH");
+  const [recalledDraftId, setRecalledDraftId] = useState<string | null>(null);
+  const [heldDeposit, setHeldDeposit] = useState<{
+    amount: number;
+    method: string;
+  } | null>(null);
+  const [creditTopUpOpen, setCreditTopUpOpen] = useState(false);
+  const [creditTopUpAmount, setCreditTopUpAmount] = useState("");
+  const [creditTopUpMethod, setCreditTopUpMethod] = useState<
+    "CASH" | "CREDIT_CARD" | "BANK_TRANSFER"
+  >("CASH");
+  const [creditTopUpBusy, setCreditTopUpBusy] = useState(false);
   const [tipAmount, setTipAmount] = useState(0);
   const [tipCustom, setTipCustom] = useState("");
   const [splitOpen, setSplitOpen] = useState(false);
@@ -661,6 +679,8 @@ export default function PosCheckoutPage() {
       linesJson: unknown;
       createdAt: string;
       updatedAt?: string;
+      heldAmount?: number | string | null;
+      heldMethod?: string | null;
     }): ParkedCart => ({
       id: d.id,
       name: d.name,
@@ -671,6 +691,11 @@ export default function PosCheckoutPage() {
       contactId: d.contactId || undefined,
       contactPhone: d.contact?.phone || undefined,
       contactName: d.contact?.name || undefined,
+      heldAmount:
+        d.heldAmount != null && Number(d.heldAmount) > 0
+          ? Number(d.heldAmount)
+          : null,
+      heldMethod: d.heldMethod || null,
       lines: Array.isArray(d.linesJson)
         ? (d.linesJson as CartLine[]).map((l) => ({
             ...l,
@@ -856,7 +881,10 @@ export default function PosCheckoutPage() {
     return () => window.clearTimeout(id);
   }, [search, warehouseId, loadCatalog]);
 
-  const parkCart = async () => {
+  const parkCart = async (opts?: {
+    heldAmount?: number;
+    heldMethod?: "CASH" | "CREDIT_CARD" | "BANK_TRANSFER";
+  }) => {
     if (!cart.length) {
       toast.error(t.parkEmpty);
       return;
@@ -871,6 +899,8 @@ export default function PosCheckoutPage() {
         notes: cartNotes.trim() || undefined,
         warehouseId: warehouseId || undefined,
         contactId: contactId || undefined,
+        heldAmount: opts?.heldAmount,
+        heldMethod: opts?.heldMethod,
         lines: cart.map((l) => ({
           productId: l.productId,
           name: l.name,
@@ -891,9 +921,17 @@ export default function PosCheckoutPage() {
       setTipCustom("");
       setRedeemPointsInput("");
       setSplitOpen(false);
+      setRecalledDraftId(null);
+      setHeldDeposit(null);
+      setParkHoldOpen(false);
+      setParkHoldAmount("");
       clearActiveCartSession();
       await loadParkedCarts();
-      toast.success(t.parkOk);
+      toast.success(
+        opts?.heldAmount
+          ? `${t.parkOk} · ${t.parkHold}: ${formatMoney(opts.heldAmount, currency)}`
+          : t.parkOk,
+      );
       focusScan();
     } catch {
       toast.error(t.parkFail);
@@ -935,20 +973,40 @@ export default function PosCheckoutPage() {
     setSplitOpen(false);
     if (parked.warehouseId) onWarehouseChange(parked.warehouseId);
     if (parked.contactId) setContactId(parked.contactId);
-    try {
-      await api.deletePosDraft(parked.id);
-    } catch {
-      /* still ok — cart recalled locally */
+    const holdAmt = Number(parked.heldAmount || 0);
+    if (holdAmt > 0.0005) {
+      setRecalledDraftId(parked.id);
+      setHeldDeposit({
+        amount: holdAmt,
+        method: parked.heldMethod || "CASH",
+      });
+    } else {
+      setRecalledDraftId(null);
+      setHeldDeposit(null);
+      try {
+        await api.deletePosDraft(parked.id);
+      } catch {
+        /* still ok — cart recalled locally */
+      }
     }
     await loadParkedCarts();
     focusScan();
   };
 
-  const deleteParked = async (id: string) => {
+  const deleteParked = async (id: string, approval?: DualApprovalPayload) => {
     try {
-      await api.deletePosDraft(id);
+      await api.deletePosDraft(id, approval ? { approval } : undefined);
+      if (recalledDraftId === id) {
+        setRecalledDraftId(null);
+        setHeldDeposit(null);
+      }
       await loadParkedCarts();
-    } catch {
+    } catch (err: unknown) {
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      if (status === 403) {
+        toast.error(t.parkHoldNeedApproval);
+        return;
+      }
       toast.error(t.parkFail);
     }
   };
@@ -1399,6 +1457,8 @@ export default function PosCheckoutPage() {
       setTipCustom("");
       setRedeemPointsInput("");
       setSplitOpen(false);
+      setRecalledDraftId(null);
+      setHeldDeposit(null);
       clearActiveCartSession();
       focusScan();
     }
@@ -1447,6 +1507,12 @@ export default function PosCheckoutPage() {
     const merch = Math.max(0, merchandiseTotal - redeemPointsValue);
     return Number((merch + tipValue).toFixed(3));
   }, [merchandiseTotal, redeemPointsValue, tipValue]);
+
+  const heldPaid = heldDeposit?.amount || 0;
+  const remainingDue = useMemo(
+    () => Math.max(0, Number((total - heldPaid).toFixed(3))),
+    [total, heldPaid],
+  );
 
   useEffect(() => {
     if (!companyId) return;
@@ -1509,11 +1575,22 @@ export default function PosCheckoutPage() {
 
   const openSplitTender = () => {
     if (!cart.length) return;
-    const half = Number((total / 2).toFixed(3));
-    const rest = Number((total - half).toFixed(3));
-    setSplitCashAmt(String(half));
-    setSplitCardAmt(String(rest));
-    setSplitBankAmt("0");
+    const hold = heldPaid > 0.0005 ? heldPaid : 0;
+    const rest = Number((total - hold).toFixed(3));
+    const method = (heldDeposit?.method || "CASH").toUpperCase();
+    setSplitCashAmt(method === "CASH" ? String(hold || rest) : String(Math.max(0, rest)));
+    setSplitCardAmt(method === "CREDIT_CARD" ? String(hold) : "0");
+    setSplitBankAmt(method === "BANK_TRANSFER" ? String(hold) : "0");
+    if (method === "CASH" && hold > 0) {
+      setSplitCashAmt(String(Number((hold + Math.max(0, rest)).toFixed(3))));
+    } else if (hold > 0 && method !== "CASH") {
+      setSplitCashAmt(String(Math.max(0, rest)));
+    } else {
+      const half = Number((total / 2).toFixed(3));
+      setSplitCashAmt(String(half));
+      setSplitCardAmt(String(Number((total - half).toFixed(3))));
+      setSplitBankAmt("0");
+    }
     setSplitCreditAmt("0");
     setSplitOpen(true);
   };
@@ -2018,13 +2095,36 @@ export default function PosCheckoutPage() {
     const useStoreCredit = method === "STORE_CREDIT" && !payments?.length;
     const isPartner =
       (method === "PARTNER" || method === "TERMINAL") && !payments?.length;
-    const paymentLabelJoined = payments?.length
-      ? payments
+
+    let effectivePayments = payments;
+    if (
+      !effectivePayments?.length &&
+      heldPaid > 0.0005 &&
+      method !== "STORE_CREDIT" &&
+      method !== "PARTNER" &&
+      method !== "TERMINAL"
+    ) {
+      const holdMethod = (heldDeposit?.method || "CASH") as CheckoutMethod;
+      if (remainingDue <= 0.0005) {
+        effectivePayments = [{ method: holdMethod, amount: Number(total.toFixed(3)) }];
+      } else if (method === holdMethod) {
+        effectivePayments = [{ method, amount: Number(total.toFixed(3)) }];
+      } else {
+        effectivePayments = [
+          { method: holdMethod, amount: Number(heldPaid.toFixed(3)) },
+          { method, amount: Number(remainingDue.toFixed(3)) },
+        ];
+      }
+    }
+
+    const paymentLabelJoined = effectivePayments?.length
+      ? effectivePayments
           .map((p) => `${paymentLabel(p.method)} ${p.amount.toFixed(3)}`)
           .join(" + ")
       : paymentLabel(method);
+
     const payload = {
-      paymentMethod: payments?.length
+      paymentMethod: effectivePayments?.length
         ? undefined
         : useStoreCredit
           ? "STORE_CREDIT"
@@ -2032,8 +2132,8 @@ export default function PosCheckoutPage() {
             ? "CREDIT_CARD"
             : method,
       partnerCheckout: isPartner || undefined,
-      payments: payments?.length
-        ? payments.map((p) => ({ method: p.method, amount: p.amount }))
+      payments: effectivePayments?.length
+        ? effectivePayments.map((p) => ({ method: p.method, amount: p.amount }))
         : undefined,
       tipAmount: tipValue > 0.0005 ? tipValue : undefined,
       useStoreCredit: useStoreCredit || undefined,
@@ -2042,6 +2142,7 @@ export default function PosCheckoutPage() {
       notes: saleNotes,
       warehouseId: warehouseId || undefined,
       contactId: contactId || undefined,
+      parkedDraftId: recalledDraftId || undefined,
       approval,
       allowNegativeStock:
         opts?.allowNegativeStock === true ||
@@ -2164,12 +2265,14 @@ export default function PosCheckoutPage() {
       setTipCustom("");
       setRedeemPointsInput("");
       setSplitOpen(false);
+      setRecalledDraftId(null);
+      setHeldDeposit(null);
       setPendingCheckout(null);
       writeLastSaleFingerprint(fp);
       clearActiveCartSession();
       toast.success(isPartner ? t.partnerPayPending : t.saleOk);
       void maybeKickDrawer(
-        payments?.some((p) => p.method === "CASH") ? "CASH" : method,
+        effectivePayments?.some((p) => p.method === "CASH") ? "CASH" : method,
       );
       if (usesStoreCredit) {
         try {
@@ -2299,7 +2402,7 @@ export default function PosCheckoutPage() {
       return;
     }
     if (method === "CASH") {
-      setCashTendered(total > 0 ? String(Number(total.toFixed(3))) : "");
+      setCashTendered(remainingDue > 0 ? String(Number(remainingDue.toFixed(3))) : "0");
       setCashTenderOpen(true);
       return;
     }
@@ -2308,7 +2411,7 @@ export default function PosCheckoutPage() {
 
   const confirmCashTender = async () => {
     const tendered = parseFloat(cashTendered);
-    if (!Number.isFinite(tendered) || tendered + 0.0005 < total) {
+    if (!Number.isFinite(tendered) || tendered + 0.0005 < remainingDue) {
       toast.error(t.amountTendered);
       return;
     }
@@ -2383,15 +2486,15 @@ export default function PosCheckoutPage() {
     });
   };
 
-  const setCashExact = () => setCashTendered(String(Number(total.toFixed(3))));
+  const setCashExact = () => setCashTendered(String(Number(remainingDue.toFixed(3))));
   const addCashDenom = (n: number) => {
     const base = parseFloat(cashTendered);
     const start = Number.isFinite(base) ? base : 0;
     setCashTendered(String(Number((start + n).toFixed(3))));
   };
   const setCashRoundUp = () => {
-    const ceil = Math.ceil(total - 0.0005);
-    setCashTendered(String(Math.max(ceil, Math.ceil(total))));
+    const ceil = Math.ceil(remainingDue - 0.0005);
+    setCashTendered(String(Math.max(ceil, Math.ceil(remainingDue))));
   };
 
   const findReceiptForRefund = async () => {
@@ -2488,6 +2591,19 @@ export default function PosCheckoutPage() {
             >
               <UserPlus className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">{t.addCustomer}</span>
+            </button>
+            <button
+              type="button"
+              disabled={!contactId}
+              onClick={() => {
+                setCreditTopUpAmount("");
+                setCreditTopUpMethod("CASH");
+                setCreditTopUpOpen(true);
+              }}
+              className="shrink-0 h-8 px-2 rounded-lg border border-emerald-400/30 text-[11px] font-semibold text-emerald-200 hover:bg-emerald-500/15 disabled:opacity-40"
+              title={t.creditTopUp}
+            >
+              {t.creditTopUp}
             </button>
           </label>
           {contactId && loyaltyEnabled && customerLoyaltyPoints != null ? (
@@ -2912,7 +3028,7 @@ export default function PosCheckoutPage() {
             <button
               type="button"
               data-pos-park
-              onClick={parkCart}
+              onClick={() => setParkHoldOpen(true)}
               className="text-xs text-slate-500 hover:text-amber-300"
             >
               {t.parkCart}
@@ -2981,6 +3097,13 @@ export default function PosCheckoutPage() {
                       {p.contactPhone
                         ? ` · ${t.parkPhone} ${p.contactPhone}`
                         : ""}
+                      {p.heldAmount ? (
+                        <span className="text-emerald-300">
+                          {" "}
+                          · {t.parkHold}{" "}
+                          {formatMoney(Number(p.heldAmount), currency)}
+                        </span>
+                      ) : null}
                     </p>
                     {p.notes ? (
                       <p className="text-[10px] text-amber-200/80 truncate">{p.notes}</p>
@@ -3264,6 +3387,20 @@ export default function PosCheckoutPage() {
               <span>{t.total}</span>
               <span>{formatMoney(total, currency)}</span>
             </div>
+            {heldPaid > 0.0005 ? (
+              <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1.5 space-y-0.5">
+                <div className="flex justify-between text-xs text-emerald-200">
+                  <span>{t.parkHoldPaid}</span>
+                  <span className="tabular-nums">{formatMoney(heldPaid, currency)}</span>
+                </div>
+                <div className="flex justify-between text-sm font-bold text-white">
+                  <span>{t.remainingDue}</span>
+                  <span className="tabular-nums text-amber-200">
+                    {formatMoney(remainingDue, currency)}
+                  </span>
+                </div>
+              </div>
+            ) : null}
           </div>
           {splitOpen ? (
             <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 space-y-2">
@@ -3910,8 +4047,9 @@ export default function PosCheckoutPage() {
             </div>
             {(() => {
               const tendered = parseFloat(cashTendered);
-              const ok = Number.isFinite(tendered) && tendered + 0.0005 >= total;
-              const change = ok ? tendered - total : 0;
+              const due = remainingDue;
+              const ok = Number.isFinite(tendered) && tendered + 0.0005 >= due;
+              const change = ok ? tendered - due : 0;
               return (
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-400">{t.changeDue}</span>
@@ -3926,7 +4064,7 @@ export default function PosCheckoutPage() {
               disabled={
                 paying ||
                 !Number.isFinite(parseFloat(cashTendered)) ||
-                parseFloat(cashTendered) + 0.0005 < total
+                parseFloat(cashTendered) + 0.0005 < remainingDue
               }
               onClick={() => void confirmCashTender()}
               className="w-full h-11 rounded-xl bg-emerald-500 text-white font-bold disabled:opacity-40 inline-flex items-center justify-center gap-2"
@@ -4202,6 +4340,177 @@ export default function PosCheckoutPage() {
           });
         }}
       />
+
+      {parkHoldOpen ? (
+        <div
+          className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-black/60 p-3"
+          onClick={() => setParkHoldOpen(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#121a2b] p-4 space-y-3 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="font-bold text-white">{t.parkHoldTitle}</p>
+            <p className="text-xs text-slate-400">{t.parkHoldHint}</p>
+            <input
+              value={parkHoldAmount}
+              onChange={(e) => setParkHoldAmount(e.target.value.replace(/[^\d.]/g, ""))}
+              placeholder={t.parkHoldAmount}
+              className="w-full h-10 px-3 rounded-xl bg-black/40 border border-white/10 text-sm text-white"
+              inputMode="decimal"
+            />
+            <div className="flex gap-1.5">
+              {(
+                [
+                  ["CASH", t.payCash],
+                  ["CREDIT_CARD", t.payCard],
+                  ["BANK_TRANSFER", t.payBank],
+                ] as const
+              ).map(([m, label]) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setParkHoldMethod(m)}
+                  className={`flex-1 h-9 rounded-lg text-xs font-semibold border ${
+                    parkHoldMethod === m
+                      ? "border-amber-400/50 bg-amber-500/20 text-amber-100"
+                      : "border-white/10 text-slate-300"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => void parkCart()}
+                className="flex-1 h-10 rounded-xl border border-white/15 text-sm text-slate-200"
+              >
+                {t.parkWithoutHold}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const amt = parseFloat(parkHoldAmount);
+                  if (!Number.isFinite(amt) || amt < 0.001) {
+                    toast.error(t.parkHoldAmount);
+                    return;
+                  }
+                  if (amt > total + 0.005) {
+                    toast.error(t.parkHoldTooHigh);
+                    return;
+                  }
+                  void parkCart({ heldAmount: amt, heldMethod: parkHoldMethod });
+                }}
+                className="flex-1 h-10 rounded-xl bg-amber-500 text-slate-950 text-sm font-bold"
+              >
+                {t.parkWithHold}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {creditTopUpOpen ? (
+        <div
+          className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-black/60 p-3"
+          onClick={() => !creditTopUpBusy && setCreditTopUpOpen(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#121a2b] p-4 space-y-3 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="font-bold text-white">{t.creditTopUpTitle}</p>
+            <p className="text-xs text-slate-400">{t.creditTopUpHint}</p>
+            <input
+              value={creditTopUpAmount}
+              onChange={(e) =>
+                setCreditTopUpAmount(e.target.value.replace(/[^\d.]/g, ""))
+              }
+              placeholder={t.creditTopUpAmount}
+              className="w-full h-10 px-3 rounded-xl bg-black/40 border border-white/10 text-sm text-white"
+              inputMode="decimal"
+            />
+            <div className="flex gap-1.5">
+              {(
+                [
+                  ["CASH", t.payCash],
+                  ["CREDIT_CARD", t.payCard],
+                  ["BANK_TRANSFER", t.payBank],
+                ] as const
+              ).map(([m, label]) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setCreditTopUpMethod(m)}
+                  className={`flex-1 h-9 rounded-lg text-xs font-semibold border ${
+                    creditTopUpMethod === m
+                      ? "border-emerald-400/50 bg-emerald-500/20 text-emerald-100"
+                      : "border-white/10 text-slate-300"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={creditTopUpBusy}
+                onClick={() => setCreditTopUpOpen(false)}
+                className="flex-1 h-10 rounded-xl border border-white/15 text-sm text-slate-200"
+              >
+                {t.cancel}
+              </button>
+              <button
+                type="button"
+                disabled={creditTopUpBusy || !contactId}
+                onClick={async () => {
+                  const amt = parseFloat(creditTopUpAmount);
+                  if (!contactId || !Number.isFinite(amt) || amt < 0.001) {
+                    toast.error(t.creditTopUpAmount);
+                    return;
+                  }
+                  setCreditTopUpBusy(true);
+                  try {
+                    const res = await api.topUpPosStoreCredit({
+                      contactId,
+                      amount: amt,
+                      method: creditTopUpMethod,
+                      warehouseId: warehouseId || undefined,
+                    });
+                    toast.success(
+                      `${t.creditTopUpOk} · ${formatMoney(res.data.amount, currency)}`,
+                    );
+                    setCreditTopUpOpen(false);
+                    try {
+                      const cres = await api.getContacts("CUSTOMER");
+                      setCustomers(
+                        ((cres.data as Contact[]) || []).filter(
+                          (c) => c.isActive !== false,
+                        ),
+                      );
+                    } catch {
+                      /* ignore */
+                    }
+                  } catch (err: unknown) {
+                    const msg = (err as { response?: { data?: { message?: string } } })
+                      ?.response?.data?.message;
+                    toast.error(typeof msg === "string" ? msg : t.creditTopUpFail);
+                  } finally {
+                    setCreditTopUpBusy(false);
+                  }
+                }}
+                className="flex-1 h-10 rounded-xl bg-emerald-500 text-white text-sm font-bold disabled:opacity-40 inline-flex items-center justify-center gap-2"
+              >
+                {creditTopUpBusy && <Loader2 className="w-4 h-4 animate-spin" />}
+                {t.creditTopUp}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {receiptsOpen ? (
         <div

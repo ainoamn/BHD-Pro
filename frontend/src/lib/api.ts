@@ -9,6 +9,8 @@ export type DualApprovalPayload = {
   approvalRequestId?: string;
   otp?: string;
   badgeSecret?: string;
+  /** Required by server when dual-control is enforced (min 3 chars) */
+  reason?: string;
 };
 
 export type RestoOrderPayload = {
@@ -1896,6 +1898,7 @@ class ApiClient {
   getRestoExpo() {
     return this.get<{
       count: number;
+      sla?: { expoWarnMinutes: number };
       items: Array<{
         id: string;
         name: string;
@@ -1903,6 +1906,8 @@ class ApiClient {
         notes: string | null;
         course: number;
         status: string;
+        isRush?: boolean;
+        heldAt?: string | null;
         readyAt: string | null;
         orderId: string;
         orderNumber: string;
@@ -2038,6 +2043,14 @@ class ApiClient {
         : API_URL;
     const q = stationId ? `?stationId=${encodeURIComponent(stationId)}` : '';
     return `${base}/resto/kitchen/stream${q}`;
+  }
+
+  restoExpoStreamUrl() {
+    const base =
+      typeof window !== 'undefined'
+        ? `${window.location.origin}/backend-api`
+        : API_URL;
+    return `${base}/resto/expo/stream`;
   }
 
   removeRestoOrderItem(orderId: string, itemId: string) {
@@ -2182,7 +2195,10 @@ class ApiClient {
         course?: number;
         source?: string;
         status: string;
+        isRush?: boolean;
+        heldAt?: string | null;
         sentAt: string | null;
+        readyAt?: string | null;
         stationId?: string | null;
         stationName?: string | null;
         allergens?: string[];
@@ -2200,6 +2216,7 @@ class ApiClient {
         sortOrder: number;
       }>;
       stationId?: string | null;
+      sla?: { warnMinutes: number; criticalMinutes: number };
       count: number;
     }>('/resto/kitchen', {
       params: stationId ? { stationId } : undefined,
@@ -2211,6 +2228,18 @@ class ApiClient {
     status: 'PREPARING' | 'READY' | 'SERVED',
   ) {
     return this.post(`/resto/kitchen/items/${itemId}/status`, { status });
+  }
+
+  setRestoKitchenRush(itemId: string, rush: boolean) {
+    return this.post(`/resto/kitchen/items/${itemId}/rush`, { rush });
+  }
+
+  setRestoKitchenHold(itemId: string, hold: boolean) {
+    return this.post(`/resto/kitchen/items/${itemId}/hold`, { hold });
+  }
+
+  recallRestoKitchenItem(itemId: string, to: 'PREPARING' | 'READY') {
+    return this.post(`/resto/kitchen/items/${itemId}/recall`, { to });
   }
 
   getRestoReportsSummary(days?: number) {
@@ -2412,7 +2441,17 @@ class ApiClient {
       currentDayPart: string;
       currentHour: number;
       dayParts: Record<string, { start: number; end: number }>;
+      kitchenSla: {
+        warnMinutes: number;
+        criticalMinutes: number;
+        expoWarnMinutes: number;
+      };
       defaults: Record<string, { start: number; end: number }>;
+      slaDefaults: {
+        warnMinutes: number;
+        criticalMinutes: number;
+        expoWarnMinutes: number;
+      };
     }>('/resto/config');
   }
 
@@ -2423,13 +2462,28 @@ class ApiClient {
         { start: number; end: number }
       >
     >;
+    kitchenSla?: {
+      warnMinutes?: number;
+      criticalMinutes?: number;
+      expoWarnMinutes?: number;
+    };
   }) {
     return this.put<{
       timezone: string;
       currentDayPart: string;
       currentHour: number;
       dayParts: Record<string, { start: number; end: number }>;
+      kitchenSla: {
+        warnMinutes: number;
+        criticalMinutes: number;
+        expoWarnMinutes: number;
+      };
       defaults: Record<string, { start: number; end: number }>;
+      slaDefaults: {
+        warnMinutes: number;
+        criticalMinutes: number;
+        expoWarnMinutes: number;
+      };
     }>('/resto/config', data);
   }
 
@@ -2541,6 +2595,7 @@ class ApiClient {
     warehouseId?: string;
     contactId?: string;
     clientSaleId?: string;
+    parkedDraftId?: string;
     loyaltyPointsToRedeem?: number;
     approval?: DualApprovalPayload;
     allowNegativeStock?: boolean;
@@ -2883,6 +2938,8 @@ class ApiClient {
     notes?: string;
     warehouseId?: string;
     contactId?: string;
+    heldAmount?: number;
+    heldMethod?: 'CASH' | 'CREDIT_CARD' | 'BANK_TRANSFER';
     lines: {
       productId: string;
       name: string;
@@ -2900,8 +2957,27 @@ class ApiClient {
     return this.post('/pos/drafts', data);
   }
 
-  deletePosDraft(id: string) {
+  deletePosDraft(id: string, body?: { approval?: DualApprovalPayload }) {
+    if (body?.approval) {
+      return this.post(`/pos/drafts/${id}/discard`, body);
+    }
     return this.delete(`/pos/drafts/${id}`);
+  }
+
+  topUpPosStoreCredit(data: {
+    contactId: string;
+    amount: number;
+    method: 'CASH' | 'CREDIT_CARD' | 'BANK_TRANSFER';
+    warehouseId?: string;
+    notes?: string;
+    bankAccountId?: string;
+  }) {
+    return this.post<{
+      contact: { id: string; name: string; storeCreditBalance: number };
+      amount: number;
+      method: string;
+      cashMovementId?: string | null;
+    }>('/pos/store-credit/top-up', data);
   }
 
   updatePosDraft(id: string, data: { name?: string; notes?: string }) {

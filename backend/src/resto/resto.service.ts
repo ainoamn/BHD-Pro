@@ -130,6 +130,19 @@ export class RestoService {
     );
   }
 
+  /** Expo pass SSE — same bus as kitchen so READY bumps push instantly */
+  expoStream(companyId: string): Observable<{ data: unknown }> {
+    return merge(
+      of(null),
+      this.kitchenBus(companyId),
+      interval(25000),
+    ).pipe(
+      switchMap(() =>
+        from(this.getExpoQueue(companyId)).pipe(map((data) => ({ data }))),
+      ),
+    );
+  }
+
   private hashKey(secret: string) {
     return createHash('sha256').update(secret).digest('hex');
   }
@@ -328,6 +341,12 @@ export class RestoService {
     late: { start: 22, end: 5 },
   };
 
+  private static readonly DEFAULT_KITCHEN_SLA = {
+    warnMinutes: 8,
+    criticalMinutes: 15,
+    expoWarnMinutes: 5,
+  };
+
   private hourInZone(timeZone: string, now = new Date()): number {
     const parts = new Intl.DateTimeFormat('en-US', {
       timeZone,
@@ -372,16 +391,46 @@ export class RestoService {
       (typeof RESTO_DAY_PARTS)[number],
       { start: number; end: number }
     >;
+    kitchenSla: {
+      warnMinutes: number;
+      criticalMinutes: number;
+      expoWarnMinutes: number;
+    };
   } {
     const base = { ...RestoService.DEFAULT_DAY_PARTS };
+    const slaBase = { ...RestoService.DEFAULT_KITCHEN_SLA };
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-      return { dayParts: base };
+      return { dayParts: base, kitchenSla: slaBase };
     }
     const cfg = raw as Record<string, unknown>;
     const dp =
       cfg.dayParts && typeof cfg.dayParts === 'object' && !Array.isArray(cfg.dayParts)
         ? (cfg.dayParts as Record<string, unknown>)
         : {};
+    const slaRaw =
+      cfg.kitchenSla &&
+      typeof cfg.kitchenSla === 'object' &&
+      !Array.isArray(cfg.kitchenSla)
+        ? (cfg.kitchenSla as Record<string, unknown>)
+        : {};
+    const warn = Number(slaRaw.warnMinutes);
+    const critical = Number(slaRaw.criticalMinutes);
+    const expoWarn = Number(slaRaw.expoWarnMinutes);
+    let warnMinutes =
+      Number.isFinite(warn) && warn >= 1 && warn <= 120
+        ? Math.floor(warn)
+        : slaBase.warnMinutes;
+    let criticalMinutes =
+      Number.isFinite(critical) && critical >= 2 && critical <= 180
+        ? Math.floor(critical)
+        : slaBase.criticalMinutes;
+    if (criticalMinutes <= warnMinutes) {
+      criticalMinutes = Math.min(180, warnMinutes + 1);
+    }
+    const expoWarnMinutes =
+      Number.isFinite(expoWarn) && expoWarn >= 1 && expoWarn <= 60
+        ? Math.floor(expoWarn)
+        : slaBase.expoWarnMinutes;
     return {
       dayParts: {
         breakfast: this.normalizeDayPartWindow(
@@ -392,6 +441,7 @@ export class RestoService {
         dinner: this.normalizeDayPartWindow(dp.dinner, base.dinner),
         late: this.normalizeDayPartWindow(dp.late, base.late),
       },
+      kitchenSla: { warnMinutes, criticalMinutes, expoWarnMinutes },
     };
   }
 
@@ -447,9 +497,11 @@ export class RestoService {
     return {
       timezone: company.timezone || 'Asia/Muscat',
       dayParts: parsed.dayParts,
+      kitchenSla: parsed.kitchenSla,
       currentDayPart: this.resolveDayPart(hour, parsed.dayParts),
       currentHour: hour,
       defaults: RestoService.DEFAULT_DAY_PARTS,
+      slaDefaults: RestoService.DEFAULT_KITCHEN_SLA,
     };
   }
 
@@ -472,7 +524,32 @@ export class RestoService {
         }
       }
     }
-    const next = { dayParts: nextDayParts };
+    let nextSla = { ...current.kitchenSla };
+    if (dto.kitchenSla) {
+      if (dto.kitchenSla.warnMinutes != null) {
+        nextSla.warnMinutes = Number(dto.kitchenSla.warnMinutes);
+      }
+      if (dto.kitchenSla.criticalMinutes != null) {
+        nextSla.criticalMinutes = Number(dto.kitchenSla.criticalMinutes);
+      }
+      if (dto.kitchenSla.expoWarnMinutes != null) {
+        nextSla.expoWarnMinutes = Number(dto.kitchenSla.expoWarnMinutes);
+      }
+      if (nextSla.criticalMinutes <= nextSla.warnMinutes) {
+        nextSla.criticalMinutes = Math.min(180, nextSla.warnMinutes + 1);
+      }
+    }
+    const prev =
+      company.restoConfig &&
+      typeof company.restoConfig === 'object' &&
+      !Array.isArray(company.restoConfig)
+        ? { ...(company.restoConfig as Record<string, unknown>) }
+        : {};
+    const next = {
+      ...prev,
+      dayParts: nextDayParts,
+      kitchenSla: nextSla,
+    };
     await this.prisma.company.update({
       where: { id: companyId },
       data: { restoConfig: next as Prisma.InputJsonValue },
@@ -2215,6 +2292,11 @@ export class RestoService {
 
   /** Expo / runner pass — READY tickets awaiting SERVED */
   async getExpoQueue(companyId: string) {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { restoConfig: true },
+    });
+    const sla = this.parseRestoConfig(company?.restoConfig).kitchenSla;
     const items = await this.prisma.restoOrderItem.findMany({
       where: {
         status: RestoOrderItemStatus.READY,
@@ -2238,30 +2320,40 @@ export class RestoService {
       },
       take: 100,
     });
+    const mapped = items.map((it) => ({
+      id: it.id,
+      name: it.name,
+      qty: Number(it.qty),
+      notes: it.notes,
+      course: it.course ?? 1,
+      status: it.status,
+      isRush: !!it.isRush,
+      heldAt: it.heldAt,
+      readyAt: it.readyAt,
+      sentAt: it.sentAt,
+      stationName: it.station?.name ?? null,
+      orderId: it.order.id,
+      orderNumber: it.order.number,
+      channel: it.order.channel,
+      guestName: it.order.guestName,
+      table: it.order.table
+        ? {
+            id: it.order.table.id,
+            code: it.order.table.code,
+            name: it.order.table.name,
+          }
+        : null,
+    }));
+    mapped.sort((a, b) => {
+      if (a.isRush !== b.isRush) return a.isRush ? -1 : 1;
+      const ta = a.readyAt ? new Date(a.readyAt).getTime() : 0;
+      const tb = b.readyAt ? new Date(b.readyAt).getTime() : 0;
+      return ta - tb;
+    });
     return {
-      count: items.length,
-      items: items.map((it) => ({
-        id: it.id,
-        name: it.name,
-        qty: Number(it.qty),
-        notes: it.notes,
-        course: it.course ?? 1,
-        status: it.status,
-        readyAt: it.readyAt,
-        sentAt: it.sentAt,
-        stationName: it.station?.name ?? null,
-        orderId: it.order.id,
-        orderNumber: it.order.number,
-        channel: it.order.channel,
-        guestName: it.order.guestName,
-        table: it.order.table
-          ? {
-              id: it.order.table.id,
-              code: it.order.table.code,
-              name: it.order.table.name,
-            }
-          : null,
-      })),
+      count: mapped.length,
+      sla: { expoWarnMinutes: sla.expoWarnMinutes },
+      items: mapped,
     };
   }
 
@@ -2454,6 +2546,11 @@ export class RestoService {
 
   async getKitchenQueue(companyId: string, stationId?: string) {
     await this.ensureStation(companyId);
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { restoConfig: true },
+    });
+    const sla = this.parseRestoConfig(company?.restoConfig).kitchenSla;
     const stations = await this.prisma.restoStation.findMany({
       where: { companyId, isActive: true },
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
@@ -2513,40 +2610,59 @@ export class RestoService {
       products.map((p) => [p.id, p.nameEn || null]),
     );
 
+    const mapped = items.map((it) => ({
+      id: it.id,
+      name: it.name,
+      nameEn: it.productId
+        ? nameEnByProduct.get(it.productId) || null
+        : null,
+      qty: Number(it.qty),
+      notes: it.notes,
+      course: it.course ?? 1,
+      source: it.source === 'GUEST' ? 'GUEST' : 'STAFF',
+      status: it.status,
+      isRush: !!it.isRush,
+      heldAt: it.heldAt,
+      sentAt: it.sentAt,
+      readyAt: it.readyAt,
+      stationId: it.stationId,
+      stationName: it.station?.name ?? null,
+      allergens: it.productId
+        ? allergenByProduct.get(it.productId) || []
+        : [],
+      orderId: it.order.id,
+      orderNumber: it.order.number,
+      orderNotes: it.order.notes,
+      guestName: it.order.guestName,
+      channel: it.order.channel,
+      table: it.order.table
+        ? {
+            id: it.order.table.id,
+            code: it.order.table.code,
+            name: it.order.table.name,
+          }
+        : null,
+    }));
+
+    mapped.sort((a, b) => {
+      const aHeld = !!a.heldAt;
+      const bHeld = !!b.heldAt;
+      if (aHeld !== bHeld) return aHeld ? 1 : -1;
+      if (a.isRush !== b.isRush) return a.isRush ? -1 : 1;
+      const ta = a.sentAt ? new Date(a.sentAt).getTime() : 0;
+      const tb = b.sentAt ? new Date(b.sentAt).getTime() : 0;
+      return ta - tb;
+    });
+
     return {
-      count: items.length,
+      count: mapped.length,
       stations,
       stationId: stationId || null,
-      items: items.map((it) => ({
-        id: it.id,
-        name: it.name,
-        nameEn: it.productId
-          ? nameEnByProduct.get(it.productId) || null
-          : null,
-        qty: Number(it.qty),
-        notes: it.notes,
-        course: it.course ?? 1,
-        source: it.source === 'GUEST' ? 'GUEST' : 'STAFF',
-        status: it.status,
-        sentAt: it.sentAt,
-        stationId: it.stationId,
-        stationName: it.station?.name ?? null,
-        allergens: it.productId
-          ? allergenByProduct.get(it.productId) || []
-          : [],
-        orderId: it.order.id,
-        orderNumber: it.order.number,
-        orderNotes: it.order.notes,
-        guestName: it.order.guestName,
-        channel: it.order.channel,
-        table: it.order.table
-          ? {
-              id: it.order.table.id,
-              code: it.order.table.code,
-              name: it.order.table.name,
-            }
-          : null,
-      })),
+      sla: {
+        warnMinutes: sla.warnMinutes,
+        criticalMinutes: sla.criticalMinutes,
+      },
+      items: mapped,
     };
   }
 
@@ -2565,10 +2681,109 @@ export class RestoService {
     };
     if (status === 'READY' || status === 'SERVED') {
       data.readyAt = item.readyAt ?? new Date();
+      data.heldAt = null;
+    }
+    if (status === 'PREPARING') {
+      data.heldAt = null;
     }
     await this.prisma.restoOrderItem.update({
       where: { id: item.id },
       data,
+    });
+    await this.refreshOrderStatus(companyId, item.orderId);
+    this.notifyKitchen(companyId);
+    return this.getOrder(companyId, item.orderId);
+  }
+
+  async setKitchenItemRush(
+    companyId: string,
+    itemId: string,
+    rush: boolean,
+  ) {
+    const item = await this.prisma.restoOrderItem.findFirst({
+      where: {
+        id: itemId,
+        order: { companyId, status: { in: ACTIVE_ORDER } },
+        status: {
+          in: [
+            RestoOrderItemStatus.SENT,
+            RestoOrderItemStatus.PREPARING,
+            RestoOrderItemStatus.READY,
+          ],
+        },
+      },
+    });
+    if (!item) throw new NotFoundException('Item not found');
+    await this.prisma.restoOrderItem.update({
+      where: { id: item.id },
+      data: { isRush: !!rush },
+    });
+    this.notifyKitchen(companyId);
+    return this.getOrder(companyId, item.orderId);
+  }
+
+  async setKitchenItemHold(
+    companyId: string,
+    itemId: string,
+    hold: boolean,
+  ) {
+    const item = await this.prisma.restoOrderItem.findFirst({
+      where: {
+        id: itemId,
+        order: { companyId, status: { in: ACTIVE_ORDER } },
+        status: {
+          in: [
+            RestoOrderItemStatus.SENT,
+            RestoOrderItemStatus.PREPARING,
+            RestoOrderItemStatus.READY,
+          ],
+        },
+      },
+    });
+    if (!item) throw new NotFoundException('Item not found');
+    await this.prisma.restoOrderItem.update({
+      where: { id: item.id },
+      data: { heldAt: hold ? new Date() : null },
+    });
+    this.notifyKitchen(companyId);
+    return this.getOrder(companyId, item.orderId);
+  }
+
+  /** Pull ticket back from SERVED/READY for rework or expo miss */
+  async recallKitchenItem(
+    companyId: string,
+    itemId: string,
+    to: 'PREPARING' | 'READY',
+  ) {
+    const item = await this.prisma.restoOrderItem.findFirst({
+      where: {
+        id: itemId,
+        order: { companyId, status: { in: ACTIVE_ORDER } },
+      },
+    });
+    if (!item) throw new NotFoundException('Item not found');
+    if (
+      item.status !== RestoOrderItemStatus.READY &&
+      item.status !== RestoOrderItemStatus.SERVED
+    ) {
+      throw new BadRequestException(
+        'Only READY or SERVED items can be recalled',
+      );
+    }
+    if (to === 'READY' && item.status !== RestoOrderItemStatus.SERVED) {
+      throw new BadRequestException('READY recall only from SERVED');
+    }
+    await this.prisma.restoOrderItem.update({
+      where: { id: item.id },
+      data: {
+        status:
+          to === 'PREPARING'
+            ? RestoOrderItemStatus.PREPARING
+            : RestoOrderItemStatus.READY,
+        readyAt: to === 'PREPARING' ? null : item.readyAt ?? new Date(),
+        heldAt: null,
+        isRush: to === 'PREPARING' ? true : item.isRush,
+      },
     });
     await this.refreshOrderStatus(companyId, item.orderId);
     this.notifyKitchen(companyId);

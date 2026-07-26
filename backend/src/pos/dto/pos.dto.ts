@@ -155,6 +155,14 @@ export class CreatePosSaleDto {
   @MinLength(8)
   @MaxLength(80)
   clientSaleId?: string;
+
+  /**
+   * When recalling a parked cart that had a cash/card hold, pass the draft id
+   * so the hold is applied to the sale and the draft is consumed.
+   */
+  @IsOptional()
+  @IsUUID()
+  parkedDraftId?: string;
 }
 
 export class VoidPosSaleDto {
@@ -361,6 +369,50 @@ export class CreatePosDraftDto {
   @ValidateNested({ each: true })
   @Type(() => PosDraftLineDto)
   lines: PosDraftLineDto[];
+
+  /** Deposit taken while parking (CASH posts drawer IN) */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.001)
+  heldAmount?: number;
+
+  @IsOptional()
+  @IsIn(['CASH', 'CREDIT_CARD', 'BANK_TRANSFER'])
+  heldMethod?: 'CASH' | 'CREDIT_CARD' | 'BANK_TRANSFER';
+}
+
+export class DeletePosDraftDto {
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DualApprovalDto)
+  approval?: DualApprovalDto;
+}
+
+export class PosStoreCreditTopUpDto {
+  @IsUUID()
+  contactId: string;
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.001)
+  amount: number;
+
+  @IsIn(['CASH', 'CREDIT_CARD', 'BANK_TRANSFER'])
+  method: 'CASH' | 'CREDIT_CARD' | 'BANK_TRANSFER';
+
+  @IsOptional()
+  @IsUUID()
+  warehouseId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  notes?: string;
+
+  @IsOptional()
+  @IsUUID()
+  bankAccountId?: string;
 }
 
 export class UpdatePosDraftDto {

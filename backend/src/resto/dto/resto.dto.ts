@@ -833,6 +833,52 @@ export class UpdateRestoConfigDto {
   @ValidateNested()
   @Type(() => RestoDayPartsScheduleDto)
   dayParts?: RestoDayPartsScheduleDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => RestoKitchenSlaDto)
+  kitchenSla?: RestoKitchenSlaDto;
+}
+
+export class RestoKitchenSlaDto {
+  /** Minutes until warn tone on KDS (default 8) */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(120)
+  warnMinutes?: number;
+
+  /** Minutes until critical tone on KDS (default 15) */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(2)
+  @Max(180)
+  criticalMinutes?: number;
+
+  /** Minutes until warn on expo pass (default 5) */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(60)
+  expoWarnMinutes?: number;
+}
+
+export class RestoKitchenRushDto {
+  @IsBoolean()
+  rush: boolean;
+}
+
+export class RestoKitchenHoldDto {
+  @IsBoolean()
+  hold: boolean;
+}
+
+export class RestoKitchenRecallDto {
+  @IsIn(['PREPARING', 'READY'])
+  to: 'PREPARING' | 'READY';
 }
 
 export class ExternalRestoOrderItemDto {

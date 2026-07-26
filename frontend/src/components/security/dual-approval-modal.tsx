@@ -33,6 +33,7 @@ export type DualApprovalPayload = {
   approvalRequestId?: string;
   otp?: string;
   badgeSecret?: string;
+  reason?: string;
 };
 
 type ActorRole = string | undefined;
@@ -70,6 +71,9 @@ const copy = {
     sendOtp: "إرسال الرمز",
     otpSent: "تم إرسال الرمز عبر واتساب",
     otpFail: "تعذر إرسال رمز واتساب",
+    reason: "سبب الموافقة",
+    reasonHint: "مطلوب للتدقيق (3 أحرف على الأقل)",
+    reasonRequired: "أدخل سبب الموافقة",
     submit: "تأكيد الموافقة",
     waiting: "بانتظار موافقة المدير…",
     waitingHint: "اطلب من المدير فتح قائمة الموافقات والموافقة خلال 15 دقيقة",
@@ -97,6 +101,9 @@ const copy = {
     sendOtp: "Send code",
     otpSent: "Code sent via WhatsApp",
     otpFail: "Could not send WhatsApp code",
+    reason: "Approval reason",
+    reasonHint: "Required for audit (min 3 characters)",
+    reasonRequired: "Enter an approval reason",
     submit: "Confirm approval",
     waiting: "Waiting for manager approval…",
     waitingHint: "Ask a manager to open Approvals and decide within 15 minutes",
@@ -135,6 +142,7 @@ export function DualApprovalModal({
   const [password, setPassword] = useState("");
   const [pin, setPin] = useState("");
   const [otp, setOtp] = useState("");
+  const [reason, setReason] = useState("");
   const [otpBusy, setOtpBusy] = useState(false);
   const [waitMode, setWaitMode] = useState<WaitMode>("idle");
   const [requestId, setRequestId] = useState<string | null>(null);
@@ -149,6 +157,7 @@ export function DualApprovalModal({
       setPassword("");
       setPin("");
       setOtp("");
+      setReason("");
       setOtpBusy(false);
       setWaitMode("idle");
       setRequestId(null);
@@ -174,6 +183,7 @@ export function DualApprovalModal({
             await onConfirm({
               method: "APPROVAL_REQUEST",
               approvalRequestId: requestId,
+              reason: reason.trim() || undefined,
             });
           }
           return;
@@ -200,17 +210,27 @@ export function DualApprovalModal({
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [open, waitMode, requestId, onConfirm, t.approved, t.expired, t.rejected]);
+  }, [open, waitMode, requestId, onConfirm, reason, t.approved, t.expired, t.rejected]);
 
   if (!open) return null;
 
+  const reasonOk = reason.trim().length >= 3;
+
   const submitSelf = async () => {
     if (!checked || busy) return;
-    await onConfirm({ method: "SELF_CONFIRM" });
+    if (reason.trim().length < 3) {
+      toast.error(t.reasonRequired);
+      return;
+    }
+    await onConfirm({ method: "SELF_CONFIRM", reason: reason.trim() });
   };
 
   const submitOther = async () => {
     if (busy || requestBusy) return;
+    if (reason.trim().length < 3) {
+      toast.error(t.reasonRequired);
+      return;
+    }
     if (mode === "ONLINE") {
       if (!action) {
         toast.error(t.requestFail);
@@ -237,23 +257,32 @@ export function DualApprovalModal({
         method: "PASSWORD",
         email: email.trim(),
         password,
+        reason: reason.trim(),
       });
       return;
     }
     if (mode === "WHATSAPP") {
-      await onConfirm({ method: "WHATSAPP_OTP", otp: otp.trim() });
+      await onConfirm({
+        method: "WHATSAPP_OTP",
+        otp: otp.trim(),
+        reason: reason.trim(),
+      });
       return;
     }
     if (mode === "NFC") {
       return;
     }
-    await onConfirm({ method: "PIN", pin: pin.trim() });
+    await onConfirm({ method: "PIN", pin: pin.trim(), reason: reason.trim() });
   };
 
   const onNfcRead = async (badgeSecret: string) => {
     if (busy || confirmedRef.current) return;
+    if (reason.trim().length < 3) {
+      toast.error(t.reasonRequired);
+      return;
+    }
     confirmedRef.current = true;
-    await onConfirm({ method: "NFC", badgeSecret });
+    await onConfirm({ method: "NFC", badgeSecret, reason: reason.trim() });
   };
 
   const sendWhatsappOtp = async () => {
@@ -316,7 +345,19 @@ export function DualApprovalModal({
                 {t.cancel}
               </button>
             </div>
-          ) : approver ? (
+          ) : (
+            <>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">{t.reason}</label>
+                <input
+                  type="text"
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value.slice(0, 200))}
+                  placeholder={t.reasonHint}
+                  className="w-full h-10 px-3 rounded-lg bg-black/30 border border-white/10 text-sm text-white"
+                />
+              </div>
+          {approver ? (
             <>
               <label className="flex items-start gap-3 text-sm text-slate-200 cursor-pointer">
                 <input
@@ -348,7 +389,7 @@ export function DualApprovalModal({
                   </button>
                   <button
                     type="button"
-                    disabled={busy || requestBusy}
+                    disabled={busy || requestBusy || !reasonOk}
                     onClick={submitOther}
                     className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-sky-500 text-white disabled:opacity-50"
                   >
@@ -367,7 +408,7 @@ export function DualApprovalModal({
                   </button>
                   <button
                     type="button"
-                    disabled={!checked || busy}
+                    disabled={!checked || busy || !reasonOk}
                     onClick={submitSelf}
                     className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-amber-500 text-slate-950 disabled:opacity-50"
                   >
@@ -513,6 +554,7 @@ export function DualApprovalModal({
                       busy ||
                       requestBusy ||
                       otpBusy ||
+                      !reasonOk ||
                       (mode === "PASSWORD"
                         ? !email.trim() || !password
                         : mode === "PIN"
@@ -539,6 +581,8 @@ export function DualApprovalModal({
                   </button>
                 </div>
               )}
+            </>
+          )}
             </>
           )}
         </div>

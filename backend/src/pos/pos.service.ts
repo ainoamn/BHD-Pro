@@ -31,6 +31,8 @@ import {
   ClosePosShiftDto,
   RefundPosSaleDto,
   UpdatePosDraftDto,
+  DeletePosDraftDto,
+  PosStoreCreditTopUpDto,
 } from './dto/pos.dto';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { GlPostingService } from '../journal/gl-posting.service';
@@ -1448,6 +1450,13 @@ export class PosService {
         /* never fail sale */
       }
 
+      await this.consumeParkedDraftForSale(
+        companyId,
+        actor,
+        dto.parkedDraftId,
+        invoice.number,
+      );
+
       return invoice;
     } catch (err) {
       if (loyaltyPointsDebited && !invoiceCreated) {
@@ -1486,7 +1495,11 @@ export class PosService {
   async listDrafts(companyId: string) {
     const cutoff = new Date(Date.now() - PosService.DRAFT_TTL_MS);
     await this.prisma.posDraft.deleteMany({
-      where: { companyId, createdAt: { lt: cutoff } },
+      where: {
+        companyId,
+        createdAt: { lt: cutoff },
+        OR: [{ heldAmount: null }, { heldAmount: { lte: 0 } }],
+      },
     });
     const drafts = await this.prisma.posDraft.findMany({
       where: { companyId },
@@ -1509,11 +1522,16 @@ export class PosService {
     const byId = new Map(contacts.map((c) => [c.id, c]));
     return drafts.map((d) => ({
       ...d,
+      heldAmount: d.heldAmount != null ? Number(d.heldAmount) : null,
       contact: d.contactId ? byId.get(d.contactId) || null : null,
     }));
   }
 
-  async createDraft(companyId: string, userId: string, dto: CreatePosDraftDto) {
+  async createDraft(
+    companyId: string,
+    actor: TokenPayload,
+    dto: CreatePosDraftDto,
+  ) {
     if (!dto.lines?.length) {
       throw new BadRequestException('Draft lines are required');
     }
@@ -1525,15 +1543,38 @@ export class PosService {
       name = `Parked ${count + 1}`;
     }
 
+    const heldAmount = Number(dto.heldAmount || 0);
+    const heldMethod = dto.heldMethod || null;
+    if (heldAmount > 0.0005 && !heldMethod) {
+      throw new BadRequestException('heldMethod is required when heldAmount is set');
+    }
+    if (heldMethod && !(heldAmount > 0.0005)) {
+      throw new BadRequestException('heldAmount is required when heldMethod is set');
+    }
+
+    let heldMovementId: string | null = null;
+    if (heldAmount > 0.0005 && heldMethod === 'CASH') {
+      const move = await this.createCashMovement(companyId, actor, {
+        type: 'IN',
+        amount: heldAmount,
+        reason: `Park hold: ${name}`,
+        warehouseId: dto.warehouseId,
+      });
+      heldMovementId = move.movement.id;
+    }
+
     return this.prisma.posDraft.create({
       data: {
         companyId,
-        createdById: userId,
+        createdById: actor.sub,
         name,
         notes: dto.notes?.trim() || null,
         warehouseId: dto.warehouseId || null,
         contactId: dto.contactId || null,
         linesJson: dto.lines as unknown as Prisma.InputJsonValue,
+        heldAmount: heldAmount > 0.0005 ? heldAmount : null,
+        heldMethod: heldAmount > 0.0005 ? heldMethod : null,
+        heldMovementId,
       },
     });
   }
@@ -1568,14 +1609,161 @@ export class PosService {
     return this.updateDraft(companyId, id, dto);
   }
 
-  async deleteDraft(companyId: string, id: string) {
+  /**
+   * Reverse a CASH park hold (drawer OUT) so expected cash stays correct when
+   * the hold is applied to a sale or returned on delete.
+   */
+  private async reverseCashParkHold(
+    companyId: string,
+    actor: TokenPayload,
+    opts: {
+      heldAmount: number;
+      warehouseId?: string | null;
+      reason: string;
+      approval?: DualApprovalDto;
+    },
+  ) {
+    await this.createCashMovement(companyId, actor, {
+      type: 'OUT',
+      amount: opts.heldAmount,
+      reason: opts.reason,
+      warehouseId: opts.warehouseId || undefined,
+      approval: opts.approval,
+    });
+  }
+
+  async deleteDraft(
+    companyId: string,
+    actor: TokenPayload,
+    id: string,
+    dto?: DeletePosDraftDto,
+  ) {
     const existing = await this.prisma.posDraft.findFirst({
       where: { id, companyId },
-      select: { id: true },
     });
     if (!existing) throw new NotFoundException('Parked cart not found');
+
+    const heldAmount = Number(existing.heldAmount || 0);
+    if (heldAmount > 0.0005 && existing.heldMethod === 'CASH') {
+      await this.reverseCashParkHold(companyId, actor, {
+        heldAmount,
+        warehouseId: existing.warehouseId,
+        reason: `Return park hold: ${existing.name}`,
+        approval: dto?.approval,
+      });
+    }
+
     await this.prisma.posDraft.delete({ where: { id } });
-    return { deleted: true, id };
+    return { deleted: true, id, heldReturned: heldAmount > 0.0005 };
+  }
+
+  /** Apply parked hold into sale payments and consume the draft. */
+  private async consumeParkedDraftForSale(
+    companyId: string,
+    actor: TokenPayload,
+    parkedDraftId: string | undefined,
+    invoiceNumber: string,
+  ) {
+    if (!parkedDraftId) return;
+    const draft = await this.prisma.posDraft.findFirst({
+      where: { id: parkedDraftId, companyId },
+    });
+    if (!draft) return;
+
+    const heldAmount = Number(draft.heldAmount || 0);
+    if (heldAmount > 0.0005 && draft.heldMethod === 'CASH') {
+      try {
+        await this.reverseCashParkHold(companyId, actor, {
+          heldAmount,
+          warehouseId: draft.warehouseId,
+          reason: `Apply park hold to sale ${invoiceNumber}`,
+        });
+      } catch (err) {
+        this.logger.warn(
+          `Failed to reverse park hold for draft ${parkedDraftId}: ${
+            err instanceof Error ? err.message : err
+          }`,
+        );
+      }
+    }
+
+    try {
+      await this.prisma.posDraft.delete({ where: { id: draft.id } });
+    } catch {
+      /* already gone */
+    }
+  }
+
+  /** Floor top-up of customer store credit (wallet) with optional cash-in. */
+  async topUpStoreCredit(
+    companyId: string,
+    actor: TokenPayload,
+    dto: PosStoreCreditTopUpDto,
+  ) {
+    const amount = Number(dto.amount);
+    if (!(amount > 0.0005)) {
+      throw new BadRequestException('Amount must be greater than zero');
+    }
+
+    const contact = await this.prisma.contact.findFirst({
+      where: { id: dto.contactId, companyId, isActive: true },
+    });
+    if (!contact) throw new NotFoundException('Customer not found');
+    if (contact.type === ContactType.SUPPLIER) {
+      throw new BadRequestException('Store credit applies to customers only');
+    }
+
+    const current = Number(contact.currentBalance || 0);
+    const next = Number((current + amount).toFixed(3));
+    const limit = Number(contact.creditLimit || 0);
+    if (limit > 0 && next > limit + 0.001) {
+      throw new BadRequestException(
+        `Exceeds credit limit ${limit.toFixed(3)} (would be ${next.toFixed(3)})`,
+      );
+    }
+
+    if (dto.bankAccountId) {
+      const bank = await this.prisma.bankAccount.findFirst({
+        where: { id: dto.bankAccountId, companyId },
+      });
+      if (!bank) throw new BadRequestException('Bank account not found');
+    }
+
+    const updated = await this.prisma.contact.update({
+      where: { id: contact.id },
+      data: { currentBalance: next },
+    });
+
+    await this.glPosting.postStoreCreditFunding(companyId, actor.sub, {
+      contactId: contact.id,
+      contactName: contact.name,
+      amount,
+      notes: dto.notes || `POS top-up (${dto.method})`,
+      bankAccountId: dto.bankAccountId,
+      reference: `POS-SC-TOPUP:${contact.id}:${Date.now()}`,
+    });
+
+    let cashMovementId: string | null = null;
+    if (dto.method === 'CASH') {
+      const move = await this.createCashMovement(companyId, actor, {
+        type: 'IN',
+        amount,
+        reason: dto.notes?.trim() || `Store credit top-up: ${contact.name}`,
+        warehouseId: dto.warehouseId,
+      });
+      cashMovementId = move.movement.id;
+    }
+
+    return {
+      contact: {
+        id: updated.id,
+        name: updated.name,
+        storeCreditBalance: Number(updated.currentBalance || 0),
+      },
+      amount,
+      method: dto.method,
+      cashMovementId,
+    };
   }
 
   async getCurrentShift(companyId: string, warehouseId?: string | null) {

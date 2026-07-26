@@ -171,6 +171,12 @@ Public flags: `asyncApprovals: true`, `nfcBadgesConfigured`, `shiftVarianceLimit
 - Customer second screen `/pos/display` via BroadcastChannel
 - Doc: [`UPGRADE-POS-WAVE17-2026-07.md`](./UPGRADE-POS-WAVE17-2026-07.md)
 
+### Done (Wave 18 — Park hold, approval reason, store-credit top-up)
+- Parked-cart held tender (cash drawer IN) + remaining due on recall
+- Required dual-approval reason (audit)
+- In-POS store-credit top-up + shift-open notes UI
+- Doc: [`UPGRADE-POS-WAVE18-2026-07.md`](./UPGRADE-POS-WAVE18-2026-07.md)
+
 - [x] Full catalog sync API `GET /pos/catalog/sync` + offline IDB per warehouse
 - [x] Broader refunds + store-credit MVP (hardened debit / void restore / UI)
 - [x] Cash change due + receipt number lookup for refunds

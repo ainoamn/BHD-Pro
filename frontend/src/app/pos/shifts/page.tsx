@@ -197,6 +197,7 @@ export default function PosShiftsPage() {
   const t = posCopy[locale === "en" ? "en" : "ar"];
   const qc = useQueryClient();
   const [openingFloat, setOpeningFloat] = useState("0");
+  const [openingNotes, setOpeningNotes] = useState("");
   const [closingCash, setClosingCash] = useState("");
   const [lastZ, setLastZ] = useState<ZReport | null>(null);
   const [lastX, setLastX] = useState<ZReport | null>(null);
@@ -305,9 +306,11 @@ export default function PosShiftsPage() {
       api.openPosShift({
         openingCash: Number(openingFloat) || 0,
         warehouseId: warehouseId || undefined,
+        notes: openingNotes.trim() || undefined,
       }),
     onSuccess: () => {
       toast.success(t.shiftOpened);
+      setOpeningNotes("");
       qc.invalidateQueries({ queryKey: ["pos-shift-current"] });
       qc.invalidateQueries({ queryKey: ["pos-shifts"] });
     },
@@ -855,6 +858,14 @@ export default function PosShiftsPage() {
                 onChange={(e) => setOpeningFloat(e.target.value)}
                 inputMode="decimal"
                 className="h-10 w-40 rounded-lg bg-black/30 border border-white/10 px-3 text-sm text-white"
+              />
+            </div>
+            <div className="min-w-[12rem] flex-1">
+              <label className="block text-xs text-slate-400 mb-1">{t.shiftOpenNotes}</label>
+              <input
+                value={openingNotes}
+                onChange={(e) => setOpeningNotes(e.target.value.slice(0, 200))}
+                className="h-10 w-full rounded-lg bg-black/30 border border-white/10 px-3 text-sm text-white"
               />
             </div>
             <button

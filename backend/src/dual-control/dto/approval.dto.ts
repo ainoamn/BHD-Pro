@@ -64,6 +64,14 @@ export class DualApprovalDto {
   @MinLength(4)
   @MaxLength(128)
   badgeSecret?: string;
+
+  /** Free-text reason required for dual-control audit trail (min 3 chars) */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MinLength(3)
+  @MaxLength(200)
+  reason?: string;
 }
 
 export const DUAL_CONTROL_ACTIONS = [

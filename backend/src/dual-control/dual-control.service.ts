@@ -626,6 +626,24 @@ export class DualControlService {
       throw new ForbiddenException('Dual control required');
     }
 
+    const approvalReason = String(approval.reason || '').trim();
+    if (approvalReason.length < 3) {
+      await this.writeAudit({
+        companyId,
+        userId: actor.sub,
+        action: `${primary}_DENIED`,
+        success: false,
+        details: {
+          reason: 'MISSING_APPROVAL_REASON',
+          actorEmail: actor.email,
+          bundledActions: required,
+        },
+      });
+      throw new BadRequestException(
+        'Approval reason is required (min 3 characters)',
+      );
+    }
+
     try {
       let result: { approverId: string; method: string };
 
@@ -683,6 +701,7 @@ export class DualControlService {
             actorEmail: actor.email,
             actorRole: actor.role,
             approvalRequestId: approval.approvalRequestId || null,
+            approvalReason,
             bundledActions: required,
           },
         });

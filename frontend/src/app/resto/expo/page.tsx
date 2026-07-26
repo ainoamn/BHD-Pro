@@ -13,6 +13,7 @@ type ExpoItem = {
   notes: string | null;
   course: number;
   status: string;
+  isRush?: boolean;
   readyAt: string | null;
   orderId: string;
   orderNumber: string;
@@ -29,11 +30,15 @@ export default function RestoExpoPage() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [expoWarn, setExpoWarn] = useState(5);
 
   const load = useCallback(async () => {
     try {
       const res = await api.getRestoExpo();
       setItems(res.data.items || []);
+      if (res.data.sla?.expoWarnMinutes) {
+        setExpoWarn(res.data.sla.expoWarnMinutes);
+      }
       setError("");
     } catch {
       setError(t.actionFail);
@@ -44,15 +49,67 @@ export default function RestoExpoPage() {
 
   useEffect(() => {
     setLoading(true);
-    void load();
-    const id = window.setInterval(() => void load(), 4000);
-    return () => window.clearInterval(id);
+    let es: EventSource | null = null;
+    let pollId: number | undefined;
+    let usePoll = false;
+
+    const startPoll = () => {
+      if (usePoll) return;
+      usePoll = true;
+      void load();
+      pollId = window.setInterval(() => void load(), 5000);
+    };
+
+    try {
+      es = new EventSource(api.restoExpoStreamUrl(), { withCredentials: true });
+      es.onmessage = (ev) => {
+        try {
+          const payload = JSON.parse(ev.data) as {
+            items?: ExpoItem[];
+            sla?: { expoWarnMinutes: number };
+          };
+          setItems(payload.items || []);
+          if (payload.sla?.expoWarnMinutes) {
+            setExpoWarn(payload.sla.expoWarnMinutes);
+          }
+          setError("");
+          setLoading(false);
+        } catch {
+          /* ignore */
+        }
+      };
+      es.onerror = () => {
+        es?.close();
+        es = null;
+        startPoll();
+      };
+      void load();
+    } catch {
+      startPoll();
+    }
+
+    return () => {
+      es?.close();
+      if (pollId) window.clearInterval(pollId);
+    };
   }, [load]);
 
   const serve = async (itemId: string) => {
     setBusyId(itemId);
     try {
       await api.setRestoKitchenItemStatus(itemId, "SERVED");
+      await load();
+    } catch {
+      setError(t.actionFail);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const recall = async (itemId: string) => {
+    setBusyId(itemId);
+    try {
+      await api.recallRestoKitchenItem(itemId, "PREPARING");
       await load();
     } catch {
       setError(t.actionFail);
@@ -84,6 +141,7 @@ export default function RestoExpoPage() {
           {t.expoTitle}
         </h1>
         <p className="text-sm text-stone-400 mt-1">{t.expoSub}</p>
+        <p className="text-[11px] text-stone-500 mt-1">{t.kdsLive}</p>
       </div>
 
       {error ? (
@@ -106,9 +164,11 @@ export default function RestoExpoPage() {
               <li
                 key={it.id}
                 className={`rounded-2xl border p-4 space-y-3 ${
-                  mins >= 5
-                    ? "border-rose-400/45 bg-rose-500/10"
-                    : "border-emerald-400/35 bg-emerald-500/10"
+                  it.isRush
+                    ? "border-rose-500/55 bg-rose-500/15 ring-1 ring-rose-400/30"
+                    : mins >= expoWarn
+                      ? "border-rose-400/45 bg-rose-500/10"
+                      : "border-emerald-400/35 bg-emerald-500/10"
                 }`}
               >
                 <div className="flex items-start justify-between gap-2">
@@ -125,6 +185,7 @@ export default function RestoExpoPage() {
                       {it.stationName ? ` · ${it.stationName}` : ""}
                       {" · "}
                       {courseLabel(it.course)}
+                      {it.isRush ? ` · ${t.kdsRush}` : ""}
                     </p>
                     <p className="text-lg font-extrabold mt-0.5">
                       {it.qty}× {it.name}
@@ -137,14 +198,24 @@ export default function RestoExpoPage() {
                     {mins}m
                   </span>
                 </div>
-                <button
-                  type="button"
-                  disabled={busyId === it.id}
-                  onClick={() => void serve(it.id)}
-                  className="w-full rounded-xl bg-emerald-600 py-2.5 text-sm font-bold text-white disabled:opacity-50"
-                >
-                  {t.expoServe}
-                </button>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    disabled={busyId === it.id}
+                    onClick={() => void serve(it.id)}
+                    className="rounded-xl bg-emerald-600 py-2.5 text-sm font-bold text-white disabled:opacity-50"
+                  >
+                    {t.expoServe}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busyId === it.id}
+                    onClick={() => void recall(it.id)}
+                    className="rounded-xl border border-amber-400/35 bg-amber-500/10 py-2.5 text-sm font-bold text-amber-100 disabled:opacity-50"
+                  >
+                    {t.kdsRecall}
+                  </button>
+                </div>
               </li>
             );
           })}

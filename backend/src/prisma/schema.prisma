@@ -1544,18 +1544,24 @@ model PlatformSetting {
 }
 
 model PosDraft {
-  id          String   @id @default(uuid())
-  companyId   String   @map("company_id")
-  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  createdById String   @map("created_by_id")
-  createdBy   User     @relation("PosDraftsCreated", fields: [createdById], references: [id])
-  name        String
-  notes       String?
-  warehouseId String?  @map("warehouse_id")
-  contactId   String?  @map("contact_id")
-  linesJson   Json     @map("lines_json") // CartLine[]
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id              String   @id @default(uuid())
+  companyId       String   @map("company_id")
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdById     String   @map("created_by_id")
+  createdBy       User     @relation("PosDraftsCreated", fields: [createdById], references: [id])
+  name            String
+  notes           String?
+  warehouseId     String?  @map("warehouse_id")
+  contactId       String?  @map("contact_id")
+  linesJson       Json     @map("lines_json") // CartLine[]
+  /// Cash/card already taken while cart is parked (deposit-on-hold)
+  heldAmount      Decimal? @map("held_amount") @db.Decimal(14, 3)
+  /// CASH | CREDIT_CARD | BANK_TRANSFER
+  heldMethod      String?  @map("held_method")
+  /// PosCashMovement IN id when heldMethod=CASH (drawer expected cash)
+  heldMovementId  String?  @map("held_movement_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
 
   @@index([companyId])
   @@index([companyId, createdAt])
@@ -2051,6 +2057,10 @@ model RestoOrderItem {
   /// STAFF | GUEST — guest QR lines auto-fire to kitchen
   source     String               @default("STAFF")
   status     RestoOrderItemStatus @default(PENDING)
+  /// KDS rush priority
+  isRush     Boolean              @default(false) @map("is_rush")
+  /// Non-null = held / parked on KDS (still SENT|PREPARING|READY)
+  heldAt     DateTime?            @map("held_at")
   /// Comp = complimentary (zero bill); void = cancelled after send with reason
   isComp     Boolean              @default(false) @map("is_comp")
   voidReason String?              @map("void_reason")
@@ -2065,6 +2075,7 @@ model RestoOrderItem {
   @@index([orderId, course, status])
   @@index([orderId, seat])
   @@index([stationId, status])
+  @@index([isRush, heldAt])
   @@map("resto_order_items")
 }
 

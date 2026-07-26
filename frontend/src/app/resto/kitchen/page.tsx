@@ -15,6 +15,8 @@ type KitchenItem = {
   course?: number;
   source?: string;
   status: string;
+  isRush?: boolean;
+  heldAt?: string | null;
   sentAt: string | null;
   stationId?: string | null;
   stationName?: string | null;
@@ -70,6 +72,7 @@ export default function RestoKitchenPage() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [sla, setSla] = useState({ warnMinutes: 8, criticalMinutes: 15 });
   const knownIds = useRef<Set<string>>(new Set());
   const primed = useRef(false);
 
@@ -77,6 +80,7 @@ export default function RestoKitchenPage() {
     try {
       const res = await api.getRestoKitchen(stationId || undefined);
       const next = res.data.items || [];
+      if (res.data.sla) setSla(res.data.sla);
       if (primed.current && soundOn) {
         const fresh = next.filter((it) => !knownIds.current.has(it.id));
         if (fresh.length > 0) playChime();
@@ -118,8 +122,10 @@ export default function RestoKitchenPage() {
           const payload = JSON.parse(ev.data) as {
             items?: KitchenItem[];
             stations?: Station[];
+            sla?: { warnMinutes: number; criticalMinutes: number };
           };
           const next = payload.items || [];
+          if (payload.sla) setSla(payload.sla);
           if (primed.current && soundOn) {
             const fresh = next.filter((it) => !knownIds.current.has(it.id));
             if (fresh.length > 0) playChime();
@@ -166,9 +172,45 @@ export default function RestoKitchenPage() {
     }
   };
 
+  const toggleRush = async (it: KitchenItem) => {
+    setBusyId(it.id);
+    try {
+      await api.setRestoKitchenRush(it.id, !it.isRush);
+      await load();
+    } catch {
+      setError(t.actionFail);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const toggleHold = async (it: KitchenItem) => {
+    setBusyId(it.id);
+    try {
+      await api.setRestoKitchenHold(it.id, !it.heldAt);
+      await load();
+    } catch {
+      setError(t.actionFail);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const recall = async (itemId: string, to: "PREPARING" | "READY") => {
+    setBusyId(itemId);
+    try {
+      await api.recallRestoKitchenItem(itemId, to);
+      await load();
+    } catch {
+      setError(t.actionFail);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const bumpOldestReady = useCallback(async () => {
     const ready = items
-      .filter((i) => i.status === "READY")
+      .filter((i) => i.status === "READY" && !i.heldAt)
       .sort(
         (a, b) =>
           new Date(a.sentAt || 0).getTime() - new Date(b.sentAt || 0).getTime(),
@@ -197,10 +239,17 @@ export default function RestoKitchenPage() {
     );
   };
 
-  const cardTone = (status: string, minutes: number) => {
+  const cardTone = (
+    status: string,
+    minutes: number,
+    opts?: { rush?: boolean; held?: boolean },
+  ) => {
+    if (opts?.held) return "border-stone-500/40 bg-stone-500/10 opacity-70";
+    if (opts?.rush) return "border-rose-500/60 bg-rose-500/20 ring-1 ring-rose-400/40";
     if (status === "READY") return "border-emerald-400/40 bg-emerald-500/10";
-    if (minutes >= 15) return "border-rose-400/50 bg-rose-500/15";
-    if (minutes >= 8) return "border-amber-400/45 bg-amber-500/15";
+    if (minutes >= sla.criticalMinutes)
+      return "border-rose-400/50 bg-rose-500/15";
+    if (minutes >= sla.warnMinutes) return "border-amber-400/45 bg-amber-500/15";
     return "border-white/10 bg-white/[0.04]";
   };
 
@@ -330,7 +379,10 @@ export default function RestoKitchenPage() {
             return (
               <li
                 key={it.id}
-                className={`rounded-2xl border p-4 space-y-3 ${cardTone(it.status, minutes)}`}
+                className={`rounded-2xl border p-4 space-y-3 ${cardTone(it.status, minutes, {
+                  rush: !!it.isRush,
+                  held: !!it.heldAt,
+                })}`}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div>
@@ -346,6 +398,8 @@ export default function RestoKitchenPage() {
                             ? t.courseDessert
                             : t.courseStarter}
                       {it.source === "GUEST" ? ` · ${t.fromGuest}` : ""}
+                      {it.isRush ? ` · ${t.kdsRush}` : ""}
+                      {it.heldAt ? ` · ${t.kdsHeld}` : ""}
                     </p>
                     <p className="text-lg font-extrabold mt-0.5">
                       {it.qty}×{" "}
@@ -427,6 +481,36 @@ ${it.orderNotes ? `<p>${it.orderNotes}</p>` : ""}
                       className="rounded-lg bg-sky-500/90 px-3 py-1.5 text-xs font-bold text-[#0b1220] disabled:opacity-50"
                     >
                       {t.markServed}
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void toggleRush(it)}
+                    className={`rounded-lg border px-2.5 py-1.5 text-[11px] font-bold disabled:opacity-50 ${
+                      it.isRush
+                        ? "border-rose-400/50 bg-rose-500/20 text-rose-100"
+                        : "border-white/15 text-stone-300 hover:bg-white/5"
+                    }`}
+                  >
+                    {t.kdsRush}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void toggleHold(it)}
+                    className="rounded-lg border border-white/15 px-2.5 py-1.5 text-[11px] font-bold text-stone-300 hover:bg-white/5 disabled:opacity-50"
+                  >
+                    {it.heldAt ? t.kdsUnhold : t.kdsHold}
+                  </button>
+                  {it.status === "READY" ? (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void recall(it.id, "PREPARING")}
+                      className="rounded-lg border border-amber-400/35 px-2.5 py-1.5 text-[11px] font-bold text-amber-100 disabled:opacity-50"
+                    >
+                      {t.kdsRecall}
                     </button>
                   ) : null}
                 </div>

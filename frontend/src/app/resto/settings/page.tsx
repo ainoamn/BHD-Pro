@@ -61,6 +61,12 @@ export default function RestoSettingsPage() {
     currentHour: number;
   } | null>(null);
   const [dayPartBusy, setDayPartBusy] = useState(false);
+  const [kitchenSla, setKitchenSla] = useState({
+    warnMinutes: 8,
+    criticalMinutes: 15,
+    expoWarnMinutes: 5,
+  });
+  const [slaBusy, setSlaBusy] = useState(false);
   const [qrTables, setQrTables] = useState<
     Array<{
       id: string;
@@ -113,6 +119,7 @@ export default function RestoSettingsPage() {
     try {
       const res = await api.getRestoConfig();
       setDayParts(res.data.dayParts || dayParts);
+      if (res.data.kitchenSla) setKitchenSla(res.data.kitchenSla);
       setDayPartMeta({
         timezone: res.data.timezone,
         currentDayPart: res.data.currentDayPart,
@@ -141,6 +148,7 @@ export default function RestoSettingsPage() {
         },
       });
       setDayParts(res.data.dayParts);
+      if (res.data.kitchenSla) setKitchenSla(res.data.kitchenSla);
       setDayPartMeta({
         timezone: res.data.timezone,
         currentDayPart: res.data.currentDayPart,
@@ -151,6 +159,19 @@ export default function RestoSettingsPage() {
       toast.error(t.actionFail);
     } finally {
       setDayPartBusy(false);
+    }
+  };
+
+  const saveKitchenSla = async () => {
+    setSlaBusy(true);
+    try {
+      const res = await api.updateRestoConfig({ kitchenSla });
+      if (res.data.kitchenSla) setKitchenSla(res.data.kitchenSla);
+      toast.success(t.slaSaved);
+    } catch {
+      toast.error(t.actionFail);
+    } finally {
+      setSlaBusy(false);
     }
   };
 
@@ -310,6 +331,75 @@ export default function RestoSettingsPage() {
             className="w-full rounded-xl bg-indigo-500 py-2.5 text-sm font-bold text-white disabled:opacity-50"
           >
             {dayPartBusy ? "…" : t.dayPartSave}
+          </button>
+        </div>
+      ) : null}
+
+      {canManage ? (
+        <div className="rounded-2xl border border-rose-500/25 bg-rose-500/5 p-4 space-y-3">
+          <div>
+            <h2 className="font-bold">{t.slaTitle}</h2>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <label className="block space-y-1">
+              <span className="text-[11px] text-stone-400">{t.slaWarn}</span>
+              <input
+                type="number"
+                min={1}
+                max={120}
+                value={kitchenSla.warnMinutes}
+                disabled={slaBusy}
+                onChange={(e) =>
+                  setKitchenSla((p) => ({
+                    ...p,
+                    warnMinutes: Number(e.target.value) || 1,
+                  }))
+                }
+                className="w-full h-9 rounded-lg bg-black/30 border border-white/10 px-2 text-sm tabular-nums"
+              />
+            </label>
+            <label className="block space-y-1">
+              <span className="text-[11px] text-stone-400">{t.slaCritical}</span>
+              <input
+                type="number"
+                min={2}
+                max={180}
+                value={kitchenSla.criticalMinutes}
+                disabled={slaBusy}
+                onChange={(e) =>
+                  setKitchenSla((p) => ({
+                    ...p,
+                    criticalMinutes: Number(e.target.value) || 2,
+                  }))
+                }
+                className="w-full h-9 rounded-lg bg-black/30 border border-white/10 px-2 text-sm tabular-nums"
+              />
+            </label>
+            <label className="block space-y-1">
+              <span className="text-[11px] text-stone-400">{t.slaExpo}</span>
+              <input
+                type="number"
+                min={1}
+                max={60}
+                value={kitchenSla.expoWarnMinutes}
+                disabled={slaBusy}
+                onChange={(e) =>
+                  setKitchenSla((p) => ({
+                    ...p,
+                    expoWarnMinutes: Number(e.target.value) || 1,
+                  }))
+                }
+                className="w-full h-9 rounded-lg bg-black/30 border border-white/10 px-2 text-sm tabular-nums"
+              />
+            </label>
+          </div>
+          <button
+            type="button"
+            disabled={slaBusy}
+            onClick={() => void saveKitchenSla()}
+            className="w-full rounded-xl bg-rose-600 py-2.5 text-sm font-bold text-white disabled:opacity-50"
+          >
+            {slaBusy ? "…" : t.dayPartSave}
           </button>
         </div>
       ) : null}

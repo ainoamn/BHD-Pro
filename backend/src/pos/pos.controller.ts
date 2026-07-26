@@ -16,9 +16,11 @@ import {
   CreatePosNoSaleDto,
   CreatePosDraftDto,
   CreatePosSaleDto,
+  DeletePosDraftDto,
   LinkPosDto,
   OpenPosShiftDto,
   PayoutCommissionDto,
+  PosStoreCreditTopUpDto,
   RefundPosSaleDto,
   SetPosWarehouseDto,
   UpdateIncentivesConfigDto,
@@ -274,9 +276,9 @@ export class PosController {
   @Post('drafts')
   @Roles(...POS_STAFF)
   @Throttle({ default: { limit: 60, ttl: 60000 } })
-  @ApiOperation({ summary: 'Park POS cart as server-backed draft' })
+  @ApiOperation({ summary: 'Park POS cart as server-backed draft (optional held tender)' })
   createDraft(@CurrentUser() user: TokenPayload, @Body() dto: CreatePosDraftDto) {
-    return this.pos.createDraft(user.companyId, user.sub, dto);
+    return this.pos.createDraft(user.companyId, user, dto);
   }
 
   @Patch('drafts/:id')
@@ -292,9 +294,39 @@ export class PosController {
 
   @Delete('drafts/:id')
   @Roles(...POS_STAFF)
-  @ApiOperation({ summary: 'Delete a parked POS cart' })
-  deleteDraft(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
-    return this.pos.deleteDraft(user.companyId, id);
+  @ApiOperation({
+    summary: 'Delete a parked POS cart (returns cash hold to drawer as OUT)',
+  })
+  deleteDraft(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+  ) {
+    return this.pos.deleteDraft(user.companyId, user, id);
+  }
+
+  @Post('drafts/:id/discard')
+  @Roles(...POS_STAFF)
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @ApiOperation({
+    summary: 'Discard parked cart with optional dual-control (cash hold return)',
+  })
+  discardDraft(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+    @Body() dto: DeletePosDraftDto,
+  ) {
+    return this.pos.deleteDraft(user.companyId, user, id, dto);
+  }
+
+  @Post('store-credit/top-up')
+  @Roles(...POS_STAFF)
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  @ApiOperation({ summary: 'Top up customer store credit from POS floor' })
+  topUpStoreCredit(
+    @CurrentUser() user: TokenPayload,
+    @Body() dto: PosStoreCreditTopUpDto,
+  ) {
+    return this.pos.topUpStoreCredit(user.companyId, user, dto);
   }
 
   @Post('sales')

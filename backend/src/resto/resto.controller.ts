@@ -43,6 +43,9 @@ import {
   SeedRestoFloorDto,
   SettleRestoBySeatDto,
   SettleRestoEqualDto,
+  RestoKitchenRushDto,
+  RestoKitchenHoldDto,
+  RestoKitchenRecallDto,
   SetRestoMenu86Dto,
   SetRestoProductStationDto,
   SetRestoProductAllergensDto,
@@ -496,6 +499,15 @@ export class RestoController {
     return this.resto.kitchenStream(user.companyId, stationId) as Observable<MessageEvent>;
   }
 
+  @Sse('expo/stream')
+  @Roles(...RESTO_STAFF)
+  @ApiOperation({ summary: 'SSE live expo / runner pass queue' })
+  expoStream(
+    @CurrentUser() user: TokenPayload,
+  ): Observable<MessageEvent> {
+    return this.resto.expoStream(user.companyId) as Observable<MessageEvent>;
+  }
+
   @Post('kitchen/items/:itemId/status')
   @Roles(...RESTO_STAFF)
   kitchenStatus(
@@ -504,6 +516,39 @@ export class RestoController {
     @Body() dto: KitchenStatusDto,
   ) {
     return this.resto.setKitchenItemStatus(user.companyId, itemId, dto.status);
+  }
+
+  @Post('kitchen/items/:itemId/rush')
+  @Roles(...RESTO_STAFF)
+  @ApiOperation({ summary: 'Toggle KDS rush priority on a ticket' })
+  kitchenRush(
+    @CurrentUser() user: TokenPayload,
+    @Param('itemId') itemId: string,
+    @Body() dto: RestoKitchenRushDto,
+  ) {
+    return this.resto.setKitchenItemRush(user.companyId, itemId, !!dto.rush);
+  }
+
+  @Post('kitchen/items/:itemId/hold')
+  @Roles(...RESTO_STAFF)
+  @ApiOperation({ summary: 'Hold / release a KDS ticket' })
+  kitchenHold(
+    @CurrentUser() user: TokenPayload,
+    @Param('itemId') itemId: string,
+    @Body() dto: RestoKitchenHoldDto,
+  ) {
+    return this.resto.setKitchenItemHold(user.companyId, itemId, !!dto.hold);
+  }
+
+  @Post('kitchen/items/:itemId/recall')
+  @Roles(...RESTO_STAFF)
+  @ApiOperation({ summary: 'Recall READY/SERVED ticket back to PREPARING or READY' })
+  kitchenRecall(
+    @CurrentUser() user: TokenPayload,
+    @Param('itemId') itemId: string,
+    @Body() dto: RestoKitchenRecallDto,
+  ) {
+    return this.resto.recallKitchenItem(user.companyId, itemId, dto.to);
   }
 
   @Get('reports/summary')
