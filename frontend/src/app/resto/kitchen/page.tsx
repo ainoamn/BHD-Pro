@@ -415,6 +415,7 @@ export default function RestoKitchenPage() {
                           : it.course === 3
                             ? t.courseDessert
                             : t.courseStarter}
+                      {it.seat != null ? ` · ${t.seat} ${it.seat}` : ""}
                       {it.source === "GUEST" ? ` · ${t.fromGuest}` : ""}
                       {it.isRush ? ` · ${t.kdsRush}` : ""}
                       {it.heldAt ? ` · ${t.kdsHeld}` : ""}
