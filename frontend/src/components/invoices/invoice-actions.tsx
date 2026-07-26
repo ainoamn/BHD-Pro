@@ -25,9 +25,14 @@ export function canEditInvoice(
   return true;
 }
 
-export function canUnsendInvoice(status: string, paidAmount?: number) {
+export function canUnsendInvoice(
+  status: string,
+  paidAmount?: number,
+  paymentCount?: number,
+) {
   if (["DRAFT", "CANCELLED", "PAID"].includes(status)) return false;
   if (paidAmount != null && Number(paidAmount) > 0) return false;
+  if (paymentCount != null && paymentCount > 0) return false;
   return ["SENT", "VIEWED", "OVERDUE"].includes(status);
 }
 
@@ -63,6 +68,7 @@ interface InvoiceActionsProps {
   status: string;
   paymentStatus?: string;
   paidAmount?: number;
+  paymentCount?: number;
   invoiceType?: string;
   onView?: () => void;
   onDownload?: () => void;
@@ -130,6 +136,7 @@ export function InvoiceActions({
   status,
   paymentStatus,
   paidAmount,
+  paymentCount,
   invoiceType,
   onView,
   onDownload,
@@ -205,7 +212,7 @@ export function InvoiceActions({
           disabled={disabled}
         />
       )}
-      {canUnsendInvoice(status, paidAmount) && (
+      {canUnsendInvoice(status, paidAmount, paymentCount) && (
         <ActionBtn
           onClick={onUnsend}
           label={t("undoSend")}

@@ -86,11 +86,18 @@ export class EmployeeClaimsController {
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @Throttle({ default: { limit: 30, ttl: 60000 } })
-  reject(
+  @ApiOperation({ summary: 'Reject claim (reverses accrual GL when approved)' })
+  async reject(
     @CurrentUser() user: TokenPayload,
     @Param('id') id: string,
     @Body() dto: RejectClaimDto,
   ) {
+    await this.dualControl.assertApproved(
+      user.companyId,
+      user,
+      'CLAIM_PAY',
+      dto?.approval,
+    );
     return this.service.reject(user.companyId, user.sub, id, dto);
   }
 

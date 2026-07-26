@@ -333,6 +333,7 @@ class ApiClient {
           email: data.email,
           role: data.role as never,
           companyId: data.companyId,
+          company: data.company,
           permissions: data.permissions,
           modulePermissions: data.modulePermissions,
           twoFactorEnabled: !!data.twoFactorEnabled,
@@ -1136,7 +1137,10 @@ class ApiClient {
     return this.post(`/employee-claims/${id}/approve`);
   }
 
-  rejectEmployeeClaim(id: string, data?: { reason?: string }) {
+  rejectEmployeeClaim(
+    id: string,
+    data?: { reason?: string; approval?: DualApprovalPayload },
+  ) {
     return this.post(`/employee-claims/${id}/reject`, data || {});
   }
 

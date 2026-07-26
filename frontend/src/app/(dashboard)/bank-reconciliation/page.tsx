@@ -310,12 +310,14 @@ export default function BankReconciliationPage() {
                               </span>
                             )}
                           </button>
+                          {!line.isReconciled && (
                           <button
                             onClick={() => deleteMutation.mutate(line.id)}
                             className="p-1.5 text-slate-400 hover:text-rose-400"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
+                          )}
                         </div>
                       </GlassCard>
                     ))}
@@ -371,12 +373,14 @@ export default function BankReconciliationPage() {
                                   >
                                     {line.isReconciled ? t("unreconcile") : t("reconcile")}
                                   </button>
+                                  {!line.isReconciled && (
                                   <button
                                     onClick={() => deleteMutation.mutate(line.id)}
                                     className="p-1.5 text-slate-400 hover:text-rose-400"
                                   >
                                     <Trash2 className="w-4 h-4" />
                                   </button>
+                                  )}
                                 </div>
                               </td>
                             </tr>

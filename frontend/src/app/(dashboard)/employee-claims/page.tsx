@@ -65,7 +65,7 @@ export default function EmployeeClaimsPage() {
   const tDual = useTranslations("dualControl");
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
-  const currency = useAuthStore((s) => s.user?.company?.currency) || "OMR";
+  const currency = useAuthStore((s) => s.company?.currency) || "OMR";
 
   const [open, setOpen] = useState(false);
   const [employeeId, setEmployeeId] = useState("");
@@ -75,7 +75,8 @@ export default function EmployeeClaimsPage() {
   const [payingId, setPayingId] = useState<string | null>(null);
   const [payBankId, setPayBankId] = useState("");
   const [dualPayOpen, setDualPayOpen] = useState(false);
-  const [dualMode, setDualMode] = useState<"pay" | "unpay">("pay");
+  const [dualMode, setDualMode] = useState<"pay" | "unpay" | "reject">("pay");
+  const [rejectReason, setRejectReason] = useState<string | undefined>();
 
   const { data: employees = [] } = useQuery({
     queryKey: ["employees"],
@@ -159,7 +160,8 @@ export default function EmployeeClaimsPage() {
     }) => {
       if (action === "submit") return api.submitEmployeeClaim(id);
       if (action === "approve") return api.approveEmployeeClaim(id);
-      if (action === "reject") return api.rejectEmployeeClaim(id, { reason });
+      if (action === "reject")
+        return api.rejectEmployeeClaim(id, { reason, approval });
       if (action === "unpay") return api.unpayEmployeeClaim(id, { approval });
       return api.payEmployeeClaim(id, {
         bankAccountId,
@@ -172,9 +174,11 @@ export default function EmployeeClaimsPage() {
       setPayingId(null);
       setPayBankId("");
       setDualPayOpen(false);
+      setDualMode("pay");
+      setRejectReason(undefined);
       toast.success(t(`action_${vars.action}` as "action_submit"));
     },
-    onError: (err: { response?: { data?: { message?: string } } }) => {
+    onError: (err: unknown) => {
       toast.error(apiErrorMessage(err, tCommon("error")));
     },
   });
@@ -280,6 +284,13 @@ export default function EmployeeClaimsPage() {
                       setDualPayOpen(true);
                       return;
                     }
+                    if (action === "reject") {
+                      setPayingId(row.id);
+                      setRejectReason(reason);
+                      setDualMode("reject");
+                      setDualPayOpen(true);
+                      return;
+                    }
                     actionMutation.mutate({ id: row.id, action, reason });
                   }}
                   onDelete={() => {
@@ -343,6 +354,13 @@ export default function EmployeeClaimsPage() {
                           if (action === "unpay") {
                             setPayingId(row.id);
                             setDualMode("unpay");
+                            setDualPayOpen(true);
+                            return;
+                          }
+                          if (action === "reject") {
+                            setPayingId(row.id);
+                            setRejectReason(reason);
+                            setDualMode("reject");
                             setDualPayOpen(true);
                             return;
                           }
@@ -509,6 +527,7 @@ export default function EmployeeClaimsPage() {
         onCancel={() => {
           setDualPayOpen(false);
           setDualMode("pay");
+          setRejectReason(undefined);
         }}
         onConfirm={async (approval) => {
           if (!payingId) return;
@@ -516,6 +535,7 @@ export default function EmployeeClaimsPage() {
             id: payingId,
             action: dualMode,
             bankAccountId: dualMode === "pay" ? payBankId || undefined : undefined,
+            reason: dualMode === "reject" ? rejectReason : undefined,
             approval,
           });
         }}

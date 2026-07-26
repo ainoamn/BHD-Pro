@@ -99,6 +99,7 @@
 - موجة AT: صدق `apiErrorMessage` على صفحات مالية/مخزون/POS/ضريبة/API — [`HISABY-WAVE-AT-FE-ERROR-HONESTY-2026-07-26.md`](./HISABY-WAVE-AT-FE-ERROR-HONESTY-2026-07-26.md)
 - موجة AU: Dual إلغاء طلب مطعم + Dual unsend فاتورة + منع تحويل عرض سعر مكرر — [`HISABY-WAVE-AU-RESTO-CANCEL-UNSEND-2026-07-27.md`](./HISABY-WAVE-AU-RESTO-CANCEL-UNSEND-2026-07-27.md)
 - موجة AV: منع تحويل أمر شراء مكرر + صدق أخطاء 2FA/تكاملات/مطعم — [`HISABY-WAVE-AV-PO-CONVERT-HONESTY-2026-07-27.md`](./HISABY-WAVE-AV-PO-CONVERT-HONESTY-2026-07-27.md)
+- موجة AW: RolesGuard تقارير + Dual رفض مطالبة/مصروف كتب + عملة جلسة + صدق تعطيل/بنك — [`HISABY-WAVE-AW-REPORTS-DUAL-HONESTY-2026-07-27.md`](./HISABY-WAVE-AW-REPORTS-DUAL-HONESTY-2026-07-27.md)
 
 ### 1.6 المنصة ولوحة الإدارة (محدث 26 يوليو مساءً)
 - اشتراكات، بوابات دفع، `/admin`، PWA، GeoIP، keep-warm

@@ -104,6 +104,7 @@ interface Invoice {
   projectId?: string | null;
   costCenter?: { id: string; code: string; name: string } | null;
   project?: { id: string; code: string; name: string } | null;
+  payments?: { id: string }[];
   contact: Contact;
   items: InvoiceItem[];
 }
@@ -1336,6 +1337,7 @@ export function AccountingModule() {
                   status={inv.status}
                   paymentStatus={inv.paymentStatus}
                   paidAmount={Number(inv.paidAmount || 0)}
+                  paymentCount={inv.payments?.length ?? 0}
                   invoiceType={inv.type}
                   disabled={actionsBusy}
                   onView={() => openDocument(inv, "invoice")}
@@ -1416,6 +1418,7 @@ export function AccountingModule() {
                         status={inv.status}
                         paymentStatus={inv.paymentStatus}
                         paidAmount={Number(inv.paidAmount || 0)}
+                  paymentCount={inv.payments?.length ?? 0}
                         invoiceType={inv.type}
                         disabled={actionsBusy}
                         onView={() => openDocument(inv, "invoice")}

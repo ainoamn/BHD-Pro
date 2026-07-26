@@ -1,13 +1,17 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
+import { UserRole } from '@prisma/client';
 import { ReportsService } from './reports.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
 
 @ApiTags('Reports')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
 @Controller('reports')
 export class ReportsController {
   constructor(private reportsService: ReportsService) {}
@@ -120,6 +124,7 @@ export class ReportsController {
   }
 
   @Get('audit-log')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({ summary: 'Company audit trail of write actions' })
   @ApiQuery({ name: 'limit', required: false })
   @ApiQuery({ name: 'entity', required: false })

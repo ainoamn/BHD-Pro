@@ -46,6 +46,7 @@ export default function TaxRatesPage() {
       subtitle={t("subtitle")}
       queryKey="tax-rates"
       emptyLabel={t("title")}
+      softDelete
       fetchAll={() => api.getTaxRates()}
       create={(d) =>
         api.createTaxRate({

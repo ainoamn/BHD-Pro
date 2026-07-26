@@ -25,7 +25,7 @@ const CURRENCIES = ["OMR", "USD", "EUR", "SAR", "AED", "KWD", "BHD", "QAR", "GBP
 export default function ExchangeRatesPage() {
   const t = useTranslations("exchangeRates");
   const tCommon = useTranslations("common");
-  const companyCurrency = useAuthStore((s) => s.user?.company?.currency) || "OMR";
+  const companyCurrency = useAuthStore((s) => s.company?.currency) || "OMR";
 
   const [from, setFrom] = useState("USD");
   const [to, setTo] = useState(companyCurrency);

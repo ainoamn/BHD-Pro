@@ -14,16 +14,23 @@ import {
 import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
+import { useAuthStore } from "@/store/auth";
 import { posCopy } from "@/lib/pos-copy";
 import { formatMoney, apiErrorMessage } from "@/lib/utils";
 import { DecimalInput } from "@/components/ui/decimal-input";
+import {
+  DualApprovalModal,
+  type DualApprovalPayload,
+} from "@/components/security/dual-approval-modal";
 
 export default function PosBooksPage() {
   const locale = useLocaleStore((s) => s.locale);
+  const user = useAuthStore((s) => s.user);
   const t = posCopy[locale === "en" ? "en" : "ar"];
   const queryClient = useQueryClient();
   const [expenseAmt, setExpenseAmt] = useState(0);
   const [expenseReason, setExpenseReason] = useState("");
+  const [dualOpen, setDualOpen] = useState(false);
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["pos-books-summary"],
@@ -34,19 +41,21 @@ export default function PosBooksPage() {
   });
 
   const expenseMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (approval?: DualApprovalPayload) =>
       api.createPosCashMovement({
         type: "OUT",
         amount: Number(expenseAmt),
         reason: expenseReason.trim() || t.expenseDefaultReason,
+        approval,
       }),
     onSuccess: () => {
       toast.success(t.expenseSaved);
       setExpenseAmt(0);
       setExpenseReason("");
+      setDualOpen(false);
       void queryClient.invalidateQueries({ queryKey: ["pos-books-summary"] });
     },
-    onError: (err: { response?: { data?: { message?: string } } }) => {
+    onError: (err: unknown) => {
       toast.error(apiErrorMessage(err, t.expenseFail));
     },
   });
@@ -57,7 +66,7 @@ export default function PosBooksPage() {
       toast.error(t.expenseNeedAmount);
       return;
     }
-    expenseMutation.mutate();
+    setDualOpen(true);
   };
 
   const currency = data?.currency || "OMR";
@@ -258,6 +267,19 @@ export default function PosBooksPage() {
           </div>
         </>
       )}
+
+      <DualApprovalModal
+        open={dualOpen}
+        action="SHIFT_CASH_OUT"
+        actionLabel={t.saveExpense}
+        summary={formatMoney(expenseAmt, currency)}
+        actorRole={user?.role}
+        busy={expenseMutation.isPending}
+        onCancel={() => !expenseMutation.isPending && setDualOpen(false)}
+        onConfirm={async (approval) => {
+          await expenseMutation.mutateAsync(approval);
+        }}
+      />
     </div>
   );
 }

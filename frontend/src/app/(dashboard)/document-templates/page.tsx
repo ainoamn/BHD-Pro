@@ -43,6 +43,7 @@ export default function DocumentTemplatesPage() {
       subtitle={t("subtitle")}
       queryKey="document-templates"
       emptyLabel={t("title")}
+      softDelete
       fetchAll={() => api.getDocumentTemplates()}
       create={(d) =>
         api.createDocumentTemplate({

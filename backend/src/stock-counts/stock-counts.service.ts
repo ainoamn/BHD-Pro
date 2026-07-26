@@ -359,6 +359,11 @@ export class StockCountsService {
     if (count.status === StockCountStatus.COMPLETED) {
       throw new BadRequestException('Cannot delete a completed count');
     }
+    if (count.completedAt) {
+      throw new BadRequestException(
+        'Cannot delete a count that was completed — keep for audit after reverse',
+      );
+    }
     await this.prisma.stockCount.delete({ where: { id } });
     return { message: 'Deleted' };
   }

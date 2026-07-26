@@ -28,6 +28,7 @@ interface ErpCrudPageProps<T extends { id: string }> {
   subtitle: string;
   queryKey: string;
   emptyLabel: string;
+  softDelete?: boolean;
   columns: ErpColumn<T>[];
   fields: ErpField[];
   fetchAll: () => Promise<{ data: unknown }>;
@@ -44,6 +45,7 @@ export function ErpCrudPage<T extends { id: string }>({
   subtitle,
   queryKey,
   emptyLabel,
+  softDelete = false,
   columns,
   fields,
   fetchAll,
@@ -88,7 +90,7 @@ export function ErpCrudPage<T extends { id: string }>({
     mutationFn: (id: string) => remove(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [queryKey] });
-      toast.success(tCommon("deleted"));
+      toast.success(softDelete ? tCommon("deactivated") : tCommon("deleted"));
     },
     onError: (err: unknown) => {
       toast.error(apiErrorMessage(err, tCommon("error")));

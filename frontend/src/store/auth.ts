@@ -95,6 +95,15 @@ export const useAuthStore = create<AuthState>()(
           if (state?.company?.currency === 'SAR' && state.company.country === 'OM') {
             state.setCompany({ ...state.company, currency: 'OMR' });
           }
+          if (
+            state?.user?.company?.currency === 'SAR' &&
+            state.user.company.country === 'OM'
+          ) {
+            state.setUser({
+              ...state.user,
+              company: { ...state.user.company, currency: 'OMR' },
+            });
+          }
           state?.setLoading(false);
         };
       },

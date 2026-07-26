@@ -68,6 +68,12 @@ export class RejectClaimDto {
   @IsOptional()
   @IsString()
   reason?: string;
+
+  @ApiPropertyOptional({ type: DualApprovalDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DualApprovalDto)
+  approval?: DualApprovalDto;
 }
 
 export class MarkClaimPaidDto {

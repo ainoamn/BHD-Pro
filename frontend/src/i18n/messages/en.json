@@ -605,6 +605,7 @@
     "add": "Add",
     "saved": "Saved successfully",
     "deleted": "Deleted",
+    "deactivated": "Deactivated",
     "error": "An error occurred",
     "retry": "Retry",
     "confirmDelete": "Are you sure you want to delete?",
@@ -1556,7 +1557,7 @@
     "suggestMatches": "Suggest matches from books",
     "suggestions": "Match suggestions",
     "noSuggestions": "No match suggestions right now",
-    "acceptSuggestion": "Accept & reconcile",
+    "acceptSuggestion": "Mark reconciled (no payment/journal link)",
     "matchType_PAYMENT": "Payment",
     "matchType_JOURNAL": "Journal"
   },

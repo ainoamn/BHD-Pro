@@ -605,6 +605,7 @@
     "add": "إضافة",
     "saved": "تم الحفظ بنجاح",
     "deleted": "تم الحذف",
+    "deactivated": "تم التعطيل",
     "error": "حدث خطأ",
     "retry": "إعادة المحاولة",
     "confirmDelete": "هل أنت متأكد من الحذف؟",
@@ -1556,7 +1557,7 @@
     "suggestMatches": "اقتراح مطابقة من الدفاتر",
     "suggestions": "اقتراحات المطابقة",
     "noSuggestions": "لا اقتراحات للمطابقة حالياً",
-    "acceptSuggestion": "قبول وتسوية",
+    "acceptSuggestion": "تسوية يدوية (بدون ربط دفعة/قيد)",
     "matchType_PAYMENT": "دفعة",
     "matchType_JOURNAL": "قيد"
   },

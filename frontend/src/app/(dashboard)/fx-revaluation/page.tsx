@@ -48,7 +48,7 @@ export default function FxRevaluationPage() {
   const tDual = useTranslations("dualControl");
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
-  const baseCurrency = user?.company?.currency || "OMR";
+  const baseCurrency = useAuthStore((s) => s.company?.currency) || "OMR";
   const [asOf, setAsOf] = useState(new Date().toISOString().split("T")[0]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [previewKey, setPreviewKey] = useState(0);

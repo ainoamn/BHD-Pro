@@ -44,6 +44,7 @@ export default function CustomFieldsPage() {
       subtitle={t("subtitle")}
       queryKey="custom-fields"
       emptyLabel={t("title")}
+      softDelete
       fetchAll={() => api.getCustomFields()}
       create={(d) =>
         api.createCustomField({
