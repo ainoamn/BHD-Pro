@@ -116,6 +116,8 @@ export class AdminController {
       name?: string;
       usersLimitOverride?: number | null;
       invoicesLimitOverride?: number | null;
+      permanentDiscountPct?: number | null;
+      permanentDiscountNote?: string | null;
     },
   ) {
     return this.admin.updateTenant(id, body);

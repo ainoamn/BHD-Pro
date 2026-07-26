@@ -31,6 +31,8 @@ type Tenant = {
   invoicesLimit: number;
   usersLimitOverride: number | null;
   invoicesLimitOverride: number | null;
+  permanentDiscountPct?: number;
+  permanentDiscountNote?: string | null;
   isActive: boolean;
   usersCount: number;
   activeUsersCount?: number;
@@ -70,6 +72,8 @@ export default function AdminTenantsPage() {
   const [invoicesLimit, setInvoicesLimit] = useState("");
   const [planExpiry, setPlanExpiry] = useState("");
   const [plan, setPlan] = useState("STARTER");
+  const [discountPct, setDiscountPct] = useState("0");
+  const [discountNote, setDiscountNote] = useState("");
   const [saving, setSaving] = useState(false);
 
   const load = async (query?: string) => {
@@ -96,9 +100,14 @@ export default function AdminTenantsPage() {
         : String(row.invoicesLimit),
     );
     setPlanExpiry(row.planExpiry ? row.planExpiry.slice(0, 10) : "");
+    setDiscountPct(String(row.permanentDiscountPct ?? 0));
+    setDiscountNote(row.permanentDiscountNote || "");
     try {
       const res = await api.getAdminTenant(row.id);
-      setDetail(res.data as TenantDetail);
+      const d = res.data as TenantDetail;
+      setDetail(d);
+      if (d.permanentDiscountPct != null) setDiscountPct(String(d.permanentDiscountPct));
+      if (d.permanentDiscountNote != null) setDiscountNote(d.permanentDiscountNote || "");
     } catch {
       setDetail(null);
     }
@@ -110,11 +119,14 @@ export default function AdminTenantsPage() {
     try {
       const ul = usersLimit.trim() === "" ? null : Number(usersLimit);
       const il = invoicesLimit.trim() === "" ? null : Number(invoicesLimit);
+      const pct = Number(discountPct);
       await api.updateAdminTenant(selected.id, {
         plan,
         planExpiry: planExpiry || null,
         usersLimitOverride: Number.isFinite(ul as number) ? ul : null,
         invoicesLimitOverride: Number.isFinite(il as number) ? il : null,
+        permanentDiscountPct: Number.isFinite(pct) ? pct : 0,
+        permanentDiscountNote: discountNote.trim() || null,
       });
       await load(q);
       setSelected(null);
@@ -361,6 +373,27 @@ export default function AdminTenantsPage() {
                 <input
                   value={invoicesLimit}
                   onChange={(e) => setInvoicesLimit(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                />
+              </label>
+              <label className="text-xs space-y-1">
+                <span className="text-slate-500">{t.permanentDiscount}</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={0.01}
+                  value={discountPct}
+                  onChange={(e) => setDiscountPct(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                />
+              </label>
+              <label className="text-xs space-y-1 sm:col-span-2">
+                <span className="text-slate-500">{t.permanentDiscountNote}</span>
+                <input
+                  value={discountNote}
+                  onChange={(e) => setDiscountNote(e.target.value)}
+                  placeholder={en ? "Family / early / staff…" : "عائلة / مشترك أول / شركتي…"}
                   className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
                 />
               </label>

@@ -98,6 +98,7 @@ export class PaymentsController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Validate a subscription promo code before checkout' })
   validatePromo(
+    @CurrentUser() user: TokenPayload,
     @Query('plan') plan: string,
     @Query('billing') billing: string,
     @Query('code') code?: string,
@@ -105,7 +106,12 @@ export class PaymentsController {
     if (!plan?.trim() || (billing !== 'monthly' && billing !== 'yearly')) {
       throw new BadRequestException('plan and billing are required');
     }
-    return this.payments.validatePromoCode(plan, billing, code);
+    return this.payments.validatePromoCode(
+      plan,
+      billing as 'monthly' | 'yearly',
+      code,
+      user.companyId,
+    );
   }
 
   @Post('invoices/:invoiceId/checkout')

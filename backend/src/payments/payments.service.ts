@@ -106,6 +106,7 @@ export class PaymentsService {
       opts.plan,
       opts.billing,
       opts.promoCode,
+      opts.companyId,
     );
     const amountBaisa = omrToBaisa(priced.priceOmr);
 
@@ -115,7 +116,11 @@ export class PaymentsService {
 
     const number = await this.generateBillingNumber(opts.companyId);
     const promoLabel = priced.promoCode ? ` · promo ${priced.promoCode}` : '';
-    const description = `BHD Pro — ${planDetails.nameEn} (${opts.billing})${promoLabel}`;
+    const permanentLabel =
+      priced.permanentDiscountPct > 0
+        ? ` · permanent ${priced.permanentDiscountPct}%`
+        : '';
+    const description = `BHD Pro — ${planDetails.nameEn} (${opts.billing})${promoLabel}${permanentLabel}`;
 
     const billingInvoice = await this.prisma.billingInvoice.create({
       data: {
@@ -129,12 +134,11 @@ export class PaymentsService {
         metadataJson: {
           plan: opts.plan,
           billing: opts.billing,
-          ...(priced.promoCode
-            ? {
-                promoCode: priced.promoCode,
-                discountPct: String(priced.discountPct),
-                listPriceOmr: String(priced.listPriceOmr),
-              }
+          listPriceOmr: String(priced.listPriceOmr),
+          discountPct: String(priced.discountPct),
+          ...(priced.promoCode ? { promoCode: priced.promoCode } : {}),
+          ...(priced.permanentDiscountPct > 0
+            ? { permanentDiscountPct: String(priced.permanentDiscountPct) }
             : {}),
         },
       },
@@ -194,65 +198,90 @@ export class PaymentsService {
     };
   }
 
-  /** Resolve active PlanOffer by promo code for a given plan + billing period. */
-  async validatePromoCode(plan: string, billing: 'monthly' | 'yearly', promoCode?: string) {
-    return this.resolveSubscriptionPrice(plan, billing, promoCode);
+  /** Resolve price: list → optional promo → company permanent discount (best of %). */
+  async validatePromoCode(
+    plan: string,
+    billing: 'monthly' | 'yearly',
+    promoCode?: string,
+    companyId?: string,
+  ) {
+    return this.resolveSubscriptionPrice(plan, billing, promoCode, companyId);
   }
 
   private async resolveSubscriptionPrice(
     plan: string,
     billing: 'monthly' | 'yearly',
     promoCode?: string,
+    companyId?: string,
   ) {
     const planDetails = await this.planCatalog.detailsFor(plan);
     const listPriceOmr =
       billing === 'yearly' ? planDetails.yearlyPrice : planDetails.monthlyPrice;
 
-    const code = (promoCode || '').trim().toUpperCase();
-    if (!code) {
-      return {
-        listPriceOmr,
-        priceOmr: listPriceOmr,
-        discountPct: 0,
-        promoCode: null as string | null,
-        offerNameAr: null as string | null,
-        offerNameEn: null as string | null,
-      };
-    }
-
-    const now = new Date();
-    const offer = await this.prisma.planOffer.findFirst({
-      where: {
-        promoCode: { equals: code, mode: 'insensitive' },
-        isActive: true,
-        plan,
-        AND: [
-          { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
-          { OR: [{ endsAt: null }, { endsAt: { gte: now } }] },
-        ],
-      },
-    });
-
-    if (!offer) {
-      throw new BadRequestException('Invalid or expired promo code');
-    }
-
     let priceOmr = listPriceOmr;
-    const override =
-      billing === 'yearly'
-        ? offer.yearlyPrice != null
-          ? Number(offer.yearlyPrice)
-          : null
-        : offer.monthlyPrice != null
-          ? Number(offer.monthlyPrice)
-          : null;
+    let promoApplied: string | null = null;
+    let offerNameAr: string | null = null;
+    let offerNameEn: string | null = null;
 
-    if (override != null && Number.isFinite(override) && override >= 0) {
-      priceOmr = override;
-    } else {
-      const pct = Number(offer.discountPct || 0);
-      if (pct > 0) {
-        priceOmr = Number((listPriceOmr * (1 - pct / 100)).toFixed(3));
+    const code = (promoCode || '').trim().toUpperCase();
+    if (code) {
+      const now = new Date();
+      const offer = await this.prisma.planOffer.findFirst({
+        where: {
+          promoCode: { equals: code, mode: 'insensitive' },
+          isActive: true,
+          plan,
+          AND: [
+            { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
+            { OR: [{ endsAt: null }, { endsAt: { gte: now } }] },
+          ],
+        },
+      });
+
+      if (!offer) {
+        throw new BadRequestException('Invalid or expired promo code');
+      }
+
+      const override =
+        billing === 'yearly'
+          ? offer.yearlyPrice != null
+            ? Number(offer.yearlyPrice)
+            : null
+          : offer.monthlyPrice != null
+            ? Number(offer.monthlyPrice)
+            : null;
+
+      if (override != null && Number.isFinite(override) && override >= 0) {
+        priceOmr = override;
+      } else {
+        const pct = Number(offer.discountPct || 0);
+        if (pct > 0) {
+          priceOmr = Number((listPriceOmr * (1 - pct / 100)).toFixed(3));
+        }
+      }
+      promoApplied = offer.promoCode || code;
+      offerNameAr = offer.nameAr;
+      offerNameEn = offer.nameEn;
+    }
+
+    let permanentDiscountPct = 0;
+    if (companyId) {
+      const company = await this.prisma.company.findUnique({
+        where: { id: companyId },
+        select: { permanentDiscountPct: true },
+      });
+      permanentDiscountPct = Math.min(
+        100,
+        Math.max(0, Number(company?.permanentDiscountPct || 0)),
+      );
+      if (permanentDiscountPct > 0) {
+        const withPermanent = Number(
+          (listPriceOmr * (1 - permanentDiscountPct / 100)).toFixed(3),
+        );
+        // Best price for the customer: promo fixed/pct vs permanent %
+        if (withPermanent < priceOmr) {
+          priceOmr = withPermanent;
+        }
       }
     }
 
@@ -261,15 +290,16 @@ export class PaymentsService {
     const discountPct =
       listPriceOmr > 0
         ? Number((((listPriceOmr - priceOmr) / listPriceOmr) * 100).toFixed(2))
-        : Number(offer.discountPct || 0);
+        : 0;
 
     return {
       listPriceOmr,
       priceOmr,
       discountPct,
-      promoCode: offer.promoCode || code,
-      offerNameAr: offer.nameAr,
-      offerNameEn: offer.nameEn,
+      permanentDiscountPct,
+      promoCode: promoApplied,
+      offerNameAr,
+      offerNameEn,
     };
   }
 

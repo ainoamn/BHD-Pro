@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
+import toast from "react-hot-toast";
+import { Loader2, Save } from "lucide-react";
 import api from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
 import { adminCopy } from "@/lib/admin-copy";
@@ -32,6 +34,7 @@ type UserDetail = {
   email: string;
   role: string;
   isActive: boolean;
+  isProtected?: boolean;
   googleLinked: boolean;
   lastLoginAt: string | null;
   createdAt: string;
@@ -47,6 +50,10 @@ type UserDetail = {
     planStartedAt: string | null;
     usersLimit: number;
     invoicesLimit: number;
+    usersLimitOverride?: number | null;
+    invoicesLimitOverride?: number | null;
+    permanentDiscountPct?: number;
+    permanentDiscountNote?: string | null;
     isActive: boolean;
   };
   sessions: { id: string; ipAddress: string | null; userAgent: string | null; createdAt: string }[];
@@ -77,6 +84,18 @@ function UsersInner() {
   const [q, setQ] = useState(searchParams.get("q") || "");
   const [rows, setRows] = useState<UserRow[]>([]);
   const [detail, setDetail] = useState<UserDetail | null>(null);
+  const [planCodes, setPlanCodes] = useState<string[]>([
+    "STARTER",
+    "PROFESSIONAL",
+    "ENTERPRISE",
+  ]);
+  const [plan, setPlan] = useState("STARTER");
+  const [planExpiry, setPlanExpiry] = useState("");
+  const [usersLimit, setUsersLimit] = useState("");
+  const [invoicesLimit, setInvoicesLimit] = useState("");
+  const [discountPct, setDiscountPct] = useState("0");
+  const [discountNote, setDiscountNote] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const load = async (query?: string) => {
     const res = await api.getAdminUsers(query);
@@ -84,13 +103,67 @@ function UsersInner() {
   };
 
   useEffect(() => {
-    load(q || undefined);
+    void load(q || undefined);
+    void (async () => {
+      try {
+        const res = await api.getAdminPlans();
+        const list = res.data as { code: string }[];
+        if (Array.isArray(list) && list.length) {
+          setPlanCodes(list.map((p) => p.code));
+        }
+      } catch {
+        /* keep defaults */
+      }
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const openDetail = async (id: string) => {
     const res = await api.getAdminUser(id);
-    setDetail(res.data as UserDetail);
+    const d = res.data as UserDetail;
+    setDetail(d);
+    setPlan(d.company.plan);
+    setPlanExpiry(d.company.planExpiry ? d.company.planExpiry.slice(0, 10) : "");
+    setUsersLimit(
+      d.company.usersLimitOverride != null
+        ? String(d.company.usersLimitOverride)
+        : String(d.company.usersLimit),
+    );
+    setInvoicesLimit(
+      d.company.invoicesLimitOverride != null
+        ? String(d.company.invoicesLimitOverride)
+        : String(d.company.invoicesLimit),
+    );
+    setDiscountPct(String(d.company.permanentDiscountPct ?? 0));
+    setDiscountNote(d.company.permanentDiscountNote || "");
+  };
+
+  const saveCompany = async () => {
+    if (!detail) return;
+    setSaving(true);
+    try {
+      const ul = usersLimit.trim() === "" ? null : Number(usersLimit);
+      const il = invoicesLimit.trim() === "" ? null : Number(invoicesLimit);
+      const pct = Number(discountPct);
+      await api.updateAdminTenant(detail.company.id, {
+        plan,
+        planExpiry: planExpiry || null,
+        usersLimitOverride: Number.isFinite(ul as number) ? ul : null,
+        invoicesLimitOverride: Number.isFinite(il as number) ? il : null,
+        permanentDiscountPct: Number.isFinite(pct) ? pct : 0,
+        permanentDiscountNote: discountNote.trim() || null,
+      });
+      await load(q);
+      await openDetail(detail.id);
+      toast.success(en ? "Saved" : "تم الحفظ");
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message || (en ? "Save failed" : "تعذر الحفظ");
+      toast.error(msg);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -98,13 +171,17 @@ function UsersInner() {
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">{t.users}</h1>
-          <p className="text-sm text-slate-500 mt-1">{t.usersHint}</p>
+          <p className="text-sm text-slate-500 mt-1">
+            {en
+              ? "Edit company plan, limits, and permanent discounts from user details."
+              : "من تفاصيل المستخدم: ترقية الباقة، الحدود، وتخفيض مستمر على حساب الشركة."}
+          </p>
         </div>
         <form
           className="flex gap-2"
           onSubmit={(e) => {
             e.preventDefault();
-            load(q);
+            void load(q);
           }}
         >
           <input
@@ -153,7 +230,7 @@ function UsersInner() {
                 <td className="p-3">
                   <button
                     type="button"
-                    onClick={() => openDetail(u.id)}
+                    onClick={() => void openDetail(u.id)}
                     className="text-xs font-bold text-teal-800 hover:underline"
                   >
                     {t.details}
@@ -173,40 +250,130 @@ function UsersInner() {
               <div>
                 <h2 className="text-lg font-extrabold">{detail.name}</h2>
                 <p className="text-sm text-slate-500">{detail.email}</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  {detail.role} · {detail.googleLinked ? "Google" : "password"}
+                </p>
+              </div>
+              {detail.isProtected ? (
+                <span className="text-xs font-bold h-fit px-3 py-1.5 rounded-lg bg-violet-100 text-violet-800">
+                  {en ? "Owner (locked)" : "مالك (مقفل)"}
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  className="text-xs font-bold border rounded-lg px-3 py-1.5 h-fit"
+                  onClick={async () => {
+                    try {
+                      await api.updateAdminUser(detail.id, {
+                        isActive: !detail.isActive,
+                      });
+                      await load(q);
+                      await openDetail(detail.id);
+                      toast.success(en ? "Updated" : "تم التحديث");
+                    } catch (err: unknown) {
+                      const msg =
+                        (err as { response?: { data?: { message?: string } } })
+                          ?.response?.data?.message ||
+                        (en ? "Failed" : "تعذر");
+                      toast.error(msg);
+                    }
+                  }}
+                >
+                  {detail.isActive ? t.inactive : t.active}
+                </button>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-teal-100 bg-teal-50/40 p-3 space-y-3">
+              <p className="text-xs font-extrabold text-teal-950">
+                {en ? "Company plan & permanent discount" : "باقة الشركة والتخفيض المستمر"}
+              </p>
+              <p className="text-[11px] text-slate-600">
+                {detail.company.name}
+                {detail.company.email ? ` · ${detail.company.email}` : ""}
+              </p>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <label className="text-xs space-y-1">
+                  <span className="text-slate-500">{t.plan}</span>
+                  <select
+                    value={plan}
+                    onChange={(e) => setPlan(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                  >
+                    {planCodes.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                    {!planCodes.includes(plan) ? (
+                      <option value={plan}>{plan}</option>
+                    ) : null}
+                  </select>
+                </label>
+                <label className="text-xs space-y-1">
+                  <span className="text-slate-500">{t.expires}</span>
+                  <input
+                    type="date"
+                    value={planExpiry}
+                    onChange={(e) => setPlanExpiry(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                  />
+                </label>
+                <label className="text-xs space-y-1">
+                  <span className="text-slate-500">{t.usersLimit} (-1 = ∞)</span>
+                  <input
+                    value={usersLimit}
+                    onChange={(e) => setUsersLimit(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                  />
+                </label>
+                <label className="text-xs space-y-1">
+                  <span className="text-slate-500">{t.invoicesLimit} (-1 = ∞)</span>
+                  <input
+                    value={invoicesLimit}
+                    onChange={(e) => setInvoicesLimit(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                  />
+                </label>
+                <label className="text-xs space-y-1">
+                  <span className="text-slate-500">
+                    {en ? "Permanent discount %" : "تخفيض مستمر %"}
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={0.01}
+                    value={discountPct}
+                    onChange={(e) => setDiscountPct(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                  />
+                </label>
+                <label className="text-xs space-y-1">
+                  <span className="text-slate-500">
+                    {en ? "Discount reason" : "سبب التخفيض"}
+                  </span>
+                  <input
+                    value={discountNote}
+                    onChange={(e) => setDiscountNote(e.target.value)}
+                    placeholder={en ? "Family / early / staff…" : "عائلة / مشترك أول / شركتي…"}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                  />
+                </label>
               </div>
               <button
                 type="button"
-                className="text-xs font-bold border rounded-lg px-3 py-1.5"
-                onClick={async () => {
-                  await api.updateAdminUser(detail.id, { isActive: !detail.isActive });
-                  await load(q);
-                  await openDetail(detail.id);
-                }}
+                disabled={saving}
+                onClick={() => void saveCompany()}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-teal-700 text-white px-4 py-2.5 text-sm font-bold disabled:opacity-50"
               >
-                {detail.isActive ? t.inactive : t.active}
+                {saving ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
+                {en ? "Save plan & discount" : "حفظ الباقة والتخفيض"}
               </button>
-            </div>
-
-            <div className="grid sm:grid-cols-2 gap-3 text-sm">
-              <div className="rounded-xl bg-slate-50 p-3">
-                <p className="text-xs text-slate-500">{t.company}</p>
-                <p className="font-bold">{detail.company.name}</p>
-                <p className="text-xs text-slate-500 mt-1">{detail.company.email}</p>
-                <p className="text-xs text-slate-500">{detail.company.phone || "—"}</p>
-              </div>
-              <div className="rounded-xl bg-slate-50 p-3">
-                <p className="text-xs text-slate-500">{t.plan}</p>
-                <p className="font-bold">{detail.company.plan}</p>
-                <p className="text-xs mt-1">
-                  {t.started}: {fmt(detail.company.planStartedAt, en)}
-                </p>
-                <p className="text-xs">
-                  {t.expires}: {fmt(detail.company.planExpiry, en)}
-                </p>
-                <p className="text-xs">
-                  {t.usersLimit}: {detail.company.usersLimit < 0 ? "∞" : detail.company.usersLimit}
-                </p>
-              </div>
             </div>
 
             <div>
@@ -216,11 +383,16 @@ function UsersInner() {
                   <p className="text-sm text-slate-500">{t.empty}</p>
                 )}
                 {detail.subscriptionPayments.map((p) => (
-                  <div key={p.id} className="rounded-xl border border-slate-100 p-3 text-sm flex justify-between gap-3">
+                  <div
+                    key={p.id}
+                    className="rounded-xl border border-slate-100 p-3 text-sm flex justify-between gap-3"
+                  >
                     <div>
                       <p className="font-semibold">{p.number}</p>
                       <p className="text-xs text-slate-500">{p.description}</p>
-                      <p className="text-[11px] text-slate-400">{fmt(p.paidAt || p.createdAt, en)}</p>
+                      <p className="text-[11px] text-slate-400">
+                        {fmt(p.paidAt || p.createdAt, en)}
+                      </p>
                     </div>
                     <div className="text-end">
                       <p className="font-bold">
@@ -237,12 +409,19 @@ function UsersInner() {
             <div>
               <h3 className="font-bold mb-2">{t.sessions}</h3>
               <div className="space-y-1 max-h-40 overflow-y-auto">
-                {detail.sessions.map((s) => (
-                  <div key={s.id} className="text-xs flex justify-between gap-2 border-b border-slate-50 py-1.5">
-                    <span className="font-mono">{s.ipAddress || "—"}</span>
-                    <span className="text-slate-500">{fmt(s.createdAt, en)}</span>
-                  </div>
-                ))}
+                {detail.sessions.length === 0 ? (
+                  <p className="text-sm text-slate-500">—</p>
+                ) : (
+                  detail.sessions.map((s) => (
+                    <div
+                      key={s.id}
+                      className="text-xs flex justify-between gap-2 border-b border-slate-50 py-1.5"
+                    >
+                      <span className="font-mono">{s.ipAddress || "—"}</span>
+                      <span className="text-slate-500">{fmt(s.createdAt, en)}</span>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </div>

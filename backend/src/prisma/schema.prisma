@@ -29,6 +29,10 @@ model Company {
   /// null = use plan default; -1 = unlimited
   usersLimitOverride    Int? @map("users_limit_override")
   invoicesLimitOverride Int? @map("invoices_limit_override")
+  /// Ongoing subscription discount % (family / early adopter / staff). Applied at every checkout.
+  permanentDiscountPct Decimal @default(0) @map("permanent_discount_pct") @db.Decimal(5, 2)
+  /// Optional label shown in admin (e.g. "عائلة", "مشترك أول")
+  permanentDiscountNote String? @map("permanent_discount_note")
   isActive    Boolean  @default(true) @map("is_active")
   timezone    String   @default("Asia/Muscat")
   currency    String   @default("OMR")

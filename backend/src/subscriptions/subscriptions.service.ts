@@ -76,6 +76,8 @@ export class SubscriptionsService {
       },
       features,
       modules,
+      permanentDiscountPct: Number(company.permanentDiscountPct || 0),
+      permanentDiscountNote: company.permanentDiscountNote || null,
       planExpiry: company.planExpiry,
       planStartedAt: company.planStartedAt,
       currency: company.currency,

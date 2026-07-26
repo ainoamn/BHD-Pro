@@ -638,6 +638,8 @@ export class AdminService implements OnModuleInit {
         planStartedAt: c.planStartedAt,
         usersLimitOverride: c.usersLimitOverride,
         invoicesLimitOverride: c.invoicesLimitOverride,
+        permanentDiscountPct: Number(c.permanentDiscountPct || 0),
+        permanentDiscountNote: c.permanentDiscountNote,
         usersLimit,
         invoicesLimit,
         isActive: c.isActive,
@@ -708,6 +710,8 @@ export class AdminService implements OnModuleInit {
       name?: string;
       usersLimitOverride?: number | null;
       invoicesLimitOverride?: number | null;
+      permanentDiscountPct?: number | null;
+      permanentDiscountNote?: string | null;
     },
   ) {
     const existing = await this.prisma.company.findFirst({
@@ -716,6 +720,15 @@ export class AdminService implements OnModuleInit {
     if (!existing) throw new NotFoundException('Company not found');
 
     const planChanging = data.plan !== undefined && data.plan !== existing.plan;
+
+    let permanentDiscountPct: number | undefined;
+    if (data.permanentDiscountPct !== undefined) {
+      const n = Number(data.permanentDiscountPct);
+      if (!Number.isFinite(n) || n < 0 || n > 100) {
+        throw new BadRequestException('permanentDiscountPct must be between 0 and 100');
+      }
+      permanentDiscountPct = Math.round(n * 100) / 100;
+    }
 
     return this.prisma.company.update({
       where: { id },
@@ -736,6 +749,12 @@ export class AdminService implements OnModuleInit {
         ...(data.invoicesLimitOverride !== undefined && {
           invoicesLimitOverride: data.invoicesLimitOverride,
         }),
+        ...(permanentDiscountPct !== undefined && {
+          permanentDiscountPct,
+        }),
+        ...(data.permanentDiscountNote !== undefined && {
+          permanentDiscountNote: data.permanentDiscountNote?.trim() || null,
+        }),
       },
       select: {
         id: true,
@@ -745,6 +764,8 @@ export class AdminService implements OnModuleInit {
         planStartedAt: true,
         usersLimitOverride: true,
         invoicesLimitOverride: true,
+        permanentDiscountPct: true,
+        permanentDiscountNote: true,
         isActive: true,
       },
     });
@@ -809,6 +830,8 @@ export class AdminService implements OnModuleInit {
         planStartedAt: u.company.planStartedAt,
         usersLimitOverride: u.company.usersLimitOverride,
         invoicesLimitOverride: u.company.invoicesLimitOverride,
+        permanentDiscountPct: Number(u.company.permanentDiscountPct || 0),
+        permanentDiscountNote: u.company.permanentDiscountNote,
         usersLimit:
           u.company.usersLimitOverride != null
             ? u.company.usersLimitOverride
@@ -820,6 +843,7 @@ export class AdminService implements OnModuleInit {
         isActive: u.company.isActive,
         createdAt: u.company.createdAt,
       },
+      isProtected: isProtectedPlatformAdminEmail(u.email),
       sessions: u.sessions,
       auditLogs: u.auditLogs,
       subscriptionPayments: billing,
@@ -872,6 +896,11 @@ export class AdminService implements OnModuleInit {
   async setUserActive(id: string, isActive: boolean) {
     const user = await this.prisma.user.findUnique({ where: { id } });
     if (!user) throw new NotFoundException('User not found');
+    if (isProtectedPlatformAdminEmail(user.email) && !isActive) {
+      throw new BadRequestException(
+        'Cannot deactivate the primary platform owner account (admin@hisaby.pro)',
+      );
+    }
     return this.prisma.user.update({
       where: { id },
       data: { isActive },
