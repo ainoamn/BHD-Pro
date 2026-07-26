@@ -87,6 +87,7 @@
       "STORE_CREDIT_ADJUST": "تعديل/عكس رصيد المتجر",
       "PERIOD_UNLOCK": "فتح فترة محاسبية مقفلة",
       "ASSET_DEPRECIATE": "إهلاك أصل / عكس",
+      "COMMITMENT_REVERSE": "عكس آخر تنفيذ لالتزام",
       "RESTO_VOID": "إلغاء / مجاملة بند مطعم"
     },
     "pinSet": "رمز المشرف مضبوط",

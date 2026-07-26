@@ -16,19 +16,24 @@ import {
   CreateCommitmentDto,
   UpdateCommitmentDto,
   PauseCommitmentDto,
+  ReverseCommitmentDto,
 } from './dto/commitment.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
+import { DualControlService } from '../dual-control/dual-control.service';
 
 @ApiTags('Recurring Commitments')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('commitments')
 export class CommitmentsController {
-  constructor(private service: CommitmentsService) {}
+  constructor(
+    private service: CommitmentsService,
+    private dualControl: DualControlService,
+  ) {}
 
   @Get()
   findAll(@CurrentUser() user: TokenPayload) {
@@ -95,7 +100,17 @@ export class CommitmentsController {
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   @ApiOperation({ summary: 'Reverse the latest (or next unreversed) commitment accrual journal' })
-  reverseLast(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
+  async reverseLast(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+    @Body() dto: ReverseCommitmentDto,
+  ) {
+    await this.dualControl.assertApproved(
+      user.companyId,
+      user,
+      'COMMITMENT_REVERSE',
+      dto?.approval,
+    );
     return this.service.reverseLast(user.companyId, user.sub, id);
   }
 

@@ -53,7 +53,7 @@ export default function EmployeesPage() {
   const [payBankId, setPayBankId] = useState("");
   const [payingId, setPayingId] = useState<string | null>(null);
   const [dualPayOpen, setDualPayOpen] = useState(false);
-  const [dualMode, setDualMode] = useState<"pay" | "unpay">("pay");
+  const [dualMode, setDualMode] = useState<"pay" | "unpay" | "delete">("pay");
 
   const { data: payroll = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["payroll"],
@@ -132,13 +132,22 @@ export default function EmployeesPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.deletePayrollRun(id),
+    mutationFn: ({
+      id,
+      approval,
+    }: {
+      id: string;
+      approval?: DualApprovalPayload;
+    }) => api.deletePayrollRun(id, approval),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["payroll"] });
+      setPayingId(null);
+      setDualPayOpen(false);
+      setDualMode("pay");
       toast.success(tCommon("deleted"));
     },
-    onError: (err: { response?: { data?: { message?: string } } }) => {
-      toast.error(err.response?.data?.message || tCommon("error"));
+    onError: (err: unknown) => {
+      toast.error(apiErrorMessage(err, tCommon("error")));
     },
   });
 
@@ -155,6 +164,12 @@ export default function EmployeesPage() {
   const confirmUnpay = (id: string) => {
     setPayingId(id);
     setDualMode("unpay");
+    setDualPayOpen(true);
+  };
+
+  const confirmDelete = (id: string) => {
+    setPayingId(id);
+    setDualMode("delete");
     setDualPayOpen(true);
   };
 
@@ -311,7 +326,7 @@ export default function EmployeesPage() {
                           </button>
                           <button
                             onClick={() => {
-                              if (confirm(tCommon("confirmDelete"))) deleteMutation.mutate(p.id);
+                              confirmDelete(p.id);
                             }}
                             className="text-xs px-2 py-1 rounded bg-rose-600/20 text-rose-300"
                           >
@@ -352,7 +367,7 @@ export default function EmployeesPage() {
                               </button>
                               <button
                                 onClick={() => {
-                                  if (confirm(tCommon("confirmDelete"))) deleteMutation.mutate(p.id);
+                                  confirmDelete(p.id);
                                 }}
                                 className="text-xs px-2 py-1 rounded bg-rose-600/20 text-rose-300"
                               >
@@ -440,8 +455,7 @@ export default function EmployeesPage() {
                                   </button>
                                   <button
                                     onClick={() => {
-                                      if (confirm(tCommon("confirmDelete")))
-                                        deleteMutation.mutate(p.id);
+                                      confirmDelete(p.id);
                                     }}
                                     className="text-xs px-2 py-1 rounded bg-rose-600/20 text-rose-300"
                                   >
@@ -482,8 +496,7 @@ export default function EmployeesPage() {
                                       </button>
                                       <button
                                         onClick={() => {
-                                          if (confirm(tCommon("confirmDelete")))
-                                            deleteMutation.mutate(p.id);
+                                          confirmDelete(p.id);
                                         }}
                                         className="text-xs px-2 py-1 rounded bg-rose-600/20 text-rose-300"
                                       >
@@ -557,7 +570,7 @@ export default function EmployeesPage() {
             : undefined
         }
         actorRole={user?.role}
-        busy={statusMutation.isPending || unpayMutation.isPending}
+        busy={statusMutation.isPending || unpayMutation.isPending || deleteMutation.isPending}
         onCancel={() => {
           setDualPayOpen(false);
           setDualMode("pay");
@@ -566,6 +579,10 @@ export default function EmployeesPage() {
           if (!payingId) return;
           if (dualMode === "unpay") {
             await unpayMutation.mutateAsync({ id: payingId, approval });
+            return;
+          }
+          if (dualMode === "delete") {
+            await deleteMutation.mutateAsync({ id: payingId, approval });
             return;
           }
           await statusMutation.mutateAsync({

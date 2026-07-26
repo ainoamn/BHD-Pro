@@ -135,6 +135,7 @@ export class DualControlService {
       STORE_CREDIT_ADJUST: config.actions?.STORE_CREDIT_ADJUST !== false,
       PERIOD_UNLOCK: config.actions?.PERIOD_UNLOCK !== false,
       ASSET_DEPRECIATE: config.actions?.ASSET_DEPRECIATE !== false,
+      COMMITMENT_REVERSE: config.actions?.COMMITMENT_REVERSE !== false,
       RESTO_VOID: config.actions?.RESTO_VOID !== false,
     };
     const whatsappReady = this.whatsapp.isConfigured();

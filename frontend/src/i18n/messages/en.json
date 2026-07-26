@@ -87,6 +87,7 @@
       "STORE_CREDIT_ADJUST": "Store credit adjust/reverse",
       "PERIOD_UNLOCK": "Unlock accounting period",
       "ASSET_DEPRECIATE": "Asset depreciate / reverse",
+      "COMMITMENT_REVERSE": "Commitment last-run reverse",
       "RESTO_VOID": "Restaurant void / comp"
     },
     "pinSet": "Supervisor PIN is set",

@@ -21,6 +21,10 @@ import { useAuthStore } from "@/store/auth";
 import { PageHeader, GlassCard, LoadingSpinner, EmptyState, QueryError } from "@/components/ui/page-shell";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { EntityAttachments } from "@/components/attachments/entity-attachments";
+import {
+  DualApprovalModal,
+  type DualApprovalPayload,
+} from "@/components/security/dual-approval-modal";
 
 interface AccountRow {
   id: string;
@@ -70,13 +74,16 @@ const emptyForm = (): FormState => ({
 export default function CommitmentsPage() {
   const t = useTranslations("commitments");
   const tCommon = useTranslations("common");
-  const currency = useAuthStore((s) => s.company?.currency) || "OMR";
+  const tDual = useTranslations("dualControl");
+  const user = useAuthStore((s) => s.user);
+  const currency = user?.company?.currency || "OMR";
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [deferUnit, setDeferUnit] = useState<"DAY" | "MONTH" | "YEAR">("MONTH");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [pendingReverseId, setPendingReverseId] = useState<string | null>(null);
 
   const { data: rows = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["commitments"],
@@ -186,13 +193,20 @@ export default function CommitmentsPage() {
   });
 
   const reverseMutation = useMutation({
-    mutationFn: (id: string) => api.reverseLastCommitment(id),
+    mutationFn: ({
+      id,
+      approval,
+    }: {
+      id: string;
+      approval?: DualApprovalPayload;
+    }) => api.reverseLastCommitment(id, approval),
     onSuccess: () => {
       invalidate();
+      setPendingReverseId(null);
       toast.success(t("reversed"));
     },
-    onError: (err: { response?: { data?: { message?: string } } }) => {
-      toast.error(err.response?.data?.message || tCommon("error"));
+    onError: (err: unknown) => {
+      toast.error(apiErrorMessage(err, tCommon("error")));
     },
   });
 
@@ -414,7 +428,7 @@ export default function CommitmentsPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => reverseMutation.mutate(row.id)}
+                    onClick={() => setPendingReverseId(row.id)}
                     className="px-2 py-1 rounded bg-amber-600/20 text-amber-300 text-xs"
                     title={t("reverseLast")}
                   >
@@ -436,6 +450,24 @@ export default function CommitmentsPage() {
           ))}
         </div>
       )}
+
+      <DualApprovalModal
+        open={!!pendingReverseId}
+        action="COMMITMENT_REVERSE"
+        actionLabel={tDual("action.COMMITMENT_REVERSE")}
+        summary={
+          pendingReverseId
+            ? rows.find((r) => r.id === pendingReverseId)?.name
+            : undefined
+        }
+        actorRole={user?.role}
+        busy={reverseMutation.isPending}
+        onCancel={() => !reverseMutation.isPending && setPendingReverseId(null)}
+        onConfirm={async (approval) => {
+          if (!pendingReverseId) return;
+          await reverseMutation.mutateAsync({ id: pendingReverseId, approval });
+        }}
+      />
     </div>
   );
 }

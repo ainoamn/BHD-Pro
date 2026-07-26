@@ -8,9 +8,11 @@ import {
   Param,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiPropertyOptional } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { UserRole } from '@prisma/client';
+import { IsOptional, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 import { StockCountsService } from './stock-counts.service';
 import {
   CreateStockCountDto,
@@ -21,13 +23,26 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
+import { DualControlService } from '../dual-control/dual-control.service';
+import { DualApprovalDto } from '../dual-control/dto/approval.dto';
+
+class StockCountApprovalDto {
+  @ApiPropertyOptional({ type: DualApprovalDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DualApprovalDto)
+  approval?: DualApprovalDto;
+}
 
 @ApiTags('Stock Counts')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('stock-counts')
 export class StockCountsController {
-  constructor(private service: StockCountsService) {}
+  constructor(
+    private service: StockCountsService,
+    private dualControl: DualControlService,
+  ) {}
 
   @Get()
   findAll(@CurrentUser() user: TokenPayload) {
@@ -66,7 +81,17 @@ export class StockCountsController {
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   @ApiOperation({ summary: 'Complete count and apply stock variances' })
-  complete(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
+  async complete(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+    @Body() dto: StockCountApprovalDto,
+  ) {
+    await this.dualControl.assertApproved(
+      user.companyId,
+      user,
+      'STOCK_ADJUST',
+      dto?.approval,
+    );
     return this.service.complete(user.companyId, id);
   }
 
@@ -75,7 +100,17 @@ export class StockCountsController {
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @ApiOperation({ summary: 'Reverse a completed stock count (restore prior qty)' })
-  reverseCompleted(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
+  async reverseCompleted(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+    @Body() dto: StockCountApprovalDto,
+  ) {
+    await this.dualControl.assertApproved(
+      user.companyId,
+      user,
+      'STOCK_ADJUST',
+      dto?.approval,
+    );
     return this.service.reverseCompleted(user.companyId, id);
   }
 

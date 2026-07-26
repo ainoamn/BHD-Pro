@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
-import { cn, formatMoney } from "@/lib/utils";
+import { cn, formatMoney, apiErrorMessage } from "@/lib/utils";
 import {
   PHONE_DIAL_CODES,
   DEFAULT_DIAL_CODE,
@@ -36,6 +36,10 @@ import {
 import { openExternalUrl } from "@/lib/open-external-url";
 import { useAuthStore } from "@/store/auth";
 import { PageHeader, EmptyState, LoadingSpinner, QueryError, GlassCard } from "@/components/ui/page-shell";
+import {
+  DualApprovalModal,
+  type DualApprovalPayload,
+} from "@/components/security/dual-approval-modal";
 import { FormLabel } from "@/components/ui/form-field";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import {
@@ -146,9 +150,10 @@ function openWhatsApp(contact: ContactRow, t: (key: string) => string) {
 function ContactsContent() {
   const t = useTranslations("contacts");
   const tCommon = useTranslations("common");
+  const tDual = useTranslations("dualControl");
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
-  const { company } = useAuthStore();
+  const { company, user } = useAuthStore();
 
   const [tab, setTab] = useState<TabType>("CUSTOMER");
   const [viewMode, setViewMode] = useState<ViewMode>("cards");
@@ -160,6 +165,8 @@ function ContactsContent() {
   const [adjustAmount, setAdjustAmount] = useState(0);
   const [adjustNotes, setAdjustNotes] = useState("");
   const [adjustBankId, setAdjustBankId] = useState("");
+  const [adjustDualOpen, setAdjustDualOpen] = useState(false);
+  const [reverseCreditId, setReverseCreditId] = useState<string | null>(null);
   const currency = company?.currency || "OMR";
 
   useEffect(() => {
@@ -246,27 +253,26 @@ function ContactsContent() {
   });
 
   const adjustMutation = useMutation({
-    mutationFn: () => {
+    mutationFn: (approval?: DualApprovalPayload) => {
       if (!adjustContact) throw new Error("no contact");
       return api.adjustContactStoreCredit(adjustContact.id, {
         amount: adjustAmount,
         notes: adjustNotes.trim() || undefined,
         bankAccountId: adjustBankId || undefined,
+        approval,
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["contacts"] });
       toast.success(t("storeCreditAdjusted"));
+      setAdjustDualOpen(false);
       setAdjustContact(null);
       setAdjustAmount(0);
       setAdjustNotes("");
       setAdjustBankId("");
     },
     onError: (err: unknown) => {
-      const axiosErr = err as { response?: { data?: { message?: string | string[] } } };
-      const apiMsg = axiosErr?.response?.data?.message;
-      const detail = Array.isArray(apiMsg) ? apiMsg.join(" — ") : apiMsg;
-      toast.error(detail || t("saveError"));
+      toast.error(apiErrorMessage(err, t("saveError")));
     },
   });
 
@@ -282,15 +288,22 @@ function ContactsContent() {
   });
 
   const reverseStoreCreditMutation = useMutation({
-    mutationFn: (id: string) => api.reverseLastContactStoreCredit(id),
+    mutationFn: ({
+      id,
+      approval,
+    }: {
+      id: string;
+      approval?: DualApprovalPayload;
+    }) => api.reverseLastContactStoreCredit(id, approval),
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ["contacts"] });
       const number =
         (res.data as { reverseJournalNumber?: string })?.reverseJournalNumber || "";
       toast.success(t("storeCreditReversed", { number }));
+      setReverseCreditId(null);
     },
-    onError: (err: { response?: { data?: { message?: string } } }) => {
-      toast.error(err.response?.data?.message || t("saveError"));
+    onError: (err: unknown) => {
+      toast.error(apiErrorMessage(err, t("saveError")));
     },
   });
 
@@ -474,10 +487,7 @@ function ContactsContent() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => {
-                        if (!window.confirm(t("reverseLastStoreCreditConfirm"))) return;
-                        reverseStoreCreditMutation.mutate(contact.id);
-                      }}
+                      onClick={() => setReverseCreditId(contact.id)}
                       disabled={reverseStoreCreditMutation.isPending}
                       className="mt-1 ms-3 text-xs text-amber-400 hover:text-amber-300 disabled:opacity-50"
                     >
@@ -601,10 +611,7 @@ function ContactsContent() {
                         {tab === "CUSTOMER" && (
                           <button
                             type="button"
-                            onClick={() => {
-                              if (!window.confirm(t("reverseLastStoreCreditConfirm"))) return;
-                              reverseStoreCreditMutation.mutate(contact.id);
-                            }}
+                            onClick={() => setReverseCreditId(contact.id)}
                             disabled={reverseStoreCreditMutation.isPending}
                             className="p-1.5 rounded-lg hover:bg-amber-500/10 text-amber-400 disabled:opacity-50"
                             title={t("reverseLastStoreCredit")}
@@ -886,7 +893,7 @@ function ContactsContent() {
               <button
                 type="button"
                 disabled={Math.abs(adjustAmount) < 0.001 || adjustMutation.isPending}
-                onClick={() => adjustMutation.mutate()}
+                onClick={() => setAdjustDualOpen(true)}
                 className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg disabled:opacity-50"
               >
                 {adjustMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -896,6 +903,36 @@ function ContactsContent() {
           </div>
         </div>
       )}
+
+      <DualApprovalModal
+        open={adjustDualOpen && !!adjustContact}
+        action="STORE_CREDIT_ADJUST"
+        actionLabel={tDual("action.STORE_CREDIT_ADJUST")}
+        summary={adjustContact?.name}
+        actorRole={user?.role}
+        busy={adjustMutation.isPending}
+        onCancel={() => !adjustMutation.isPending && setAdjustDualOpen(false)}
+        onConfirm={async (approval) => {
+          await adjustMutation.mutateAsync(approval);
+        }}
+      />
+      <DualApprovalModal
+        open={!!reverseCreditId}
+        action="STORE_CREDIT_ADJUST"
+        actionLabel={t("reverseLastStoreCredit")}
+        actorRole={user?.role}
+        busy={reverseStoreCreditMutation.isPending}
+        onCancel={() =>
+          !reverseStoreCreditMutation.isPending && setReverseCreditId(null)
+        }
+        onConfirm={async (approval) => {
+          if (!reverseCreditId) return;
+          await reverseStoreCreditMutation.mutateAsync({
+            id: reverseCreditId,
+            approval,
+          });
+        }}
+      />
     </div>
   );
 }

@@ -195,7 +195,12 @@ export class ScheduledInvoicesService {
   }
 
   async remove(companyId: string, id: string) {
-    await this.findOne(companyId, id);
+    const schedule = await this.findOne(companyId, id);
+    if (schedule.lastGeneratedAt) {
+      throw new BadRequestException(
+        'Cannot delete a schedule that has generated invoices — deactivate instead',
+      );
+    }
     await this.prisma.scheduledInvoice.delete({ where: { id } });
     return { message: 'Deleted' };
   }

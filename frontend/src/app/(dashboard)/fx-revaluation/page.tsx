@@ -7,9 +7,13 @@ import { Loader2, RefreshCw, ArrowLeftRight } from "lucide-react";
 import toast from "react-hot-toast";
 import Link from "next/link";
 import api from "@/lib/api";
-import { formatMoney } from "@/lib/utils";
+import { formatMoney, apiErrorMessage } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
 import { PageHeader, LoadingSpinner, GlassCard, EmptyState } from "@/components/ui/page-shell";
+import {
+  DualApprovalModal,
+  type DualApprovalPayload,
+} from "@/components/security/dual-approval-modal";
 
 interface PreviewItem {
   invoiceId: string;
@@ -41,11 +45,14 @@ interface PreviewResult {
 export default function FxRevaluationPage() {
   const t = useTranslations("fxRevaluation");
   const tCommon = useTranslations("common");
+  const tDual = useTranslations("dualControl");
   const queryClient = useQueryClient();
-  const baseCurrency = useAuthStore((s) => s.user?.company?.currency) || "OMR";
+  const user = useAuthStore((s) => s.user);
+  const baseCurrency = user?.company?.currency || "OMR";
   const [asOf, setAsOf] = useState(new Date().toISOString().split("T")[0]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [previewKey, setPreviewKey] = useState(0);
+  const [dualMode, setDualMode] = useState<"post" | "reverse" | null>(null);
 
   const [lastJournalId, setLastJournalId] = useState<string | null>(null);
 
@@ -75,10 +82,11 @@ export default function FxRevaluationPage() {
   };
 
   const postMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (approval?: DualApprovalPayload) =>
       api.postFxRevaluation({
         asOf,
         invoiceIds: selected.size ? Array.from(selected) : undefined,
+        approval,
       }),
     onSuccess: (res) => {
       const body = res.data as {
@@ -92,27 +100,31 @@ export default function FxRevaluationPage() {
       );
       setSelected(new Set());
       setPreviewKey((k) => k + 1);
+      setDualMode(null);
       queryClient.invalidateQueries({ queryKey: ["journals"] });
     },
-    onError: (err: { response?: { data?: { message?: string } } }) => {
-      toast.error(err.response?.data?.message || tCommon("error"));
+    onError: (err: unknown) => {
+      toast.error(apiErrorMessage(err, tCommon("error")));
     },
   });
 
   const reverseMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (approval?: DualApprovalPayload) =>
       api.reverseFxRevaluation(
-        lastJournalId ? { journalId: lastJournalId } : { asOf },
+        lastJournalId
+          ? { journalId: lastJournalId, approval }
+          : { asOf, approval },
       ),
     onSuccess: (res) => {
       const body = res.data as { journalNumber?: string };
       toast.success(t("reversed", { number: body.journalNumber || "" }));
       setLastJournalId(null);
       setPreviewKey((k) => k + 1);
+      setDualMode(null);
       queryClient.invalidateQueries({ queryKey: ["journals"] });
     },
-    onError: (err: { response?: { data?: { message?: string } } }) => {
-      toast.error(err.response?.data?.message || tCommon("error"));
+    onError: (err: unknown) => {
+      toast.error(apiErrorMessage(err, tCommon("error")));
     },
   });
 
@@ -121,13 +133,11 @@ export default function FxRevaluationPage() {
       toast.error(t("nothingToPost"));
       return;
     }
-    if (!confirm(t("confirmPost"))) return;
-    postMutation.mutate();
+    setDualMode("post");
   };
 
   const handleReverse = () => {
-    if (!confirm(t("confirmReverse"))) return;
-    reverseMutation.mutate();
+    setDualMode("reverse");
   };
 
   return (
@@ -333,6 +343,29 @@ export default function FxRevaluationPage() {
           </ul>
         </GlassCard>
       )}
+
+      <DualApprovalModal
+        open={dualMode !== null}
+        action="FX_REVALUATION"
+        actionLabel={
+          dualMode === "reverse"
+            ? t("confirmReverse")
+            : tDual("action.FX_REVALUATION")
+        }
+        summary={dualMode === "reverse" ? asOf : t("confirmPost")}
+        actorRole={user?.role}
+        busy={postMutation.isPending || reverseMutation.isPending}
+        onCancel={() =>
+          !(postMutation.isPending || reverseMutation.isPending) && setDualMode(null)
+        }
+        onConfirm={async (approval) => {
+          if (dualMode === "reverse") {
+            await reverseMutation.mutateAsync(approval);
+            return;
+          }
+          await postMutation.mutateAsync(approval);
+        }}
+      />
     </div>
   );
 }

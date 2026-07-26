@@ -10,6 +10,11 @@ import { formatDate, cn, apiErrorMessage } from "@/lib/utils";
 import { PageHeader, LoadingSpinner, QueryError, EmptyState, GlassCard } from "@/components/ui/page-shell";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { FormLabel, LineFieldLabel, LineItemsGrid } from "@/components/ui/form-field";
+import { useAuthStore } from "@/store/auth";
+import {
+  DualApprovalModal,
+  type DualApprovalPayload,
+} from "@/components/security/dual-approval-modal";
 
 interface LineForm {
   productId: string;
@@ -39,6 +44,8 @@ const emptyLine = (): LineForm => ({
 export default function DeliveryNotesPage() {
   const t = useTranslations("deliveryNotes");
   const tCommon = useTranslations("common");
+  const tDual = useTranslations("dualControl");
+  const user = useAuthStore((s) => s.user);
   const queryClient = useQueryClient();
 
   const [open, setOpen] = useState(false);
@@ -47,6 +54,10 @@ export default function DeliveryNotesPage() {
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<LineForm[]>([emptyLine()]);
+  const [pendingAction, setPendingAction] = useState<{
+    id: string;
+    mode: "deliver" | "cancel";
+  } | null>(null);
 
   const { data: contacts = [] } = useQuery({
     queryKey: ["contacts", "CUSTOMER"],
@@ -132,20 +143,34 @@ export default function DeliveryNotesPage() {
   });
 
   const deliverMutation = useMutation({
-    mutationFn: (id: string) => api.deliverDeliveryNote(id),
+    mutationFn: ({
+      id,
+      approval,
+    }: {
+      id: string;
+      approval?: DualApprovalPayload;
+    }) => api.deliverDeliveryNote(id, approval),
     onSuccess: () => {
       invalidate();
+      setPendingAction(null);
       toast.success(t("delivered"));
     },
-    onError: (err: { response?: { data?: { message?: string } } }) => {
-      toast.error(err.response?.data?.message || tCommon("error"));
+    onError: (err: unknown) => {
+      toast.error(apiErrorMessage(err, tCommon("error")));
     },
   });
 
   const cancelMutation = useMutation({
-    mutationFn: (id: string) => api.cancelDeliveryNote(id),
+    mutationFn: ({
+      id,
+      approval,
+    }: {
+      id: string;
+      approval?: DualApprovalPayload;
+    }) => api.cancelDeliveryNote(id, approval),
     onSuccess: () => {
       invalidate();
+      setPendingAction(null);
       toast.success(t("cancelled"));
     },
     onError: (err) => toast.error(apiErrorMessage(err, tCommon("error"))),
@@ -218,14 +243,16 @@ export default function DeliveryNotesPage() {
                     <>
                       <button
                         onClick={() => {
-                          if (confirm(t("deliverConfirm"))) deliverMutation.mutate(row.id);
+                          if (confirm(t("deliverConfirm"))) {
+                            setPendingAction({ id: row.id, mode: "deliver" });
+                          }
                         }}
                         className="text-xs px-2 py-1 rounded bg-emerald-500/10 text-emerald-400"
                       >
                         {t("deliver")}
                       </button>
                       <button
-                        onClick={() => cancelMutation.mutate(row.id)}
+                        onClick={() => setPendingAction({ id: row.id, mode: "cancel" })}
                         className="text-xs px-2 py-1 rounded bg-slate-800 text-slate-300"
                       >
                         {t("cancel")}
@@ -274,14 +301,16 @@ export default function DeliveryNotesPage() {
                             <>
                               <button
                                 onClick={() => {
-                                  if (confirm(t("deliverConfirm"))) deliverMutation.mutate(row.id);
+                                  if (confirm(t("deliverConfirm"))) {
+                                    setPendingAction({ id: row.id, mode: "deliver" });
+                                  }
                                 }}
                                 className="text-xs px-2 py-1 rounded bg-emerald-500/10 text-emerald-400"
                               >
                                 {t("deliver")}
                               </button>
                               <button
-                                onClick={() => cancelMutation.mutate(row.id)}
+                                onClick={() => setPendingAction({ id: row.id, mode: "cancel" })}
                                 className="text-xs px-2 py-1 rounded bg-slate-800 text-slate-300"
                               >
                                 {t("cancel")}
@@ -467,6 +496,35 @@ export default function DeliveryNotesPage() {
           </div>
         </div>
       )}
+
+      <DualApprovalModal
+        open={!!pendingAction}
+        action="STOCK_ADJUST"
+        actionLabel={
+          pendingAction?.mode === "cancel"
+            ? t("cancel")
+            : tDual("action.STOCK_ADJUST")
+        }
+        summary={
+          pendingAction
+            ? rows.find((r) => r.id === pendingAction.id)?.number
+            : undefined
+        }
+        actorRole={user?.role}
+        busy={deliverMutation.isPending || cancelMutation.isPending}
+        onCancel={() =>
+          !(deliverMutation.isPending || cancelMutation.isPending) &&
+          setPendingAction(null)
+        }
+        onConfirm={async (approval) => {
+          if (!pendingAction) return;
+          if (pendingAction.mode === "cancel") {
+            await cancelMutation.mutateAsync({ id: pendingAction.id, approval });
+            return;
+          }
+          await deliverMutation.mutateAsync({ id: pendingAction.id, approval });
+        }}
+      />
     </div>
   );
 }

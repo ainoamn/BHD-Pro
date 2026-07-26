@@ -5,8 +5,11 @@ import {
   IsString,
   Min,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
+import { DualApprovalDto } from '../../dual-control/dto/approval.dto';
 
 export class CreateCommitmentDto {
   @ApiProperty()
@@ -97,4 +100,12 @@ export class PauseCommitmentDto {
   @IsNumber()
   @Min(1)
   deferCount?: number;
+}
+
+export class ReverseCommitmentDto {
+  @ApiPropertyOptional({ type: DualApprovalDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DualApprovalDto)
+  approval?: DualApprovalDto;
 }

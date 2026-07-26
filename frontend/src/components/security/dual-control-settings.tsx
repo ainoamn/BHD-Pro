@@ -55,6 +55,7 @@ type SecurityPublic = {
     STORE_CREDIT_ADJUST: boolean;
     PERIOD_UNLOCK: boolean;
     ASSET_DEPRECIATE: boolean;
+    COMMITMENT_REVERSE: boolean;
     RESTO_VOID: boolean;
   };
 };
@@ -82,6 +83,7 @@ const ACTION_KEYS = [
   "STORE_CREDIT_ADJUST",
   "PERIOD_UNLOCK",
   "ASSET_DEPRECIATE",
+  "COMMITMENT_REVERSE",
   "RESTO_VOID",
 ] as const;
 
@@ -116,6 +118,7 @@ export function DualControlSettings() {
     STORE_CREDIT_ADJUST: true,
     PERIOD_UNLOCK: true,
     ASSET_DEPRECIATE: true,
+    COMMITMENT_REVERSE: true,
     RESTO_VOID: true,
   });
   const [pin, setPin] = useState("");
@@ -171,6 +174,7 @@ export function DualControlSettings() {
       STORE_CREDIT_ADJUST: true,
       PERIOD_UNLOCK: true,
       ASSET_DEPRECIATE: true,
+      COMMITMENT_REVERSE: true,
       RESTO_VOID: true,
     };
     setActions({ ...defaults, ...data.actions });

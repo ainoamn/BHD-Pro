@@ -309,8 +309,10 @@ export class DeliveryNotesService {
 
   async remove(companyId: string, id: string) {
     const note = await this.findOne(companyId, id);
-    if (note.status === DeliveryNoteStatus.DELIVERED) {
-      throw new BadRequestException('Cannot delete a delivered note');
+    if (note.status !== DeliveryNoteStatus.DRAFT) {
+      throw new BadRequestException(
+        'Only DRAFT delivery notes can be deleted — cancel delivered notes instead',
+      );
     }
     await this.prisma.deliveryNote.delete({ where: { id } });
     return { message: 'Deleted' };

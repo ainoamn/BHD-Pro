@@ -9,6 +9,11 @@ import api from "@/lib/api";
 import { formatDate, cn, apiErrorMessage } from "@/lib/utils";
 import { PageHeader, LoadingSpinner, QueryError, EmptyState, GlassCard } from "@/components/ui/page-shell";
 import { DecimalInput } from "@/components/ui/decimal-input";
+import { useAuthStore } from "@/store/auth";
+import {
+  DualApprovalModal,
+  type DualApprovalPayload,
+} from "@/components/security/dual-approval-modal";
 
 interface CountLine {
   id: string;
@@ -33,6 +38,8 @@ interface CountRow {
 export default function StockCountsPage() {
   const t = useTranslations("stockCounts");
   const tCommon = useTranslations("common");
+  const tDual = useTranslations("dualControl");
+  const user = useAuthStore((s) => s.user);
   const queryClient = useQueryClient();
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -41,6 +48,7 @@ export default function StockCountsPage() {
   const [warehouseId, setWarehouseId] = useState("");
   const [notes, setNotes] = useState("");
   const [editLines, setEditLines] = useState<{ productId: string; countedQty: number }[]>([]);
+  const [dualMode, setDualMode] = useState<"complete" | "reverse" | null>(null);
 
   const { data: warehouses = [] } = useQuery({
     queryKey: ["warehouses"],
@@ -114,25 +122,33 @@ export default function StockCountsPage() {
   });
 
   const completeMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (approval?: DualApprovalPayload) => {
       if (detail?.status === "DRAFT") {
         await api.updateStockCountLines(detailId!, { lines: editLines });
       }
-      return api.completeStockCount(detailId!);
+      return api.completeStockCount(detailId!, approval);
     },
     onSuccess: () => {
       invalidate();
       toast.success(t("completed"));
+      setDualMode(null);
       setDetailId(null);
     },
     onError: (err) => toast.error(apiErrorMessage(err, tCommon("error"))),
   });
 
   const reverseCompletedMutation = useMutation({
-    mutationFn: (id: string) => api.reverseCompletedStockCount(id),
+    mutationFn: ({
+      id,
+      approval,
+    }: {
+      id: string;
+      approval?: DualApprovalPayload;
+    }) => api.reverseCompletedStockCount(id, approval),
     onSuccess: () => {
       invalidate();
       toast.success(t("reversedCompleted"));
+      setDualMode(null);
       setDetailId(null);
     },
     onError: (err) => toast.error(apiErrorMessage(err, tCommon("error"))),
@@ -420,9 +436,7 @@ export default function StockCountsPage() {
                       {tCommon("save")}
                     </button>
                     <button
-                      onClick={() => {
-                        if (confirm(t("completeConfirm"))) completeMutation.mutate();
-                      }}
+                      onClick={() => setDualMode("complete")}
                       disabled={completeMutation.isPending}
                       className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-lg disabled:opacity-50"
                     >
@@ -454,11 +468,7 @@ export default function StockCountsPage() {
                 {detail.status === "COMPLETED" && (
                   <div className="flex flex-wrap gap-2 pt-2">
                     <button
-                      onClick={() => {
-                        if (confirm(t("reverseCompletedConfirm"))) {
-                          reverseCompletedMutation.mutate(detail.id);
-                        }
-                      }}
+                      onClick={() => setDualMode("reverse")}
                       disabled={reverseCompletedMutation.isPending}
                       className="flex items-center gap-2 px-4 py-2 bg-amber-500/20 text-amber-200 rounded-lg disabled:opacity-50"
                     >
@@ -474,6 +484,30 @@ export default function StockCountsPage() {
           </div>
         </div>
       )}
+
+      <DualApprovalModal
+        open={dualMode !== null && !!detailId}
+        action="STOCK_ADJUST"
+        actionLabel={
+          dualMode === "reverse"
+            ? t("reverseCompleted")
+            : tDual("action.STOCK_ADJUST")
+        }
+        summary={detail?.number || t("completeConfirm")}
+        actorRole={user?.role}
+        busy={completeMutation.isPending || reverseCompletedMutation.isPending}
+        onCancel={() =>
+          !(completeMutation.isPending || reverseCompletedMutation.isPending) &&
+          setDualMode(null)
+        }
+        onConfirm={async (approval) => {
+          if (dualMode === "reverse" && detailId) {
+            await reverseCompletedMutation.mutateAsync({ id: detailId, approval });
+            return;
+          }
+          await completeMutation.mutateAsync(approval);
+        }}
+      />
     </div>
   );
 }

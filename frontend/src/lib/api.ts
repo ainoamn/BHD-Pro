@@ -496,13 +496,18 @@ class ApiClient {
 
   adjustContactStoreCredit(
     id: string,
-    data: { amount: number; notes?: string; bankAccountId?: string },
+    data: {
+      amount: number;
+      notes?: string;
+      bankAccountId?: string;
+      approval?: DualApprovalPayload;
+    },
   ) {
     return this.post(`/contacts/${id}/store-credit-adjust`, data);
   }
 
-  reverseLastContactStoreCredit(id: string) {
-    return this.post(`/contacts/${id}/store-credit-reverse-last`);
+  reverseLastContactStoreCredit(id: string, approval?: DualApprovalPayload) {
+    return this.post(`/contacts/${id}/store-credit-reverse-last`, { approval });
   }
 
   // Subscriptions
@@ -1037,8 +1042,8 @@ class ApiClient {
   ) {
     return this.patch(`/payroll/${id}/status`, { status, ...opts });
   }
-  deletePayrollRun(id: string) {
-    return this.delete(`/payroll/${id}`);
+  deletePayrollRun(id: string, approval?: DualApprovalPayload) {
+    return this.delete(`/payroll/${id}`, { data: { approval } });
   }
   unpayPayrollRun(id: string, approval?: DualApprovalPayload) {
     return this.post(`/payroll/${id}/unpay`, { approval });
@@ -1172,8 +1177,8 @@ class ApiClient {
   runDueCommitments() {
     return this.post('/commitments/run-due');
   }
-  reverseLastCommitment(id: string) {
-    return this.post(`/commitments/${id}/reverse-last`);
+  reverseLastCommitment(id: string, approval?: DualApprovalPayload) {
+    return this.post(`/commitments/${id}/reverse-last`, { approval });
   }
   deleteCommitment(id: string) {
     return this.delete(`/commitments/${id}`);
@@ -1262,10 +1267,18 @@ class ApiClient {
     return this.get('/fx-revaluation/preview', { params: asOf ? { asOf } : {} });
   }
 
-  postFxRevaluation(data: { asOf: string; invoiceIds?: string[] }) {
+  postFxRevaluation(data: {
+    asOf: string;
+    invoiceIds?: string[];
+    approval?: DualApprovalPayload;
+  }) {
     return this.post('/fx-revaluation/post', data);
   }
-  reverseFxRevaluation(data: { journalId?: string; asOf?: string }) {
+  reverseFxRevaluation(data: {
+    journalId?: string;
+    asOf?: string;
+    approval?: DualApprovalPayload;
+  }) {
     return this.post('/fx-revaluation/reverse', data);
   }
 
@@ -1277,12 +1290,12 @@ class ApiClient {
     return this.post('/delivery-notes', data);
   }
 
-  deliverDeliveryNote(id: string) {
-    return this.post(`/delivery-notes/${id}/deliver`);
+  deliverDeliveryNote(id: string, approval?: DualApprovalPayload) {
+    return this.post(`/delivery-notes/${id}/deliver`, { approval });
   }
 
-  cancelDeliveryNote(id: string) {
-    return this.post(`/delivery-notes/${id}/cancel`);
+  cancelDeliveryNote(id: string, approval?: DualApprovalPayload) {
+    return this.post(`/delivery-notes/${id}/cancel`, { approval });
   }
 
   deleteDeliveryNote(id: string) {
@@ -1305,12 +1318,12 @@ class ApiClient {
     return this.put(`/stock-counts/${id}/lines`, data);
   }
 
-  completeStockCount(id: string) {
-    return this.post(`/stock-counts/${id}/complete`);
+  completeStockCount(id: string, approval?: DualApprovalPayload) {
+    return this.post(`/stock-counts/${id}/complete`, { approval });
   }
 
-  reverseCompletedStockCount(id: string) {
-    return this.post(`/stock-counts/${id}/reverse-completed`);
+  reverseCompletedStockCount(id: string, approval?: DualApprovalPayload) {
+    return this.post(`/stock-counts/${id}/reverse-completed`, { approval });
   }
 
   cancelStockCount(id: string) {

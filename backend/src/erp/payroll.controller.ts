@@ -67,7 +67,12 @@ export class PayrollController {
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 15, ttl: 60000 } })
-  remove(@CurrentUser() u: TokenPayload, @Param('id') id: string) {
+  async remove(
+    @CurrentUser() u: TokenPayload,
+    @Param('id') id: string,
+    @Body() dto: ReverseBankTransferDto,
+  ) {
+    await this.dualControl.assertApproved(u.companyId, u, 'PAYROLL_PAY', dto?.approval);
     return this.erp.deletePayrollRun(u.companyId, u.sub, id);
   }
 }

@@ -98,8 +98,11 @@ export class DocumentTemplatesService {
     if (row.isDefault) {
       throw new BadRequestException('Cannot delete the default template — set another default first');
     }
-    await this.prisma.documentTemplate.delete({ where: { id } });
-    return { message: 'Deleted' };
+    await this.prisma.documentTemplate.update({
+      where: { id },
+      data: { isActive: false, isDefault: false },
+    });
+    return { message: 'Deactivated', deactivated: true };
   }
 
   private async ensure(companyId: string, id: string) {
