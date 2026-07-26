@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
-import { formatDate, formatMoney, cn } from "@/lib/utils";
+import { formatDate, formatMoney, cn, apiErrorMessage } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
 import { PageHeader, LoadingSpinner, QueryError, EmptyState, GlassCard } from "@/components/ui/page-shell";
 import { DecimalInput } from "@/components/ui/decimal-input";
@@ -139,7 +139,7 @@ export default function EmployeeClaimsPage() {
       reset();
     },
     onError: (err: { response?: { data?: { message?: string } }; message?: string }) => {
-      toast.error(err.response?.data?.message || err.message || tCommon("error"));
+      toast.error(apiErrorMessage(err, tCommon("error")));
     },
   });
 
@@ -175,7 +175,7 @@ export default function EmployeeClaimsPage() {
       toast.success(t(`action_${vars.action}` as "action_submit"));
     },
     onError: (err: { response?: { data?: { message?: string } } }) => {
-      toast.error(err.response?.data?.message || tCommon("error"));
+      toast.error(apiErrorMessage(err, tCommon("error")));
     },
   });
 
@@ -186,7 +186,7 @@ export default function EmployeeClaimsPage() {
       toast.success(tCommon("deleted"));
     },
     onError: (err: { response?: { data?: { message?: string } } }) => {
-      toast.error(err.response?.data?.message || tCommon("error"));
+      toast.error(apiErrorMessage(err, tCommon("error")));
     },
   });
 

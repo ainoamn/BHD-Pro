@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Loader2, X, KeyRound, Copy, Ban, Trash2, Check } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
-import { formatDate, cn } from "@/lib/utils";
+import { formatDate, cn, apiErrorMessage } from "@/lib/utils";
 import { PageHeader, LoadingSpinner, QueryError, EmptyState, GlassCard } from "@/components/ui/page-shell";
 
 interface ApiKeyRow {
@@ -52,7 +52,7 @@ export default function ApiKeysPage() {
       toast.success(t("created"));
     },
     onError: (err: { response?: { data?: { message?: string } }; message?: string }) => {
-      toast.error(err.response?.data?.message || err.message || tCommon("error"));
+      toast.error(apiErrorMessage(err, tCommon("error")));
     },
   });
 
@@ -63,7 +63,7 @@ export default function ApiKeysPage() {
       toast.success(t("revoked"));
     },
     onError: (err: { response?: { data?: { message?: string } } }) => {
-      toast.error(err.response?.data?.message || tCommon("error"));
+      toast.error(apiErrorMessage(err, tCommon("error")));
     },
   });
 
@@ -74,7 +74,7 @@ export default function ApiKeysPage() {
       toast.success(tCommon("deleted"));
     },
     onError: (err: { response?: { data?: { message?: string } } }) => {
-      toast.error(err.response?.data?.message || tCommon("error"));
+      toast.error(apiErrorMessage(err, tCommon("error")));
     },
   });
 

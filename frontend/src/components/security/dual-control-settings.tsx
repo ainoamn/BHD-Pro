@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { Shield, Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
+import { apiErrorMessage } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
 import { GlassCard, QueryError } from "@/components/ui/page-shell";
 
@@ -205,7 +206,7 @@ export function DualControlSettings() {
       setNfcSecret("");
     },
     onError: (err: { response?: { data?: { message?: string } } }) => {
-      toast.error(err.response?.data?.message || tCommon("error"));
+      toast.error(apiErrorMessage(err, tCommon("error")));
     },
   });
 

@@ -96,6 +96,7 @@
 - موجة AQ: عكس تعديل مخزون + عكس جرد مكتمل + حماية REV/INV/PAY journals + dual إهلاك + حراسة حذف — [`HISABY-WAVE-AQ-STOCK-ADJ-COUNT-JOURNAL-2026-07-26.md`](./HISABY-WAVE-AQ-STOCK-ADJ-COUNT-JOURNAL-2026-07-26.md)
 - موجة AR: Dual التزامات/جرد/تسليم + FX/رصيد متجر + حماية حذف قوالب/فواتير مجدولة — [`HISABY-WAVE-AR-DUAL-COMMITMENT-STOCK-DELIVERY-2026-07-26.md`](./HISABY-WAVE-AR-DUAL-COMMITMENT-STOCK-DELIVERY-2026-07-26.md)
 - موجة AS: Dual عمولة POS صرف/عكس + إلغاء ناعم للالتزامات + صدق قيود اليومية وأسعار الصرف — [`HISABY-WAVE-AS-POS-COMMISSION-COMMIT-SOFT-2026-07-26.md`](./HISABY-WAVE-AS-POS-COMMISSION-COMMIT-SOFT-2026-07-26.md)
+- موجة AT: صدق `apiErrorMessage` على صفحات مالية/مخزون/POS/ضريبة/API — [`HISABY-WAVE-AT-FE-ERROR-HONESTY-2026-07-26.md`](./HISABY-WAVE-AT-FE-ERROR-HONESTY-2026-07-26.md)
 
 ### 1.6 المنصة ولوحة الإدارة (محدث 26 يوليو مساءً)
 - اشتراكات، بوابات دفع، `/admin`، PWA، GeoIP، keep-warm

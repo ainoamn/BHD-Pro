@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
+import { apiErrorMessage } from "@/lib/utils";
 import { ErpCrudPage } from "@/components/erp/erp-crud-page";
 
 interface TemplateRow {
@@ -30,7 +31,7 @@ export default function DocumentTemplatesPage() {
       toast.success(t("defaultSet"));
     },
     onError: (err: { response?: { data?: { message?: string } } }) => {
-      toast.error(err.response?.data?.message || tCommon("error"));
+      toast.error(apiErrorMessage(err, tCommon("error")));
     },
   });
 

@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Paperclip, Trash2, Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
+import { apiErrorMessage } from "@/lib/utils";
 
 interface AttachmentRow {
   id: string;
@@ -65,7 +66,7 @@ export function EntityAttachments({ entityType, entityId, className }: EntityAtt
       toast.success(tCommon("saved"));
     },
     onError: (err: { message?: string; response?: { data?: { message?: string } } }) => {
-      toast.error(err.response?.data?.message || err.message || tCommon("error"));
+      toast.error(apiErrorMessage(err, tCommon("error")));
     },
   });
 

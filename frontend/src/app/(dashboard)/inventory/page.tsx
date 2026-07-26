@@ -272,7 +272,7 @@ export default function InventoryPage() {
       toast.success(t("deleted"));
     },
     onError: (err: { response?: { data?: { message?: string } } }) => {
-      toast.error(err.response?.data?.message || t("saveError"));
+      toast.error(apiErrorMessage(err, t("saveError")));
     },
   });
 
@@ -305,7 +305,7 @@ export default function InventoryPage() {
       setAdjustProduct(null);
     },
     onError: (err: { response?: { data?: { message?: string } } }) => {
-      toast.error(err.response?.data?.message || tCommon("error"));
+      toast.error(apiErrorMessage(err, tCommon("error")));
     },
   });
 

@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Clock3, Loader2, Mail, MessageCircle, Printer } from "lucide-react";
 import toast from "react-hot-toast";
 import api, { DualApprovalPayload } from "@/lib/api";
+import { apiErrorMessage } from "@/lib/utils";
 import { useLocaleStore } from "@/store/locale";
 import { useAuthStore } from "@/store/auth";
 import { posCopy } from "@/lib/pos-copy";
@@ -361,7 +362,7 @@ export function PosShiftsView({
       qc.invalidateQueries({ queryKey: ["pos-shifts"] });
     },
     onError: (err: { response?: { data?: { message?: string } } }) => {
-      toast.error(err.response?.data?.message || t.shiftFail);
+      toast.error(apiErrorMessage(err, t.shiftFail));
     },
   });
 
@@ -626,7 +627,7 @@ export function PosShiftsView({
       printShiftReport(t, report, "X", company?.name);
     },
     onError: (err: { response?: { data?: { message?: string } } }) => {
-      toast.error(err.response?.data?.message || t.xReportFail);
+      toast.error(apiErrorMessage(err, t.xReportFail));
     },
   });
 

@@ -106,7 +106,7 @@ export default function StockCountsPage() {
       setDetailId((res.data as CountRow).id);
     },
     onError: (err: { response?: { data?: { message?: string } } }) => {
-      toast.error(err.response?.data?.message || tCommon("error"));
+      toast.error(apiErrorMessage(err, tCommon("error")));
     },
   });
 
@@ -117,7 +117,7 @@ export default function StockCountsPage() {
       toast.success(tCommon("saved"));
     },
     onError: (err: { response?: { data?: { message?: string } } }) => {
-      toast.error(err.response?.data?.message || tCommon("error"));
+      toast.error(apiErrorMessage(err, tCommon("error")));
     },
   });
 

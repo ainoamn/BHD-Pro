@@ -107,7 +107,7 @@ export default function EmployeesPage() {
       toast.success(tCommon("saved"));
     },
     onError: (err: { response?: { data?: { message?: string } } }) => {
-      toast.error(err.response?.data?.message || tCommon("error"));
+      toast.error(apiErrorMessage(err, tCommon("error")));
     },
   });
 
@@ -127,7 +127,7 @@ export default function EmployeesPage() {
       toast.success(t("unpay"));
     },
     onError: (err: { response?: { data?: { message?: string } } }) => {
-      toast.error(err.response?.data?.message || tCommon("error"));
+      toast.error(apiErrorMessage(err, tCommon("error")));
     },
   });
 

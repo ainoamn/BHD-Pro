@@ -283,7 +283,7 @@ function ContactsContent() {
       toast.success(t("deleted"));
     },
     onError: (err: { response?: { data?: { message?: string } } }) => {
-      toast.error(err.response?.data?.message || t("saveError"));
+      toast.error(apiErrorMessage(err, t("saveError")));
     },
   });
 

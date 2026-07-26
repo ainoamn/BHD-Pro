@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Loader2, X, Banknote, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
-import { formatDate, formatMoney, cn } from "@/lib/utils";
+import { formatDate, formatMoney, cn, apiErrorMessage } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
 import { PageHeader, LoadingSpinner, QueryError, EmptyState, GlassCard } from "@/components/ui/page-shell";
 import { DecimalInput } from "@/components/ui/decimal-input";
@@ -175,7 +175,7 @@ export function CashDocumentsPage({
       reset();
     },
     onError: (err: { response?: { data?: { message?: string } }; message?: string }) => {
-      toast.error(err.response?.data?.message || err.message || tCommon("error"));
+      toast.error(apiErrorMessage(err, tCommon("error")));
     },
   });
 
@@ -186,7 +186,7 @@ export function CashDocumentsPage({
       toast.success(tCommon("deleted"));
     },
     onError: (err: { response?: { data?: { message?: string } } }) => {
-      toast.error(err.response?.data?.message || tCommon("error"));
+      toast.error(apiErrorMessage(err, tCommon("error")));
     },
   });
 

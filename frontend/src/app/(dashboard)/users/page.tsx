@@ -84,7 +84,7 @@ export default function UsersPage() {
       setCreatePerms(defaultsForRole("ACCOUNTANT"));
     },
     onError: (err: { response?: { data?: { message?: string } } }) => {
-      toast.error(err.response?.data?.message || t("createError"));
+      toast.error(apiErrorMessage(err, t("createError")));
     },
   });
 
@@ -96,7 +96,7 @@ export default function UsersPage() {
       toast.success(t("updated"));
     },
     onError: (err: { response?: { data?: { message?: string } } }) => {
-      toast.error(err.response?.data?.message || t("createError"));
+      toast.error(apiErrorMessage(err, t("createError")));
     },
   });
 

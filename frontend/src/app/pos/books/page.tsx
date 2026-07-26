@@ -15,7 +15,7 @@ import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
 import { posCopy } from "@/lib/pos-copy";
-import { formatMoney } from "@/lib/utils";
+import { formatMoney, apiErrorMessage } from "@/lib/utils";
 import { DecimalInput } from "@/components/ui/decimal-input";
 
 export default function PosBooksPage() {
@@ -47,7 +47,7 @@ export default function PosBooksPage() {
       void queryClient.invalidateQueries({ queryKey: ["pos-books-summary"] });
     },
     onError: (err: { response?: { data?: { message?: string } } }) => {
-      toast.error(err.response?.data?.message || t.expenseFail);
+      toast.error(apiErrorMessage(err, t.expenseFail));
     },
   });
 
