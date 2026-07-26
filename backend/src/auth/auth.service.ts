@@ -11,6 +11,7 @@ import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { TokenPayload } from './interfaces/token-payload.interface';
 import { decryptSecret, encryptSecret, hashToken } from '../common/crypto/secrets.crypto';
+import { resolveModulePermissions } from '../common/module-permissions';
 import { generateSecret, generateURI, verifySync } from 'otplib';
 import * as QRCode from 'qrcode';
 
@@ -230,7 +231,10 @@ export class AuthService {
         email: user.email,
         role: user.role,
         avatar: user.avatar || null,
+        companyId: user.companyId,
         company: this.enrichCompany(user.company),
+        permissions: user.permissions || null,
+        modulePermissions: resolveModulePermissions(user.role, user.permissions),
       },
       ...tokens,
     };
@@ -486,6 +490,8 @@ export class AuthService {
       companyId: safe.companyId,
       company: this.enrichCompany(safe.company),
       twoFactorEnabled: !!safe.twoFactorEnabled,
+      permissions: safe.permissions || null,
+      modulePermissions: resolveModulePermissions(safe.role, safe.permissions),
     };
   }
 

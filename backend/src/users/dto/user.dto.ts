@@ -1,4 +1,4 @@
-import { IsString, IsEmail, IsNotEmpty, IsEnum, MinLength, IsOptional } from 'class-validator';
+import { IsString, IsEmail, IsNotEmpty, IsEnum, MinLength, IsOptional, IsObject, IsBoolean } from 'class-validator';
 import { UserRole } from '@prisma/client';
 
 export class CreateUserDto {
@@ -15,6 +15,10 @@ export class CreateUserDto {
 
   @IsEnum(UserRole)
   role: UserRole;
+
+  @IsOptional()
+  @IsObject()
+  permissions?: Record<string, 'hidden' | 'view' | 'edit'>;
 }
 
 export class UpdateUserDto {
@@ -27,5 +31,10 @@ export class UpdateUserDto {
   role?: UserRole;
 
   @IsOptional()
+  @IsBoolean()
   isActive?: boolean;
+
+  @IsOptional()
+  @IsObject()
+  permissions?: Record<string, 'hidden' | 'view' | 'edit'> | null;
 }

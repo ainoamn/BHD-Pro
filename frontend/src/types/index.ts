@@ -6,6 +6,8 @@ export interface User {
   avatar?: string;
   companyId: string;
   company?: Company;
+  permissions?: Record<string, 'hidden' | 'view' | 'edit'> | null;
+  modulePermissions?: Record<string, 'hidden' | 'view' | 'edit'>;
 }
 
 export interface Company {

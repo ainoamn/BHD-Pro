@@ -28,17 +28,26 @@ import { useAuthStore } from "@/store/auth";
 import { useLocaleStore } from "@/store/locale";
 import { restoCopy } from "@/lib/resto-copy";
 import { cn } from "@/lib/utils";
+import {
+  canAccessModule,
+  moduleForRestoPath,
+  type ModuleKey,
+} from "@/lib/module-permissions";
+import { PlanUpgradeGate } from "@/components/billing/plan-upgrade-gate";
 
 export function RestoShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const locale = useLocaleStore((s) => s.locale);
   const setLocale = useLocaleStore((s) => s.setLocale);
-  const { company, isAuthenticated, logout } = useAuthStore();
+  const { user, company, isAuthenticated, logout } = useAuthStore();
   const t = restoCopy[locale === "en" ? "en" : "ar"];
   const [linked, setLinked] = useState<boolean | null>(null);
   const [hydrated, setHydrated] = useState(false);
+  const [planOk, setPlanOk] = useState(true);
   const isLogin = pathname?.startsWith("/resto/login");
+  const perms = user?.modulePermissions;
+  const isAdmin = user?.role === "ADMIN";
 
   useEffect(() => {
     setHydrated(true);
@@ -56,9 +65,23 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
         }
       }
       try {
-        const res = await api.getRestoLinkStatus();
-        if (!cancelled) setLinked(!!res.data.linked);
-      } catch {
+        const [linkRes, subRes] = await Promise.all([
+          api.getRestoLinkStatus(),
+          api.getCurrentSubscription().catch(() => null),
+        ]);
+        if (!cancelled) {
+          setLinked(!!linkRes.data.linked);
+          const features = (subRes?.data as { features?: Record<string, boolean> })
+            ?.features;
+          setPlanOk(features?.resto !== false);
+        }
+      } catch (err: unknown) {
+        const code = (err as { response?: { data?: { code?: string } } })?.response
+          ?.data?.code;
+        if (code === "PLAN_FEATURE_REQUIRED") {
+          if (!cancelled) setPlanOk(false);
+          return;
+        }
         if (!cancelled) setLinked(false);
       }
     })();
@@ -66,6 +89,9 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
       cancelled = true;
     };
   }, [hydrated, isAuthenticated, isLogin, router, pathname]);
+
+  const canModule = (module: ModuleKey, needed: "view" | "edit" = "view") =>
+    isAdmin || canAccessModule(perms, module, needed);
 
   const handleLogout = async () => {
     try {
@@ -98,81 +124,114 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
       href: "/resto",
       label: t.floor,
       icon: LayoutGrid,
+      module: "floor" as ModuleKey,
       active: pathname === "/resto" || pathname?.startsWith("/resto/orders"),
     },
     {
       href: "/resto/takeaway",
       label: t.takeaway,
       icon: ShoppingBag,
+      module: "floor" as ModuleKey,
       active: pathname?.startsWith("/resto/takeaway"),
     },
     {
       href: "/resto/delivery",
       label: t.delivery,
       icon: Truck,
+      module: "floor" as ModuleKey,
       active: pathname?.startsWith("/resto/delivery"),
     },
     {
       href: "/resto/menu",
       label: t.menu,
       icon: UtensilsCrossed,
+      module: "restoMenu" as ModuleKey,
       active: pathname?.startsWith("/resto/menu"),
     },
     {
       href: "/resto/recipes",
       label: t.recipes,
       icon: Soup,
+      module: "restoMenu" as ModuleKey,
       active: pathname?.startsWith("/resto/recipes"),
     },
     {
       href: "/resto/kitchen",
       label: t.kitchen,
       icon: ChefHat,
+      module: "kitchen" as ModuleKey,
       active: pathname?.startsWith("/resto/kitchen"),
     },
     {
       href: "/resto/expo",
       label: t.expo,
       icon: BellRing,
+      module: "expo" as ModuleKey,
       active: pathname?.startsWith("/resto/expo"),
     },
     {
       href: "/resto/reservations",
       label: t.reservations,
       icon: CalendarDays,
+      module: "restoReservations" as ModuleKey,
       active: pathname?.startsWith("/resto/reservations"),
     },
     {
       href: "/resto/waitlist",
       label: t.waitlist,
       icon: Users,
+      module: "restoReservations" as ModuleKey,
       active: pathname?.startsWith("/resto/waitlist"),
     },
     {
       href: "/resto/board",
       label: t.liveBoard,
       icon: Activity,
+      module: "floor" as ModuleKey,
       active: pathname?.startsWith("/resto/board"),
     },
     {
       href: "/resto/reports",
       label: t.reports,
       icon: BarChart3,
+      module: "restoReports" as ModuleKey,
       active: pathname?.startsWith("/resto/reports"),
     },
     {
       href: "/resto/shifts",
       label: t.shifts,
       icon: Wallet,
+      module: "posShifts" as ModuleKey,
       active: pathname?.startsWith("/resto/shifts"),
     },
     {
       href: "/resto/settings",
       label: t.settings,
       icon: Settings2,
+      module: "settings" as ModuleKey,
       active: pathname?.startsWith("/resto/settings"),
     },
-  ];
+  ].filter((s) => canModule(s.module, "view"));
+
+  const currentModule = moduleForRestoPath(pathname);
+  const blockedByPerm =
+    !!currentModule && !isLogin && !canModule(currentModule, "view");
+
+  if (!planOk && !isLogin) {
+    return (
+      <div className="min-h-screen bg-[#14110f] text-stone-100 flex items-center justify-center p-6" dir={locale === "en" ? "ltr" : "rtl"}>
+        <PlanUpgradeGate
+          title={locale === "en" ? "Restaurants require Enterprise" : "المطاعم ضمن الباقة المؤسسية"}
+          description={
+            locale === "en"
+              ? "Upgrade your plan to unlock floor, kitchen, and restaurant ops for your team."
+              : "رقِّ الباقة لتفعيل الصالة والمطبخ وتشغيل المطاعم لفريقك."
+          }
+          className="max-w-lg bg-[#1c1814] text-stone-100 border-amber-500/40"
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#14110f] text-stone-100" dir={locale === "en" ? "ltr" : "rtl"}>
@@ -237,6 +296,7 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
           <div className="mx-auto flex max-w-[1600px] gap-1 overflow-x-auto px-3 py-1.5 sm:px-4 scrollbar-none">
             {sections.map((item) => {
               const Icon = item.icon;
+              const viewOnly = canModule(item.module, "view") && !canModule(item.module, "edit");
               return (
                 <Link
                   key={item.href}
@@ -247,14 +307,26 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
                       ? "bg-amber-500/20 text-amber-100"
                       : "text-stone-400 hover:bg-white/5 hover:text-stone-200",
                   )}
+                  title={viewOnly ? (locale === "en" ? "View only" : "عرض فقط") : undefined}
                 >
                   <Icon className="w-3.5 h-3.5" />
                   {item.label}
+                  {viewOnly ? (
+                    <span className="text-[9px] opacity-70">{locale === "en" ? "view" : "عرض"}</span>
+                  ) : null}
                 </Link>
               );
             })}
           </div>
         </nav>
+
+        {blockedByPerm ? (
+          <div className="border-t border-rose-500/20 bg-rose-500/10 px-3 py-3 text-center text-xs text-rose-100 sm:text-sm">
+            {locale === "en"
+              ? "This section is hidden for your account. Ask your company admin to grant access."
+              : "هذا القسم مخفي عن حسابك. اطلب من مدير الشركة منحك صلاحية الوصول."}
+          </div>
+        ) : null}
 
         {linked === false ? (
           <div className="border-t border-amber-500/20 bg-amber-500/10 px-3 py-2 text-center text-xs text-amber-100 sm:text-sm">

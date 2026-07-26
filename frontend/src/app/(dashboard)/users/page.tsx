@@ -1,14 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Shield, X, Loader2 } from "lucide-react";
+import { Plus, Shield, X, Loader2, SlidersHorizontal } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
 import { PageHeader, EmptyState, LoadingSpinner, GlassCard } from "@/components/ui/page-shell";
+import {
+  MODULE_KEYS,
+  MODULE_LABELS,
+  type AccessLevel,
+  type ModuleKey,
+  type ModulePermissions,
+} from "@/lib/module-permissions";
 
 interface TeamUser {
   id: string;
@@ -18,6 +25,8 @@ interface TeamUser {
   isActive: boolean;
   lastLoginAt?: string;
   createdAt: string;
+  permissions?: Record<string, AccessLevel> | null;
+  modulePermissions?: ModulePermissions;
 }
 
 const ROLES = [
@@ -31,14 +40,19 @@ const ROLES = [
   "VIEWER",
 ] as const;
 
+const LEVELS: AccessLevel[] = ["hidden", "view", "edit"];
+
 export default function UsersPage() {
   const t = useTranslations("users");
   const tCommon = useTranslations("common");
   const { user: currentUser } = useAuthStore();
   const queryClient = useQueryClient();
   const isAdmin = currentUser?.role === "ADMIN";
+  const locale = currentUser?.company?.language === "en" ? "en" : "ar";
 
   const [modalOpen, setModalOpen] = useState(false);
+  const [permUser, setPermUser] = useState<TeamUser | null>(null);
+  const [permDraft, setPermDraft] = useState<Record<string, AccessLevel>>({});
   const [form, setForm] = useState({ name: "", email: "", password: "", role: "ACCOUNTANT" });
 
   const { data: users = [], isLoading } = useQuery({
@@ -70,6 +84,36 @@ export default function UsersPage() {
     },
   });
 
+  const updatePermsMutation = useMutation({
+    mutationFn: ({ id, permissions }: { id: string; permissions: Record<string, AccessLevel> }) =>
+      api.updateUser(id, { permissions }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      toast.success(locale === "en" ? "Permissions saved" : "تم حفظ الصلاحيات");
+      setPermUser(null);
+    },
+    onError: () => toast.error(locale === "en" ? "Could not save" : "تعذر الحفظ"),
+  });
+
+  const levelLabel = useMemo(
+    () => ({
+      hidden: locale === "en" ? "Hidden" : "مخفي",
+      view: locale === "en" ? "View" : "عرض",
+      edit: locale === "en" ? "Edit" : "تعديل",
+    }),
+    [locale],
+  );
+
+  const openPerms = (u: TeamUser) => {
+    const base = u.modulePermissions || ({} as ModulePermissions);
+    const draft: Record<string, AccessLevel> = {};
+    for (const key of MODULE_KEYS) {
+      draft[key] = base[key] || "hidden";
+    }
+    setPermDraft(draft);
+    setPermUser(u);
+  };
+
   const roleColor = (role: string) => {
     const map: Record<string, string> = {
       ADMIN: "bg-rose-500/10 text-rose-400",
@@ -88,7 +132,11 @@ export default function UsersPage() {
     <div className="space-y-6">
       <PageHeader
         title={t("title")}
-        subtitle={t("subtitle")}
+        subtitle={
+          locale === "en"
+            ? "Roles plus per-module access: hidden / view / edit"
+            : "أدوار مع صلاحيات لكل قسم: مخفي / عرض / تعديل"
+        }
         action={
           isAdmin ? (
             <button
@@ -141,29 +189,49 @@ export default function UsersPage() {
                       </span>
                     </td>
                     <td className="p-4">
-                      <span className={cn(
-                        "px-2 py-1 rounded-full text-xs font-medium",
-                        u.isActive ? "bg-emerald-500/10 text-emerald-400" : "bg-slate-500/10 text-slate-400"
-                      )}>
+                      <span
+                        className={cn(
+                          "px-2 py-1 rounded-full text-xs font-medium",
+                          u.isActive
+                            ? "bg-emerald-500/10 text-emerald-400"
+                            : "bg-slate-500/10 text-slate-400",
+                        )}
+                      >
                         {u.isActive ? t("active") : t("inactive")}
                       </span>
                     </td>
                     {isAdmin && (
                       <td className="p-4">
-                        {u.id !== currentUser?.id ? (
-                          <select
-                            value={u.role}
-                            onChange={(e) => updateRoleMutation.mutate({ id: u.id, role: e.target.value })}
-                            disabled={updateRoleMutation.isPending}
-                            className="h-8 px-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-xs focus:outline-none focus:border-emerald-500"
-                          >
-                            {ROLES.map((r) => (
-                              <option key={r} value={r}>{t(`role_${r}`)}</option>
-                            ))}
-                          </select>
-                        ) : (
-                          <span className="text-slate-500 text-xs">—</span>
-                        )}
+                        <div className="flex flex-wrap items-center gap-2">
+                          {u.id !== currentUser?.id ? (
+                            <select
+                              value={u.role}
+                              onChange={(e) =>
+                                updateRoleMutation.mutate({ id: u.id, role: e.target.value })
+                              }
+                              disabled={updateRoleMutation.isPending}
+                              className="h-8 px-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-xs focus:outline-none focus:border-emerald-500"
+                            >
+                              {ROLES.map((r) => (
+                                <option key={r} value={r}>
+                                  {t(`role_${r}`)}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <span className="text-slate-500 text-xs">—</span>
+                          )}
+                          {u.role !== "ADMIN" && (
+                            <button
+                              type="button"
+                              onClick={() => openPerms(u)}
+                              className="inline-flex items-center gap-1 h-8 px-2 rounded-lg bg-teal-700/30 text-teal-200 text-xs font-bold hover:bg-teal-700/50"
+                            >
+                              <SlidersHorizontal className="w-3.5 h-3.5" />
+                              {locale === "en" ? "Access" : "صلاحيات"}
+                            </button>
+                          )}
+                        </div>
                       </td>
                     )}
                   </tr>
@@ -183,7 +251,6 @@ export default function UsersPage() {
                 <X className="w-5 h-5" />
               </button>
             </div>
-
             <div className="p-5 space-y-4">
               <div>
                 <label className="block text-sm text-slate-400 mb-1">{t("name")}</label>
@@ -220,12 +287,18 @@ export default function UsersPage() {
                   className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500"
                 >
                   {ROLES.map((r) => (
-                    <option key={r} value={r}>{t(`role_${r}`)}</option>
+                    <option key={r} value={r}>
+                      {t(`role_${r}`)}
+                    </option>
                   ))}
                 </select>
               </div>
+              <p className="text-xs text-slate-500">
+                {locale === "en"
+                  ? "After creating the user, open Access to fine-tune kitchen/floor/POS permissions."
+                  : "بعد إنشاء المستخدم افتح «صلاحيات» لضبط المطبخ/الصالة/الكاشير بدقة."}
+              </p>
             </div>
-
             <div className="flex justify-end gap-3 p-5 border-t border-slate-800">
               <button onClick={() => setModalOpen(false)} className="px-4 py-2 text-slate-400 hover:text-white">
                 {tCommon("cancel")}
@@ -237,6 +310,83 @@ export default function UsersPage() {
               >
                 {createMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
                 {t("addUser")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {permUser && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center pt-8 bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl">
+            <div className="flex items-center justify-between p-5 border-b border-slate-800">
+              <div>
+                <h2 className="text-lg font-semibold text-white">
+                  {locale === "en" ? "Module access" : "صلاحيات الأقسام"}
+                </h2>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  {permUser.name} · {permUser.email}
+                </p>
+              </div>
+              <button onClick={() => setPermUser(null)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-5 space-y-3 max-h-[60vh] overflow-y-auto">
+              <p className="text-xs text-slate-500 mb-2">
+                {locale === "en"
+                  ? "Hidden = not shown. View = read only. Edit = full use."
+                  : "مخفي = لا يظهر. عرض = اطلاع فقط. تعديل = استخدام كامل."}
+              </p>
+              {MODULE_KEYS.map((key) => (
+                <div
+                  key={key}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-2.5"
+                >
+                  <span className="text-sm text-slate-200 font-medium">
+                    {MODULE_LABELS[key as ModuleKey][locale === "en" ? "en" : "ar"]}
+                  </span>
+                  <div className="flex gap-1">
+                    {LEVELS.map((lvl) => (
+                      <button
+                        key={lvl}
+                        type="button"
+                        onClick={() => setPermDraft((d) => ({ ...d, [key]: lvl }))}
+                        className={cn(
+                          "text-[11px] font-bold px-2.5 py-1 rounded-full border",
+                          permDraft[key] === lvl
+                            ? lvl === "edit"
+                              ? "bg-emerald-600 text-white border-emerald-500"
+                              : lvl === "view"
+                                ? "bg-sky-600 text-white border-sky-500"
+                                : "bg-slate-600 text-white border-slate-500"
+                            : "bg-transparent text-slate-400 border-slate-700",
+                        )}
+                      >
+                        {levelLabel[lvl]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end gap-3 p-5 border-t border-slate-800">
+              <button onClick={() => setPermUser(null)} className="px-4 py-2 text-slate-400">
+                {tCommon("cancel")}
+              </button>
+              <button
+                type="button"
+                disabled={updatePermsMutation.isPending}
+                onClick={() =>
+                  updatePermsMutation.mutate({
+                    id: permUser.id,
+                    permissions: permDraft,
+                  })
+                }
+                className="inline-flex items-center gap-2 px-4 py-2 bg-teal-700 text-white rounded-lg font-bold disabled:opacity-50"
+              >
+                {updatePermsMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                {tCommon("save") || (locale === "en" ? "Save" : "حفظ")}
               </button>
             </div>
           </div>

@@ -110,9 +110,14 @@ export class SubscriptionsService {
     const company = await this.assertSubscriptionActive(companyId);
     const features = featuresForPlan(company.plan);
     if (!features[feature]) {
-      throw new ForbiddenException(
-        `Feature "${feature}" requires a higher plan. Upgrade from Subscription.`,
-      );
+      throw new ForbiddenException({
+        statusCode: 403,
+        code: 'PLAN_FEATURE_REQUIRED',
+        feature,
+        plan: company.plan,
+        message: `Feature "${feature}" requires a higher plan. Upgrade from Subscription.`,
+        upgradePath: '/subscription',
+      });
     }
   }
 

@@ -6,6 +6,7 @@ import { Request } from 'express';
 import { TokenPayload } from '../interfaces/token-payload.interface';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ACCESS_COOKIE } from '../auth-cookies';
+import { resolveModulePermissions } from '../../common/module-permissions';
 
 function cookieExtractor(req: Request): string | null {
   if (req?.cookies?.[ACCESS_COOKIE]) {
@@ -47,6 +48,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         role: true,
         companyId: true,
         isActive: true,
+        permissions: true,
         company: { select: { isActive: true } },
       },
     });
@@ -60,6 +62,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       email: user.email,
       role: user.role,
       companyId: user.companyId,
+      modulePermissions: resolveModulePermissions(user.role, user.permissions),
     } satisfies TokenPayload;
   }
 }

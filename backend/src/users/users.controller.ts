@@ -7,13 +7,20 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
+import { ModulePermissionGuard } from '../common/guards/module-permission.guard';
 
 @ApiTags('Users')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, ModulePermissionGuard)
 @Controller('users')
 export class UsersController {
   constructor(private usersService: UsersService) {}
+
+  @Get('module-catalog')
+  @Roles('ADMIN', 'MANAGER')
+  moduleCatalog() {
+    return this.usersService.moduleCatalog();
+  }
 
   @Get()
   findAll(@CurrentUser() user: TokenPayload) {

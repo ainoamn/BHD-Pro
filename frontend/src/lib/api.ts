@@ -319,6 +319,8 @@ class ApiClient {
         role: string;
         companyId: string;
         company: import('@/types').Company;
+        permissions?: Record<string, 'hidden' | 'view' | 'edit'> | null;
+        modulePermissions?: Record<string, 'hidden' | 'view' | 'edit'>;
       };
       // Keep any in-memory accessToken from a just-completed login.
       const existingToken = useAuthStore.getState().accessToken;
@@ -329,6 +331,8 @@ class ApiClient {
           email: data.email,
           role: data.role as never,
           companyId: data.companyId,
+          permissions: data.permissions,
+          modulePermissions: data.modulePermissions,
         },
         data.company,
         existingToken

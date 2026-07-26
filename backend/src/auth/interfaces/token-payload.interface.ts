@@ -3,4 +3,6 @@ export interface TokenPayload {
   email: string;
   role: string;
   companyId: string;
+  /** Resolved module access matrix (view/edit/hidden) */
+  modulePermissions?: Record<string, 'hidden' | 'view' | 'edit'>;
 }

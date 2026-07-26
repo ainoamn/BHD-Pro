@@ -13,6 +13,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { PaymentsModule } from '../payments/payments.module';
 import { AuditModule } from '../audit/audit.module';
 import { PlanFeatureGuard } from '../common/guards/plan-feature.guard';
+import { ModulePermissionGuard } from '../common/guards/module-permission.guard';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { PlanFeatureGuard } from '../common/guards/plan-feature.guard';
     PosIncentivesService,
     TerminalTapService,
     PlanFeatureGuard,
+    ModulePermissionGuard,
   ],
   exports: [PosService, PosIncentivesService, TerminalTapService],
 })

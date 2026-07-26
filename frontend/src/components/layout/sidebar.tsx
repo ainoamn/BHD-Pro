@@ -183,7 +183,7 @@ export function Sidebar() {
       </div>
 
       <div className="px-3 pt-3 shrink-0 space-y-2">
-        {features.pos !== false && (
+        {features.pos !== false ? (
           <Link
             href="/pos"
             onClick={() => {
@@ -199,8 +199,26 @@ export function Sidebar() {
               <span className="text-sm font-bold">الكاشير / POS</span>
             )}
           </Link>
+        ) : (
+          <Link
+            href="/subscription"
+            onClick={closeMobile}
+            className={cn(
+              "flex items-center gap-3 px-3 py-2.5 rounded-lg bg-slate-100 dark:bg-slate-800/60 text-slate-500 border border-dashed border-slate-300 dark:border-slate-700 hover:border-amber-500/40 hover:text-amber-700 transition-all",
+              sidebarCollapsed && "justify-center px-2"
+            )}
+            title="يتطلب ترقية الباقة"
+          >
+            <Lock className="w-5 h-5 flex-shrink-0" />
+            {!sidebarCollapsed && (
+              <span className="text-sm font-bold flex-1">الكاشير / POS</span>
+            )}
+            {!sidebarCollapsed && (
+              <span className="text-[10px] font-bold text-amber-600">ترقية</span>
+            )}
+          </Link>
         )}
-        {features.resto !== false && (
+        {features.resto !== false ? (
           <Link
             href="/resto"
             onClick={() => {
@@ -216,14 +234,23 @@ export function Sidebar() {
               <span className="text-sm font-bold">المطاعم</span>
             )}
           </Link>
-        )}
-        {features.pos === false && features.resto === false && !sidebarCollapsed && (
+        ) : (
           <Link
             href="/subscription"
             onClick={closeMobile}
-            className="block text-[11px] text-center text-amber-700 dark:text-amber-400/90 px-2 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20"
+            className={cn(
+              "flex items-center gap-3 px-3 py-2.5 rounded-lg bg-slate-100 dark:bg-slate-800/60 text-slate-500 border border-dashed border-slate-300 dark:border-slate-700 hover:border-amber-500/40 hover:text-amber-700 transition-all",
+              sidebarCollapsed && "justify-center px-2"
+            )}
+            title="يتطلب الباقة المؤسسية"
           >
-            رقِّ الباقة لتفعيل الكاشير والمطاعم
+            <Lock className="w-5 h-5 flex-shrink-0" />
+            {!sidebarCollapsed && (
+              <span className="text-sm font-bold flex-1">المطاعم</span>
+            )}
+            {!sidebarCollapsed && (
+              <span className="text-[10px] font-bold text-amber-600">ترقية</span>
+            )}
           </Link>
         )}
       </div>
