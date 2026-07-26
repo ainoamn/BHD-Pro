@@ -695,6 +695,7 @@ class ApiClient {
     return this.client.get<
       {
         id: string;
+        code?: string;
         nameAr: string;
         nameEn: string;
         monthlyPrice: number;
@@ -703,6 +704,14 @@ class ApiClient {
         currency: string;
         invoicesLimit: number;
         usersLimit: number;
+        support?: string;
+        sortOrder?: number;
+        highlights?: {
+          groupId: string;
+          labelAr: string;
+          labelEn: string;
+          items: { code: string; labelAr: string; labelEn: string }[];
+        }[];
       }[]
     >('/public/plans');
   }

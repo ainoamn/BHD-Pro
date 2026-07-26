@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   Param,
   Patch,
   Post,
@@ -301,6 +302,7 @@ export class PublicVisitsController {
 
   @Get('plans')
   @Throttle({ default: { limit: 120, ttl: 60_000 } })
+  @Header('Cache-Control', 'no-store, max-age=0')
   @ApiOperation({ summary: 'Public active plans for landing pricing' })
   plans() {
     return this.admin.publicPlans();

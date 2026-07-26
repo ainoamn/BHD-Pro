@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
   Building2,
+  Check,
+  ChevronDown,
   FileText,
   Package,
   PieChart,
@@ -50,14 +52,27 @@ type PlatformStats = {
   };
 };
 
+type PublicPlanHighlightGroup = {
+  groupId: string;
+  labelAr: string;
+  labelEn: string;
+  items: { code: string; labelAr: string; labelEn: string }[];
+};
+
 type PublicPlan = {
   id: string;
+  code?: string;
   nameAr: string;
   nameEn: string;
   monthlyPrice: number;
   yearlyPrice: number;
   yearlyDiscountPct: number;
   currency: string;
+  invoicesLimit?: number;
+  usersLimit?: number;
+  support?: string;
+  sortOrder?: number;
+  highlights?: PublicPlanHighlightGroup[];
 };
 
 function formatPlanPrice(n: number) {
@@ -158,6 +173,7 @@ export function LandingPage({
   >([]);
   const [billing, setBilling] = useState<"monthly" | "yearly">("monthly");
   const [livePlans, setLivePlans] = useState<PublicPlan[]>(initialPlans);
+  const [openPlanId, setOpenPlanId] = useState<string | null>(null);
   const t = landingCopy[locale === "en" ? "en" : "ar"];
   const isAr = locale !== "en";
 
@@ -211,7 +227,7 @@ export function LandingPage({
     void refresh();
     const onFocus = () => void refresh();
     window.addEventListener("focus", onFocus);
-    const timer = window.setInterval(() => void refresh(), 60_000);
+    const timer = window.setInterval(() => void refresh(), 30_000);
     return () => {
       cancelled = true;
       window.removeEventListener("focus", onFocus);
@@ -222,6 +238,12 @@ export function LandingPage({
   useEffect(() => {
     if (initialPlans.length) setLivePlans(initialPlans);
   }, [initialPlans]);
+
+  useEffect(() => {
+    if (openPlanId && livePlans.length && !livePlans.some((p) => p.id === openPlanId)) {
+      setOpenPlanId(null);
+    }
+  }, [livePlans, openPlanId]);
 
   const showPricing = (mode: "monthly" | "yearly") => {
     setBilling(mode);
@@ -630,10 +652,33 @@ export function LandingPage({
             </div>
           </div>
 
-          <div className="mt-12 grid gap-4 md:grid-cols-3">
-            {(livePlans.length
+          <div
+            className={cn(
+              "mt-4 text-xs font-semibold text-slate-400",
+              livePlans.length ? "text-teal-800/80" : "",
+            )}
+          >
+            {t.clickPlanHint}
+          </div>
+
+          <div
+            className={cn(
+              "mt-10 grid gap-4",
+              livePlans.length <= 1
+                ? "md:grid-cols-1 max-w-md"
+                : livePlans.length === 2
+                  ? "md:grid-cols-2"
+                  : livePlans.length >= 4
+                    ? "md:grid-cols-2 xl:grid-cols-4"
+                    : "md:grid-cols-3",
+            )}
+          >
+            {livePlans.length
               ? livePlans.map((p, i) => {
-                  const featured = p.id === "PROFESSIONAL" || i === 1;
+                  const featured =
+                    p.id === "PROFESSIONAL" ||
+                    (livePlans.every((x) => x.id !== "PROFESSIONAL") &&
+                      i === Math.min(1, livePlans.length - 1));
                   const price =
                     billing === "monthly" ? p.monthlyPrice : p.yearlyPrice;
                   const unit = billing === "monthly" ? t.perMonth : t.perYear;
@@ -647,121 +692,267 @@ export function LandingPage({
                             100,
                         )
                       : 0);
-                  return {
-                    key: p.id,
-                    name: isAr ? p.nameAr : p.nameEn,
-                    note:
-                      p.id === "STARTER"
-                        ? t.plans[0]?.note
-                        : p.id === "ENTERPRISE"
-                          ? t.plans[2]?.note
-                          : t.plans[1]?.note,
-                    featured,
-                    price: formatPlanPrice(price),
-                    unit,
-                    save,
-                    disc,
-                    equiv: monthlyFromYearly(p.yearlyPrice),
-                  };
+                  const open = openPlanId === p.id;
+                  const usersLabel =
+                    p.usersLimit == null
+                      ? null
+                      : p.usersLimit < 0
+                        ? t.unlimited
+                        : String(p.usersLimit);
+                  const invoicesLabel =
+                    p.invoicesLimit == null
+                      ? null
+                      : p.invoicesLimit < 0
+                        ? t.unlimited
+                        : String(p.invoicesLimit);
+                  const noteParts = [
+                    usersLabel ? `${t.usersCap}: ${usersLabel}` : null,
+                    invoicesLabel ? `${t.invoicesCap}: ${invoicesLabel}` : null,
+                  ].filter(Boolean);
+                  const note = noteParts.length
+                    ? noteParts.join(" · ")
+                    : isAr
+                      ? "باقة نشطة"
+                      : "Active plan";
+
+                  return (
+                    <div
+                      key={p.id}
+                      className={cn(
+                        "rounded-2xl border p-6 sm:p-7 transition flex flex-col",
+                        featured
+                          ? "border-emerald-900/20 bg-emerald-950 text-white shadow-lg shadow-emerald-950/10"
+                          : "border-emerald-950/8 bg-[#fafcfb] hover:border-emerald-900/15",
+                        open && "ring-2 ring-emerald-700/40",
+                      )}
+                    >
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setOpenPlanId((cur) => (cur === p.id ? null : p.id))
+                        }
+                        className="text-start w-full"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <p
+                            className={cn(
+                              "text-xs font-medium",
+                              featured ? "text-emerald-200/70" : "text-slate-400",
+                            )}
+                          >
+                            {note}
+                          </p>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {billing === "yearly" && disc > 0 ? (
+                              <span
+                                className={cn(
+                                  "text-[10px] font-bold px-2 py-0.5 rounded-full",
+                                  featured
+                                    ? "bg-white/15 text-emerald-100"
+                                    : "bg-emerald-100 text-emerald-800",
+                                )}
+                              >
+                                {t.saveYearly} {disc}%
+                              </span>
+                            ) : null}
+                            <ChevronDown
+                              className={cn(
+                                "w-4 h-4 transition-transform",
+                                open && "rotate-180",
+                                featured ? "text-emerald-200" : "text-slate-400",
+                              )}
+                            />
+                          </div>
+                        </div>
+                        <h3
+                          className={cn(
+                            "mt-1.5 text-lg font-bold",
+                            featured ? "text-white" : "text-emerald-950",
+                          )}
+                        >
+                          {isAr ? p.nameAr : p.nameEn}
+                        </h3>
+                        <p
+                          className={cn(
+                            "mt-5 text-4xl font-extrabold tracking-tight",
+                            featured ? "text-white" : "text-emerald-950",
+                          )}
+                        >
+                          {formatPlanPrice(price)}
+                          <span
+                            className={cn(
+                              "ms-2 text-sm font-medium",
+                              featured ? "text-emerald-200/60" : "text-slate-400",
+                            )}
+                          >
+                            {unit}
+                          </span>
+                        </p>
+                        {billing === "yearly" && p.yearlyPrice > 0 ? (
+                          <p
+                            className={cn(
+                              "mt-2 text-xs font-semibold",
+                              featured ? "text-emerald-200/70" : "text-teal-800",
+                            )}
+                          >
+                            {t.equivMonth} {formatPlanPrice(monthlyFromYearly(p.yearlyPrice))}{" "}
+                            {isAr ? "ر.ع / شهر" : "OMR / mo"}
+                            {save > 0
+                              ? ` · ${t.saveYearly} ${formatPlanPrice(save)} ${isAr ? "ر.ع" : "OMR"}`
+                              : ""}
+                          </p>
+                        ) : null}
+                        <p
+                          className={cn(
+                            "mt-3 text-[11px] font-bold",
+                            featured ? "text-emerald-200/80" : "text-teal-800",
+                          )}
+                        >
+                          {open ? t.hideDetails : t.showDetails}
+                        </p>
+                      </button>
+
+                      {open ? (
+                        <div
+                          className={cn(
+                            "mt-4 pt-4 border-t space-y-3 max-h-[22rem] overflow-y-auto",
+                            featured ? "border-white/15" : "border-slate-200",
+                          )}
+                        >
+                          <p
+                            className={cn(
+                              "text-xs font-extrabold",
+                              featured ? "text-emerald-100" : "text-teal-950",
+                            )}
+                          >
+                            {t.includedServices}
+                          </p>
+                          {p.support ? (
+                            <p
+                              className={cn(
+                                "text-[11px]",
+                                featured ? "text-emerald-200/80" : "text-slate-500",
+                              )}
+                            >
+                              {t.supportLabel}: {p.support}
+                            </p>
+                          ) : null}
+                          {(p.highlights || []).length === 0 ? (
+                            <p
+                              className={cn(
+                                "text-xs",
+                                featured ? "text-emerald-200/70" : "text-slate-400",
+                              )}
+                            >
+                              —
+                            </p>
+                          ) : (
+                            (p.highlights || []).map((g) => (
+                              <div key={g.groupId} className="space-y-1.5">
+                                <p
+                                  className={cn(
+                                    "text-[10px] font-bold uppercase tracking-wide",
+                                    featured ? "text-emerald-300/80" : "text-slate-400",
+                                  )}
+                                >
+                                  {isAr ? g.labelAr : g.labelEn}
+                                </p>
+                                <ul className="space-y-1">
+                                  {g.items.map((item) => (
+                                    <li
+                                      key={item.code}
+                                      className={cn(
+                                        "flex items-start gap-1.5 text-[12px] leading-snug",
+                                        featured ? "text-emerald-50" : "text-slate-700",
+                                      )}
+                                    >
+                                      <Check
+                                        className={cn(
+                                          "w-3.5 h-3.5 mt-0.5 shrink-0",
+                                          featured ? "text-emerald-300" : "text-teal-700",
+                                        )}
+                                      />
+                                      <span>{isAr ? item.labelAr : item.labelEn}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      ) : null}
+
+                      <Link
+                        href={`/register?plan=${encodeURIComponent(p.id)}`}
+                        className={cn(
+                          "mt-6 inline-flex w-full justify-center rounded-xl py-2.5 text-sm font-bold transition",
+                          featured
+                            ? "bg-white text-emerald-950 hover:bg-emerald-50"
+                            : "bg-emerald-900 text-white hover:bg-emerald-800",
+                        )}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {t.register}
+                      </Link>
+                    </div>
+                  );
                 })
               : t.plans.map((p) => {
                   const monthly = Number(p.price) || 0;
                   const yearly = Math.round(monthly * 12 * 0.8 * 1000) / 1000;
                   const price = billing === "monthly" ? monthly : yearly;
-                  return {
-                    key: p.name,
-                    name: p.name,
-                    note: p.note,
-                    featured: Boolean((p as { featured?: boolean }).featured),
-                    price: formatPlanPrice(price),
-                    unit: billing === "monthly" ? t.perMonth : t.perYear,
-                    save: monthly * 12 - yearly,
-                    disc: 20,
-                    equiv: monthlyFromYearly(yearly),
-                  };
-                })
-            ).map((p) => (
-              <div
-                key={p.key}
-                className={cn(
-                  "rounded-2xl border p-7 transition",
-                  p.featured
-                    ? "border-emerald-900/20 bg-emerald-950 text-white shadow-lg shadow-emerald-950/10"
-                    : "border-emerald-950/8 bg-[#fafcfb] hover:border-emerald-900/15",
-                )}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <p
-                    className={cn(
-                      "text-xs font-medium",
-                      p.featured ? "text-emerald-200/70" : "text-slate-400",
-                    )}
-                  >
-                    {p.note}
-                  </p>
-                  {billing === "yearly" && p.disc > 0 ? (
-                    <span
+                  const featured = Boolean((p as { featured?: boolean }).featured);
+                  return (
+                    <div
+                      key={p.name}
                       className={cn(
-                        "text-[10px] font-bold px-2 py-0.5 rounded-full",
-                        p.featured
-                          ? "bg-white/15 text-emerald-100"
-                          : "bg-emerald-100 text-emerald-800",
+                        "rounded-2xl border p-7 transition",
+                        featured
+                          ? "border-emerald-900/20 bg-emerald-950 text-white shadow-lg shadow-emerald-950/10"
+                          : "border-emerald-950/8 bg-[#fafcfb]",
                       )}
                     >
-                      {t.saveYearly} {p.disc}%
-                    </span>
-                  ) : null}
-                </div>
-                <h3
-                  className={cn(
-                    "mt-1.5 text-lg font-bold",
-                    p.featured ? "text-white" : "text-emerald-950",
-                  )}
-                >
-                  {p.name}
-                </h3>
-                <p
-                  className={cn(
-                    "mt-6 text-4xl font-extrabold tracking-tight",
-                    p.featured ? "text-white" : "text-emerald-950",
-                  )}
-                >
-                  {p.price}
-                  <span
-                    className={cn(
-                      "ms-2 text-sm font-medium",
-                      p.featured ? "text-emerald-200/60" : "text-slate-400",
-                    )}
-                  >
-                    {p.unit}
-                  </span>
-                </p>
-                {billing === "yearly" && p.equiv > 0 ? (
-                  <p
-                    className={cn(
-                      "mt-2 text-xs font-semibold",
-                      p.featured ? "text-emerald-200/70" : "text-teal-800",
-                    )}
-                  >
-                    {t.equivMonth} {p.equiv} {isAr ? "ر.ع / شهر" : "OMR / mo"}
-                    {p.save > 0
-                      ? ` · ${t.saveYearly} ${p.save} ${isAr ? "ر.ع" : "OMR"}`
-                      : ""}
-                  </p>
-                ) : null}
-                <Link
-                  href="/register"
-                  className={cn(
-                    "mt-8 inline-flex w-full justify-center rounded-xl py-2.5 text-sm font-bold transition",
-                    p.featured
-                      ? "bg-white text-emerald-950 hover:bg-emerald-50"
-                      : "bg-emerald-900 text-white hover:bg-emerald-800",
-                  )}
-                >
-                  {t.register}
-                </Link>
-              </div>
-            ))}
+                      <p
+                        className={cn(
+                          "text-xs font-medium",
+                          featured ? "text-emerald-200/70" : "text-slate-400",
+                        )}
+                      >
+                        {p.note}
+                      </p>
+                      <h3
+                        className={cn(
+                          "mt-1.5 text-lg font-bold",
+                          featured ? "text-white" : "text-emerald-950",
+                        )}
+                      >
+                        {p.name}
+                      </h3>
+                      <p
+                        className={cn(
+                          "mt-6 text-4xl font-extrabold",
+                          featured ? "text-white" : "text-emerald-950",
+                        )}
+                      >
+                        {formatPlanPrice(price)}
+                        <span className="ms-2 text-sm font-medium opacity-60">
+                          {billing === "monthly" ? t.perMonth : t.perYear}
+                        </span>
+                      </p>
+                      <Link
+                        href="/register"
+                        className={cn(
+                          "mt-8 inline-flex w-full justify-center rounded-xl py-2.5 text-sm font-bold",
+                          featured
+                            ? "bg-white text-emerald-950"
+                            : "bg-emerald-900 text-white",
+                        )}
+                      >
+                        {t.register}
+                      </Link>
+                    </div>
+                  );
+                })}
           </div>
         </div>
       </section>

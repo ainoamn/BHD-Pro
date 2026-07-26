@@ -1,7 +1,15 @@
 import { LandingPage } from "@/components/landing/landing-page";
 
+export type PublicPlanHighlightGroup = {
+  groupId: string;
+  labelAr: string;
+  labelEn: string;
+  items: { code: string; labelAr: string; labelEn: string }[];
+};
+
 export type PublicPlanDto = {
   id: string;
+  code?: string;
   nameAr: string;
   nameEn: string;
   monthlyPrice: number;
@@ -10,6 +18,9 @@ export type PublicPlanDto = {
   currency: string;
   invoicesLimit?: number;
   usersLimit?: number;
+  support?: string;
+  sortOrder?: number;
+  highlights?: PublicPlanHighlightGroup[];
 };
 
 async function fetchPublicPlans(): Promise<PublicPlanDto[]> {
@@ -20,8 +31,7 @@ async function fetchPublicPlans(): Promise<PublicPlanDto[]> {
   const url = `${base.replace(/\/$/, "")}/api/public/plans`;
   try {
     const res = await fetch(url, {
-      // Revalidate often so admin price edits appear on the homepage quickly
-      next: { revalidate: 15 },
+      cache: "no-store",
       headers: { Accept: "application/json" },
     });
     if (!res.ok) return [];

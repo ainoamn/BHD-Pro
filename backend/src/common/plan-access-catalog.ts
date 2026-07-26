@@ -278,6 +278,58 @@ export function legacyFromModules(
   return legacy;
 }
 
+/** Public catalog snapshot: enabled modules grouped for the landing page. */
+export function buildPublicPlanHighlights(
+  modules: Record<string, PlanModuleGrant> | null | undefined,
+): {
+  groupId: string;
+  labelAr: string;
+  labelEn: string;
+  items: { code: string; labelAr: string; labelEn: string }[];
+}[] {
+  const out: {
+    groupId: string;
+    labelAr: string;
+    labelEn: string;
+    items: { code: string; labelAr: string; labelEn: string }[];
+  }[] = [];
+  for (const g of PLAN_ACCESS_GROUPS) {
+    const items: { code: string; labelAr: string; labelEn: string }[] = [];
+    for (const m of g.modules) {
+      if (!modules?.[m.code]?.enabled) continue;
+      items.push({
+        code: m.code,
+        labelAr: m.labelAr,
+        labelEn: m.labelEn,
+      });
+      if (m.children?.length) {
+        const grants = modules[m.code]?.grants;
+        for (const c of m.children) {
+          const on =
+            !grants ||
+            grants[c.code] === true ||
+            grants[c.code] === undefined;
+          if (!on) continue;
+          items.push({
+            code: `${m.code}.${c.code}`,
+            labelAr: `— ${c.labelAr}`,
+            labelEn: `— ${c.labelEn}`,
+          });
+        }
+      }
+    }
+    if (items.length) {
+      out.push({
+        groupId: g.id,
+        labelAr: g.labelAr,
+        labelEn: g.labelEn,
+        items,
+      });
+    }
+  }
+  return out;
+}
+
 export function normalizePlanAccess(
   raw?: Record<string, unknown> | null,
   fallbackLegacy?: Record<string, boolean>,

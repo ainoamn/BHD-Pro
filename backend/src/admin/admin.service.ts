@@ -6,6 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PLAN_DETAILS } from '../common/plan-features';
 import { PlanCatalogService } from '../subscriptions/plan-catalog.service';
 import { EmailNotifyService } from '../notifications/email-notify.service';
+import { buildPublicPlanHighlights } from '../common/plan-access-catalog';
 import {
   getBootstrapAdminEmails,
   isBootstrapAdminEmail,
@@ -279,6 +280,7 @@ export class AdminService implements OnModuleInit {
     const rows = await this.planCatalog.listAll(false);
     return rows.map((p) => ({
       id: p.code,
+      code: p.code,
       nameAr: p.nameAr,
       nameEn: p.nameEn,
       monthlyPrice: p.monthlyPrice,
@@ -287,6 +289,10 @@ export class AdminService implements OnModuleInit {
       currency: p.currency,
       invoicesLimit: p.invoicesLimit,
       usersLimit: p.usersLimit,
+      support: p.support,
+      sortOrder: p.sortOrder,
+      features: p.features,
+      highlights: buildPublicPlanHighlights(p.modules),
     }));
   }
 
