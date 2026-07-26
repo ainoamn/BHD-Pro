@@ -128,6 +128,9 @@ export default function RestoFloorPage() {
   const [opsTargetOrderId, setOpsTargetOrderId] = useState("");
   const [splitItemIds, setSplitItemIds] = useState<string[]>([]);
   const [course, setCourse] = useState(1);
+  const [seat, setSeat] = useState<number | null>(1);
+  const [settleSeat, setSettleSeat] = useState(1);
+  const [equalParts, setEqualParts] = useState("2");
 
   const loadFloor = useCallback(async () => {
     setLoading(true);
@@ -281,6 +284,7 @@ export default function RestoFloorPage() {
         notes: itemNote.trim() || undefined,
         stationId: stationId || defaultStationId || undefined,
         course,
+        seat: seat ?? null,
         modifiers: mods.length ? mods : undefined,
       });
       setOrder(res.data);
@@ -480,7 +484,7 @@ export default function RestoFloorPage() {
     return `${t.course} ${c}`;
   };
 
-  const printCheck = () => {
+  const printCheck = (seatFilter?: number | null) => {
     if (!order) return;
     printRestoGuestCheck({
       order,
@@ -500,7 +504,95 @@ export default function RestoFloorPage() {
       currency: company?.currency || "OMR",
       locale: locale === "en" ? "en" : "ar",
       tipAmount: Number(tipAmount) || 0,
+      ...(seatFilter !== undefined ? { seat: seatFilter } : {}),
     });
+  };
+
+  const setItemSeat = async (itemId: string, next: number | null) => {
+    if (!order) return;
+    setBusy(true);
+    setError("");
+    try {
+      const res = await api.updateRestoOrderItem(order.id, itemId, {
+        seat: next,
+      });
+      setOrder(res.data);
+    } catch {
+      setError(t.actionFail);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const cycleItemSeat = (itemId: string, current: number | null | undefined) => {
+    if (!order) return;
+    const max = Math.max(1, order.guests || 1);
+    let next: number | null;
+    if (current == null) next = 1;
+    else if (current >= max) next = null;
+    else next = current + 1;
+    void setItemSeat(itemId, next);
+  };
+
+  const settleBySeatPay = async (
+    method: "CASH" | "CREDIT_CARD" = "CASH",
+  ) => {
+    if (!order) return;
+    setBusy(true);
+    setError("");
+    try {
+      const res = await api.settleRestoBySeat(order.id, {
+        seat: settleSeat,
+        paymentMethod: method,
+        tipAmount: Number(tipAmount) || undefined,
+        tipAssigneeId: tipAssigneeId || undefined,
+        serviceChargePct: Number(serviceChargePct) || undefined,
+        contactId: order.contactId || order.loyalty?.contactId || undefined,
+        loyaltyPointsToRedeem:
+          Number(loyaltyRedeem) > 0 ? Number(loyaltyRedeem) : undefined,
+      });
+      if (res.data.source) {
+        setOrder(res.data.source);
+      } else {
+        setOrder(null);
+      }
+      setTipAmount("");
+      setCashPart("");
+      await loadFloor();
+    } catch {
+      setError(t.actionFail);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const settleEqualPay = async (
+    method: "CASH" | "CREDIT_CARD" = "CASH",
+  ) => {
+    if (!order) return;
+    const parts = Math.max(2, Math.min(20, Math.floor(Number(equalParts) || 2)));
+    setBusy(true);
+    setError("");
+    try {
+      await api.settleRestoEqual(order.id, {
+        parts,
+        paymentMethod: method,
+        tipAmount: Number(tipAmount) || undefined,
+        tipAssigneeId: tipAssigneeId || undefined,
+        serviceChargePct: Number(serviceChargePct) || undefined,
+        contactId: order.contactId || order.loyalty?.contactId || undefined,
+        loyaltyPointsToRedeem:
+          Number(loyaltyRedeem) > 0 ? Number(loyaltyRedeem) : undefined,
+      });
+      setOrder(null);
+      setTipAmount("");
+      setCashPart("");
+      await loadFloor();
+    } catch {
+      setError(t.actionFail);
+    } finally {
+      setBusy(false);
+    }
   };
 
   const attachLoyalty = async () => {
@@ -920,6 +1012,19 @@ export default function RestoFloorPage() {
                                 {courseLabel(it.course ?? 1)} ·{" "}
                                 {itemStatusLabel(it.status)} · {fmt(it.lineTotal)}
                               </p>
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() =>
+                                  cycleItemSeat(it.id, it.seat ?? null)
+                                }
+                                className="mt-1 text-[10px] font-bold rounded-md border border-white/15 px-1.5 py-0.5 text-amber-100/90 hover:bg-white/5 disabled:opacity-40"
+                                title={t.seat}
+                              >
+                                {it.seat != null
+                                  ? `${t.seat} ${it.seat}`
+                                  : t.seatShared}
+                              </button>
                             </div>
                           </div>
                           {it.status === "PENDING" ? (
@@ -1264,7 +1369,7 @@ export default function RestoFloorPage() {
                   <button
                     type="button"
                     disabled={!order.items.length}
-                    onClick={printCheck}
+                    onClick={() => printCheck()}
                     className="self-end inline-flex items-center justify-center gap-1.5 h-9 rounded-lg border border-white/15 text-xs font-semibold hover:bg-white/5 disabled:opacity-40 col-span-2"
                   >
                     <Printer className="w-3.5 h-3.5" />
@@ -1319,6 +1424,82 @@ export default function RestoFloorPage() {
                     >
                       {t.payCard}
                     </button>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-black/20 p-2.5 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-bold text-stone-300">
+                        {t.settleBySeat}
+                      </span>
+                      <select
+                        value={settleSeat}
+                        onChange={(e) => setSettleSeat(Number(e.target.value))}
+                        className="h-7 rounded-md bg-black/40 border border-white/10 px-1.5 text-[11px]"
+                      >
+                        {Array.from(
+                          { length: Math.max(1, order.guests || 1) },
+                          (_, i) => i + 1,
+                        ).map((s) => (
+                          <option key={s} value={s}>
+                            {t.seat} {s}
+                            {order.bySeat?.find((b) => b.seat === s)
+                              ? ` · ${fmt(
+                                  order.bySeat.find((b) => b.seat === s)!
+                                    .subtotal,
+                                )}`
+                              : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void settleBySeatPay("CASH")}
+                        className="rounded-lg bg-emerald-700/90 py-1.5 text-[10px] font-bold text-white disabled:opacity-40"
+                      >
+                        {t.payCash}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void settleBySeatPay("CREDIT_CARD")}
+                        className="rounded-lg bg-sky-700/90 py-1.5 text-[10px] font-bold text-white disabled:opacity-40"
+                      >
+                        {t.payCard}
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => printCheck(settleSeat)}
+                      className="w-full rounded-lg border border-white/15 py-1.5 text-[10px] font-semibold text-stone-300 hover:bg-white/5 disabled:opacity-40"
+                    >
+                      {t.printSeatCheck}
+                    </button>
+                    <div className="flex items-center gap-2 pt-1 border-t border-white/10">
+                      <label className="flex-1 space-y-0.5">
+                        <span className="text-[10px] text-stone-500">
+                          {t.equalParts}
+                        </span>
+                        <input
+                          type="number"
+                          min={2}
+                          max={20}
+                          value={equalParts}
+                          onChange={(e) => setEqualParts(e.target.value)}
+                          className="w-full h-7 rounded-md bg-black/40 border border-white/10 px-2 text-[11px] tabular-nums"
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        disabled={busy || (order?.itemCount ?? 0) === 0}
+                        onClick={() => void settleEqualPay("CASH")}
+                        className="mt-3 rounded-lg border border-violet-400/35 bg-violet-500/10 px-2.5 py-1.5 text-[10px] font-bold text-violet-100 disabled:opacity-40"
+                      >
+                        {t.settleEqual}
+                      </button>
+                    </div>
                   </div>
                   <button
                     type="button"
@@ -1379,6 +1560,36 @@ export default function RestoFloorPage() {
                         }`}
                       >
                         {courseLabel(c)}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setSeat(null)}
+                      className={`rounded-lg px-2 py-1 text-[10px] font-bold border ${
+                        seat === null
+                          ? "border-sky-400/50 bg-sky-500/20 text-sky-100"
+                          : "border-white/10 text-stone-400 hover:bg-white/5"
+                      }`}
+                    >
+                      {t.seatShared}
+                    </button>
+                    {Array.from(
+                      { length: Math.max(1, order.guests || 1) },
+                      (_, i) => i + 1,
+                    ).map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => setSeat(s)}
+                        className={`rounded-lg px-2 py-1 text-[10px] font-bold border ${
+                          seat === s
+                            ? "border-sky-400/50 bg-sky-500/20 text-sky-100"
+                            : "border-white/10 text-stone-400 hover:bg-white/5"
+                        }`}
+                      >
+                        {t.seat} {s}
                       </button>
                     ))}
                   </div>

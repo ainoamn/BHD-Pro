@@ -41,6 +41,8 @@ import {
   MergeRestoOrderDto,
   OpenRestoOrderDto,
   SeedRestoFloorDto,
+  SettleRestoBySeatDto,
+  SettleRestoEqualDto,
   SetRestoMenu86Dto,
   SetRestoProductStationDto,
   SetRestoProductAllergensDto,
@@ -392,6 +394,33 @@ export class RestoController {
     @Body() dto: CloseRestoOrderDto,
   ) {
     return this.resto.closeOrder(user.companyId, user, id, dto || {});
+  }
+
+  @Post('orders/:id/settle/by-seat')
+  @Roles(...RESTO_STAFF)
+  @ApiOperation({
+    summary:
+      'Pay one seat: split billable seat lines to a child check and close it',
+  })
+  settleBySeat(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+    @Body() dto: SettleRestoBySeatDto,
+  ) {
+    return this.resto.settleBySeat(user.companyId, user, id, dto);
+  }
+
+  @Post('orders/:id/settle/equal')
+  @Roles(...RESTO_STAFF)
+  @ApiOperation({
+    summary: 'Equal N-way tender split on a single paid close',
+  })
+  settleEqual(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+    @Body() dto: SettleRestoEqualDto,
+  ) {
+    return this.resto.settleEqual(user.companyId, user, id, dto);
   }
 
   @Post('orders/:id/pay-link')

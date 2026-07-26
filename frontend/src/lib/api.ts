@@ -57,10 +57,16 @@ export type RestoOrderPayload = {
     lineTotal: number;
     notes: string | null;
     course?: number;
+    seat?: number | null;
     isComp?: boolean;
     voidReason?: string | null;
     source?: string;
     status: string;
+  }>;
+  bySeat?: Array<{
+    seat: number | null;
+    subtotal: number;
+    itemIds: string[];
   }>;
   subtotal: number;
   itemCount: number;
@@ -1835,6 +1841,7 @@ class ApiClient {
       notes?: string;
       stationId?: string;
       course?: number;
+      seat?: number | null;
       modifiers?: Array<{ name: string; priceDelta?: number }>;
     },
   ) {
@@ -1844,7 +1851,12 @@ class ApiClient {
   updateRestoOrderItem(
     orderId: string,
     itemId: string,
-    data: { qty?: number; notes?: string; course?: number },
+    data: {
+      qty?: number;
+      notes?: string;
+      course?: number;
+      seat?: number | null;
+    },
   ) {
     return this.patch<RestoOrderPayload>(
       `/resto/orders/${orderId}/items/${itemId}`,
@@ -2082,6 +2094,48 @@ class ApiClient {
     return this.post<RestoOrderPayload & { invoice?: { id: string } | null }>(
       `/resto/orders/${orderId}/close`,
       data || {},
+    );
+  }
+
+  settleRestoBySeat(
+    orderId: string,
+    data: {
+      seat: number;
+      paymentMethod?: 'CASH' | 'CREDIT_CARD' | 'BANK_TRANSFER' | 'OTHER';
+      payments?: Array<{
+        method: 'CASH' | 'CREDIT_CARD' | 'BANK_TRANSFER' | 'OTHER';
+        amount: number;
+      }>;
+      tipAmount?: number;
+      tipAssigneeId?: string;
+      serviceChargePct?: number;
+      contactId?: string;
+      loyaltyPointsToRedeem?: number;
+    },
+  ) {
+    return this.post<{
+      source: RestoOrderPayload | null;
+      closed: RestoOrderPayload & { invoice?: { id: string } | null };
+      mode: 'full' | 'seat';
+      seat?: number;
+    }>(`/resto/orders/${orderId}/settle/by-seat`, data);
+  }
+
+  settleRestoEqual(
+    orderId: string,
+    data: {
+      parts: number;
+      paymentMethod?: 'CASH' | 'CREDIT_CARD' | 'BANK_TRANSFER' | 'OTHER';
+      tipAmount?: number;
+      tipAssigneeId?: string;
+      serviceChargePct?: number;
+      contactId?: string;
+      loyaltyPointsToRedeem?: number;
+    },
+  ) {
+    return this.post<RestoOrderPayload & { invoice?: { id: string } | null }>(
+      `/resto/orders/${orderId}/settle/equal`,
+      data,
     );
   }
 
