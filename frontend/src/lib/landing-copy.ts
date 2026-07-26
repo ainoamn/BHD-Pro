@@ -53,8 +53,8 @@ export const landingCopy = {
     saveYearly: "وفّر",
     equivMonth: "يعادل",
     plans: [
-      { name: "بدائية", price: "5", unit: "ر.ع / شهر", note: "للأعمال الصغيرة" },
-      { name: "محترفة", price: "15", unit: "ر.ع / شهر", note: "الأكثر اختيارًا", featured: true },
+      { name: "بدائية", price: "2", unit: "ر.ع / شهر", note: "للأعمال الصغيرة" },
+      { name: "محترفة", price: "10", unit: "ر.ع / شهر", note: "الأكثر اختيارًا", featured: true },
       { name: "مؤسسية", price: "35", unit: "ر.ع / شهر", note: "بلا حدود عملية" },
     ],
     companyTitle: "الشركة المالكة والمشغّلة",
@@ -150,8 +150,8 @@ export const landingCopy = {
     saveYearly: "Save",
     equivMonth: "equals",
     plans: [
-      { name: "Starter", price: "5", unit: "OMR / mo", note: "For small teams" },
-      { name: "Professional", price: "15", unit: "OMR / mo", note: "Most popular", featured: true },
+      { name: "Starter", price: "2", unit: "OMR / mo", note: "For small teams" },
+      { name: "Professional", price: "10", unit: "OMR / mo", note: "Most popular", featured: true },
       { name: "Enterprise", price: "35", unit: "OMR / mo", note: "For growing orgs" },
     ],
     companyTitle: "Owner & operator",

@@ -60,6 +60,26 @@ type PublicPlan = {
   currency: string;
 };
 
+function formatPlanPrice(n: number) {
+  const v = Number(n) || 0;
+  return v.toLocaleString("en-US", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 3,
+  });
+}
+
+async function loadPublicPlansClient(): Promise<PublicPlan[]> {
+  // Same-origin rewrite — skip auth cookies / axios 401 refresh on public catalog
+  const res = await fetch("/backend-api/public/plans", {
+    credentials: "omit",
+    headers: { Accept: "application/json" },
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`plans ${res.status}`);
+  const data = (await res.json()) as unknown;
+  return Array.isArray(data) ? (data as PublicPlan[]) : [];
+}
+
 function formatCompact(n: number, locale: string) {
   const abs = Math.abs(n);
   const fmt = (value: number, digits: number) =>
@@ -123,7 +143,11 @@ function AnimatedMetric({
   );
 }
 
-export function LandingPage() {
+export function LandingPage({
+  initialPlans = [],
+}: {
+  initialPlans?: PublicPlan[];
+}) {
   const locale = useLocaleStore((s) => s.locale);
   const setLocale = useLocaleStore((s) => s.setLocale);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -133,7 +157,7 @@ export function LandingPage() {
     { id: string; name: string; logo: string }[]
   >([]);
   const [billing, setBilling] = useState<"monthly" | "yearly">("monthly");
-  const [livePlans, setLivePlans] = useState<PublicPlan[]>([]);
+  const [livePlans, setLivePlans] = useState<PublicPlan[]>(initialPlans);
   const t = landingCopy[locale === "en" ? "en" : "ar"];
   const isAr = locale !== "en";
 
@@ -176,20 +200,28 @@ export function LandingPage() {
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    const refresh = async () => {
       try {
-        const res = await api.getPublicPlans();
-        if (!cancelled && Array.isArray(res.data) && res.data.length) {
-          setLivePlans(res.data as PublicPlan[]);
-        }
+        const rows = await loadPublicPlansClient();
+        if (!cancelled && rows.length) setLivePlans(rows);
       } catch {
-        /* fall back to static copy */
+        // keep SSR / previous plans
       }
-    })();
+    };
+    void refresh();
+    const onFocus = () => void refresh();
+    window.addEventListener("focus", onFocus);
+    const timer = window.setInterval(() => void refresh(), 60_000);
     return () => {
       cancelled = true;
+      window.removeEventListener("focus", onFocus);
+      window.clearInterval(timer);
     };
   }, []);
+
+  useEffect(() => {
+    if (initialPlans.length) setLivePlans(initialPlans);
+  }, [initialPlans]);
 
   const showPricing = (mode: "monthly" | "yearly") => {
     setBilling(mode);
@@ -562,6 +594,13 @@ export function LandingPage() {
                 {t.pricingTitle}
               </h2>
               <p className="mt-3 text-[15px] text-slate-500">{t.pricingSub}</p>
+              {livePlans.length ? (
+                <p className="mt-1 text-[11px] font-semibold text-teal-800">
+                  {isAr
+                    ? "الأسعار من لوحة الباقات — تتحدث تلقائياً بعد الحفظ"
+                    : "Prices from admin plans — refresh after you save"}
+                </p>
+              ) : null}
             </div>
             <div className="inline-flex rounded-2xl border border-emerald-950/10 bg-[#fafcfb] p-1 self-start">
               <button
@@ -618,7 +657,7 @@ export function LandingPage() {
                           ? t.plans[2]?.note
                           : t.plans[1]?.note,
                     featured,
-                    price: String(price),
+                    price: formatPlanPrice(price),
                     unit,
                     save,
                     disc,
@@ -634,7 +673,7 @@ export function LandingPage() {
                     name: p.name,
                     note: p.note,
                     featured: Boolean((p as { featured?: boolean }).featured),
-                    price: String(price),
+                    price: formatPlanPrice(price),
                     unit: billing === "monthly" ? t.perMonth : t.perYear,
                     save: monthly * 12 - yearly,
                     disc: 20,
