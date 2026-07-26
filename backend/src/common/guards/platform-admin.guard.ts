@@ -11,6 +11,7 @@ import {
  */
 const DEFAULT_PLATFORM_ADMINS = [
   'admin@bhd.om',
+  'admin@hisaby.pro',
   'ammar89555200@gmail.com',
 ];
 
