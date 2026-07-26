@@ -34,7 +34,7 @@ import {
 } from "@/lib/phone";
 import { openExternalUrl } from "@/lib/open-external-url";
 import { useAuthStore } from "@/store/auth";
-import { PageHeader, EmptyState, LoadingSpinner, GlassCard } from "@/components/ui/page-shell";
+import { PageHeader, EmptyState, LoadingSpinner, QueryError, GlassCard } from "@/components/ui/page-shell";
 import { FormLabel } from "@/components/ui/form-field";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import {
@@ -171,7 +171,7 @@ function ContactsContent() {
     }
   }, [searchParams]);
 
-  const { data: contacts = [], isLoading } = useQuery({
+  const { data: contacts = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["contacts", tab],
     queryFn: async () => {
       const res = await api.getContacts(tab);
@@ -352,6 +352,8 @@ function ContactsContent() {
       <GlassCard>
         {isLoading ? (
           <LoadingSpinner />
+        ) : isError ? (
+          <QueryError onRetry={() => refetch()} />
         ) : filtered.length === 0 ? (
           <EmptyState
             icon={Users}

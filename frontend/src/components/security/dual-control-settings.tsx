@@ -7,7 +7,7 @@ import { Shield, Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
-import { GlassCard } from "@/components/ui/page-shell";
+import { GlassCard, QueryError } from "@/components/ui/page-shell";
 
 type SecurityPublic = {
   dualControlEnabled: boolean;
@@ -122,7 +122,7 @@ export function DualControlSettings() {
   const [maxLineDiscountPercent, setMaxLineDiscountPercent] = useState("20");
   const [zReportEmails, setZReportEmails] = useState("");
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["company-security"],
     queryFn: async () => {
       const res = await api.getCompanySecurity();
@@ -209,6 +209,14 @@ export function DualControlSettings() {
       <GlassCard className="p-6 flex items-center gap-2 text-slate-400">
         <Loader2 className="w-4 h-4 animate-spin" />
         {tCommon("loading")}
+      </GlassCard>
+    );
+  }
+
+  if (isError) {
+    return (
+      <GlassCard className="p-6">
+        <QueryError onRetry={() => refetch()} />
       </GlassCard>
     );
   }

@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { formatMoney, formatDate } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
-import { PageHeader, LoadingSpinner, GlassCard, EmptyState } from "@/components/ui/page-shell";
+import { PageHeader, LoadingSpinner, QueryError, GlassCard, EmptyState } from "@/components/ui/page-shell";
 import { ExportButtons } from "@/components/reports/export-buttons";
 import { BookOpen } from "lucide-react";
 
@@ -24,7 +24,7 @@ export default function LedgerReportPage() {
     },
   });
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["report-general-ledger", accountId],
     queryFn: async () => {
       const res = await api.getGeneralLedger(accountId || undefined);
@@ -101,6 +101,8 @@ export default function LedgerReportPage() {
 
       {isLoading ? (
         <LoadingSpinner />
+      ) : isError ? (
+        <QueryError onRetry={() => refetch()} />
       ) : !data?.entries.length ? (
         <EmptyState icon={BookOpen} title={t("empty")} />
       ) : (

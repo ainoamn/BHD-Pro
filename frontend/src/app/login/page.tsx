@@ -225,6 +225,7 @@ function LoginForm() {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    autoComplete="username"
                     className="w-full h-10 pr-10 pl-3 bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
                     required
                   />
@@ -238,6 +239,7 @@ function LoginForm() {
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    autoComplete="current-password"
                     className="w-full h-10 pr-10 pl-3 bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
                     required
                   />
@@ -291,9 +293,18 @@ function LoginForm() {
             />
           )}
 
+          {!tempToken && (
+            <p className="text-center text-sm text-slate-400">
+              {t("noAccount")}{" "}
+              <Link href="/register" className="text-emerald-400 hover:underline">
+                {t("register")}
+              </Link>
+            </p>
+          )}
+
           <p className="text-center text-sm text-slate-400">
             <Link href="/" className="text-emerald-400 hover:underline">
-              العودة للرئيسية
+              {t("backHome")}
             </Link>
           </p>
         </form>

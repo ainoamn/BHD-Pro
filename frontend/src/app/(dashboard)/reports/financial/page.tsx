@@ -8,7 +8,7 @@ import { BarChart3, Clock, Users } from "lucide-react";
 import api from "@/lib/api";
 import { cn, formatMoney, formatDate } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
-import { PageHeader, LoadingSpinner, GlassCard } from "@/components/ui/page-shell";
+import { PageHeader, LoadingSpinner, QueryError, GlassCard } from "@/components/ui/page-shell";
 import { ExportButtons } from "@/components/reports/export-buttons";
 
 type ReportTab =
@@ -98,7 +98,7 @@ function ReportsPageContent() {
     }
   }, [tabFromUrl]);
 
-  const { data: profitLoss, isLoading: loadingPL } = useQuery({
+  const { data: profitLoss, isLoading: loadingPL, isError: errPL, refetch: refetchPL } = useQuery({
     queryKey: ["report-profit-loss"],
     queryFn: async () => {
       const res = await api.getProfitLoss();
@@ -107,7 +107,7 @@ function ReportsPageContent() {
     enabled: tab === "profitLoss",
   });
 
-  const { data: balanceSheet, isLoading: loadingBS } = useQuery({
+  const { data: balanceSheet, isLoading: loadingBS, isError: errBS, refetch: refetchBS } = useQuery({
     queryKey: ["report-balance-sheet"],
     queryFn: async () => {
       const res = await api.getBalanceSheet();
@@ -123,7 +123,7 @@ function ReportsPageContent() {
     enabled: tab === "balanceSheet",
   });
 
-  const { data: trialBalance, isLoading: loadingTB } = useQuery({
+  const { data: trialBalance, isLoading: loadingTB, isError: errTB, refetch: refetchTB } = useQuery({
     queryKey: ["report-trial-balance"],
     queryFn: async () => {
       const res = await api.getTrialBalance();
@@ -136,7 +136,7 @@ function ReportsPageContent() {
     enabled: tab === "trialBalance",
   });
 
-  const { data: cashFlow, isLoading: loadingCF } = useQuery({
+  const { data: cashFlow, isLoading: loadingCF, isError: errCF, refetch: refetchCF } = useQuery({
     queryKey: ["report-cash-flow"],
     queryFn: async () => {
       const res = await api.getCashFlowReport();
@@ -145,7 +145,7 @@ function ReportsPageContent() {
     enabled: tab === "cashFlow",
   });
 
-  const { data: forecast, isLoading: loadingForecast } = useQuery({
+  const { data: forecast, isLoading: loadingForecast, isError: errForecast, refetch: refetchForecast } = useQuery({
     queryKey: ["report-cash-forecast", forecastWeeks],
     queryFn: async () => {
       const res = await api.getCashFlowForecast(forecastWeeks);
@@ -154,7 +154,7 @@ function ReportsPageContent() {
     enabled: tab === "cashForecast",
   });
 
-  const { data: arAging, isLoading: loadingAr } = useQuery({
+  const { data: arAging, isLoading: loadingAr, isError: errAr, refetch: refetchAr } = useQuery({
     queryKey: ["report-ar-aging"],
     queryFn: async () => {
       const res = await api.getArAging();
@@ -163,7 +163,7 @@ function ReportsPageContent() {
     enabled: tab === "arAging",
   });
 
-  const { data: apAging, isLoading: loadingAp } = useQuery({
+  const { data: apAging, isLoading: loadingAp, isError: errAp, refetch: refetchAp } = useQuery({
     queryKey: ["report-ap-aging"],
     queryFn: async () => {
       const res = await api.getApAging();
@@ -181,7 +181,7 @@ function ReportsPageContent() {
     enabled: tab === "contactStatement",
   });
 
-  const { data: statement, isLoading: loadingStatement } = useQuery({
+  const { data: statement, isLoading: loadingStatement, isError: errStatement, refetch: refetchStatement } = useQuery({
     queryKey: ["report-contact-statement", contactId],
     queryFn: async () => {
       const res = await api.getContactStatement(contactId);
@@ -211,6 +211,27 @@ function ReportsPageContent() {
     loadingAr ||
     loadingAp ||
     loadingStatement;
+
+  const activeError =
+    (tab === "profitLoss" && errPL) ||
+    (tab === "balanceSheet" && errBS) ||
+    (tab === "trialBalance" && errTB) ||
+    (tab === "cashFlow" && errCF) ||
+    (tab === "cashForecast" && errForecast) ||
+    (tab === "arAging" && errAr) ||
+    (tab === "apAging" && errAp) ||
+    (tab === "contactStatement" && !!contactId && errStatement);
+
+  const refetchActive = () => {
+    if (tab === "profitLoss") void refetchPL();
+    else if (tab === "balanceSheet") void refetchBS();
+    else if (tab === "trialBalance") void refetchTB();
+    else if (tab === "cashFlow") void refetchCF();
+    else if (tab === "cashForecast") void refetchForecast();
+    else if (tab === "arAging") void refetchAr();
+    else if (tab === "apAging") void refetchAp();
+    else if (tab === "contactStatement") void refetchStatement();
+  };
 
   const tabs: { key: ReportTab; label: string }[] = [
     { key: "profitLoss", label: t("profitLoss") },
@@ -406,6 +427,8 @@ function ReportsPageContent() {
       <GlassCard className="p-6">
         {isLoading ? (
           <LoadingSpinner />
+        ) : activeError ? (
+          <QueryError onRetry={refetchActive} />
         ) : (
           <>
             {tab === "profitLoss" && profitLoss && (

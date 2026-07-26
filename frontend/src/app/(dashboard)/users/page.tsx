@@ -8,7 +8,7 @@ import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
-import { PageHeader, EmptyState, LoadingSpinner, GlassCard } from "@/components/ui/page-shell";
+import { PageHeader, EmptyState, LoadingSpinner, QueryError, GlassCard } from "@/components/ui/page-shell";
 import { UserAccessTree } from "@/components/users/user-access-tree";
 import {
   defaultsForRole,
@@ -62,7 +62,7 @@ export default function UsersPage() {
     defaultsForRole("ACCOUNTANT"),
   );
 
-  const { data: users = [], isLoading } = useQuery({
+  const { data: users = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["users"],
     queryFn: async () => {
       const res = await api.getUsers();
@@ -176,6 +176,8 @@ export default function UsersPage() {
       <GlassCard>
         {isLoading ? (
           <LoadingSpinner />
+        ) : isError ? (
+          <QueryError onRetry={() => refetch()} />
         ) : users.length === 0 ? (
           <EmptyState icon={Shield} title={t("noUsers")} description={t("addFirst")} />
         ) : (

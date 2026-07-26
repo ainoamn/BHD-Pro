@@ -6,6 +6,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { IsOptional, IsString, MinLength } from 'class-validator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -192,6 +193,7 @@ export class MessagingController {
   }
 
   @Post('test')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({ summary: 'Send a test WhatsApp, Email, or SMS message' })
   async test(@CurrentUser() user: TokenPayload, @Body() dto: TestMessageDto) {

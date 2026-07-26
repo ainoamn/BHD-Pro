@@ -8,7 +8,7 @@ import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { cn, formatMoney, formatDate } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
-import { PageHeader, EmptyState, LoadingSpinner, GlassCard } from "@/components/ui/page-shell";
+import { PageHeader, EmptyState, LoadingSpinner, QueryError, GlassCard } from "@/components/ui/page-shell";
 import { FormLabel, LineFieldLabel, LineItemsGrid } from "@/components/ui/form-field";
 import { EntityAttachments } from "@/components/attachments/entity-attachments";
 
@@ -77,7 +77,7 @@ export default function JournalPage() {
   const [lines, setLines] = useState<LineForm[]>([emptyLine(), emptyLine()]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const { data: journals = [], isLoading } = useQuery({
+  const { data: journals = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["journals"],
     queryFn: async () => {
       const res = await api.getJournals();
@@ -197,6 +197,8 @@ export default function JournalPage() {
 
       {isLoading ? (
         <LoadingSpinner />
+      ) : isError ? (
+        <QueryError onRetry={() => refetch()} />
       ) : journals.length === 0 ? (
         <GlassCard>
           <EmptyState

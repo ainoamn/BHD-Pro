@@ -24,7 +24,7 @@ export default function RegisterPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (form.password.length < 10) {
+    if (form.password.length < 10 || !/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(form.password)) {
       toast.error(t("passwordHint"));
       return;
     }
@@ -34,9 +34,17 @@ export default function RegisterPage() {
       toast.success(t("register"));
       router.push("/dashboard");
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { message?: string | string[] } } };
+      const axiosErr = err as {
+        response?: { data?: { message?: string | string[] }; status?: number };
+      };
       const msg = axiosErr?.response?.data?.message;
-      toast.error(Array.isArray(msg) ? msg.join(" — ") : msg || "Registration failed");
+      if (!axiosErr?.response) {
+        toast.error(t("networkError"));
+      } else {
+        toast.error(
+          Array.isArray(msg) ? msg.join(" — ") : msg || t("registerFailed"),
+        );
+      }
     } finally {
       setLoading(false);
     }

@@ -61,7 +61,12 @@ export default function IntegrationsPage() {
     },
   });
 
-  const { data: readme, isFetching: readmeLoading } = useQuery({
+  const {
+    data: readme,
+    isFetching: readmeLoading,
+    isError: readmeError,
+    refetch: refetchReadme,
+  } = useQuery({
     queryKey: ["messaging-readme"],
     queryFn: async () => {
       const res = await api.getMessagingReadme();
@@ -184,11 +189,13 @@ export default function IntegrationsPage() {
           <h2 className="text-lg font-semibold text-white">
             {readme?.titleAr || t("readme")}
           </h2>
-          {readmeLoading || !readme ? (
+          {readmeLoading ? (
             <div className="flex items-center gap-2 text-slate-400 text-sm">
               <Loader2 className="h-4 w-4 animate-spin" />
               {t("loadingGuide")}
             </div>
+          ) : readmeError || !readme ? (
+            <QueryError onRetry={() => refetchReadme()} />
           ) : (
             readme.sections.map((section) => (
               <div key={section.id} className="space-y-2">

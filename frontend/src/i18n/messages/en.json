@@ -14,6 +14,8 @@
     "forgotPassword": "Forgot Password?",
     "noAccount": "Don't have an account?",
     "hasAccount": "Already have an account?",
+    "backHome": "Back to home",
+    "registerFailed": "Could not create account",
     "logout": "Sign Out",
     "demoHint": "Demo: admin@bhd.om / Admin123!",
     "passwordHint": "At least 10 characters with upper, lower, and a number",
@@ -55,7 +57,7 @@
   "dualControl": {
     "title": "Dual control (maker-checker)",
     "desc": "Require manager self-confirm or supervisor password/PIN before sensitive actions",
-    "futureNote": "WhatsApp OTP is env-gated; NFC badges can be registered below. Partner tap-to-pay remains planned.",
+    "futureNote": "WhatsApp OTP is env-gated; NFC badges can be registered below. Partner checkout (Thawani/Stripe/PayPal) is available from POS.",
     "enabled": "Enable dual control",
     "actions": "Protected actions",
     "action": {
@@ -329,7 +331,7 @@
     "downloadError": "Could not download the PDF file",
     "sendDocument": "Send",
     "sendDocumentTitle": "Send document",
-    "sendDocumentHint": "Sending uses your device directly — WhatsApp or email app. The system does not send from its servers yet; this will be upgraded later.",
+    "sendDocumentHint": "Share from your device via WhatsApp or email. POS receipts can also auto-send from the server when messaging channels are configured.",
     "sendViaWhatsApp": "Send via WhatsApp",
     "sendViaWhatsAppHint": "Opens WhatsApp on your device — sent from your linked account",
     "sendViaEmail": "Send via email",

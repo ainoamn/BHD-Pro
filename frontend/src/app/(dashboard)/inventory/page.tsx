@@ -22,7 +22,7 @@ import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { cn, formatMoney } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
-import { PageHeader, EmptyState, LoadingSpinner, GlassCard } from "@/components/ui/page-shell";
+import { PageHeader, EmptyState, LoadingSpinner, QueryError, GlassCard } from "@/components/ui/page-shell";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { Product } from "@/types";
 import { printProductLabel } from "@/lib/product-label";
@@ -98,7 +98,7 @@ export default function InventoryPage() {
   const [codesLoading, setCodesLoading] = useState(false);
   const [autoCodesNote, setAutoCodesNote] = useState("");
 
-  const { data: products = [], isLoading } = useQuery({
+  const { data: products = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["products"],
     queryFn: async () => {
       const res = await api.getProducts();
@@ -397,6 +397,8 @@ export default function InventoryPage() {
       <GlassCard>
         {isLoading ? (
           <LoadingSpinner />
+        ) : isError ? (
+          <QueryError onRetry={() => refetch()} />
         ) : products.length === 0 ? (
           <EmptyState
             icon={Package}

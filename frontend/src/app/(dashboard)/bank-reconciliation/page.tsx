@@ -53,7 +53,7 @@ export default function BankReconciliationPage() {
   const [reference, setReference] = useState("");
   const [amount, setAmount] = useState(0);
 
-  const { data: banks = [], isLoading: banksLoading } = useQuery({
+  const { data: banks = [], isLoading: banksLoading, isError: banksError, refetch: refetchBanks } = useQuery({
     queryKey: ["bank-accounts"],
     queryFn: async () => {
       const res = await api.getBankAccounts();
@@ -127,6 +127,7 @@ export default function BankReconciliationPage() {
   });
 
   if (banksLoading) return <LoadingSpinner />;
+  if (banksError) return <QueryError onRetry={() => refetchBanks()} />;
 
   return (
     <div className="space-y-6">

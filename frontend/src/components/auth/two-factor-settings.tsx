@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Shield, Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
-import { GlassCard } from "@/components/ui/page-shell";
+import { GlassCard, QueryError } from "@/components/ui/page-shell";
 import { useAuthStore } from "@/store/auth";
 
 export function TwoFactorSettings() {
@@ -22,7 +22,7 @@ export function TwoFactorSettings() {
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
 
-  const { data: status, isLoading } = useQuery({
+  const { data: status, isLoading, isError, refetch } = useQuery({
     queryKey: ["2fa-status"],
     queryFn: async () => {
       const res = await api.get2faStatus();
@@ -76,6 +76,14 @@ export function TwoFactorSettings() {
     return (
       <GlassCard className="p-6 flex justify-center">
         <Loader2 className="w-5 h-5 animate-spin text-emerald-400" />
+      </GlassCard>
+    );
+  }
+
+  if (isError) {
+    return (
+      <GlassCard className="p-6">
+        <QueryError onRetry={() => refetch()} />
       </GlassCard>
     );
   }

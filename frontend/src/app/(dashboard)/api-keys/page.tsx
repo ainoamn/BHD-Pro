@@ -7,7 +7,7 @@ import { Plus, Loader2, X, KeyRound, Copy, Ban, Trash2, Check } from "lucide-rea
 import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { formatDate, cn } from "@/lib/utils";
-import { PageHeader, LoadingSpinner, EmptyState, GlassCard } from "@/components/ui/page-shell";
+import { PageHeader, LoadingSpinner, QueryError, EmptyState, GlassCard } from "@/components/ui/page-shell";
 
 interface ApiKeyRow {
   id: string;
@@ -29,7 +29,7 @@ export default function ApiKeysPage() {
   const [revealedSecret, setRevealedSecret] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const { data: rows = [], isLoading } = useQuery({
+  const { data: rows = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["api-keys"],
     queryFn: async () => {
       const res = await api.getApiKeys();
@@ -122,7 +122,9 @@ export default function ApiKeysPage() {
 
       {isLoading ? (
         <LoadingSpinner />
-      ) : rows.length === 0 ? (
+      ) : isError ? (
+          <QueryError onRetry={() => refetch()} />
+        ) : rows.length === 0 ? (
         <EmptyState icon={KeyRound} title={t("empty")} />
       ) : (
         <>

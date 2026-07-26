@@ -7,7 +7,8 @@
 **لوحة المنصة / الباقات / التسعير:** [`HISABY-ADMIN-PLANS-USERS-PRICING-2026-07-26.md`](./HISABY-ADMIN-PLANS-USERS-PRICING-2026-07-26.md)  
 **مقارنة الباقات في الصفحة الرئيسية:** [`HISABY-LANDING-PLAN-COMPARE-2026-07-26.md`](./HISABY-LANDING-PLAN-COMPARE-2026-07-26.md)  
 **موجة H جزئية (أمن + UX):** [`HISABY-WAVE-H-SECURITY-UX-2026-07-26.md`](./HISABY-WAVE-H-SECURITY-UX-2026-07-26.md)  
-**موجة I (استقرار + تدقيق دخول):** [`HISABY-WAVE-I-STABILITY-AUDIT-2026-07-26.md`](./HISABY-WAVE-I-STABILITY-AUDIT-2026-07-26.md)
+**موجة I (استقرار + تدقيق دخول):** [`HISABY-WAVE-I-STABILITY-AUDIT-2026-07-26.md`](./HISABY-WAVE-I-STABILITY-AUDIT-2026-07-26.md)  
+**موجة J (صدق أخطاء + دخول):** [`HISABY-WAVE-J-ERROR-HONESTY-AUTH-2026-07-26.md`](./HISABY-WAVE-J-ERROR-HONESTY-AUTH-2026-07-26.md)
 
 ---
 

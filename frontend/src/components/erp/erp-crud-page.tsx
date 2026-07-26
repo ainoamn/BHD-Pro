@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { Plus, Edit, Trash2, X, Loader2, Inbox } from "lucide-react";
 import toast from "react-hot-toast";
-import { PageHeader, EmptyState, LoadingSpinner, GlassCard } from "@/components/ui/page-shell";
+import { PageHeader, EmptyState, LoadingSpinner, QueryError, GlassCard } from "@/components/ui/page-shell";
 import { cn, formatMoney } from "@/lib/utils";
 
 export interface ErpColumn<T> {
@@ -62,7 +62,7 @@ export function ErpCrudPage<T extends { id: string }>({
     Object.fromEntries(fields.map((f) => [f.key, f.type === "number" ? 0 : ""]));
   const [form, setForm] = useState<Record<string, unknown>>(emptyForm());
 
-  const { data: rows = [], isLoading } = useQuery({
+  const { data: rows = [], isLoading, isError, refetch } = useQuery({
     queryKey: [queryKey],
     queryFn: async () => {
       const res = await fetchAll();
@@ -146,6 +146,8 @@ export function ErpCrudPage<T extends { id: string }>({
 
       {isLoading ? (
         <LoadingSpinner />
+      ) : isError ? (
+        <QueryError onRetry={() => refetch()} />
       ) : rows.length === 0 ? (
         <EmptyState icon={Inbox} title={emptyLabel} />
       ) : (
