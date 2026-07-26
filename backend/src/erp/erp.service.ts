@@ -60,6 +60,25 @@ export class ErpService {
 
   async deleteBranch(companyId: string, id: string) {
     await this.ensureBranch(companyId, id);
+    const [warehouses, employees, projects, costCenters, assets, banks, payroll] =
+      await Promise.all([
+        this.prisma.warehouse.count({ where: { branchId: id } }),
+        this.prisma.employee.count({ where: { branchId: id } }),
+        this.prisma.project.count({ where: { branchId: id } }),
+        this.prisma.costCenter.count({ where: { branchId: id } }),
+        this.prisma.fixedAsset.count({ where: { branchId: id } }),
+        this.prisma.bankAccount.count({ where: { branchId: id } }),
+        this.prisma.payrollRun.count({ where: { branchId: id } }),
+      ]);
+    const linked =
+      warehouses + employees + projects + costCenters + assets + banks + payroll;
+    if (linked > 0) {
+      await this.prisma.branch.update({
+        where: { id },
+        data: { isActive: false },
+      });
+      return { message: 'Deactivated (linked records retained)', deactivated: true };
+    }
     await this.prisma.branch.delete({ where: { id } });
     return { message: 'Deleted' };
   }
@@ -121,6 +140,33 @@ export class ErpService {
     if (inUse > 0) {
       throw new BadRequestException('Warehouse has products assigned');
     }
+    const [movements, shifts, counts, deliveries, stocks, posDefault, restoDefault] =
+      await Promise.all([
+        this.prisma.stockMovement.count({ where: { warehouseId: id } }),
+        this.prisma.posShift.count({ where: { warehouseId: id } }),
+        this.prisma.stockCount.count({ where: { warehouseId: id } }),
+        this.prisma.deliveryNote.count({ where: { warehouseId: id } }),
+        this.prisma.warehouseStock.count({
+          where: { warehouseId: id, quantity: { not: 0 } },
+        }),
+        this.prisma.company.count({ where: { id: companyId, posWarehouseId: id } }),
+        this.prisma.company.count({ where: { id: companyId, restoWarehouseId: id } }),
+      ]);
+    if (stocks > 0) {
+      throw new BadRequestException('Warehouse has non-zero stock — transfer out first');
+    }
+    if (posDefault + restoDefault > 0) {
+      throw new BadRequestException(
+        'Warehouse is company POS/resto default — change default first',
+      );
+    }
+    if (movements + shifts + counts + deliveries > 0) {
+      await this.prisma.warehouse.update({
+        where: { id },
+        data: { isActive: false },
+      });
+      return { message: 'Deactivated (history retained)', deactivated: true };
+    }
     await this.prisma.warehouse.delete({ where: { id } });
     return { message: 'Deleted' };
   }
@@ -154,6 +200,18 @@ export class ErpService {
 
   async deleteCostCenter(companyId: string, id: string) {
     await this.ensureCostCenter(companyId, id);
+    const [lines, invoices, projects] = await Promise.all([
+      this.prisma.journalLine.count({ where: { costCenterId: id } }),
+      this.prisma.invoice.count({ where: { costCenterId: id } }),
+      this.prisma.project.count({ where: { costCenterId: id } }),
+    ]);
+    if (lines + invoices + projects > 0) {
+      await this.prisma.costCenter.update({
+        where: { id },
+        data: { isActive: false },
+      });
+      return { message: 'Deactivated (linked records retained)', deactivated: true };
+    }
     await this.prisma.costCenter.delete({ where: { id } });
     return { message: 'Deleted' };
   }
@@ -263,6 +321,17 @@ export class ErpService {
 
   async deleteEmployee(companyId: string, id: string) {
     await this.ensureEmployee(companyId, id);
+    const [payroll, claims] = await Promise.all([
+      this.prisma.payrollLine.count({ where: { employeeId: id } }),
+      this.prisma.employeeClaim.count({ where: { employeeId: id } }),
+    ]);
+    if (payroll + claims > 0) {
+      await this.prisma.employee.update({
+        where: { id },
+        data: { isActive: false },
+      });
+      return { message: 'Deactivated (payroll/claims retained)', deactivated: true };
+    }
     await this.prisma.employee.delete({ where: { id } });
     return { message: 'Deleted' };
   }

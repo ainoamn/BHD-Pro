@@ -14,20 +14,27 @@ import { Throttle } from '@nestjs/throttler';
 import { ContactsService } from './contacts.service';
 import { CreateContactDto } from './dto/create-contact.dto';
 import { UpdateContactDto } from './dto/update-contact.dto';
-import { AdjustStoreCreditDto } from './dto/adjust-store-credit.dto';
+import {
+  AdjustStoreCreditDto,
+  ReverseStoreCreditDto,
+} from './dto/adjust-store-credit.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
 import { ContactType, UserRole } from '@prisma/client';
+import { DualControlService } from '../dual-control/dual-control.service';
 
 @ApiTags('Contacts')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('contacts')
 export class ContactsController {
-  constructor(private contactsService: ContactsService) {}
+  constructor(
+    private contactsService: ContactsService,
+    private dualControl: DualControlService,
+  ) {}
 
   @Get()
   @ApiQuery({ name: 'type', required: false, enum: ContactType })
@@ -61,12 +68,37 @@ export class ContactsController {
   @ApiOperation({
     summary: 'Top up or reduce customer store-credit wallet with GL posting to 2130',
   })
-  adjustStoreCredit(
+  async adjustStoreCredit(
     @CurrentUser() user: TokenPayload,
     @Param('id') id: string,
     @Body() dto: AdjustStoreCreditDto,
   ) {
+    await this.dualControl.assertApproved(
+      user.companyId,
+      user,
+      'STORE_CREDIT_ADJUST',
+      dto.approval,
+    );
     return this.contactsService.adjustStoreCredit(user.companyId, user.sub, id, dto);
+  }
+
+  @Post(':id/store-credit-reverse-last')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @ApiOperation({ summary: 'Reverse the latest store-credit funding journal for a contact' })
+  async reverseLastStoreCredit(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+    @Body() dto: ReverseStoreCreditDto,
+  ) {
+    await this.dualControl.assertApproved(
+      user.companyId,
+      user,
+      'STORE_CREDIT_ADJUST',
+      dto?.approval,
+    );
+    return this.contactsService.reverseLastStoreCredit(user.companyId, user.sub, id);
   }
 
   @Put(':id')

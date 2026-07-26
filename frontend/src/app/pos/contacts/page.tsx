@@ -114,7 +114,12 @@ export default function PosContactsPage() {
       toast.success(t.contactSaved);
       setModalOpen(false);
     },
-    onError: () => toast.error(t.contactSaveFail),
+    onError: (err: unknown) => {
+      const axiosErr = err as { response?: { data?: { message?: string | string[] } } };
+      const apiMsg = axiosErr?.response?.data?.message;
+      const detail = Array.isArray(apiMsg) ? apiMsg.join(" — ") : apiMsg;
+      toast.error(detail || t.contactSaveFail);
+    },
   });
 
   const onSubmit = (e: FormEvent) => {

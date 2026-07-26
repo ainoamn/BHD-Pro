@@ -259,6 +259,14 @@ export class JournalService {
         'Depreciation journal — reverse via POST /assets/:id/reverse-last-depreciation',
       );
     }
+    if (
+      journal.reference?.startsWith('SC-ADJ:') ||
+      journal.reference?.startsWith('POS-SC-TOPUP:')
+    ) {
+      throw new BadRequestException(
+        'Store-credit journal — reverse via POST /contacts/:id/store-credit-reverse-last',
+      );
+    }
 
     const accountIds = [...new Set(journal.lines.map((l) => l.accountId))];
     const accountRows = await this.prisma.account.findMany({

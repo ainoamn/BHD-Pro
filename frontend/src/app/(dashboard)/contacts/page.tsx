@@ -19,6 +19,7 @@ import {
   MapPin,
   MessageCircle,
   Wallet,
+  ArrowLeftRight,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
@@ -280,6 +281,19 @@ function ContactsContent() {
     },
   });
 
+  const reverseStoreCreditMutation = useMutation({
+    mutationFn: (id: string) => api.reverseLastContactStoreCredit(id),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ["contacts"] });
+      const number =
+        (res.data as { reverseJournalNumber?: string })?.reverseJournalNumber || "";
+      toast.success(t("storeCreditReversed", { number }));
+    },
+    onError: (err: { response?: { data?: { message?: string } } }) => {
+      toast.error(err.response?.data?.message || t("saveError"));
+    },
+  });
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -458,6 +472,17 @@ function ContactsContent() {
                     >
                       {t("adjustStoreCredit")}
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!window.confirm(t("reverseLastStoreCreditConfirm"))) return;
+                        reverseStoreCreditMutation.mutate(contact.id);
+                      }}
+                      disabled={reverseStoreCreditMutation.isPending}
+                      className="mt-1 ms-3 text-xs text-amber-400 hover:text-amber-300 disabled:opacity-50"
+                    >
+                      {t("reverseLastStoreCredit")}
+                    </button>
                   </div>
                 )}
 
@@ -571,6 +596,20 @@ function ContactsContent() {
                             title={t("adjustStoreCredit")}
                           >
                             <Wallet className="w-4 h-4" />
+                          </button>
+                        )}
+                        {tab === "CUSTOMER" && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!window.confirm(t("reverseLastStoreCreditConfirm"))) return;
+                              reverseStoreCreditMutation.mutate(contact.id);
+                            }}
+                            disabled={reverseStoreCreditMutation.isPending}
+                            className="p-1.5 rounded-lg hover:bg-amber-500/10 text-amber-400 disabled:opacity-50"
+                            title={t("reverseLastStoreCredit")}
+                          >
+                            <ArrowLeftRight className="w-4 h-4" />
                           </button>
                         )}
                         {contact.phone && formatPhoneForWhatsApp(contact.phone) && (

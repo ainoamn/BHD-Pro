@@ -260,8 +260,104 @@ export class ContactsService {
     return updated;
   }
 
+  async reverseLastStoreCredit(companyId: string, userId: string, id: string) {
+    const contact = await this.findOne(companyId, id);
+    const original = await this.prisma.journal.findFirst({
+      where: {
+        companyId,
+        OR: [
+          { reference: { startsWith: `SC-ADJ:${id}:` } },
+          { reference: { startsWith: `POS-SC-TOPUP:${id}:` } },
+        ],
+      },
+      include: { lines: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!original) {
+      throw new BadRequestException('No store-credit funding to reverse');
+    }
+
+    const already = await this.prisma.journal.findFirst({
+      where: { companyId, reference: `REV-SC:${original.id}` },
+    });
+    if (already) {
+      return {
+        contact,
+        reversedJournalId: original.id,
+        reverseJournalId: already.id,
+        reverseJournalNumber: already.number,
+        alreadyReversed: true,
+      };
+    }
+
+    const liability = await this.prisma.account.findFirst({
+      where: { companyId, code: '2130' },
+    });
+    const liabLine = liability
+      ? original.lines.find((l) => l.accountId === liability.id)
+      : undefined;
+    const signedAmount = liabLine
+      ? Number(liabLine.credit) - Number(liabLine.debit)
+      : 0;
+    const current = Number(contact.currentBalance || 0);
+    const next = Number((current - signedAmount).toFixed(3));
+    if (next < -0.0005) {
+      throw new BadRequestException(
+        `Reversal would make store credit negative (${next.toFixed(3)})`,
+      );
+    }
+
+    const result = await this.glPosting.reverseStoreCreditFunding(
+      companyId,
+      userId,
+      original.id,
+    );
+    if (!result?.journal) {
+      throw new BadRequestException('Failed to reverse store-credit journal');
+    }
+
+    if (Math.abs(signedAmount) > 0.0005) {
+      await this.prisma.contact.update({
+        where: { id },
+        data: { currentBalance: next },
+      });
+    }
+
+    if (original.reference?.startsWith('POS-SC-TOPUP:')) {
+      const cash = await this.prisma.posCashMovement.findFirst({
+        where: {
+          companyId,
+          type: 'IN',
+          reason: { contains: contact.name },
+          amount: Math.abs(signedAmount),
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (cash) {
+        if (cash.journalId) {
+          await this.glPosting.reversePosCashMovement(companyId, userId, cash);
+        }
+        await this.prisma.posCashMovement.delete({ where: { id: cash.id } });
+      }
+    }
+
+    const refreshed = await this.findOne(companyId, id);
+    return {
+      contact: refreshed,
+      reversedJournalId: original.id,
+      reverseJournalId: result.journal.id,
+      reverseJournalNumber: result.journal.number,
+      alreadyReversed: false,
+    };
+  }
+
   async remove(companyId: string, id: string) {
-    await this.findOne(companyId, id);
+    const contact = await this.findOne(companyId, id);
+    if (Math.abs(Number(contact.currentBalance || 0)) > 0.0005) {
+      throw new BadRequestException(
+        'Cannot deactivate contact with non-zero store credit — reverse or settle first',
+      );
+    }
     return this.prisma.contact.update({
       where: { id },
       data: { isActive: false },

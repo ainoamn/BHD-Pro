@@ -501,6 +501,10 @@ class ApiClient {
     return this.post(`/contacts/${id}/store-credit-adjust`, data);
   }
 
+  reverseLastContactStoreCredit(id: string) {
+    return this.post(`/contacts/${id}/store-credit-reverse-last`);
+  }
+
   // Subscriptions
   getSubscriptionPlans() {
     return this.get('/subscriptions/plans');

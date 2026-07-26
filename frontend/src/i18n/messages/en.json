@@ -84,6 +84,7 @@
       "BANK_INTERNAL_TRANSFER": "Internal bank transfer",
       "FX_REVALUATION": "FX revaluation post/reverse",
       "COMMISSION_PAYOUT": "POS commission payout",
+      "STORE_CREDIT_ADJUST": "Store credit adjust/reverse",
       "RESTO_VOID": "Restaurant void / comp"
     },
     "pinSet": "Supervisor PIN is set",
@@ -793,7 +794,10 @@
     "adjustBank": "Cash/bank side",
     "adjustCash": "Cash drawer (1100)",
     "adjustNotes": "Notes",
-    "storeCreditAdjusted": "Store credit updated"
+    "storeCreditAdjusted": "Store credit updated",
+    "reverseLastStoreCredit": "Reverse last funding",
+    "reverseLastStoreCreditConfirm": "Reverse the latest store-credit journal for this customer?",
+    "storeCreditReversed": "Store credit reversed ({number})"
   },
   "reports": {
     "title": "Financial Reports",

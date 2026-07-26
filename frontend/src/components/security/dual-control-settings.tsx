@@ -52,6 +52,7 @@ type SecurityPublic = {
     BANK_INTERNAL_TRANSFER: boolean;
     FX_REVALUATION: boolean;
     COMMISSION_PAYOUT: boolean;
+    STORE_CREDIT_ADJUST: boolean;
     RESTO_VOID: boolean;
   };
 };
@@ -76,6 +77,7 @@ const ACTION_KEYS = [
   "BANK_INTERNAL_TRANSFER",
   "FX_REVALUATION",
   "COMMISSION_PAYOUT",
+  "STORE_CREDIT_ADJUST",
   "RESTO_VOID",
 ] as const;
 
@@ -107,6 +109,7 @@ export function DualControlSettings() {
     BANK_INTERNAL_TRANSFER: true,
     FX_REVALUATION: true,
     COMMISSION_PAYOUT: true,
+    STORE_CREDIT_ADJUST: true,
     RESTO_VOID: true,
   });
   const [pin, setPin] = useState("");
@@ -159,6 +162,7 @@ export function DualControlSettings() {
       BANK_INTERNAL_TRANSFER: true,
       FX_REVALUATION: true,
       COMMISSION_PAYOUT: true,
+      STORE_CREDIT_ADJUST: true,
       RESTO_VOID: true,
     };
     setActions({ ...defaults, ...data.actions });

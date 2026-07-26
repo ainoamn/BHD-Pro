@@ -90,6 +90,7 @@
 - موجة AK: عكس نقد POS + عكس صرف مطالبات + سلامة إهلاك أصول + إلغاء تسليم يعيد المخزون + صلاحيات checkout/share — [`HISABY-WAVE-AK-POS-CLAIM-ASSET-DELIVERY-2026-07-26.md`](./HISABY-WAVE-AK-POS-CLAIM-ASSET-DELIVERY-2026-07-26.md)
 - موجة AL: عكس صرف رواتب + عكس تحويل بنكي + عكس استحقاق التزامات + upgrade ADMIN + dual على عكس دفعة — [`HISABY-WAVE-AL-PAYROLL-BANK-COMMIT-2026-07-26.md`](./HISABY-WAVE-AL-PAYROLL-BANK-COMMIT-2026-07-26.md)
 - موجة AM: عكس FX + عكس صرف عمولة + عكس إهلاك أصل + حماية حذف بنك + dual FX/عمولة — [`HISABY-WAVE-AM-FX-COMMISSION-ASSET-BANK-2026-07-26.md`](./HISABY-WAVE-AM-FX-COMMISSION-ASSET-BANK-2026-07-26.md)
+- موجة AN: عكس رصيد متجر + حماية حذف فرع/مستودع/مركز/موظف + dual رصيد متجر — [`HISABY-WAVE-AN-STORE-CREDIT-ERP-DELETE-2026-07-26.md`](./HISABY-WAVE-AN-STORE-CREDIT-ERP-DELETE-2026-07-26.md)
 
 ### 1.6 المنصة ولوحة الإدارة (محدث 26 يوليو مساءً)
 - اشتراكات، بوابات دفع، `/admin`، PWA، GeoIP، keep-warm

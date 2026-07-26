@@ -84,6 +84,7 @@
       "BANK_INTERNAL_TRANSFER": "تحويل بين الحسابات البنكية",
       "FX_REVALUATION": "ترحيل/عكس إعادة تقييم العملات",
       "COMMISSION_PAYOUT": "صرف عمولة الكاشير",
+      "STORE_CREDIT_ADJUST": "تعديل/عكس رصيد المتجر",
       "RESTO_VOID": "إلغاء / مجاملة بند مطعم"
     },
     "pinSet": "رمز المشرف مضبوط",
@@ -793,7 +794,10 @@
     "adjustBank": "مصدر/وجهة النقد",
     "adjustCash": "الصندوق (1100)",
     "adjustNotes": "ملاحظة",
-    "storeCreditAdjusted": "تم تحديث رصيد المتجر"
+    "storeCreditAdjusted": "تم تحديث رصيد المتجر",
+    "reverseLastStoreCredit": "عكس آخر تمويل",
+    "reverseLastStoreCreditConfirm": "عكس آخر قيد تمويل رصيد متجر لهذا العميل؟",
+    "storeCreditReversed": "تم عكس رصيد المتجر ({number})"
   },
   "reports": {
     "title": "التقارير المالية",

@@ -1,6 +1,7 @@
-import { IsNumber, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsNumber, IsOptional, IsString, MinLength, ValidateNested } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
+import { DualApprovalDto } from '../../dual-control/dto/approval.dto';
 
 export class AdjustStoreCreditDto {
   @ApiProperty({
@@ -21,4 +22,18 @@ export class AdjustStoreCreditDto {
   @IsOptional()
   @IsString()
   bankAccountId?: string;
+
+  @ApiPropertyOptional({ type: DualApprovalDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DualApprovalDto)
+  approval?: DualApprovalDto;
+}
+
+export class ReverseStoreCreditDto {
+  @ApiPropertyOptional({ type: DualApprovalDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DualApprovalDto)
+  approval?: DualApprovalDto;
 }

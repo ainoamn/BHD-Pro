@@ -1567,4 +1567,54 @@ export class GlPostingService {
       lines,
     );
   }
+
+  /**
+   * Reverse a store-credit funding journal (SC-ADJ:* or POS-SC-TOPUP:*).
+   * Returns { journal, signedAmount } where signedAmount is the original wallet delta.
+   */
+  async reverseStoreCreditFunding(companyId: string, userId: string, journalId: string) {
+    const original = await this.prisma.journal.findFirst({
+      where: { id: journalId, companyId },
+      include: { lines: true },
+    });
+    if (!original) return null;
+    const ref = original.reference || '';
+    if (!ref.startsWith('SC-ADJ:') && !ref.startsWith('POS-SC-TOPUP:')) {
+      throw new BadRequestException('Journal is not a store-credit funding entry');
+    }
+
+    const revRef = `REV-SC:${journalId}`;
+    const existing = await this.prisma.journal.findFirst({
+      where: { companyId, reference: revRef },
+    });
+    if (existing) {
+      return { journal: existing, signedAmount: 0, alreadyReversed: true as const };
+    }
+    if (!original.lines.length) return null;
+
+    const liability = await this.ensureStoreCreditAccount(companyId);
+    const liabLine = original.lines.find((l) => l.accountId === liability.id);
+    const signedAmount = liabLine
+      ? Number(liabLine.credit) - Number(liabLine.debit)
+      : 0;
+
+    const lines: JournalLineInput[] = original.lines.map((line) => ({
+      accountId: line.accountId,
+      description: `عكس ${line.description || 'ائتمان متجر'}`,
+      debit: Number(line.credit),
+      credit: Number(line.debit),
+    }));
+
+    const journal = await this.createEntry(
+      companyId,
+      userId,
+      {
+        date: new Date(),
+        description: `عكس ${original.description || 'ائتمان متجر'}`,
+        reference: revRef,
+      },
+      lines,
+    );
+    return { journal, signedAmount, alreadyReversed: false as const };
+  }
 }

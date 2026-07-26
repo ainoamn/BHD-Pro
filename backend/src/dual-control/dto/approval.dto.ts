@@ -94,6 +94,7 @@ export const DUAL_CONTROL_ACTIONS = [
   'BANK_INTERNAL_TRANSFER',
   'FX_REVALUATION',
   'COMMISSION_PAYOUT',
+  'STORE_CREDIT_ADJUST',
   'RESTO_VOID',
 ] as const;
 export type DualControlAction = (typeof DUAL_CONTROL_ACTIONS)[number];
@@ -174,6 +175,10 @@ export class DualControlActionsDto {
   @IsOptional()
   @IsBoolean()
   COMMISSION_PAYOUT?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  STORE_CREDIT_ADJUST?: boolean;
 
   @IsOptional()
   @IsBoolean()
