@@ -773,53 +773,49 @@ export function LandingPage({
                 {t.pricingTitle}
               </h2>
               <p className="mt-3 text-[15px] text-slate-500">{t.pricingSub}</p>
-              {livePlans.length ? (
-                <p className="mt-1 text-[11px] font-semibold text-teal-800">
-                  {isAr
-                    ? "الأسعار من لوحة الباقات — تتحدث تلقائياً بعد الحفظ"
-                    : "Prices from admin plans — refresh after you save"}
-                </p>
-              ) : null}
             </div>
-            <div className="flex flex-wrap items-center gap-2 self-start">
-              <div className="inline-flex rounded-2xl border border-emerald-950/10 bg-[#fafcfb] p-1">
-                <button
-                  type="button"
-                  onClick={() => setBilling("monthly")}
-                  className={cn(
-                    "rounded-xl px-4 py-2 text-sm font-bold transition",
-                    billing === "monthly"
-                      ? "bg-emerald-900 text-white shadow-sm"
-                      : "text-slate-500 hover:text-emerald-950",
-                  )}
-                >
-                  {t.billingMonthly}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setBilling("yearly")}
-                  className={cn(
-                    "rounded-xl px-4 py-2 text-sm font-bold transition",
-                    billing === "yearly"
-                      ? "bg-emerald-900 text-white shadow-sm"
-                      : "text-slate-500 hover:text-emerald-950",
-                  )}
-                >
-                  {t.billingYearly}
-                </button>
-              </div>
+            <div className="inline-flex flex-wrap items-center gap-1 self-start rounded-2xl border border-emerald-950/10 bg-[#fafcfb] p-1">
+              <button
+                type="button"
+                onClick={() => setBilling("monthly")}
+                className={cn(
+                  "rounded-xl px-4 py-2 text-sm font-bold transition",
+                  billing === "monthly"
+                    ? "bg-emerald-900 text-white shadow-sm"
+                    : "text-slate-500 hover:text-emerald-950",
+                )}
+              >
+                {t.billingMonthly}
+              </button>
+              <button
+                type="button"
+                onClick={() => setBilling("yearly")}
+                className={cn(
+                  "rounded-xl px-4 py-2 text-sm font-bold transition",
+                  billing === "yearly"
+                    ? "bg-emerald-900 text-white shadow-sm"
+                    : "text-slate-500 hover:text-emerald-950",
+                )}
+              >
+                {t.billingYearly}
+              </button>
+              <span
+                className="mx-0.5 hidden h-6 w-px bg-emerald-950/10 sm:block"
+                aria-hidden
+              />
               <button
                 type="button"
                 disabled={livePlans.length < 2}
                 title={
-                  livePlans.length < 2 ? t.compareNeedTwo : undefined
+                  livePlans.length < 2 ? t.compareNeedTwo : t.comparePlans
                 }
+                aria-pressed={showCompare}
                 onClick={() => setShowCompare((v) => !v)}
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-2xl border px-4 py-2.5 text-sm font-bold transition",
+                  "inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-bold transition",
                   showCompare
-                    ? "border-teal-700/30 bg-teal-50 text-teal-950"
-                    : "border-emerald-950/10 bg-[#fafcfb] text-emerald-950 hover:border-emerald-900/20",
+                    ? "bg-teal-800 text-white shadow-sm"
+                    : "text-teal-900 hover:bg-teal-50 hover:text-teal-950",
                   livePlans.length < 2 && "opacity-45 cursor-not-allowed",
                 )}
               >
