@@ -125,11 +125,11 @@ export default function DashboardPage() {
 
       {grant("appsPanel") ? <HisabyAppsPanel /> : null}
 
-      {grant("quickActions") ? (
+      {grant("quickActions") && data ? (
         <QuickActions
-          todayReceived={data?.todayReceived ?? 0}
-          todayExpenses={data?.todayExpenses ?? 0}
-          pendingCollection={data?.pendingCollectionCount ?? 0}
+          todayReceived={data.todayReceived ?? 0}
+          todayExpenses={data.todayExpenses ?? 0}
+          pendingCollection={data.pendingCollectionCount ?? 0}
           currency={currency}
           onCollect={
             grant("collectPayment") ? () => setCollectOpen(true) : () => undefined

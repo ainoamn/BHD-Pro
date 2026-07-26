@@ -189,6 +189,7 @@ export class PosController {
   }
 
   @Post('link/activate')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @Throttle({ default: { limit: 15, ttl: 60000 } })
   @ApiOperation({ summary: 'Link POS to Accounting via shared login + warehouse' })
   activate(

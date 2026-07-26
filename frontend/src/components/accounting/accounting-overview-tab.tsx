@@ -18,10 +18,10 @@ import { formatMoney } from "@/lib/utils";
 
 interface AccountingOverviewTabProps {
   currency?: string;
-  todayReceived?: number;
-  todayExpenses?: number;
-  pendingCollection?: number;
-  pendingAmount?: number;
+  todayReceived?: number | null;
+  todayExpenses?: number | null;
+  pendingCollection?: number | null;
+  pendingAmount?: number | null;
   onNewSalesInvoice: () => void;
   onNewPurchaseInvoice: () => void;
   onNewQuotation: () => void;
@@ -107,14 +107,29 @@ export function AccountingOverviewTab({
     <div className="space-y-6">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: t("todayReceived"), value: formatMoney(todayReceived, currency), color: "text-emerald-400" },
-          { label: t("todayExpenses"), value: formatMoney(todayExpenses, currency), color: "text-rose-400" },
+          {
+            label: t("todayReceived"),
+            value: todayReceived == null ? "—" : formatMoney(todayReceived, currency),
+            color: "text-emerald-400",
+          },
+          {
+            label: t("todayExpenses"),
+            value: todayExpenses == null ? "—" : formatMoney(todayExpenses, currency),
+            color: "text-rose-400",
+          },
           {
             label: t("pendingCollection"),
-            value: String(pendingCollection),
-            color: pendingCollection > 0 ? "text-amber-400" : "text-white",
+            value: pendingCollection == null ? "—" : String(pendingCollection),
+            color:
+              pendingCollection != null && pendingCollection > 0
+                ? "text-amber-400"
+                : "text-white",
           },
-          { label: t("outstanding"), value: formatMoney(pendingAmount, currency), color: "text-slate-200" },
+          {
+            label: t("outstanding"),
+            value: pendingAmount == null ? "—" : formatMoney(pendingAmount, currency),
+            color: "text-slate-200",
+          },
         ].map((s) => (
           <div key={s.label} className="glass rounded-xl p-4">
             <p className="text-xs text-slate-500">{s.label}</p>

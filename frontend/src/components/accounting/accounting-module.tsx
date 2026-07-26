@@ -412,7 +412,7 @@ export function AccountingModule() {
     return active.find((t) => t.isDefault) || active[0] || null;
   };
 
-  const { data: stats } = useQuery({
+  const { data: stats, isError: statsError } = useQuery({
     queryKey: ["invoice-stats", listTypeFilter],
     queryFn: async () => {
       const res = await api.getInvoiceStats(listTypeFilter);
@@ -877,7 +877,9 @@ export function AccountingModule() {
   const isSalesList = hubTab === "sales";
   const isPurchaseList = hubTab === "purchases";
   const isDocuments = hubTab === "documents";
-  const pendingCollection = stats?.pendingCollectionCount ?? 0;
+  const pendingCollection = statsError
+    ? 0
+    : (stats?.pendingCollectionCount ?? 0);
   const listTitle =
     hubTab === "quotations"
       ? tAcc("tabQuotations")
@@ -1093,24 +1095,31 @@ export function AccountingModule() {
       />
 
       {hubTab === "overview" && (
-        <AccountingOverviewTab
-          currency={company?.currency || "OMR"}
-          todayReceived={stats?.todayReceived ?? 0}
-          todayExpenses={stats?.todayExpenses ?? 0}
-          pendingCollection={pendingCollection}
-          pendingAmount={Number(stats?.pendingAmount ?? 0)}
-          onNewSalesInvoice={() => openNewInvoice("SALES")}
-          onNewPurchaseInvoice={() => openNewInvoice("PURCHASE")}
-          onNewQuotation={() => openNewDocument("QUOTATION")}
-          onNewCreditNote={() => openNewDocument("CREDIT_NOTE")}
-          onCollect={() => {
-            setCollectInvoiceId(undefined);
-            setCollectOpen(true);
-          }}
-          onViewDocuments={() => handleHubChange("documents")}
-          onViewSales={() => handleHubChange("sales")}
-          onViewPurchases={() => handleHubChange("purchases")}
-        />
+        <>
+          {statsError ? (
+            <div className="glass rounded-xl p-3 text-sm text-amber-200/90 border border-amber-500/30">
+              {t("actionError")}
+            </div>
+          ) : null}
+          <AccountingOverviewTab
+            currency={company?.currency || "OMR"}
+            todayReceived={statsError ? null : (stats?.todayReceived ?? 0)}
+            todayExpenses={statsError ? null : (stats?.todayExpenses ?? 0)}
+            pendingCollection={statsError ? null : pendingCollection}
+            pendingAmount={statsError ? null : Number(stats?.pendingAmount ?? 0)}
+            onNewSalesInvoice={() => openNewInvoice("SALES")}
+            onNewPurchaseInvoice={() => openNewInvoice("PURCHASE")}
+            onNewQuotation={() => openNewDocument("QUOTATION")}
+            onNewCreditNote={() => openNewDocument("CREDIT_NOTE")}
+            onCollect={() => {
+              setCollectInvoiceId(undefined);
+              setCollectOpen(true);
+            }}
+            onViewDocuments={() => handleHubChange("documents")}
+            onViewSales={() => handleHubChange("sales")}
+            onViewPurchases={() => handleHubChange("purchases")}
+          />
+        </>
       )}
 
       {showList && (
@@ -1138,14 +1147,24 @@ export function AccountingModule() {
             ]
           : [
               { label: listTotalLabel, value: filteredInvoices.length, isCount: true },
-              { label: t("paid"), value: Number(stats?.paidAmount ?? 0) },
-              { label: t("pending"), value: Number(stats?.pendingAmount ?? 0) },
-              { label: t("overdue"), value: stats?.overdueCount ?? 0, isCount: true },
+              {
+                label: t("paid"),
+                value: statsError ? null : Number(stats?.paidAmount ?? 0),
+              },
+              {
+                label: t("pending"),
+                value: statsError ? null : Number(stats?.pendingAmount ?? 0),
+              },
+              {
+                label: t("overdue"),
+                value: statsError ? null : (stats?.overdueCount ?? 0),
+                isCount: true,
+              },
               {
                 label: t("pendingCollection"),
-                value: stats?.pendingCollectionCount ?? 0,
+                value: statsError ? null : (stats?.pendingCollectionCount ?? 0),
                 isCount: true,
-                highlight: (stats?.pendingCollectionCount ?? 0) > 0,
+                highlight: !statsError && (stats?.pendingCollectionCount ?? 0) > 0,
               },
             ]
         ).map((s) => (
@@ -1163,7 +1182,11 @@ export function AccountingModule() {
                 "highlight" in s && s.highlight ? "text-amber-400" : "text-white"
               )}
             >
-              {s.isCount ? s.value : formatMoney(s.value as number, company?.currency || "OMR")}
+              {s.value == null
+                ? "—"
+                : s.isCount
+                  ? s.value
+                  : formatMoney(s.value as number, company?.currency || "OMR")}
             </p>
           </div>
         ))}

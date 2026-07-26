@@ -13,7 +13,10 @@ import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { ErpService } from './erp.service';
 import { BankAccountDto, BankStatementLineDto, BankTransferDto } from './dto/erp.dto';
+import { UserRole } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
 import { DualControlService } from '../dual-control/dual-control.service';
@@ -33,12 +36,16 @@ export class BankAccountsController {
   }
 
   @Post()
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   create(@CurrentUser() u: TokenPayload, @Body() dto: BankAccountDto) {
     return this.erp.createBankAccount(u.companyId, dto);
   }
 
   @Post('transfer')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   @ApiOperation({ summary: 'Internal transfer between two bank accounts (GL + balances)' })
   async transfer(@CurrentUser() u: TokenPayload, @Body() dto: BankTransferDto) {
@@ -52,6 +59,8 @@ export class BankAccountsController {
   }
 
   @Post('statement-lines/:lineId/toggle-reconciled')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 60, ttl: 60000 } })
   @ApiOperation({ summary: 'Mark statement line as reconciled / unreconciled' })
   toggleReconciled(@CurrentUser() u: TokenPayload, @Param('lineId') lineId: string) {
@@ -59,6 +68,8 @@ export class BankAccountsController {
   }
 
   @Delete('statement-lines/:lineId')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Delete a bank statement line' })
   deleteLine(@CurrentUser() u: TokenPayload, @Param('lineId') lineId: string) {
@@ -72,6 +83,8 @@ export class BankAccountsController {
   }
 
   @Post(':id/statement-lines')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 40, ttl: 60000 } })
   @ApiOperation({ summary: 'Add a bank statement line' })
   addLine(
@@ -104,6 +117,8 @@ export class BankAccountsController {
   }
 
   @Put(':id')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   update(
     @CurrentUser() u: TokenPayload,
@@ -114,6 +129,8 @@ export class BankAccountsController {
   }
 
   @Delete(':id')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 15, ttl: 60000 } })
   remove(@CurrentUser() u: TokenPayload, @Param('id') id: string) {
     return this.erp.deleteBankAccount(u.companyId, id);

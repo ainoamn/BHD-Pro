@@ -54,7 +54,7 @@ export default function VatPage() {
     },
   });
 
-  const { data: stats } = useQuery({
+  const { data: stats, isError: statsError, refetch: refetchStats } = useQuery({
     queryKey: ["vat-stats"],
     queryFn: async () => {
       const res = await api.getVatStats();
@@ -195,16 +195,22 @@ export default function VatPage() {
       </GlassCard>
 
       <div className="grid grid-cols-3 gap-4">
-        {[
-          { label: t("totalInvoices"), value: stats?.total ?? 0 },
-          { label: t("submitted"), value: stats?.submitted ?? 0, color: "text-emerald-400" },
-          { label: t("pending"), value: stats?.pending ?? 0, color: "text-amber-400" },
-        ].map((s) => (
-          <div key={s.label} className="glass rounded-xl p-4">
-            <p className="text-sm text-slate-400">{s.label}</p>
-            <p className={cn("text-xl font-bold mt-1", s.color || "text-white")}>{s.value}</p>
+        {statsError ? (
+          <div className="col-span-3">
+            <QueryError onRetry={() => void refetchStats()} />
           </div>
-        ))}
+        ) : (
+          [
+            { label: t("totalInvoices"), value: stats?.total ?? 0 },
+            { label: t("submitted"), value: stats?.submitted ?? 0, color: "text-emerald-400" },
+            { label: t("pending"), value: stats?.pending ?? 0, color: "text-amber-400" },
+          ].map((s) => (
+            <div key={s.label} className="glass rounded-xl p-4">
+              <p className="text-sm text-slate-400">{s.label}</p>
+              <p className={cn("text-xl font-bold mt-1", s.color || "text-white")}>{s.value}</p>
+            </div>
+          ))
+        )}
       </div>
 
       <GlassCard>

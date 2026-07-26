@@ -110,6 +110,7 @@ export class RestoController {
   }
 
   @Post('link/activate')
+  @Roles(...RESTO_FLOOR_MGR)
   @Throttle({ default: { limit: 15, ttl: 60000 } })
   @ApiOperation({ summary: 'Activate restaurant link (SSO) + optional warehouse' })
   activate(

@@ -124,7 +124,7 @@ export default function InventoryPage() {
     },
   });
 
-  const { data: stats } = useQuery({
+  const { data: stats, isError: statsError, refetch: refetchStats } = useQuery({
     queryKey: ["product-stats"],
     queryFn: async () => {
       const res = await api.getProductStats();
@@ -361,21 +361,27 @@ export default function InventoryPage() {
       />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: t("totalProducts"), value: stats?.total ?? 0, isCount: true },
-          { label: t("lowStock"), value: stats?.lowStock ?? 0, isCount: true, alert: true },
-          { label: t("totalValue"), value: Number(stats?.totalValue ?? 0) },
-        ].map((s) => (
-          <div key={s.label} className="glass rounded-xl p-4">
-            <p className="text-sm text-slate-400 flex items-center gap-1">
-              {s.alert && <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />}
-              {s.label}
-            </p>
-            <p className={cn("text-xl font-bold mt-1", s.alert && (s.value as number) > 0 ? "text-amber-400" : "text-white")}>
-              {s.isCount ? s.value : formatMoney(s.value as number, currency)}
-            </p>
+        {statsError ? (
+          <div className="col-span-2 md:col-span-4">
+            <QueryError onRetry={() => void refetchStats()} />
           </div>
-        ))}
+        ) : (
+          [
+            { label: t("totalProducts"), value: stats?.total ?? 0, isCount: true },
+            { label: t("lowStock"), value: stats?.lowStock ?? 0, isCount: true, alert: true },
+            { label: t("totalValue"), value: Number(stats?.totalValue ?? 0) },
+          ].map((s) => (
+            <div key={s.label} className="glass rounded-xl p-4">
+              <p className="text-sm text-slate-400 flex items-center gap-1">
+                {s.alert && <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />}
+                {s.label}
+              </p>
+              <p className={cn("text-xl font-bold mt-1", s.alert && (s.value as number) > 0 ? "text-amber-400" : "text-white")}>
+                {s.isCount ? s.value : formatMoney(s.value as number, currency)}
+              </p>
+            </div>
+          ))
+        )}
       </div>
 
       {stats && stats.lowStockItems.length > 0 && (

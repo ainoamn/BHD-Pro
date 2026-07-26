@@ -1,10 +1,12 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { PayrollStatus } from '@prisma/client';
+import { PayrollStatus, UserRole } from '@prisma/client';
 import { ErpService } from './erp.service';
 import { CreatePayrollDto, UpdatePayrollStatusDto } from './dto/erp.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
 import { DualControlService } from '../dual-control/dual-control.service';
@@ -23,11 +25,15 @@ export class PayrollController {
     return this.erp.findPayrollRuns(u.companyId);
   }
   @Post()
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 15, ttl: 60000 } })
   create(@CurrentUser() u: TokenPayload, @Body() dto: CreatePayrollDto) {
     return this.erp.createPayrollRun(u.companyId, dto);
   }
   @Patch(':id/status')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   async updateStatus(
     @CurrentUser() u: TokenPayload,
@@ -43,6 +49,8 @@ export class PayrollController {
     });
   }
   @Delete(':id')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 15, ttl: 60000 } })
   remove(@CurrentUser() u: TokenPayload, @Param('id') id: string) {
     return this.erp.deletePayrollRun(u.companyId, id);

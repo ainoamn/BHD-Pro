@@ -1,3 +1,4 @@
+import { PartialType, ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsString,
   IsOptional,
@@ -7,7 +8,6 @@ import {
   Max,
   MinLength,
 } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class TaxRateDto {
   @ApiProperty()
@@ -41,3 +41,5 @@ export class TaxRateDto {
   @IsBoolean()
   isActive?: boolean;
 }
+
+export class UpdateTaxRateDto extends PartialType(TaxRateDto) {}

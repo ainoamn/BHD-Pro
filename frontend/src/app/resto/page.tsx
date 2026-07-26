@@ -136,6 +136,7 @@ export default function RestoFloorPage() {
   const [settleSeat, setSettleSeat] = useState(1);
   const [equalParts, setEqualParts] = useState("2");
   const [shiftOpen, setShiftOpen] = useState<boolean | null>(null);
+  const [shiftStatusError, setShiftStatusError] = useState(false);
 
   const loadFloor = useCallback(async () => {
     setLoading(true);
@@ -172,8 +173,10 @@ export default function RestoFloorPage() {
         const wh = link.data.warehouseId || undefined;
         const shift = await api.getCurrentPosShift(wh);
         setShiftOpen(!!(shift.data as { shift?: unknown })?.shift);
+        setShiftStatusError(false);
       } catch {
         setShiftOpen(null);
+        setShiftStatusError(true);
       }
     })();
   }, [loadFloor, loadStaff]);
@@ -844,7 +847,32 @@ export default function RestoFloorPage() {
         </div>
       </div>
 
-      {shiftOpen === false ? (
+      {shiftStatusError ? (
+        <div className="rounded-xl border border-amber-500/35 bg-amber-500/10 px-3 py-2.5 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm text-amber-100">{t.shiftStatusUnknown}</p>
+          <button
+            type="button"
+            onClick={() => {
+              setShiftStatusError(false);
+              void (async () => {
+                try {
+                  const link = await api.getRestoLinkStatus();
+                  const wh = link.data.warehouseId || undefined;
+                  const shift = await api.getCurrentPosShift(wh);
+                  setShiftOpen(!!(shift.data as { shift?: unknown })?.shift);
+                  setShiftStatusError(false);
+                } catch {
+                  setShiftOpen(null);
+                  setShiftStatusError(true);
+                }
+              })();
+            }}
+            className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-bold text-[#14110f]"
+          >
+            {t.retry}
+          </button>
+        </div>
+      ) : shiftOpen === false ? (
         <div className="rounded-xl border border-amber-500/35 bg-amber-500/10 px-3 py-2.5 flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm text-amber-100">{t.needOpenShift}</p>
           <Link

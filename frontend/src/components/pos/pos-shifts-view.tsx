@@ -482,7 +482,11 @@ export function PosShiftsView({
   }, []);
 
   const shiftIdForEod = (data?.shift as { id?: string } | undefined)?.id;
-  const { data: eodAnomalies } = useQuery({
+  const {
+    data: eodAnomalies,
+    isError: anomaliesLoadError,
+    isPending: anomaliesPending,
+  } = useQuery({
     queryKey: ["pos-eod-anomalies", shiftIdForEod],
     enabled: !!shiftIdForEod,
     queryFn: async () => {
@@ -494,6 +498,8 @@ export function PosShiftsView({
     staleTime: 60_000,
   });
   const anomalyCount = eodAnomalies?.findings?.length || 0;
+  const anomaliesUnknown =
+    !!shiftIdForEod && (anomaliesLoadError || anomaliesPending);
 
   const cashMovements = (data?.cashMovements ||
     live?.cashMovements ||
@@ -936,16 +942,22 @@ export function PosShiftsView({
                   <span className="text-slate-300">{t.eodAnomalies}</span>
                   <span
                     className={`tabular-nums font-semibold ${
-                      anomalyCount > 0 ? "text-amber-300" : "text-emerald-300"
+                      anomaliesUnknown || anomalyCount > 0
+                        ? "text-amber-300"
+                        : "text-emerald-300"
                     }`}
                   >
-                    {anomalyCount}
+                    {anomaliesUnknown ? "?" : anomalyCount}
                   </span>
                 </li>
+                {anomaliesLoadError ? (
+                  <li className="text-[11px] text-amber-200/90">{t.eodAnomaliesUnknown}</li>
+                ) : null}
               </ul>
               {!parkedLoadError &&
               parkedCount === 0 &&
               quarantineCount === 0 &&
+              !anomaliesUnknown &&
               anomalyCount === 0 ? (
                 <p className="text-[11px] text-emerald-300/90">{t.eodOk}</p>
               ) : null}
