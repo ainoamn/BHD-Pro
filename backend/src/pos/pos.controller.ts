@@ -295,6 +295,7 @@ export class PosController {
 
   @Patch('drafts/:id')
   @Roles(...POS_STAFF)
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @ApiOperation({ summary: 'Update parked POS cart name and/or notes' })
   updateDraft(
     @CurrentUser() user: TokenPayload,

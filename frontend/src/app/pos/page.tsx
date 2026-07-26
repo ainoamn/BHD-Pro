@@ -867,7 +867,9 @@ export default function PosCheckoutPage() {
         .then((res) => {
           setReceiptFooter(String(res.data.receiptFooter || ""));
         })
-        .catch(() => undefined);
+        .catch(() => {
+          toast.error(t.loadFailed);
+        });
     } else {
       setParkedCarts([]);
       setParkLoadError(false);
@@ -910,7 +912,7 @@ export default function PosCheckoutPage() {
         setBootError(true);
       }
     })();
-  }, [loadRecentSales, loadParkedCarts, focusScan, companyId]);
+  }, [loadRecentSales, loadParkedCarts, focusScan, companyId, t.loadFailed]);
 
   useEffect(() => {
     void loadOpsStrip();

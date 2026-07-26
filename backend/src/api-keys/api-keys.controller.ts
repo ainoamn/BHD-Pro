@@ -54,6 +54,7 @@ export class ApiKeysController {
   }
 
   @Put(':id')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   update(
     @CurrentUser() user: TokenPayload,
     @Param('id') id: string,

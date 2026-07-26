@@ -37,12 +37,14 @@ export class StockCountsController {
   }
 
   @Post()
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @ApiOperation({ summary: 'Create stock count (seeds tracked products by default)' })
   create(@CurrentUser() user: TokenPayload, @Body() dto: CreateStockCountDto) {
     return this.service.create(user.companyId, user.sub, dto);
   }
 
   @Put(':id/lines')
+  @Throttle({ default: { limit: 40, ttl: 60000 } })
   @ApiOperation({ summary: 'Update counted quantities' })
   updateLines(
     @CurrentUser() user: TokenPayload,
@@ -66,6 +68,7 @@ export class StockCountsController {
   }
 
   @Delete(':id')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   remove(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.service.remove(user.companyId, id);
   }

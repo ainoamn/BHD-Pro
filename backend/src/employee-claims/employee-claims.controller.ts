@@ -94,6 +94,7 @@ export class EmployeeClaimsController {
   }
 
   @Delete(':id')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   remove(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.service.remove(user.companyId, id);
   }

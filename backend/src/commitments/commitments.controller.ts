@@ -45,11 +45,13 @@ export class CommitmentsController {
   }
 
   @Post()
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   create(@CurrentUser() user: TokenPayload, @Body() dto: CreateCommitmentDto) {
     return this.service.create(user.companyId, dto);
   }
 
   @Put(':id')
+  @Throttle({ default: { limit: 40, ttl: 60000 } })
   update(
     @CurrentUser() user: TokenPayload,
     @Param('id') id: string,
@@ -76,6 +78,7 @@ export class CommitmentsController {
   }
 
   @Delete(':id')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   remove(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.service.remove(user.companyId, id);
   }

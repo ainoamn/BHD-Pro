@@ -33,6 +33,7 @@ export class DeliveryNotesController {
   }
 
   @Post()
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   create(@CurrentUser() user: TokenPayload, @Body() dto: CreateDeliveryNoteDto) {
     return this.service.create(user.companyId, user.sub, dto);
   }
@@ -51,6 +52,7 @@ export class DeliveryNotesController {
   }
 
   @Delete(':id')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   remove(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.service.remove(user.companyId, id);
   }

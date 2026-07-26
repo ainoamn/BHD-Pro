@@ -635,6 +635,7 @@ export class RestoController {
 
   @Put('config')
   @Roles(...RESTO_FLOOR_MGR)
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Update restaurant day-part hour windows' })
   updateConfig(
     @CurrentUser() user: TokenPayload,
