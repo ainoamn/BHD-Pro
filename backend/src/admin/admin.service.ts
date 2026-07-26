@@ -856,7 +856,7 @@ export class AdminService implements OnModuleInit {
         company: true,
         sessions: {
           orderBy: { createdAt: 'desc' },
-          take: 20,
+          take: 8,
           select: {
             id: true,
             ipAddress: true,
@@ -867,7 +867,7 @@ export class AdminService implements OnModuleInit {
         },
         auditLogs: {
           orderBy: { createdAt: 'desc' },
-          take: 30,
+          take: 10,
           select: {
             id: true,
             action: true,
@@ -883,7 +883,7 @@ export class AdminService implements OnModuleInit {
     const billing = await this.prisma.billingInvoice.findMany({
       where: { companyId: u.companyId, purpose: 'SUBSCRIPTION' },
       orderBy: { createdAt: 'desc' },
-      take: 30,
+      take: 12,
     });
     const planDetails = await this.planCatalog.detailsFor(u.company.plan);
     return {
@@ -941,6 +941,7 @@ export class AdminService implements OnModuleInit {
       where.OR = [
         { name: { contains: term, mode: 'insensitive' } },
         { email: { contains: term, mode: 'insensitive' } },
+        { company: { name: { contains: term, mode: 'insensitive' } } },
       ];
     }
     if (opts?.role?.trim()) {
@@ -996,17 +997,25 @@ export class AdminService implements OnModuleInit {
     const users = await this.prisma.user.findMany({
       where,
       orderBy,
-      take: 300,
-      include: {
+      take: 100,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        isActive: true,
+        googleId: true,
+        lastLoginAt: true,
+        createdAt: true,
         company: {
-          select: { id: true, name: true, plan: true, city: true, country: true },
+          select: {
+            id: true,
+            name: true,
+            plan: true,
+            city: true,
+            country: true,
+          },
         },
-        sessions: {
-          orderBy: { createdAt: 'desc' },
-          take: 1,
-          select: { ipAddress: true, userAgent: true, createdAt: true },
-        },
-        _count: { select: { sessions: true } },
       },
     });
 
@@ -1020,9 +1029,9 @@ export class AdminService implements OnModuleInit {
       lastLoginAt: u.lastLoginAt,
       createdAt: u.createdAt,
       company: u.company,
-      lastIp: u.sessions[0]?.ipAddress || null,
-      lastUserAgent: u.sessions[0]?.userAgent || null,
-      sessionsCount: u._count.sessions,
+      lastIp: null as string | null,
+      lastUserAgent: null as string | null,
+      sessionsCount: 0,
       isProtected: isProtectedPlatformAdminEmail(u.email),
     }));
   }

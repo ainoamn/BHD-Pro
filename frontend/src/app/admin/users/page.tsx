@@ -142,6 +142,7 @@ function UsersInner() {
   const en = locale === "en";
   const searchParams = useSearchParams();
   const [q, setQ] = useState(searchParams.get("q") || "");
+  const [appliedQ, setAppliedQ] = useState(searchParams.get("q") || "");
   const [role, setRole] = useState("");
   const [status, setStatus] = useState("");
   const [planFilter, setPlanFilter] = useState("");
@@ -150,6 +151,7 @@ function UsersInner() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [detail, setDetail] = useState<UserDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [planCodes, setPlanCodes] = useState<string[]>([
     "STARTER",
     "PROFESSIONAL",
@@ -167,7 +169,7 @@ function UsersInner() {
     setLoading(true);
     try {
       const res = await api.getAdminUsers({
-        q: q.trim() || undefined,
+        q: appliedQ.trim() || undefined,
         role: role || undefined,
         isActive: status || undefined,
         plan: planFilter || undefined,
@@ -179,7 +181,7 @@ function UsersInner() {
     } finally {
       setLoading(false);
     }
-  }, [q, role, status, planFilter, sort, en]);
+  }, [appliedQ, role, status, planFilter, sort, en]);
 
   useEffect(() => {
     void load();
@@ -200,23 +202,32 @@ function UsersInner() {
   }, []);
 
   const openDetail = async (id: string) => {
-    const res = await api.getAdminUser(id);
-    const d = res.data as UserDetail;
-    setDetail(d);
-    setPlan(d.company.plan);
-    setPlanExpiry(d.company.planExpiry ? d.company.planExpiry.slice(0, 10) : "");
-    setUsersLimit(
-      d.company.usersLimitOverride != null
-        ? String(d.company.usersLimitOverride)
-        : String(d.company.usersLimit),
-    );
-    setInvoicesLimit(
-      d.company.invoicesLimitOverride != null
-        ? String(d.company.invoicesLimitOverride)
-        : String(d.company.invoicesLimit),
-    );
-    setDiscountPct(String(d.company.permanentDiscountPct ?? 0));
-    setDiscountNote(d.company.permanentDiscountNote || "");
+    setDetailLoading(true);
+    try {
+      const res = await api.getAdminUser(id);
+      const d = res.data as UserDetail;
+      setDetail(d);
+      setPlan(d.company.plan);
+      setPlanExpiry(
+        d.company.planExpiry ? d.company.planExpiry.slice(0, 10) : "",
+      );
+      setUsersLimit(
+        d.company.usersLimitOverride != null
+          ? String(d.company.usersLimitOverride)
+          : String(d.company.usersLimit),
+      );
+      setInvoicesLimit(
+        d.company.invoicesLimitOverride != null
+          ? String(d.company.invoicesLimitOverride)
+          : String(d.company.invoicesLimit),
+      );
+      setDiscountPct(String(d.company.permanentDiscountPct ?? 0));
+      setDiscountNote(d.company.permanentDiscountNote || "");
+    } catch (err: unknown) {
+      toast.error(errMsg(err, en ? "Failed" : "تعذر"));
+    } finally {
+      setDetailLoading(false);
+    }
   };
 
   const saveCompany = async () => {
@@ -234,7 +245,13 @@ function UsersInner() {
         permanentDiscountPct: Number.isFinite(pct) ? pct : 0,
         permanentDiscountNote: discountNote.trim() || null,
       });
-      await load();
+      setRows((prev) =>
+        prev.map((r) =>
+          r.company.id === detail.company.id
+            ? { ...r, company: { ...r.company, plan } }
+            : r,
+        ),
+      );
       await openDetail(detail.id);
       toast.success(en ? "Saved" : "تم الحفظ");
     } catch (err: unknown) {
@@ -244,13 +261,23 @@ function UsersInner() {
     }
   };
 
-  const toggleActive = async (u: { id: string; isActive: boolean; isProtected?: boolean }) => {
+  const toggleActive = async (u: {
+    id: string;
+    isActive: boolean;
+    isProtected?: boolean;
+  }) => {
     if (u.isProtected) return;
     setBusyId(u.id);
     try {
       await api.updateAdminUser(u.id, { isActive: !u.isActive });
-      await load();
-      if (detail?.id === u.id) await openDetail(u.id);
+      setRows((prev) =>
+        prev.map((r) =>
+          r.id === u.id ? { ...r, isActive: !u.isActive } : r,
+        ),
+      );
+      if (detail?.id === u.id) {
+        setDetail({ ...detail, isActive: !u.isActive });
+      }
       toast.success(en ? "Updated" : "تم التحديث");
     } catch (err: unknown) {
       toast.error(errMsg(err, en ? "Failed" : "تعذر"));
@@ -259,14 +286,18 @@ function UsersInner() {
     }
   };
 
-  const deleteUser = async (u: { id: string; name: string; isProtected?: boolean }) => {
+  const deleteUser = async (u: {
+    id: string;
+    name: string;
+    isProtected?: boolean;
+  }) => {
     if (u.isProtected) return;
     if (!window.confirm(`${t.deleteConfirm}\n${u.name}`)) return;
     setBusyId(u.id);
     try {
       await api.deleteAdminUser(u.id);
       if (detail?.id === u.id) setDetail(null);
-      await load();
+      setRows((prev) => prev.filter((r) => r.id !== u.id));
       toast.success(en ? "Deleted" : "تم الحذف");
     } catch (err: unknown) {
       toast.error(errMsg(err, en ? "Delete failed" : "تعذر الحذف"));
@@ -275,7 +306,11 @@ function UsersInner() {
     }
   };
 
-  const resetPassword = async (u: { id: string; email: string; isProtected?: boolean }) => {
+  const resetPassword = async (u: {
+    id: string;
+    email: string;
+    isProtected?: boolean;
+  }) => {
     if (u.isProtected) return;
     if (!window.confirm(t.resetPasswordConfirm)) return;
     setBusyId(u.id);
@@ -308,7 +343,9 @@ function UsersInner() {
     <div className="space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">{t.users}</h1>
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+            {t.users}
+          </h1>
           <p className="text-sm text-slate-500 mt-1">{t.usersHint}</p>
         </div>
       </div>
@@ -317,7 +354,7 @@ function UsersInner() {
         className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-3"
         onSubmit={(e) => {
           e.preventDefault();
-          void load();
+          setAppliedQ(q.trim());
         }}
       >
         <input
@@ -389,7 +426,12 @@ function UsersInner() {
         </button>
       </form>
 
-      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+      <div
+        className={cn(
+          "overflow-x-auto rounded-2xl border border-slate-200 bg-white transition-opacity",
+          loading && rows.length > 0 && "opacity-60",
+        )}
+      >
         <table className="w-full text-sm min-w-[980px]">
           <thead className="bg-slate-50 text-slate-500 text-xs">
             <tr>
@@ -397,7 +439,9 @@ function UsersInner() {
               <th className="text-start p-3">{t.role}</th>
               <th className="text-start p-3">{t.company}</th>
               <th className="text-start p-3">{t.plan}</th>
-              <th className="text-start p-3">{t.lastIp}</th>
+              <th className="text-start p-3">
+                {en ? "Last login" : "آخر دخول"}
+              </th>
               <th className="text-start p-3">{t.status}</th>
               <th className="text-start p-3" />
             </tr>
@@ -421,7 +465,13 @@ function UsersInner() {
                 const protectedOwner = !!u.isProtected;
                 const busy = busyId === u.id;
                 return (
-                  <tr key={u.id} className="border-t border-slate-100">
+                  <tr
+                    key={u.id}
+                    className={cn(
+                      "border-t border-slate-100",
+                      !u.isActive && "bg-amber-50/40",
+                    )}
+                  >
                     <td className="p-3">
                       <div className="font-bold flex items-center gap-2 flex-wrap">
                         {u.name}
@@ -432,9 +482,6 @@ function UsersInner() {
                         )}
                       </div>
                       <div className="text-xs text-slate-500">{u.email}</div>
-                      <div className="text-[11px] text-slate-400">
-                        {u.googleLinked ? "Google" : "password"}
-                      </div>
                     </td>
                     <td className="p-3">
                       <span
@@ -455,7 +502,9 @@ function UsersInner() {
                       </div>
                     </td>
                     <td className="p-3 font-semibold">{u.company.plan}</td>
-                    <td className="p-3 font-mono text-xs">{u.lastIp || "—"}</td>
+                    <td className="p-3 text-xs text-slate-600">
+                      {fmt(u.lastLoginAt, en)}
+                    </td>
                     <td className="p-3">
                       <span
                         className={cn(
@@ -470,6 +519,7 @@ function UsersInner() {
                       <div className="flex flex-wrap items-center gap-1.5 justify-end">
                         <button
                           type="button"
+                          disabled={detailLoading}
                           onClick={() => void openDetail(u.id)}
                           className="text-xs font-bold text-teal-800 hover:underline px-1.5"
                         >
@@ -520,6 +570,11 @@ function UsersInner() {
         </table>
       </div>
 
+      {detailLoading && !detail ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/20">
+          <Loader2 className="w-7 h-7 animate-spin text-teal-700" />
+        </div>
+      ) : null}
       {detail && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
           <button
