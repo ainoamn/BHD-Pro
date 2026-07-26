@@ -15,41 +15,57 @@ export default function RestoShiftsPage() {
   const [warehouseLabel, setWarehouseLabel] = useState("");
   const [loading, setLoading] = useState(true);
   const [missingWh, setMissingWh] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    setLoadError(false);
+    try {
+      const res = await api.getRestoLinkStatus();
+      const id = res.data.warehouseId || null;
+      const wh = res.data.warehouse as
+        | { code?: string; name?: string }
+        | null
+        | undefined;
+      setWarehouseId(id);
+      setWarehouseLabel(
+        wh
+          ? `${wh.code || ""}${wh.name ? ` — ${wh.name}` : ""}`.trim()
+          : "",
+      );
+      setMissingWh(!id);
+    } catch {
+      setWarehouseId(null);
+      setMissingWh(false);
+      setLoadError(true);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await api.getRestoLinkStatus();
-        const id = res.data.warehouseId || null;
-        const wh = res.data.warehouse as
-          | { code?: string; name?: string }
-          | null
-          | undefined;
-        if (!cancelled) {
-          setWarehouseId(id);
-          setWarehouseLabel(
-            wh
-              ? `${wh.code || ""}${wh.name ? ` — ${wh.name}` : ""}`.trim()
-              : "",
-          );
-          setMissingWh(!id);
-        }
-      } catch {
-        if (!cancelled) setMissingWh(true);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    void load();
   }, []);
 
   if (loading) {
     return (
       <div className="flex justify-center py-24 text-stone-400">
         <Loader2 className="w-7 h-7 animate-spin" />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="p-4 sm:p-6 max-w-lg mx-auto space-y-4 text-center">
+        <p className="text-sm text-rose-300">{t.loadFailed}</p>
+        <button
+          type="button"
+          onClick={() => void load()}
+          className="rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-bold text-[#14110f]"
+        >
+          {t.retry}
+        </button>
       </div>
     );
   }

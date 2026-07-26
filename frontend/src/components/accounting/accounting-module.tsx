@@ -52,7 +52,7 @@ import {
   type AccountingHubTab,
 } from "@/components/accounting/accounting-hub-tabs";
 import { AccountingOverviewTab } from "@/components/accounting/accounting-overview-tab";
-import { PageHeader, LoadingSpinner } from "@/components/ui/page-shell";
+import { PageHeader, LoadingSpinner, QueryError } from "@/components/ui/page-shell";
 import { FormLabel, LineFieldLabel, LineItemsGrid } from "@/components/ui/form-field";
 import {
   CustomFieldsInputs,
@@ -369,7 +369,7 @@ export function AccountingModule() {
               : "PURCHASE"
             : undefined;
 
-  const { data: invoices = [], isLoading } = useQuery({
+  const { data: invoices = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["invoices", listTypeFilter, statusFilter, paymentFilter, searchQuery],
     queryFn: async () => {
       const res = await api.getInvoices({
@@ -1259,6 +1259,8 @@ export function AccountingModule() {
           <div className="flex justify-center py-16">
             <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
           </div>
+        ) : isError ? (
+          <QueryError onRetry={() => refetch()} />
         ) : filteredInvoices.length === 0 ? (
           <div className="text-center py-16">
             <FileText className="w-12 h-12 text-slate-600 mx-auto mb-4" />

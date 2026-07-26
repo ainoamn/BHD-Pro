@@ -57,6 +57,7 @@ export class PaymentsController {
   }
 
   @Patch('company-gateways/:slug')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
@@ -76,6 +77,7 @@ export class PaymentsController {
   }
 
   @Post('subscription/checkout')
+  @Throttle({ default: { limit: 15, ttl: 60000 } })
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create subscription payment checkout' })
@@ -94,6 +96,7 @@ export class PaymentsController {
   }
 
   @Post('subscription/mock-confirm')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Confirm mock card subscription payment (test gateway)' })
@@ -229,6 +232,7 @@ export class PlatformGatewaysController {
   }
 
   @Patch(':slug')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   update(
     @Param('slug') slug: PaymentGatewaySlug,
     @Body() dto: UpdatePlatformGatewayDto,

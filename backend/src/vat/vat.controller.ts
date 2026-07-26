@@ -70,6 +70,7 @@ export class VatController {
   }
 
   @Post('submit/:invoiceId')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   submit(@CurrentUser() user: TokenPayload, @Param('invoiceId') invoiceId: string) {
     return this.vatService.submitToOta(user.companyId, invoiceId);

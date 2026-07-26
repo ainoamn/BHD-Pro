@@ -37,6 +37,7 @@ export class UsersController {
 
   @Put(':id')
   @Roles('ADMIN')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   update(
     @CurrentUser() user: TokenPayload,
     @Param('id') id: string,
@@ -47,6 +48,7 @@ export class UsersController {
 
   @Delete(':id')
   @Roles('ADMIN')
+  @Throttle({ default: { limit: 15, ttl: 60000 } })
   remove(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.usersService.remove(user.companyId, id, user.sub);
   }

@@ -32,29 +32,32 @@ export default function AdminGatewayDetailPage() {
   const [isTestMode, setIsTestMode] = useState(true);
   const [config, setConfig] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const load = async () => {
+    setLoading(true);
+    setLoadError(false);
+    try {
+      const res = await api.getAdminPaymentGateway(slug);
+      const data = res.data as Gateway;
+      setG(data);
+      setIsEnabled(data.isEnabled);
+      setIsTestMode(data.isTestMode);
+      setConfig({ ...(data.configJson || {}) });
+    } catch {
+      setG(null);
+      setLoadError(true);
+      toast.error(en ? "Gateway not found" : "البوابة غير موجودة");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await api.getAdminPaymentGateway(slug);
-        if (cancelled) return;
-        const data = res.data as Gateway;
-        setG(data);
-        setIsEnabled(data.isEnabled);
-        setIsTestMode(data.isTestMode);
-        setConfig({ ...(data.configJson || {}) });
-      } catch {
-        if (!cancelled) toast.error(en ? "Gateway not found" : "البوابة غير موجودة");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [slug, en]);
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug]);
 
   const save = async () => {
     setSaving(true);
@@ -85,9 +88,24 @@ export default function AdminGatewayDetailPage() {
 
   if (!g) {
     return (
-      <p className="text-sm text-slate-500">
-        {en ? "Gateway not found" : "البوابة غير موجودة"}
-      </p>
+      <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-center space-y-3 max-w-md">
+        <p className="text-sm text-rose-700">
+          {loadError
+            ? en
+              ? "Could not load gateway"
+              : "تعذر تحميل البوابة"
+            : en
+              ? "Gateway not found"
+              : "البوابة غير موجودة"}
+        </p>
+        <button
+          type="button"
+          onClick={() => void load()}
+          className="rounded-xl bg-teal-700 text-white px-4 py-2 text-sm font-bold"
+        >
+          {en ? "Retry" : "إعادة المحاولة"}
+        </button>
+      </div>
     );
   }
 

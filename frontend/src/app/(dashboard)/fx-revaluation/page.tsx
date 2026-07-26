@@ -159,9 +159,18 @@ export default function FxRevaluationPage() {
       {isLoading ? (
         <LoadingSpinner />
       ) : error ? (
-        <GlassCard className="p-5 text-rose-400 text-sm">
-          {(error as { response?: { data?: { message?: string } } })?.response?.data
-            ?.message || tCommon("error")}
+        <GlassCard className="p-5 space-y-3 text-center">
+          <p className="text-rose-400 text-sm">
+            {(error as { response?: { data?: { message?: string } } })?.response?.data
+              ?.message || tCommon("error")}
+          </p>
+          <button
+            type="button"
+            onClick={() => void refetch()}
+            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500"
+          >
+            {t("preview")}
+          </button>
         </GlassCard>
       ) : !items.length ? (
         <EmptyState icon={ArrowLeftRight} title={t("empty")} />

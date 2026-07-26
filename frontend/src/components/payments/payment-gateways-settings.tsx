@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { CreditCard, Loader2, Save } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
+import { QueryError } from "@/components/ui/page-shell";
 import { cn } from "@/lib/utils";
 
 interface GatewayRow {
@@ -26,7 +27,7 @@ export function PaymentGatewaysSettings() {
   const [activeSlug, setActiveSlug] = useState<string | null>(null);
   const [draft, setDraft] = useState<Record<string, string>>({});
 
-  const { data: gateways = [], isLoading } = useQuery({
+  const { data: gateways = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["company-gateways"],
     queryFn: async () => {
       const res = await api.getCompanyGateways();
@@ -64,6 +65,10 @@ export function PaymentGatewaysSettings() {
         <Loader2 className="w-6 h-6 animate-spin text-emerald-500" />
       </div>
     );
+  }
+
+  if (isError) {
+    return <QueryError onRetry={() => refetch()} />;
   }
 
   return (

@@ -302,7 +302,7 @@ export function PosShiftsView({
   const isManagerView =
     user?.role === "ADMIN" || user?.role === "MANAGER" || user?.role === "ACCOUNTANT";
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["pos-shift-current", warehouseId || "default"],
     queryFn: async () => {
       const res = await api.getCurrentPosShift(warehouseId || undefined);
@@ -647,6 +647,17 @@ export function PosShiftsView({
       {isLoading ? (
         <div className="flex justify-center py-12">
           <Loader2 className="w-8 h-8 animate-spin text-emerald-400" />
+        </div>
+      ) : isError ? (
+        <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-6 py-12 text-center space-y-3">
+          <p className="text-sm text-rose-300">{t.loadFailed}</p>
+          <button
+            type="button"
+            onClick={() => void refetch()}
+            className="rounded-xl bg-amber-500 text-slate-950 px-4 py-2 text-sm font-bold"
+          >
+            {t.retry}
+          </button>
         </div>
       ) : shift ? (
         <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-5 space-y-4">
