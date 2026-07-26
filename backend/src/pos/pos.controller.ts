@@ -652,6 +652,7 @@ export class PosController {
 
   @Post('sales/:invoiceId/terminal-tap/confirm-mock')
   @Roles(...POS_STAFF)
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Confirm mock terminal tap (demo only)' })
   terminalTapConfirmMock(
     @CurrentUser() user: TokenPayload,

@@ -87,6 +87,7 @@ export class InvoicesController {
   }
 
   @Post(':id/share-link')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Create public share link for document view/download' })
   createShareLink(
     @CurrentUser() user: TokenPayload,
@@ -97,6 +98,7 @@ export class InvoicesController {
   }
 
   @Post(':id/verify-link')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Create long-lived public verify URL for document QR authenticity' })
   createVerifyLink(
     @CurrentUser() user: TokenPayload,
@@ -174,12 +176,14 @@ export class InvoicesController {
   }
 
   @Post(':id/unsend')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Revert sent invoice back to draft (no payments recorded)' })
   unsend(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.invoicesService.unsend(user.companyId, id);
   }
 
   @Post(':id/convert-to-invoice')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @ApiOperation({ summary: 'Convert quotation to sales invoice' })
   convertQuotation(
     @CurrentUser() user: TokenPayload,

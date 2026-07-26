@@ -9,6 +9,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { CommitmentsService } from './commitments.service';
 import {
   CreateCommitmentDto,
@@ -32,6 +33,7 @@ export class CommitmentsController {
   }
 
   @Post('run-due')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @ApiOperation({ summary: 'Manually post due commitments for this company' })
   runDue(@CurrentUser() user: TokenPayload) {
     return this.service.runDue(user.companyId);

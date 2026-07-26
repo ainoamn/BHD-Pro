@@ -290,6 +290,7 @@ export class RestoController {
 
   @Post('orders/:id/transfer')
   @Roles(...RESTO_STAFF)
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Transfer open order to another free table' })
   transferOrder(
     @CurrentUser() user: TokenPayload,
@@ -301,6 +302,7 @@ export class RestoController {
 
   @Post('orders/:id/merge')
   @Roles(...RESTO_STAFF)
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Merge this order into a target open order' })
   mergeOrder(
     @CurrentUser() user: TokenPayload,
@@ -312,6 +314,7 @@ export class RestoController {
 
   @Post('orders/:id/split')
   @Roles(...RESTO_STAFF)
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Split selected items onto a new check' })
   splitOrder(
     @CurrentUser() user: TokenPayload,

@@ -78,8 +78,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
       setPendingCount(n);
       setQuarantineCount(q);
     } catch {
-      setPendingCount(0);
-      setQuarantineCount(0);
+      /* keep prior counts — do not pretend the offline queue is empty */
     }
   }, []);
 

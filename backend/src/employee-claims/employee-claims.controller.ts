@@ -9,6 +9,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { EmployeeClaimsService } from './employee-claims.service';
 import {
   CreateEmployeeClaimDto,
@@ -76,6 +77,7 @@ export class EmployeeClaimsController {
   }
 
   @Post(':id/pay')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @ApiOperation({ summary: 'Mark approved claim as paid/reimbursed' })
   async markPaid(
     @CurrentUser() user: TokenPayload,

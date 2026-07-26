@@ -9,6 +9,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { ScheduledInvoicesService } from './scheduled-invoices.service';
 import {
   CreateScheduledInvoiceDto,
@@ -41,6 +42,7 @@ export class ScheduledInvoicesController {
   }
 
   @Post('process-due')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @ApiOperation({
     summary: 'Generate due scheduled invoices for the current company only',
   })
@@ -64,6 +66,7 @@ export class ScheduledInvoicesController {
   }
 
   @Post(':id/generate')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @ApiOperation({ summary: 'Generate sales invoice from schedule now' })
   generateNow(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.service.generateNow(user.companyId, user.sub, id);

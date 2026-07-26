@@ -10,6 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { PurchaseOrdersService } from './purchase-orders.service';
 import {
   CreatePurchaseOrderDto,
@@ -52,6 +53,7 @@ export class PurchaseOrdersController {
   }
 
   @Patch(':id/status')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   updateStatus(
     @CurrentUser() user: TokenPayload,
     @Param('id') id: string,
@@ -61,6 +63,7 @@ export class PurchaseOrdersController {
   }
 
   @Post(':id/convert')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @ApiOperation({ summary: 'Convert purchase order to purchase invoice' })
   convertToInvoice(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.service.convertToInvoice(user.companyId, user.sub, id);
