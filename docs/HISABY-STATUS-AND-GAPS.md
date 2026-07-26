@@ -3,7 +3,8 @@
 **التاريخ:** 26 يوليو 2026  
 **المستودع:** https://github.com/ainoamn/BHD-Pro  
 **للمزامنة:** `git pull origin main`  
-**خرائط تفصيلية:** [`HISABY-POS-AND-SECURITY-ROADMAP.md`](./HISABY-POS-AND-SECURITY-ROADMAP.md)
+**خرائط تفصيلية:** [`HISABY-POS-AND-SECURITY-ROADMAP.md`](./HISABY-POS-AND-SECURITY-ROADMAP.md)  
+**لوحة المنصة / الباقات / التسعير (مساء 26 يوليو):** [`HISABY-ADMIN-PLANS-USERS-PRICING-2026-07-26.md`](./HISABY-ADMIN-PLANS-USERS-PRICING-2026-07-26.md)
 
 ---
 
@@ -16,7 +17,7 @@
 | **حسابي للمحاسبة** | `/dashboard` وما يتفرع منه | جاهز للبيتا — فواتير، مخزون، GL، تقارير، ضريبة |
 | **حسابي للكاشير (POS)** | `/pos` | جاهز للبيتا — بيع سريع، مخزون مستودع، حماية مزدوجة، فصل مخزن التجزئة |
 | **حسابي للمطاعم** | `/resto` | صالة · مطبخ KDS · سفري · حجوزات · وصفات BOM · إغلاق عبر POS — [خطة المطاعم](./HISABY-RESTAURANT-KITCHEN-PLAN.md) |
-| لوحة المنصة | `/admin` | تعمل لمشغّلي المنصة |
+| لوحة المنصة | `/admin` | مقارنة باقات عمودية · تخفيض سنوي · مستخدمون قائمة+لوحة · صلاحيات شركة شجرية |
 
 **إصلاح نشر Vercel (26 يوليو):** فشل البناء على `d9c938d` بسبب تكرار `warehouseHint` في `pos-copy.ts` — مُصلح من `6a2f24d` (`warehouseBindHint`). انشر أحدث `main`.
 
