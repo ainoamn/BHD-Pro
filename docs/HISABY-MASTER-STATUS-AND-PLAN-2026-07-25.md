@@ -63,9 +63,10 @@
 - اشتراكات، بوابات دفع، `/admin`، PWA، GeoIP، keep-warm
 - **صلاحيات باقات هرمية** + أعمدة مقارنة جنبًا إلى جنب في `/admin/plans`
 - **تخفيض سنوي %** مع مزامنة شهري↔سنوي · `GET /public/plans` · تبديل تسعير في الصفحة الرئيسية
+- **مقارنة باقات للعميل** — زر بجانب شهري/سنوي في `#pricing` يعرض جدول الفوارق من `highlights`
 - **مستخدمو المنصة** قائمة+لوحة تفاصيل · **مستخدمو الشركة** شجرة صلاحيات حسب الدور
 - ترقية يدوية + تخفيض دائم للشركة · نائب مالك · صيانة · MOCK_CARD · تذكير انتهاء اشتراك
-- توثيق مفصّل: [`HISABY-ADMIN-PLANS-USERS-PRICING-2026-07-26.md`](./HISABY-ADMIN-PLANS-USERS-PRICING-2026-07-26.md)
+- توثيق مفصّل: [`HISABY-ADMIN-PLANS-USERS-PRICING-2026-07-26.md`](./HISABY-ADMIN-PLANS-USERS-PRICING-2026-07-26.md) · مقارنة الصفحة الرئيسية: [`HISABY-LANDING-PLAN-COMPARE-2026-07-26.md`](./HISABY-LANDING-PLAN-COMPARE-2026-07-26.md)
 
 ---
 

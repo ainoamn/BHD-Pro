@@ -328,8 +328,9 @@ POST {API_PUBLIC_URL}/api/payments/webhooks/paypal
 الأسعار على الصفحة الرئيسية تُجلب حيًا من `GET /api/public/plans` (SSR + تحديث بالمتصفح) بعد أي حفظ في `/admin/plans`.
 
 - تغيير الشهري أو نسبة التخفيض السنوي يعيد حساب السنوي تلقائيًا.
-- الصفحة الرئيسية: تبديل شهري/سنوي عبر `GET /api/public/plans`.
+- الصفحة الرئيسية: تبديل شهري/سنوي + زر **مقارنة** لجدول فوارق الباقات عبر `GET /api/public/plans`.
 - توثيق لوحة المنصة والصلاحيات والتسعير: [`docs/HISABY-ADMIN-PLANS-USERS-PRICING-2026-07-26.md`](docs/HISABY-ADMIN-PLANS-USERS-PRICING-2026-07-26.md)
+- مقارنة الباقات للعميل: [`docs/HISABY-LANDING-PLAN-COMPARE-2026-07-26.md`](docs/HISABY-LANDING-PLAN-COMPARE-2026-07-26.md)
 - الحالة العامة للمنتج: [`docs/HISABY-MASTER-STATUS-AND-PLAN-2026-07-25.md`](docs/HISABY-MASTER-STATUS-AND-PLAN-2026-07-25.md)
 
 ---

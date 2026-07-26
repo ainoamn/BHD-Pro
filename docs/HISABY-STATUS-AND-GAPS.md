@@ -4,7 +4,8 @@
 **المستودع:** https://github.com/ainoamn/BHD-Pro  
 **للمزامنة:** `git pull origin main`  
 **خرائط تفصيلية:** [`HISABY-POS-AND-SECURITY-ROADMAP.md`](./HISABY-POS-AND-SECURITY-ROADMAP.md)  
-**لوحة المنصة / الباقات / التسعير (مساء 26 يوليو):** [`HISABY-ADMIN-PLANS-USERS-PRICING-2026-07-26.md`](./HISABY-ADMIN-PLANS-USERS-PRICING-2026-07-26.md)
+**لوحة المنصة / الباقات / التسعير (مساء 26 يوليو):** [`HISABY-ADMIN-PLANS-USERS-PRICING-2026-07-26.md`](./HISABY-ADMIN-PLANS-USERS-PRICING-2026-07-26.md)  
+**مقارنة الباقات في الصفحة الرئيسية:** [`HISABY-LANDING-PLAN-COMPARE-2026-07-26.md`](./HISABY-LANDING-PLAN-COMPARE-2026-07-26.md)
 
 ---
 
@@ -18,6 +19,7 @@
 | **حسابي للكاشير (POS)** | `/pos` | جاهز للبيتا — بيع سريع، مخزون مستودع، حماية مزدوجة، فصل مخزن التجزئة |
 | **حسابي للمطاعم** | `/resto` | صالة · مطبخ KDS · سفري · حجوزات · وصفات BOM · إغلاق عبر POS — [خطة المطاعم](./HISABY-RESTAURANT-KITCHEN-PLAN.md) |
 | لوحة المنصة | `/admin` | مقارنة باقات عمودية · تخفيض سنوي · مستخدمون قائمة+لوحة · صلاحيات شركة شجرية |
+| الصفحة الرئيسية | `/#pricing` | أسعار حية · شهري/سنوي · زر مقارنة فوارق الباقات · تفاصيل بالضغط على البطاقة |
 
 **إصلاح نشر Vercel (26 يوليو):** فشل البناء على `d9c938d` بسبب تكرار `warehouseHint` في `pos-copy.ts` — مُصلح من `6a2f24d` (`warehouseBindHint`). انشر أحدث `main`.
 

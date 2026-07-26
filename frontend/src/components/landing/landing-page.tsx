@@ -2,17 +2,19 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Building2,
   Check,
   ChevronDown,
+  Columns2,
   FileText,
   Package,
   PieChart,
   Shield,
   ShoppingCart,
   UtensilsCrossed,
+  X,
 } from "lucide-react";
 import { useLocaleStore } from "@/store/locale";
 import { useAuthStore } from "@/store/auth";
@@ -81,6 +83,128 @@ function formatPlanPrice(n: number) {
     minimumFractionDigits: 0,
     maximumFractionDigits: 3,
   });
+}
+
+function formatLimitLabel(
+  n: number | undefined | null,
+  unlimitedLabel: string,
+): string {
+  if (n == null) return "—";
+  if (n < 0) return unlimitedLabel;
+  return String(n);
+}
+
+type CompareCell =
+  | { kind: "text"; value: string }
+  | { kind: "bool"; value: boolean };
+
+type CompareRow = {
+  id: string;
+  label: string;
+  cells: CompareCell[];
+  differs: boolean;
+};
+
+function buildPlanCompareRows(
+  plans: PublicPlan[],
+  opts: {
+    billing: "monthly" | "yearly";
+    isAr: boolean;
+    priceLabel: string;
+    usersLabel: string;
+    invoicesLabel: string;
+    supportLabel: string;
+    unlimitedLabel: string;
+    perMonth: string;
+    perYear: string;
+  },
+): CompareRow[] {
+  const rows: CompareRow[] = [];
+
+  const markDiffers = (cells: CompareCell[]) => {
+    if (cells.length <= 1) return false;
+    const key = (c: CompareCell) =>
+      c.kind === "bool" ? `b:${c.value}` : `t:${c.value}`;
+    const first = key(cells[0]!);
+    return cells.some((c) => key(c) !== first);
+  };
+
+  const pushText = (id: string, label: string, values: string[]) => {
+    const cells: CompareCell[] = values.map((value) => ({
+      kind: "text",
+      value,
+    }));
+    rows.push({ id, label, cells, differs: markDiffers(cells) });
+  };
+
+  const unit = opts.billing === "monthly" ? opts.perMonth : opts.perYear;
+  pushText(
+    "price",
+    opts.priceLabel,
+    plans.map((p) => {
+      const price =
+        opts.billing === "monthly" ? p.monthlyPrice : p.yearlyPrice;
+      return `${formatPlanPrice(price)} ${unit}`;
+    }),
+  );
+  pushText(
+    "users",
+    opts.usersLabel,
+    plans.map((p) => formatLimitLabel(p.usersLimit, opts.unlimitedLabel)),
+  );
+  pushText(
+    "invoices",
+    opts.invoicesLabel,
+    plans.map((p) => formatLimitLabel(p.invoicesLimit, opts.unlimitedLabel)),
+  );
+  pushText(
+    "support",
+    opts.supportLabel,
+    plans.map((p) => (p.support?.trim() ? p.support : "—")),
+  );
+
+  const itemMeta = new Map<
+    string,
+    { labelAr: string; labelEn: string; groupOrder: number; itemOrder: number }
+  >();
+  plans.forEach((p) => {
+    (p.highlights || []).forEach((g, gi) => {
+      g.items.forEach((item, ii) => {
+        if (!itemMeta.has(item.code)) {
+          itemMeta.set(item.code, {
+            labelAr: item.labelAr,
+            labelEn: item.labelEn,
+            groupOrder: gi,
+            itemOrder: ii,
+          });
+        }
+      });
+    });
+  });
+
+  const codes = [...itemMeta.entries()].sort((a, b) => {
+    if (a[1].groupOrder !== b[1].groupOrder) {
+      return a[1].groupOrder - b[1].groupOrder;
+    }
+    return a[1].itemOrder - b[1].itemOrder;
+  });
+
+  for (const [code, meta] of codes) {
+    const cells: CompareCell[] = plans.map((p) => {
+      const yes = (p.highlights || []).some((g) =>
+        g.items.some((it) => it.code === code),
+      );
+      return { kind: "bool", value: yes };
+    });
+    rows.push({
+      id: `feat:${code}`,
+      label: opts.isAr ? meta.labelAr : meta.labelEn,
+      cells,
+      differs: markDiffers(cells),
+    });
+  }
+
+  return rows;
 }
 
 async function loadPublicPlansClient(): Promise<PublicPlan[]> {
@@ -174,8 +298,41 @@ export function LandingPage({
   const [billing, setBilling] = useState<"monthly" | "yearly">("monthly");
   const [livePlans, setLivePlans] = useState<PublicPlan[]>(initialPlans);
   const [openPlanId, setOpenPlanId] = useState<string | null>(null);
+  const [showCompare, setShowCompare] = useState(false);
+  const [compareDiffsOnly, setCompareDiffsOnly] = useState(true);
   const t = landingCopy[locale === "en" ? "en" : "ar"];
   const isAr = locale !== "en";
+
+  const compareRows = useMemo(() => {
+    if (!showCompare || livePlans.length < 2) return [];
+    return buildPlanCompareRows(livePlans, {
+      billing,
+      isAr,
+      priceLabel: t.comparePrice,
+      usersLabel: t.usersCap,
+      invoicesLabel: t.invoicesCap,
+      supportLabel: t.supportLabel,
+      unlimitedLabel: t.unlimited,
+      perMonth: t.perMonth,
+      perYear: t.perYear,
+    });
+  }, [
+    showCompare,
+    livePlans,
+    billing,
+    isAr,
+    t.comparePrice,
+    t.usersCap,
+    t.invoicesCap,
+    t.supportLabel,
+    t.unlimited,
+    t.perMonth,
+    t.perYear,
+  ]);
+
+  const visibleCompareRows = compareDiffsOnly
+    ? compareRows.filter((r) => r.differs)
+    : compareRows;
 
   useEffect(() => {
     const id = requestAnimationFrame(() => setVisible(true));
@@ -624,33 +781,174 @@ export function LandingPage({
                 </p>
               ) : null}
             </div>
-            <div className="inline-flex rounded-2xl border border-emerald-950/10 bg-[#fafcfb] p-1 self-start">
+            <div className="flex flex-wrap items-center gap-2 self-start">
+              <div className="inline-flex rounded-2xl border border-emerald-950/10 bg-[#fafcfb] p-1">
+                <button
+                  type="button"
+                  onClick={() => setBilling("monthly")}
+                  className={cn(
+                    "rounded-xl px-4 py-2 text-sm font-bold transition",
+                    billing === "monthly"
+                      ? "bg-emerald-900 text-white shadow-sm"
+                      : "text-slate-500 hover:text-emerald-950",
+                  )}
+                >
+                  {t.billingMonthly}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBilling("yearly")}
+                  className={cn(
+                    "rounded-xl px-4 py-2 text-sm font-bold transition",
+                    billing === "yearly"
+                      ? "bg-emerald-900 text-white shadow-sm"
+                      : "text-slate-500 hover:text-emerald-950",
+                  )}
+                >
+                  {t.billingYearly}
+                </button>
+              </div>
               <button
                 type="button"
-                onClick={() => setBilling("monthly")}
+                disabled={livePlans.length < 2}
+                title={
+                  livePlans.length < 2 ? t.compareNeedTwo : undefined
+                }
+                onClick={() => setShowCompare((v) => !v)}
                 className={cn(
-                  "rounded-xl px-4 py-2 text-sm font-bold transition",
-                  billing === "monthly"
-                    ? "bg-emerald-900 text-white shadow-sm"
-                    : "text-slate-500 hover:text-emerald-950",
+                  "inline-flex items-center gap-1.5 rounded-2xl border px-4 py-2.5 text-sm font-bold transition",
+                  showCompare
+                    ? "border-teal-700/30 bg-teal-50 text-teal-950"
+                    : "border-emerald-950/10 bg-[#fafcfb] text-emerald-950 hover:border-emerald-900/20",
+                  livePlans.length < 2 && "opacity-45 cursor-not-allowed",
                 )}
               >
-                {t.billingMonthly}
-              </button>
-              <button
-                type="button"
-                onClick={() => setBilling("yearly")}
-                className={cn(
-                  "rounded-xl px-4 py-2 text-sm font-bold transition",
-                  billing === "yearly"
-                    ? "bg-emerald-900 text-white shadow-sm"
-                    : "text-slate-500 hover:text-emerald-950",
-                )}
-              >
-                {t.billingYearly}
+                <Columns2 className="h-4 w-4" strokeWidth={2} />
+                {showCompare ? t.hideCompare : t.comparePlans}
               </button>
             </div>
           </div>
+
+          {showCompare && livePlans.length >= 2 ? (
+            <div className="mt-8 overflow-hidden rounded-2xl border border-emerald-950/10 bg-[#fafcfb]">
+              <div className="flex flex-col gap-3 border-b border-emerald-950/8 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+                <div>
+                  <h3 className="text-base font-extrabold text-emerald-950">
+                    {t.compareTitle}
+                  </h3>
+                  <p className="mt-0.5 text-xs text-slate-500">{t.compareSub}</p>
+                </div>
+                <div className="inline-flex rounded-xl border border-emerald-950/10 bg-white p-0.5 self-start">
+                  <button
+                    type="button"
+                    onClick={() => setCompareDiffsOnly(true)}
+                    className={cn(
+                      "rounded-lg px-3 py-1.5 text-xs font-bold transition",
+                      compareDiffsOnly
+                        ? "bg-emerald-900 text-white"
+                        : "text-slate-500 hover:text-emerald-950",
+                    )}
+                  >
+                    {t.compareDiffsOnly}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCompareDiffsOnly(false)}
+                    className={cn(
+                      "rounded-lg px-3 py-1.5 text-xs font-bold transition",
+                      !compareDiffsOnly
+                        ? "bg-emerald-900 text-white"
+                        : "text-slate-500 hover:text-emerald-950",
+                    )}
+                  >
+                    {t.compareShowAll}
+                  </button>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[36rem] border-collapse text-sm">
+                  <thead>
+                    <tr className="bg-white/70">
+                      <th className="sticky start-0 z-10 bg-[#fafcfb] px-4 py-3 text-start text-xs font-bold text-slate-400 sm:px-5">
+                        {t.compareFeature}
+                      </th>
+                      {livePlans.map((p) => (
+                        <th
+                          key={p.id}
+                          className="px-3 py-3 text-center text-sm font-extrabold text-emerald-950"
+                        >
+                          {isAr ? p.nameAr : p.nameEn}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visibleCompareRows.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={livePlans.length + 1}
+                          className="px-5 py-8 text-center text-sm text-slate-400"
+                        >
+                          —
+                        </td>
+                      </tr>
+                    ) : (
+                      visibleCompareRows.map((row) => (
+                        <tr
+                          key={row.id}
+                          className={cn(
+                            "border-t border-emerald-950/[0.06]",
+                            row.differs && "bg-amber-50/40",
+                          )}
+                        >
+                          <td className="sticky start-0 z-10 bg-inherit px-4 py-2.5 text-start text-xs font-semibold text-slate-600 sm:px-5">
+                            {row.label}
+                          </td>
+                          {row.cells.map((cell, idx) => (
+                            <td
+                              key={`${row.id}-${livePlans[idx]?.id ?? idx}`}
+                              className="px-3 py-2.5 text-center"
+                            >
+                              {cell.kind === "bool" ? (
+                                cell.value ? (
+                                  <span
+                                    className="inline-flex items-center justify-center gap-1 text-teal-800"
+                                    title={t.compareIncluded}
+                                  >
+                                    <Check
+                                      className="h-4 w-4"
+                                      strokeWidth={2.5}
+                                    />
+                                    <span className="sr-only">
+                                      {t.compareIncluded}
+                                    </span>
+                                  </span>
+                                ) : (
+                                  <span
+                                    className="inline-flex items-center justify-center text-slate-300"
+                                    title={t.compareNotIncluded}
+                                  >
+                                    <X className="h-4 w-4" strokeWidth={2} />
+                                    <span className="sr-only">
+                                      {t.compareNotIncluded}
+                                    </span>
+                                  </span>
+                                )
+                              ) : (
+                                <span className="text-xs font-bold text-emerald-950">
+                                  {cell.value}
+                                </span>
+                              )}
+                            </td>
+                          ))}
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : null}
 
           <div
             className={cn(
