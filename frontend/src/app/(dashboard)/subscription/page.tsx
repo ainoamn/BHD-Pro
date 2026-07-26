@@ -26,6 +26,7 @@ interface Plan {
   nameEn: string;
   monthlyPrice: number;
   yearlyPrice: number;
+  yearlyDiscountPct?: number;
   invoicesLimit: number;
   usersLimit: number;
   support: string;
@@ -490,6 +491,11 @@ function SubscriptionContent() {
                   {t("omr")}
                   {period}
                 </span>
+                {billing === "yearly" && (plan.yearlyDiscountPct || 0) > 0 ? (
+                  <p className="text-xs text-emerald-400 font-bold mt-1">
+                    −{plan.yearlyDiscountPct}% {t("saveYearly")}
+                  </p>
+                ) : null}
               </div>
 
               <ul className="space-y-2 text-sm text-slate-400 mb-6">
