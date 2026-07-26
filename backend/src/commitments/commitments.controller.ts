@@ -59,6 +59,7 @@ export class CommitmentsController {
   }
 
   @Post(':id/pause')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Pause or defer commitment (day/month/year)' })
   pause(
     @CurrentUser() user: TokenPayload,
@@ -69,6 +70,7 @@ export class CommitmentsController {
   }
 
   @Post(':id/resume')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   resume(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.service.resume(user.companyId, id);
   }

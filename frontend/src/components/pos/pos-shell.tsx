@@ -51,6 +51,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
   const { user, company, isAuthenticated, logout } = useAuthStore();
   const t = posCopy[locale === "en" ? "en" : "ar"];
   const [linked, setLinked] = useState<boolean | null>(null);
+  const [linkLoadError, setLinkLoadError] = useState(false);
   const [planOk, setPlanOk] = useState(true);
   const [shiftOpen, setShiftOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
@@ -316,6 +317,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
         ]);
         if (!cancelled) {
           setLinked(!!linkRes.data.linked);
+          setLinkLoadError(false);
           const features = (subRes?.data as { features?: Record<string, boolean> })
             ?.features;
           setPlanOk(features?.pos !== false);
@@ -327,7 +329,10 @@ export function PosShell({ children }: { children: React.ReactNode }) {
           if (!cancelled) setPlanOk(false);
           return;
         }
-        if (!cancelled) setLinked(false);
+        if (!cancelled) {
+          setLinked(null);
+          setLinkLoadError(true);
+        }
       }
       try {
         let wh = "";
@@ -543,6 +548,30 @@ export function PosShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         </div>
+        {linkLoadError ? (
+          <div className="border-t border-rose-500/30 bg-rose-500/10 px-4 py-2 text-center text-xs text-rose-200 flex flex-wrap items-center justify-center gap-2">
+            <span>{t.loadFailed}</span>
+            <button
+              type="button"
+              onClick={() => {
+                setLinkLoadError(false);
+                void (async () => {
+                  try {
+                    const linkRes = await api.getPosLinkStatus();
+                    setLinked(!!linkRes.data.linked);
+                    setLinkLoadError(false);
+                  } catch {
+                    setLinked(null);
+                    setLinkLoadError(true);
+                  }
+                })();
+              }}
+              className="rounded-md bg-amber-500 px-2 py-0.5 text-[10px] font-bold text-slate-950"
+            >
+              {t.retry}
+            </button>
+          </div>
+        ) : null}
         {linked === false && (
           <div className="border-t border-amber-500/20 bg-amber-500/10 px-4 py-2 text-center text-xs text-amber-100 flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
             <Link2Off className="w-3.5 h-3.5 shrink-0" />

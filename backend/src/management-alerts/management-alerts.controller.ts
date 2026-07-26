@@ -1,5 +1,6 @@
 import { Controller, Get, Patch, Param, Query, Body, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { IsOptional, IsString } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { ManagementAlertsService } from './management-alerts.service';
@@ -30,6 +31,7 @@ export class ManagementAlertsController {
   }
 
   @Patch(':id')
+  @Throttle({ default: { limit: 40, ttl: 60000 } })
   resolve(
     @CurrentUser() user: TokenPayload,
     @Param('id') id: string,

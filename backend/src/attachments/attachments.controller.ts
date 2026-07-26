@@ -9,6 +9,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { AttachmentsService } from './attachments.service';
 import { CreateAttachmentDto } from './dto/attachment.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -32,11 +33,13 @@ export class AttachmentsController {
   }
 
   @Post()
+  @Throttle({ default: { limit: 40, ttl: 60000 } })
   create(@CurrentUser() user: TokenPayload, @Body() dto: CreateAttachmentDto) {
     return this.service.create(user.companyId, user.sub, dto);
   }
 
   @Delete(':id')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   remove(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.service.remove(user.companyId, id);
   }

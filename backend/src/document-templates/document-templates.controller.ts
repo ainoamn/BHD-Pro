@@ -10,6 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { DocumentTemplatesService } from './document-templates.service';
 import { DocumentTemplateDto } from './dto/document-template.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -44,11 +45,13 @@ export class DocumentTemplatesController {
   }
 
   @Post()
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   create(@CurrentUser() user: TokenPayload, @Body() dto: DocumentTemplateDto) {
     return this.service.create(user.companyId, dto);
   }
 
   @Put(':id')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   update(
     @CurrentUser() user: TokenPayload,
     @Param('id') id: string,
@@ -58,11 +61,13 @@ export class DocumentTemplatesController {
   }
 
   @Post(':id/set-default')
+  @Throttle({ default: { limit: 15, ttl: 60000 } })
   setDefault(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.service.setDefault(user.companyId, id);
   }
 
   @Delete(':id')
+  @Throttle({ default: { limit: 15, ttl: 60000 } })
   remove(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.service.remove(user.companyId, id);
   }

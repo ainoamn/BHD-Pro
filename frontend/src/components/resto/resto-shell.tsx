@@ -43,6 +43,7 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
   const { user, company, isAuthenticated, logout } = useAuthStore();
   const t = restoCopy[locale === "en" ? "en" : "ar"];
   const [linked, setLinked] = useState<boolean | null>(null);
+  const [linkLoadError, setLinkLoadError] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [planOk, setPlanOk] = useState(true);
   const isLogin = pathname?.startsWith("/resto/login");
@@ -71,6 +72,7 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
         ]);
         if (!cancelled) {
           setLinked(!!linkRes.data.linked);
+          setLinkLoadError(false);
           const features = (subRes?.data as { features?: Record<string, boolean> })
             ?.features;
           setPlanOk(features?.resto !== false);
@@ -82,7 +84,10 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
           if (!cancelled) setPlanOk(false);
           return;
         }
-        if (!cancelled) setLinked(false);
+        if (!cancelled) {
+          setLinked(null);
+          setLinkLoadError(true);
+        }
       }
     })();
     return () => {
@@ -327,6 +332,31 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
             {locale === "en"
               ? "This section is hidden for your account. Ask your company admin to grant access."
               : "هذا القسم مخفي عن حسابك. اطلب من مدير الشركة منحك صلاحية الوصول."}
+          </div>
+        ) : null}
+
+        {linkLoadError ? (
+          <div className="border-t border-rose-500/30 bg-rose-500/10 px-3 py-2 text-center text-xs text-rose-200 flex flex-wrap items-center justify-center gap-2">
+            <span>{t.loadFailed}</span>
+            <button
+              type="button"
+              onClick={() => {
+                setLinkLoadError(false);
+                void (async () => {
+                  try {
+                    const linkRes = await api.getRestoLinkStatus();
+                    setLinked(!!linkRes.data.linked);
+                    setLinkLoadError(false);
+                  } catch {
+                    setLinked(null);
+                    setLinkLoadError(true);
+                  }
+                })();
+              }}
+              className="rounded-md bg-amber-500 px-2 py-0.5 text-[10px] font-bold text-slate-950"
+            >
+              {t.retry}
+            </button>
           </div>
         ) : null}
 

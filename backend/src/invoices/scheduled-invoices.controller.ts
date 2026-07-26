@@ -60,6 +60,7 @@ export class ScheduledInvoicesController {
   }
 
   @Post(':id/toggle-active')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Pause or resume a scheduled invoice' })
   toggleActive(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.service.toggleActive(user.companyId, id);

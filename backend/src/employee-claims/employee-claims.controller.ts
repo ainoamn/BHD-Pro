@@ -43,11 +43,13 @@ export class EmployeeClaimsController {
   }
 
   @Post()
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   create(@CurrentUser() user: TokenPayload, @Body() dto: CreateEmployeeClaimDto) {
     return this.service.create(user.companyId, user.sub, dto);
   }
 
   @Put(':id')
+  @Throttle({ default: { limit: 40, ttl: 60000 } })
   update(
     @CurrentUser() user: TokenPayload,
     @Param('id') id: string,
@@ -57,6 +59,7 @@ export class EmployeeClaimsController {
   }
 
   @Post(':id/submit')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Submit claim for approval' })
   submit(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.service.submit(user.companyId, id);
