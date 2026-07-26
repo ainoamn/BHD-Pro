@@ -63,11 +63,13 @@ export class EmployeeClaimsController {
   }
 
   @Post(':id/approve')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   approve(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.service.approve(user.companyId, user.sub, id);
   }
 
   @Post(':id/reject')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   reject(
     @CurrentUser() user: TokenPayload,
     @Param('id') id: string,

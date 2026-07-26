@@ -531,6 +531,7 @@ export class RestoController {
 
   @Post('kitchen/items/:itemId/status')
   @Roles(...RESTO_STAFF)
+  @Throttle({ default: { limit: 120, ttl: 60000 } })
   kitchenStatus(
     @CurrentUser() user: TokenPayload,
     @Param('itemId') itemId: string,
@@ -541,6 +542,7 @@ export class RestoController {
 
   @Post('kitchen/items/:itemId/rush')
   @Roles(...RESTO_STAFF)
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @ApiOperation({ summary: 'Toggle KDS rush priority on a ticket' })
   kitchenRush(
     @CurrentUser() user: TokenPayload,
@@ -552,6 +554,7 @@ export class RestoController {
 
   @Post('kitchen/items/:itemId/hold')
   @Roles(...RESTO_STAFF)
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @ApiOperation({ summary: 'Hold / release a KDS ticket' })
   kitchenHold(
     @CurrentUser() user: TokenPayload,
@@ -563,6 +566,7 @@ export class RestoController {
 
   @Post('kitchen/items/:itemId/recall')
   @Roles(...RESTO_STAFF)
+  @Throttle({ default: { limit: 40, ttl: 60000 } })
   @ApiOperation({ summary: 'Recall READY/SERVED ticket back to PREPARING or READY' })
   kitchenRecall(
     @CurrentUser() user: TokenPayload,
@@ -645,6 +649,7 @@ export class RestoController {
 
   @Post('orders/:id/loyalty')
   @Roles(...RESTO_STAFF)
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Attach or clear loyalty contact on an open order' })
   attachLoyalty(
     @CurrentUser() user: TokenPayload,
@@ -868,6 +873,7 @@ export class RestoController {
 
   @Post('waitlist/:id/notify')
   @Roles(...RESTO_STAFF)
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @ApiOperation({ summary: 'Re-send table-ready notify (WhatsApp/SMS)' })
   notifyWaitlist(
     @CurrentUser() user: TokenPayload,
@@ -878,6 +884,7 @@ export class RestoController {
 
   @Post('reservations/:id/notify')
   @Roles(...RESTO_STAFF)
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @ApiOperation({
     summary: 'Send reservation confirm / reminder / table-ready to guest',
   })
@@ -902,6 +909,7 @@ export class RestoController {
 
   @Post('menu/86')
   @Roles(...RESTO_FLOOR_MGR, UserRole.WAITER, UserRole.KITCHEN)
+  @Throttle({ default: { limit: 40, ttl: 60000 } })
   @ApiOperation({ summary: 'Mark menu item as 86 (unavailable)' })
   set86(
     @CurrentUser() user: TokenPayload,
@@ -912,6 +920,7 @@ export class RestoController {
 
   @Delete('menu/86/:productId')
   @Roles(...RESTO_FLOOR_MGR, UserRole.WAITER, UserRole.KITCHEN)
+  @Throttle({ default: { limit: 40, ttl: 60000 } })
   @ApiOperation({ summary: 'Clear 86 — item available again' })
   clear86(
     @CurrentUser() user: TokenPayload,
@@ -922,6 +931,7 @@ export class RestoController {
 
   @Post('menu/86/reconcile')
   @Roles(...RESTO_FLOOR_MGR)
+  @Throttle({ default: { limit: 15, ttl: 60000 } })
   @ApiOperation({
     summary:
       'Reconcile auto-86 from recipe/warehouse stock (manual 86 untouched)',

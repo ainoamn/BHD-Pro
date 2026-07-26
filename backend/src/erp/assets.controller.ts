@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { ErpService } from './erp.service';
 import { AssetDto } from './dto/erp.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -27,6 +28,7 @@ export class AssetsController {
   }
 
   @Post(':id/depreciate')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   depreciate(@CurrentUser() u: TokenPayload, @Param('id') id: string) {
     return this.erp.depreciateAsset(u.companyId, u.sub, id);
   }

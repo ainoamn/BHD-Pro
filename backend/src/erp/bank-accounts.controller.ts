@@ -50,12 +50,14 @@ export class BankAccountsController {
   }
 
   @Post('statement-lines/:lineId/toggle-reconciled')
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @ApiOperation({ summary: 'Mark statement line as reconciled / unreconciled' })
   toggleReconciled(@CurrentUser() u: TokenPayload, @Param('lineId') lineId: string) {
     return this.erp.toggleStatementReconciled(u.companyId, lineId);
   }
 
   @Delete('statement-lines/:lineId')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Delete a bank statement line' })
   deleteLine(@CurrentUser() u: TokenPayload, @Param('lineId') lineId: string) {
     return this.erp.deleteStatementLine(u.companyId, lineId);
@@ -68,6 +70,7 @@ export class BankAccountsController {
   }
 
   @Post(':id/statement-lines')
+  @Throttle({ default: { limit: 40, ttl: 60000 } })
   @ApiOperation({ summary: 'Add a bank statement line' })
   addLine(
     @CurrentUser() u: TokenPayload,

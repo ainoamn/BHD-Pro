@@ -106,6 +106,7 @@ export default function RestoFloorPage() {
   const [staff, setStaff] = useState<
     Array<{ id: string; name: string; email: string; role: string }>
   >([]);
+  const [staffError, setStaffError] = useState(false);
   const [serviceChargePct, setServiceChargePct] = useState("10");
   const [cashPart, setCashPart] = useState("");
   const [loyaltyPhone, setLoyaltyPhone] = useState("");
@@ -150,12 +151,20 @@ export default function RestoFloorPage() {
     }
   }, [t.actionFail]);
 
+  const loadStaff = useCallback(async () => {
+    try {
+      const res = await api.getRestoStaff();
+      setStaff(res.data.staff || []);
+      setStaffError(false);
+    } catch {
+      setStaff([]);
+      setStaffError(true);
+    }
+  }, []);
+
   useEffect(() => {
     void loadFloor();
-    void api
-      .getRestoStaff()
-      .then((res) => setStaff(res.data.staff || []))
-      .catch(() => undefined);
+    void loadStaff();
     void (async () => {
       try {
         const link = await api.getRestoLinkStatus();
@@ -166,7 +175,7 @@ export default function RestoFloorPage() {
         setShiftOpen(null);
       }
     })();
-  }, [loadFloor]);
+  }, [loadFloor, loadStaff]);
 
   useEffect(() => {
     if (!order) {
@@ -1363,7 +1372,18 @@ export default function RestoFloorPage() {
                     />
                   </label>
                 </div>
-                {staff.length > 0 ? (
+                {staffError ? (
+                  <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-2.5 py-2 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-[11px] text-rose-300">{t.loadFailed}</p>
+                    <button
+                      type="button"
+                      onClick={() => void loadStaff()}
+                      className="rounded-md bg-amber-500 px-2 py-0.5 text-[10px] font-bold text-slate-950"
+                    >
+                      {t.retry}
+                    </button>
+                  </div>
+                ) : staff.length > 0 ? (
                   <label className="block space-y-1">
                     <span className="text-[11px] text-stone-500">
                       {t.tipAssignee}

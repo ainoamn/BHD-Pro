@@ -60,6 +60,7 @@ export class StockCountsController {
   }
 
   @Post(':id/cancel')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   cancel(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.service.cancel(user.companyId, id);
   }
