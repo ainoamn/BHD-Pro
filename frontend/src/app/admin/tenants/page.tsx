@@ -5,6 +5,17 @@ import Link from "next/link";
 import api from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
 import { adminCopy } from "@/lib/admin-copy";
+import { cn } from "@/lib/utils";
+
+type Staff = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  isActive?: boolean;
+  lastLoginAt?: string | null;
+  lastIp?: string | null;
+};
 
 type Tenant = {
   id: string;
@@ -22,10 +33,12 @@ type Tenant = {
   invoicesLimitOverride: number | null;
   isActive: boolean;
   usersCount: number;
+  activeUsersCount?: number;
   invoicesCount: number;
   createdAt: string;
   posLinked?: boolean;
   restoLinked?: boolean;
+  sampleUsers?: Staff[];
 };
 
 function fmt(d?: string | null, en?: boolean) {
@@ -34,13 +47,7 @@ function fmt(d?: string | null, en?: boolean) {
 }
 
 type TenantDetail = Tenant & {
-  users?: Array<{
-    id: string;
-    name: string;
-    email: string;
-    role: string;
-    isActive: boolean;
-  }>;
+  users?: Staff[];
   billingInvoices?: Array<{
     id: string;
     number?: string;
@@ -56,6 +63,7 @@ export default function AdminTenantsPage() {
   const en = locale === "en";
   const [rows, setRows] = useState<Tenant[]>([]);
   const [q, setQ] = useState("");
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [selected, setSelected] = useState<Tenant | null>(null);
   const [detail, setDetail] = useState<TenantDetail | null>(null);
   const [usersLimit, setUsersLimit] = useState("");
@@ -80,12 +88,12 @@ export default function AdminTenantsPage() {
     setUsersLimit(
       row.usersLimitOverride != null
         ? String(row.usersLimitOverride)
-        : String(row.usersLimit)
+        : String(row.usersLimit),
     );
     setInvoicesLimit(
       row.invoicesLimitOverride != null
         ? String(row.invoicesLimitOverride)
-        : String(row.invoicesLimit)
+        : String(row.invoicesLimit),
     );
     setPlanExpiry(row.planExpiry ? row.planExpiry.slice(0, 10) : "");
     try {
@@ -115,6 +123,20 @@ export default function AdminTenantsPage() {
     }
   };
 
+  const roleLabel = (role: string) => {
+    const map: Record<string, string> = {
+      ADMIN: en ? "Admin" : "مدير",
+      MANAGER: en ? "Manager" : "مشرف",
+      ACCOUNTANT: en ? "Accountant" : "محاسب",
+      CASHIER: en ? "Cashier" : "كاشير",
+      WAITER: en ? "Waiter" : "نادل",
+      KITCHEN: en ? "Kitchen" : "مطبخ",
+      RESTO_MANAGER: en ? "Resto mgr" : "مدير مطعم",
+      VIEWER: en ? "Viewer" : "عرض",
+    };
+    return map[role] || role;
+  };
+
   return (
     <div className="space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
@@ -141,68 +163,167 @@ export default function AdminTenantsPage() {
         </form>
       </div>
 
-      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
-        <table className="w-full text-sm min-w-[980px]">
-          <thead className="bg-slate-50 text-slate-500 text-xs">
-            <tr>
-              <th className="text-start p-3">{t.company}</th>
-              <th className="text-start p-3">{t.plan}</th>
-              <th className="text-start p-3">{t.apps}</th>
-              <th className="text-start p-3">{t.started}</th>
-              <th className="text-start p-3">{t.expires}</th>
-              <th className="text-start p-3">{t.usersLimit}</th>
-              <th className="text-start p-3">{t.status}</th>
-              <th className="text-start p-3" />
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.id} className="border-t border-slate-100">
-                <td className="p-3">
-                  <div className="font-bold">{row.name}</div>
-                  <div className="text-xs text-slate-500">{row.email || "—"}</div>
-                  <div className="text-[11px] text-slate-400">
-                    {row.usersCount} users · {row.invoicesCount} invoices
+      <div className="space-y-3">
+        {rows.map((row) => {
+          const staff = row.sampleUsers || [];
+          const activeCount = row.activeUsersCount ?? staff.filter((u) => u.isActive !== false).length;
+          const open = !!expanded[row.id];
+          return (
+            <div
+              key={row.id}
+              className="rounded-2xl border border-slate-200 bg-white overflow-hidden"
+            >
+              <div className="p-4 sm:p-5 flex flex-col lg:flex-row lg:items-start gap-4 justify-between">
+                <div className="min-w-0 flex-1 space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="font-extrabold text-teal-950 text-lg truncate">{row.name}</h2>
+                    <span
+                      className={cn(
+                        "text-[10px] font-bold px-2 py-0.5 rounded-full",
+                        row.isActive
+                          ? "bg-emerald-100 text-emerald-800"
+                          : "bg-amber-100 text-amber-900",
+                      )}
+                    >
+                      {row.isActive ? t.active : t.inactive}
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                      {row.plan}
+                    </span>
                   </div>
-                </td>
-                <td className="p-3 font-semibold">{row.plan}</td>
-                <td className="p-3 text-xs space-y-1">
-                  <div className={row.posLinked ? "text-sky-700 font-semibold" : "text-slate-400"}>
-                    POS {row.posLinked ? "✓" : "—"}
-                  </div>
-                  <div className={row.restoLinked ? "text-amber-700 font-semibold" : "text-slate-400"}>
-                    Resto {row.restoLinked ? "✓" : "—"}
-                  </div>
-                </td>
-                <td className="p-3 text-xs">{fmt(row.planStartedAt || row.createdAt, en)}</td>
-                <td className="p-3 text-xs">{fmt(row.planExpiry, en)}</td>
-                <td className="p-3">
-                  {row.usersCount}/{row.usersLimit < 0 ? "∞" : row.usersLimit}
-                </td>
-                <td className="p-3">
-                  <span className={row.isActive ? "text-teal-700" : "text-amber-700"}>
-                    {row.isActive ? t.active : t.inactive}
-                  </span>
-                </td>
-                <td className="p-3">
+                  <p className="text-xs text-slate-500" dir="ltr">
+                    {row.email || "—"} {row.phone ? `· ${row.phone}` : ""}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {en ? "Started" : "البداية"}: {fmt(row.planStartedAt || row.createdAt, en)} ·{" "}
+                    {en ? "Expires" : "الانتهاء"}: {fmt(row.planExpiry, en)}
+                  </p>
+                  <p className="text-sm font-semibold text-teal-900 mt-2">
+                    {en ? "Authorized staff" : "الموظفون المخوّلون"}:{" "}
+                    <span className="tabular-nums">
+                      {activeCount}/{row.usersCount}
+                    </span>
+                    <span className="text-slate-500 font-normal text-xs ms-1">
+                      ({en ? "active / total" : "نشط / الإجمالي"} · {en ? "limit" : "الحد"}{" "}
+                      {row.usersLimit < 0 ? "∞" : row.usersLimit})
+                    </span>
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2 shrink-0">
                   <button
                     type="button"
-                    onClick={() => openEdit(row)}
-                    className="text-xs font-bold text-teal-800 hover:underline"
+                    onClick={() =>
+                      setExpanded((e) => ({ ...e, [row.id]: !e[row.id] }))
+                    }
+                    className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                  >
+                    {open
+                      ? en
+                        ? "Hide staff"
+                        : "إخفاء الموظفين"
+                      : en
+                        ? "Show staff"
+                        : "عرض الموظفين"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void openEdit(row)}
+                    className="rounded-xl bg-teal-700 text-white px-3 py-2 text-xs font-bold"
                   >
                     {t.details}
                   </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {rows.length === 0 && <p className="p-8 text-center text-slate-500 text-sm">{t.empty}</p>}
+                </div>
+              </div>
+
+              <div className="border-t border-slate-100 bg-slate-50/80 px-4 sm:px-5 py-3">
+                {staff.length === 0 ? (
+                  <p className="text-xs text-slate-500">
+                    {en ? "No employees yet" : "لا يوجد موظفون بعد"}
+                  </p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs min-w-[520px]">
+                      <thead className="text-slate-500">
+                        <tr>
+                          <th className="text-start py-1.5 font-semibold">
+                            {en ? "Name" : "الاسم"}
+                          </th>
+                          <th className="text-start py-1.5 font-semibold">
+                            {en ? "Email" : "البريد"}
+                          </th>
+                          <th className="text-start py-1.5 font-semibold">
+                            {en ? "Role" : "الدور"}
+                          </th>
+                          <th className="text-start py-1.5 font-semibold">
+                            {en ? "Status" : "الحالة"}
+                          </th>
+                          <th className="text-start py-1.5 font-semibold">
+                            {en ? "Last login" : "آخر دخول"}
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(open ? staff : staff.slice(0, 4)).map((u) => (
+                          <tr key={u.id} className="border-t border-slate-200/70">
+                            <td className="py-2 font-semibold text-slate-800">{u.name}</td>
+                            <td className="py-2 text-slate-600 font-mono" dir="ltr">
+                              {u.email}
+                            </td>
+                            <td className="py-2">{roleLabel(u.role)}</td>
+                            <td className="py-2">
+                              <span
+                                className={
+                                  u.isActive === false
+                                    ? "text-amber-700"
+                                    : "text-emerald-700"
+                                }
+                              >
+                                {u.isActive === false ? t.inactive : t.active}
+                              </span>
+                            </td>
+                            <td className="py-2 text-slate-500">
+                              {fmt(u.lastLoginAt, en)}
+                              {u.lastIp ? (
+                                <span className="ms-1 font-mono text-[10px]" dir="ltr">
+                                  · {u.lastIp}
+                                </span>
+                              ) : null}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {!open && staff.length > 4 ? (
+                      <button
+                        type="button"
+                        onClick={() => setExpanded((e) => ({ ...e, [row.id]: true }))}
+                        className="mt-2 text-[11px] font-bold text-teal-800 hover:underline"
+                      >
+                        {en
+                          ? `Show all ${staff.length} employees`
+                          : `عرض كل الموظفين (${staff.length})`}
+                      </button>
+                    ) : null}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+        {rows.length === 0 && (
+          <p className="p-8 text-center text-slate-500 text-sm rounded-2xl border border-slate-200 bg-white">
+            {t.empty}
+          </p>
+        )}
       </div>
 
       {selected && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <button type="button" className="absolute inset-0 bg-slate-900/40" onClick={() => setSelected(null)} />
+          <button
+            type="button"
+            className="absolute inset-0 bg-slate-900/40"
+            onClick={() => setSelected(null)}
+          />
           <div className="relative w-full sm:max-w-lg bg-white rounded-t-2xl sm:rounded-2xl p-5 space-y-4 max-h-[90vh] overflow-y-auto">
             <h2 className="text-lg font-extrabold">{selected.name}</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -248,7 +369,7 @@ export default function AdminTenantsPage() {
               <button
                 type="button"
                 disabled={saving}
-                onClick={save}
+                onClick={() => void save()}
                 className="flex-1 rounded-xl bg-teal-700 text-white py-2.5 text-sm font-bold disabled:opacity-50"
               >
                 {t.save}
@@ -256,7 +377,9 @@ export default function AdminTenantsPage() {
               <button
                 type="button"
                 onClick={async () => {
-                  await api.updateAdminTenant(selected.id, { isActive: !selected.isActive });
+                  await api.updateAdminTenant(selected.id, {
+                    isActive: !selected.isActive,
+                  });
                   await load(q);
                   setSelected(null);
                 }}
@@ -266,13 +389,25 @@ export default function AdminTenantsPage() {
               </button>
             </div>
 
-            {detail?.users && detail.users.length > 0 ? (
+            {(detail?.users || selected.sampleUsers || []).length > 0 ? (
               <div className="rounded-xl bg-slate-50 p-3 space-y-2">
-                <p className="text-xs font-bold text-slate-500">{t.users}</p>
-                {detail.users.slice(0, 8).map((u) => (
+                <p className="text-xs font-bold text-slate-500">
+                  {t.users} ({(detail?.users || selected.sampleUsers || []).length})
+                </p>
+                {(detail?.users || selected.sampleUsers || []).map((u) => (
                   <div key={u.id} className="flex justify-between text-xs gap-2">
-                    <span className="truncate font-semibold">{u.name}</span>
-                    <span className="text-slate-500 shrink-0">{u.role}</span>
+                    <div className="min-w-0">
+                      <p className="font-semibold truncate">{u.name}</p>
+                      <p className="text-slate-500 font-mono truncate" dir="ltr">
+                        {u.email}
+                      </p>
+                    </div>
+                    <div className="text-end shrink-0">
+                      <p>{roleLabel(u.role)}</p>
+                      <p className={u.isActive === false ? "text-amber-700" : "text-emerald-700"}>
+                        {u.isActive === false ? t.inactive : t.active}
+                      </p>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -294,7 +429,10 @@ export default function AdminTenantsPage() {
               </div>
             ) : null}
 
-            <Link href={`/admin/users?q=${encodeURIComponent(selected.email || selected.name)}`} className="block text-center text-sm text-teal-800 font-semibold">
+            <Link
+              href={`/admin/users?q=${encodeURIComponent(selected.email || selected.name)}`}
+              className="block text-center text-sm text-teal-800 font-semibold"
+            >
               {t.users}
             </Link>
           </div>

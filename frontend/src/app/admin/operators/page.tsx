@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Shield, Trash2, UserPlus } from "lucide-react";
+import { Loader2, Power, Shield, Trash2, UserPlus } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
@@ -27,6 +27,8 @@ type Operator = {
   permissions: string[];
   isActive: boolean;
   isBootstrap?: boolean;
+  isProtected?: boolean;
+  canDelete?: boolean;
 };
 
 export default function AdminOperatorsPage() {
@@ -123,18 +125,53 @@ export default function AdminOperatorsPage() {
     }
   };
 
+  const toggleActive = async (op: Operator) => {
+    try {
+      await api.updateAdminOperator(op.id, { isActive: !op.isActive });
+      await load();
+      toast.success(
+        op.isActive
+          ? en
+            ? "Operator deactivated"
+            : "تم إيقاف المشرف"
+          : en
+            ? "Operator reactivated"
+            : "تم إعادة تفعيل المشرف",
+      );
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message || (en ? "Update failed" : "تعذر التحديث");
+      toast.error(msg);
+    }
+  };
+
   const remove = async (op: Operator) => {
-    if (op.isBootstrap) {
-      toast.error(en ? "Bootstrap operators cannot be removed" : "لا يمكن حذف مشرف النظام الأساسي");
+    if (op.isProtected) {
+      toast.error(
+        en
+          ? "Primary owner cannot be deleted — restrict permissions instead"
+          : "لا يمكن حذف المالك الأساسي — قيّد صلاحياته بدلاً من الحذف",
+      );
       return;
     }
-    if (!confirm(en ? `Remove ${op.email}?` : `حذف ${op.email}؟`)) return;
+    if (
+      !confirm(
+        en
+          ? `Remove supervision for ${op.email}?`
+          : `إزالة إشراف ${op.email}؟`,
+      )
+    )
+      return;
     try {
       await api.removeAdminOperator(op.id);
       await load();
-      toast.success(en ? "Removed" : "تم الحذف");
-    } catch {
-      toast.error(en ? "Remove failed" : "تعذر الحذف");
+      toast.success(en ? "Removed from operators" : "تمت الإزالة من المشرفين");
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message || (en ? "Remove failed" : "تعذر الحذف");
+      toast.error(msg);
     }
   };
 
@@ -147,8 +184,8 @@ export default function AdminOperatorsPage() {
         </h1>
         <p className="text-sm text-slate-500 mt-1">
           {en
-            ? "Appoint or remove platform operators and grant console permissions."
-            : "عيّن أو احذف مشرفي المنصة وامنح صلاحيات لوحة التحكم."}
+            ? "Appoint, restrict, deactivate, or remove platform operators."
+            : "عيّن المشرفين، قيّد صلاحياتهم، أوقفهم أو احذفهم من الإشراف."}
         </p>
       </div>
 
@@ -210,7 +247,10 @@ export default function AdminOperatorsPage() {
           {rows.map((op) => (
             <div
               key={op.id}
-              className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3"
+              className={cn(
+                "rounded-2xl border bg-white p-4 space-y-3",
+                op.isActive ? "border-slate-200" : "border-amber-200 bg-amber-50/40",
+              )}
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
@@ -219,9 +259,13 @@ export default function AdminOperatorsPage() {
                     {op.email}
                   </p>
                   <div className="flex flex-wrap gap-1.5 mt-2">
-                    {op.isBootstrap ? (
+                    {op.isProtected ? (
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-100 text-violet-800">
-                        {en ? "Bootstrap" : "أساسي"}
+                        {en ? "Owner" : "مالك"}
+                      </span>
+                    ) : op.isBootstrap ? (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                        {en ? "Seeded" : "افتراضي"}
                       </span>
                     ) : null}
                     <span
@@ -229,24 +273,47 @@ export default function AdminOperatorsPage() {
                         "text-[10px] font-bold px-2 py-0.5 rounded-full",
                         op.isActive
                           ? "bg-emerald-100 text-emerald-800"
-                          : "bg-slate-100 text-slate-600",
+                          : "bg-amber-100 text-amber-900",
                       )}
                     >
                       {op.isActive ? t.active : t.inactive}
                     </span>
                   </div>
                 </div>
-                {!op.isBootstrap ? (
-                  <button
-                    type="button"
-                    onClick={() => void remove(op)}
-                    className="inline-flex items-center gap-1 text-sm font-bold text-rose-700 hover:underline"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    {en ? "Remove" : "حذف"}
-                  </button>
-                ) : null}
+                <div className="flex flex-wrap gap-2">
+                  {!op.isProtected ? (
+                    <button
+                      type="button"
+                      onClick={() => void toggleActive(op)}
+                      className="inline-flex items-center gap-1 text-sm font-bold text-slate-700 hover:underline"
+                    >
+                      <Power className="w-4 h-4" />
+                      {op.isActive
+                        ? en
+                          ? "Deactivate"
+                          : "إيقاف"
+                        : en
+                          ? "Activate"
+                          : "تفعيل"}
+                    </button>
+                  ) : null}
+                  {!op.isProtected ? (
+                    <button
+                      type="button"
+                      onClick={() => void remove(op)}
+                      className="inline-flex items-center gap-1 text-sm font-bold text-rose-700 hover:underline"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      {en ? "Remove" : "حذف الإشراف"}
+                    </button>
+                  ) : null}
+                </div>
               </div>
+              <p className="text-[11px] text-slate-500">
+                {en
+                  ? "Click chips to grant or revoke console sections."
+                  : "اضغط الشارات لمنح أو سحب أقسام لوحة التحكم."}
+              </p>
               <div className="flex flex-wrap gap-2">
                 {PERMS.map((p) => {
                   const active = (op.permissions || []).includes(p);
@@ -254,7 +321,6 @@ export default function AdminOperatorsPage() {
                     <button
                       key={p}
                       type="button"
-                      disabled={op.isBootstrap && p !== "full"}
                       onClick={() => {
                         let next: string[];
                         if (p === "full") next = ["full"];
@@ -268,10 +334,10 @@ export default function AdminOperatorsPage() {
                         void setOperatorPerms(op.id, next);
                       }}
                       className={cn(
-                        "text-[10px] font-bold px-2 py-0.5 rounded-full border disabled:opacity-40",
+                        "text-[10px] font-bold px-2 py-0.5 rounded-full border",
                         active
                           ? "bg-teal-700 text-white border-teal-700"
-                          : "bg-white text-slate-500 border-slate-200",
+                          : "bg-white text-slate-500 border-slate-200 hover:border-teal-400",
                       )}
                     >
                       {permLabels[p]}

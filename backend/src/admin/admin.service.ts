@@ -5,6 +5,7 @@ import { PLAN_DETAILS } from '../subscriptions/subscriptions.service';
 import {
   getBootstrapAdminEmails,
   isBootstrapAdminEmail,
+  isProtectedPlatformAdminEmail,
   PLATFORM_PERMISSIONS,
   PlatformPermission,
 } from '../common/guards/platform-admin.guard';
@@ -46,11 +47,11 @@ export class AdminService implements OnModuleInit {
   async isPlatformAdmin(email?: string | null): Promise<boolean> {
     if (!email) return false;
     const normalized = email.toLowerCase();
-    if (isBootstrapAdminEmail(normalized)) return true;
     const op = await this.prisma.platformOperator.findUnique({
       where: { email: normalized },
     });
-    return !!(op?.isActive);
+    if (op) return !!op.isActive;
+    return isBootstrapAdminEmail(normalized);
   }
 
   async me(email: string) {
@@ -59,14 +60,18 @@ export class AdminService implements OnModuleInit {
     const op = await this.prisma.platformOperator.findUnique({
       where: { email: normalized },
     });
-    const permissions = isBootstrapAdminEmail(normalized)
-      ? (['full'] as PlatformPermission[])
-      : ((op?.permissions as PlatformPermission[]) || []);
+    let permissions: PlatformPermission[] = ['full'];
+    if (op?.permissions && Array.isArray(op.permissions) && (op.permissions as string[]).length) {
+      permissions = op.permissions as PlatformPermission[];
+    } else if (!isBootstrapAdminEmail(normalized) && op) {
+      permissions = ((op.permissions as PlatformPermission[]) || ['full']);
+    }
     return {
       isPlatformAdmin,
       email: normalized,
-      permissions,
+      permissions: isPlatformAdmin ? permissions : [],
       operatorId: op?.id ?? null,
+      isActive: op ? op.isActive : isPlatformAdmin,
     };
   }
 
@@ -78,7 +83,11 @@ export class AdminService implements OnModuleInit {
     return rows.map((r) => ({
       ...r,
       isBootstrap: bootstrap.has(r.email),
+      isProtected: isProtectedPlatformAdminEmail(r.email),
       permissions: (r.permissions as string[]) || [],
+      canEdit: true,
+      canDeactivate: !isProtectedPlatformAdminEmail(r.email),
+      canDelete: !isProtectedPlatformAdminEmail(r.email),
     }));
   }
 
@@ -116,8 +125,13 @@ export class AdminService implements OnModuleInit {
   ) {
     const existing = await this.prisma.platformOperator.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Operator not found');
-    if (isBootstrapAdminEmail(existing.email) && data.isActive === false) {
-      throw new BadRequestException('Cannot deactivate a bootstrap platform operator');
+    if (
+      isProtectedPlatformAdminEmail(existing.email) &&
+      data.isActive === false
+    ) {
+      throw new BadRequestException(
+        'Cannot deactivate the primary platform owner account (admin@hisaby.pro)',
+      );
     }
     return this.prisma.platformOperator.update({
       where: { id },
@@ -134,11 +148,21 @@ export class AdminService implements OnModuleInit {
   async removeOperator(id: string) {
     const existing = await this.prisma.platformOperator.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Operator not found');
+    if (isProtectedPlatformAdminEmail(existing.email)) {
+      throw new BadRequestException(
+        'Cannot delete the primary platform owner. You may restrict their permissions instead.',
+      );
+    }
+    // Soft-remove: deactivate so seed/env emails lose access until re-appointed
     if (isBootstrapAdminEmail(existing.email)) {
-      throw new BadRequestException('Cannot remove a bootstrap platform operator');
+      await this.prisma.platformOperator.update({
+        where: { id },
+        data: { isActive: false },
+      });
+      return { ok: true, soft: true };
     }
     await this.prisma.platformOperator.delete({ where: { id } });
-    return { ok: true };
+    return { ok: true, soft: false };
   }
 
   private normalizePermissions(raw?: string[]): PlatformPermission[] {
@@ -519,6 +543,7 @@ export class AdminService implements OnModuleInit {
             email: true,
             name: true,
             role: true,
+            isActive: true,
             lastLoginAt: true,
             sessions: {
               orderBy: { createdAt: 'desc' },
@@ -526,8 +551,7 @@ export class AdminService implements OnModuleInit {
               select: { ipAddress: true, userAgent: true, createdAt: true },
             },
           },
-          take: 5,
-          orderBy: { createdAt: 'asc' },
+          orderBy: [{ isActive: 'desc' }, { createdAt: 'asc' }],
         },
       },
     });
@@ -540,6 +564,18 @@ export class AdminService implements OnModuleInit {
         c.invoicesLimitOverride != null
           ? c.invoicesLimitOverride
           : planDetails.invoicesLimit;
+      const staff = c.users.map((u) => ({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        role: u.role,
+        isActive: u.isActive,
+        lastLoginAt: u.lastLoginAt,
+        lastIp: u.sessions[0]?.ipAddress || null,
+        lastUserAgent: u.sessions[0]?.userAgent || null,
+        lastSessionAt: u.sessions[0]?.createdAt || null,
+      }));
+      const activeStaff = staff.filter((u) => u.isActive);
       return {
         id: c.id,
         name: c.name,
@@ -557,21 +593,13 @@ export class AdminService implements OnModuleInit {
         isActive: c.isActive,
         createdAt: c.createdAt,
         usersCount: c._count.users,
+        activeUsersCount: activeStaff.length,
         invoicesCount: c._count.invoices,
         posLinked: !!c.posLinkedAt,
         restoLinked: !!c.restoLinkedAt,
         posLinkedAt: c.posLinkedAt,
         restoLinkedAt: c.restoLinkedAt,
-        sampleUsers: c.users.map((u) => ({
-          id: u.id,
-          name: u.name,
-          email: u.email,
-          role: u.role,
-          lastLoginAt: u.lastLoginAt,
-          lastIp: u.sessions[0]?.ipAddress || null,
-          lastUserAgent: u.sessions[0]?.userAgent || null,
-          lastSessionAt: u.sessions[0]?.createdAt || null,
-        })),
+        sampleUsers: staff,
       };
     });
   }

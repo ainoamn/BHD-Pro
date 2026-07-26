@@ -8,14 +8,17 @@ import { Reflector } from '@nestjs/core';
 import { PrismaService } from '../../prisma/prisma.service';
 
 /**
- * Bootstrap operators always allowed, plus PLATFORM_ADMIN_EMAILS,
- * plus active rows in platform_operators (managed in /admin/operators).
+ * Hardcoded seed emails always get an operator row on boot.
+ * PLATFORM_ADMIN_EMAILS env is merged for emergency access.
  */
 const DEFAULT_PLATFORM_ADMINS = [
   'admin@bhd.om',
   'admin@hisaby.pro',
   'ammar89555200@gmail.com',
 ];
+
+/** Owner account that cannot be deleted or deactivated (permissions can still be restricted). */
+const PROTECTED_PLATFORM_ADMINS = ['admin@hisaby.pro'];
 
 export const PLATFORM_PERMISSIONS = [
   'full',
@@ -62,6 +65,11 @@ export function isBootstrapAdminEmail(email?: string | null): boolean {
   return getBootstrapAdminEmails().includes(email.toLowerCase());
 }
 
+export function isProtectedPlatformAdminEmail(email?: string | null): boolean {
+  if (!email) return false;
+  return PROTECTED_PLATFORM_ADMINS.includes(email.toLowerCase());
+}
+
 export function operatorHasPermission(
   permissions: string[] | undefined,
   needed?: PlatformPermission[],
@@ -96,18 +104,20 @@ export class PlatformAdminGuard implements CanActivate {
     let permissions: PlatformPermission[] = [];
     let allowed = false;
 
-    if (isBootstrapAdminEmail(email)) {
-      allowed = true;
-      permissions = ['full'];
-    } else {
-      const op = await this.prisma.platformOperator.findUnique({
-        where: { email },
-      });
-      if (op?.isActive) {
+    const op = await this.prisma.platformOperator.findUnique({
+      where: { email },
+    });
+
+    if (op) {
+      if (op.isActive) {
         allowed = true;
         permissions = ((op.permissions as string[]) || []) as PlatformPermission[];
         if (!permissions.length) permissions = ['full'];
       }
+    } else if (isBootstrapAdminEmail(email)) {
+      // Seed/env operator without a row yet — full access until managed in DB
+      allowed = true;
+      permissions = ['full'];
     }
 
     if (!allowed) {
