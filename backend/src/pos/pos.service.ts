@@ -30,6 +30,7 @@ import {
   OpenPosShiftDto,
   ClosePosShiftDto,
   RefundPosSaleDto,
+  BlindReturnDto,
   UpdatePosDraftDto,
   DeletePosDraftDto,
   PosStoreCreditTopUpDto,
@@ -385,6 +386,8 @@ export class PosService {
         quantity: true,
         minQuantity: true,
         isTracked: true,
+        unit: true,
+        soldByWeight: true,
         warehouseId: true,
         updatedAt: true,
       },
@@ -433,6 +436,8 @@ export class PosService {
         quantity: true,
         minQuantity: true,
         isTracked: true,
+        unit: true,
+        soldByWeight: true,
         warehouseId: true,
         updatedAt: true,
       },
@@ -3402,6 +3407,181 @@ export class PosService {
       creditNote,
       originalInvoiceId: invoice.id,
       originalNumber: invoice.number,
+    };
+  }
+
+  /**
+   * Blind / no-receipt return: credit note + stock restore without linking to
+   * an original sale. Always dual-control (POS_BLIND_RETURN).
+   */
+  async blindReturn(
+    companyId: string,
+    actor: TokenPayload,
+    dto: BlindReturnDto,
+  ) {
+    await this.dualControl.assertApproved(
+      companyId,
+      actor,
+      'POS_BLIND_RETURN',
+      dto.approval,
+    );
+
+    const reason = dto.reason.trim();
+    if (reason.length < 3) {
+      throw new BadRequestException('Reason is required (min 3 characters)');
+    }
+    if (!dto.items?.length) {
+      throw new BadRequestException('Return items are required');
+    }
+
+    await this.periods.assertOpen(companyId, new Date());
+
+    const refundMethod = dto.refundMethod || 'CASH';
+    if (refundMethod === 'STORE_CREDIT' && !dto.contactId) {
+      throw new BadRequestException('Customer required for store-credit return');
+    }
+
+    const contact = await this.resolveSaleContact(companyId, dto.contactId);
+    if (refundMethod === 'STORE_CREDIT' && contact.name === WALK_IN_NAME) {
+      throw new BadRequestException('Store-credit return requires a customer');
+    }
+
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { ftaConfig: true },
+    });
+    const taxCfg =
+      (company?.ftaConfig as { applyVat?: boolean; vatRate?: number } | null) ||
+      {};
+    const taxRate =
+      taxCfg.applyVat === false
+        ? 0
+        : typeof taxCfg.vatRate === 'number'
+          ? taxCfg.vatRate
+          : 5;
+
+    const cnItems: {
+      productId: string;
+      description: string;
+      quantity: number;
+      unitPrice: number;
+      discount: number;
+    }[] = [];
+
+    for (const row of dto.items) {
+      const product = await this.products.findOne(companyId, row.productId);
+      if (!product.isActive) {
+        throw new BadRequestException(`Product inactive: ${product.name}`);
+      }
+      const qty = Number(row.quantity);
+      if (!(qty > 0.0005)) {
+        throw new BadRequestException('Quantity must be greater than zero');
+      }
+      const unitPrice =
+        row.unitPrice != null ? Number(row.unitPrice) : Number(product.salePrice);
+      if (!(unitPrice >= 0)) {
+        throw new BadRequestException('Invalid unit price');
+      }
+      cnItems.push({
+        productId: product.id,
+        description: product.name,
+        quantity: qty,
+        unitPrice,
+        discount: 0,
+      });
+    }
+
+    const openShift = await this.findOpenShift(
+      companyId,
+      dto.warehouseId || null,
+    );
+    const warehouseId =
+      dto.warehouseId ||
+      openShift?.warehouseId ||
+      (
+        await this.prisma.warehouse.findFirst({
+          where: { companyId, isActive: true },
+          orderBy: { createdAt: 'asc' },
+        })
+      )?.id ||
+      null;
+
+    const today = new Date().toISOString().slice(0, 10);
+    const refundRef = `POS-BLIND-${Date.now()}`;
+    for (const item of cnItems) {
+      const product = await this.prisma.product.findFirst({
+        where: { id: item.productId, companyId },
+      });
+      if (!product?.isTracked || !warehouseId) continue;
+      await this.releaseStockIn(
+        companyId,
+        product.id,
+        item.quantity,
+        warehouseId,
+        refundRef,
+        `POS blind return: ${reason}`,
+      );
+    }
+
+    const paymentMethod =
+      refundMethod === 'STORE_CREDIT'
+        ? PaymentMethod.STORE_CREDIT
+        : PaymentMethod.CASH;
+    const notes = `Hisaby POS blind return: ${reason}${
+      refundMethod === 'STORE_CREDIT' ? ' [STORE_CREDIT]' : ''
+    }`;
+
+    const creditNote = await this.invoices.create(companyId, actor.sub, {
+      type: InvoiceType.CREDIT_NOTE,
+      contactId: contact.id,
+      date: today,
+      dueDate: today,
+      taxRate,
+      notes,
+      payImmediately: true,
+      paymentMethod,
+      items: cnItems,
+    });
+
+    if (refundMethod === 'STORE_CREDIT') {
+      const creditNoteTotal = Number(creditNote.total);
+      const wallet = await this.prisma.contact.findFirst({
+        where: { id: contact.id, companyId },
+        select: { currentBalance: true, creditLimit: true },
+      });
+      const next = Number(wallet?.currentBalance || 0) + creditNoteTotal;
+      const limit = Number(wallet?.creditLimit || 0);
+      if (limit > 0 && next > limit + 0.001) {
+        throw new BadRequestException(
+          `Store credit return would exceed credit limit ${limit.toFixed(3)}`,
+        );
+      }
+      await this.prisma.contact.update({
+        where: { id: contact.id },
+        data: { currentBalance: { increment: creditNoteTotal } },
+      });
+    }
+
+    try {
+      await this.prisma.invoice.update({
+        where: { id: creditNote.id },
+        data: {
+          posShiftId: openShift?.id || undefined,
+          customFieldsJson: {
+            blindReturn: true,
+            refundMethod,
+            reason,
+          },
+        },
+      });
+    } catch {
+      /* ignore */
+    }
+
+    return {
+      refunded: true,
+      blind: true,
+      creditNote,
     };
   }
 

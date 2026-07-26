@@ -209,6 +209,54 @@ export class RefundPosSaleDto {
   refundMethod?: 'ORIGINAL'|'CASH'|'STORE_CREDIT';
 }
 
+export class BlindReturnItemDto {
+  @IsUUID()
+  productId: string;
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.001)
+  quantity: number;
+
+  /** Optional override; defaults to current catalog salePrice */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  unitPrice?: number;
+}
+
+/** No-receipt return (manager dual-control). */
+export class BlindReturnDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => BlindReturnItemDto)
+  items: BlindReturnItemDto[];
+
+  @IsString()
+  @MinLength(3)
+  @MaxLength(500)
+  reason: string;
+
+  @IsOptional()
+  @IsIn(['CASH', 'STORE_CREDIT'])
+  refundMethod?: 'CASH' | 'STORE_CREDIT';
+
+  @IsOptional()
+  @IsUUID()
+  contactId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  warehouseId?: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DualApprovalDto)
+  approval?: DualApprovalDto;
+}
+
 export class OpenPosShiftDto {
   /** Preferred API name — maps to PosShift.openingFloat */
   @IsOptional()

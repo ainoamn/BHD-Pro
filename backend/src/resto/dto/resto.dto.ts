@@ -844,6 +844,108 @@ export class UpdateRestoConfigDto {
   @ValidateNested()
   @Type(() => RestoKitchenSlaDto)
   kitchenSla?: RestoKitchenSlaDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => RestoBookingConfigDto)
+  booking?: RestoBookingConfigDto;
+}
+
+export class RestoBookingConfigDto {
+  @IsOptional()
+  @IsBoolean()
+  enabled?: boolean;
+
+  /** Human-friendly public path segment; auto-generated when enabling if empty */
+  @IsOptional()
+  @IsString()
+  @MaxLength(48)
+  publicSlug?: string | null;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  maxParty?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(20)
+  minParty?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(15)
+  @Max(120)
+  slotMinutes?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(60)
+  horizonDays?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(23)
+  openHour?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(23)
+  closeHour?: number;
+
+  /** Expected table turn / conflict window minutes */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(30)
+  @Max(240)
+  turnMinutes?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  autoConfirm?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  autoNotify?: boolean;
+}
+
+export class PublicCreateBookingDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(120)
+  guestName: string;
+
+  @IsString()
+  @MinLength(6)
+  @MaxLength(40)
+  phone: string;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  guests: number;
+
+  /** ISO datetime — must land on an available slot */
+  @IsString()
+  reservedAt: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  notes?: string;
 }
 
 export class RestoKitchenSlaDto {

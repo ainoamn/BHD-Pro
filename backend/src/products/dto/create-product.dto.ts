@@ -78,6 +78,11 @@ export class CreateProductDto {
   @IsBoolean()
   isTracked?: boolean;
 
+  /** When true, POS prompts for kg weight instead of piece qty */
+  @IsOptional()
+  @IsBoolean()
+  soldByWeight?: boolean;
+
   /** Home / sector warehouse — scopes POS & resto catalogs */
   @IsOptional()
   @IsUUID()

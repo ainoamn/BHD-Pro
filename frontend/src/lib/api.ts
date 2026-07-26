@@ -1594,6 +1594,7 @@ class ApiClient {
         reservedAt: string;
         status: string;
         notes: string | null;
+        source?: string;
         tableId: string | null;
         table: { id: string; code: string; name: string | null } | null;
       }>;
@@ -2471,6 +2472,21 @@ class ApiClient {
         criticalMinutes: number;
         expoWarnMinutes: number;
       };
+      booking: {
+        enabled: boolean;
+        publicSlug: string | null;
+        publicPath: string | null;
+        publicUrl: string | null;
+        maxParty: number;
+        minParty: number;
+        slotMinutes: number;
+        horizonDays: number;
+        openHour: number;
+        closeHour: number;
+        turnMinutes: number;
+        autoConfirm: boolean;
+        autoNotify: boolean;
+      };
       defaults: Record<string, { start: number; end: number }>;
       slaDefaults: {
         warnMinutes: number;
@@ -2492,6 +2508,19 @@ class ApiClient {
       criticalMinutes?: number;
       expoWarnMinutes?: number;
     };
+    booking?: {
+      enabled?: boolean;
+      publicSlug?: string | null;
+      maxParty?: number;
+      minParty?: number;
+      slotMinutes?: number;
+      horizonDays?: number;
+      openHour?: number;
+      closeHour?: number;
+      turnMinutes?: number;
+      autoConfirm?: boolean;
+      autoNotify?: boolean;
+    };
   }) {
     return this.put<{
       timezone: string;
@@ -2502,6 +2531,21 @@ class ApiClient {
         warnMinutes: number;
         criticalMinutes: number;
         expoWarnMinutes: number;
+      };
+      booking: {
+        enabled: boolean;
+        publicSlug: string | null;
+        publicPath: string | null;
+        publicUrl: string | null;
+        maxParty: number;
+        minParty: number;
+        slotMinutes: number;
+        horizonDays: number;
+        openHour: number;
+        closeHour: number;
+        turnMinutes: number;
+        autoConfirm: boolean;
+        autoNotify: boolean;
       };
       defaults: Record<string, { start: number; end: number }>;
       slaDefaults: {

@@ -62,6 +62,7 @@
       "POS_STOCK_OVERRIDE": "POS sell past on-hand stock",
       "POS_NO_SALE": "POS no-sale / open drawer",
       "POS_REFUND": "POS partial refund",
+      "POS_BLIND_RETURN": "POS blind / no-receipt return",
       "STOCK_ADJUST": "Stock adjustment",
       "STOCK_TRANSFER": "Stock transfer",
       "INVOICE_CANCEL": "Invoice cancel",

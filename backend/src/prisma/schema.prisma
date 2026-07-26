@@ -979,6 +979,8 @@ model Product {
 
   isActive    Boolean  @default(true) @map("is_active")
   isTracked   Boolean  @default(true) @map("is_tracked")
+  /// POS: prompt for kg weight instead of piece qty
+  soldByWeight Boolean @default(false) @map("sold_by_weight")
 
   images      String[]
   /// EU14-style allergen codes (gluten, milk, nuts, …)
@@ -1982,6 +1984,8 @@ model RestoReservation {
   reservedAt DateTime               @map("reserved_at")
   status     RestoReservationStatus @default(PENDING)
   notes      String?
+  /// STAFF | GUEST — how the reservation was created
+  source     String                 @default("STAFF")
   /// Public confirm/cancel token
   confirmToken   String?   @unique @map("confirm_token")
   confirmedAt    DateTime? @map("confirmed_at")

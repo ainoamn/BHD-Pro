@@ -349,6 +349,20 @@ export class RestoService {
     expoWarnMinutes: 5,
   };
 
+  private static readonly DEFAULT_BOOKING = {
+    enabled: false,
+    publicSlug: null as string | null,
+    maxParty: 12,
+    minParty: 1,
+    slotMinutes: 30,
+    horizonDays: 14,
+    openHour: 11,
+    closeHour: 23,
+    turnMinutes: 90,
+    autoConfirm: false,
+    autoNotify: true,
+  };
+
   private hourInZone(timeZone: string, now = new Date()): number {
     const parts = new Intl.DateTimeFormat('en-US', {
       timeZone,
@@ -398,11 +412,25 @@ export class RestoService {
       criticalMinutes: number;
       expoWarnMinutes: number;
     };
+    booking: {
+      enabled: boolean;
+      publicSlug: string | null;
+      maxParty: number;
+      minParty: number;
+      slotMinutes: number;
+      horizonDays: number;
+      openHour: number;
+      closeHour: number;
+      turnMinutes: number;
+      autoConfirm: boolean;
+      autoNotify: boolean;
+    };
   } {
     const base = { ...RestoService.DEFAULT_DAY_PARTS };
     const slaBase = { ...RestoService.DEFAULT_KITCHEN_SLA };
+    const bookingBase = { ...RestoService.DEFAULT_BOOKING };
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-      return { dayParts: base, kitchenSla: slaBase };
+      return { dayParts: base, kitchenSla: slaBase, booking: bookingBase };
     }
     const cfg = raw as Record<string, unknown>;
     const dp =
@@ -414,6 +442,12 @@ export class RestoService {
       typeof cfg.kitchenSla === 'object' &&
       !Array.isArray(cfg.kitchenSla)
         ? (cfg.kitchenSla as Record<string, unknown>)
+        : {};
+    const bookRaw =
+      cfg.booking &&
+      typeof cfg.booking === 'object' &&
+      !Array.isArray(cfg.booking)
+        ? (cfg.booking as Record<string, unknown>)
         : {};
     const warn = Number(slaRaw.warnMinutes);
     const critical = Number(slaRaw.criticalMinutes);
@@ -433,6 +467,26 @@ export class RestoService {
       Number.isFinite(expoWarn) && expoWarn >= 1 && expoWarn <= 60
         ? Math.floor(expoWarn)
         : slaBase.expoWarnMinutes;
+
+    const clampInt = (
+      v: unknown,
+      min: number,
+      max: number,
+      fallback: number,
+    ) => {
+      const n = Number(v);
+      if (!Number.isFinite(n)) return fallback;
+      return Math.min(max, Math.max(min, Math.floor(n)));
+    };
+    const slugRaw =
+      typeof bookRaw.publicSlug === 'string'
+        ? bookRaw.publicSlug.trim().toLowerCase()
+        : '';
+    const publicSlug =
+      slugRaw && /^[a-z0-9][a-z0-9-]{1,46}[a-z0-9]$/.test(slugRaw)
+        ? slugRaw
+        : null;
+
     return {
       dayParts: {
         breakfast: this.normalizeDayPartWindow(
@@ -444,6 +498,34 @@ export class RestoService {
         late: this.normalizeDayPartWindow(dp.late, base.late),
       },
       kitchenSla: { warnMinutes, criticalMinutes, expoWarnMinutes },
+      booking: {
+        enabled: bookRaw.enabled === true,
+        publicSlug,
+        maxParty: clampInt(bookRaw.maxParty, 1, 50, bookingBase.maxParty),
+        minParty: clampInt(bookRaw.minParty, 1, 20, bookingBase.minParty),
+        slotMinutes: clampInt(
+          bookRaw.slotMinutes,
+          15,
+          120,
+          bookingBase.slotMinutes,
+        ),
+        horizonDays: clampInt(
+          bookRaw.horizonDays,
+          1,
+          60,
+          bookingBase.horizonDays,
+        ),
+        openHour: clampInt(bookRaw.openHour, 0, 23, bookingBase.openHour),
+        closeHour: clampInt(bookRaw.closeHour, 0, 23, bookingBase.closeHour),
+        turnMinutes: clampInt(
+          bookRaw.turnMinutes,
+          30,
+          240,
+          bookingBase.turnMinutes,
+        ),
+        autoConfirm: bookRaw.autoConfirm === true,
+        autoNotify: bookRaw.autoNotify !== false,
+      },
     };
   }
 
@@ -491,26 +573,37 @@ export class RestoService {
   async getRestoConfig(companyId: string) {
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
-      select: { timezone: true, restoConfig: true },
+      select: { timezone: true, restoConfig: true, name: true },
     });
     if (!company) throw new NotFoundException('Company not found');
     const parsed = this.parseRestoConfig(company.restoConfig);
     const hour = this.hourInZone(company.timezone || 'Asia/Muscat');
+    const publicPath = parsed.booking.publicSlug
+      ? `/reserve/${parsed.booking.publicSlug}`
+      : null;
     return {
       timezone: company.timezone || 'Asia/Muscat',
       dayParts: parsed.dayParts,
       kitchenSla: parsed.kitchenSla,
+      booking: {
+        ...parsed.booking,
+        publicPath,
+        publicUrl: publicPath
+          ? `${this.guestNotify.frontendBaseUrl()}${publicPath}`
+          : null,
+      },
       currentDayPart: this.resolveDayPart(hour, parsed.dayParts),
       currentHour: hour,
       defaults: RestoService.DEFAULT_DAY_PARTS,
       slaDefaults: RestoService.DEFAULT_KITCHEN_SLA,
+      bookingDefaults: RestoService.DEFAULT_BOOKING,
     };
   }
 
   async updateRestoConfig(companyId: string, dto: UpdateRestoConfigDto) {
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
-      select: { id: true, restoConfig: true },
+      select: { id: true, restoConfig: true, name: true },
     });
     if (!company) throw new NotFoundException('Company not found');
     const current = this.parseRestoConfig(company.restoConfig);
@@ -541,6 +634,57 @@ export class RestoService {
         nextSla.criticalMinutes = Math.min(180, nextSla.warnMinutes + 1);
       }
     }
+
+    let nextBooking = { ...current.booking };
+    if (dto.booking) {
+      if (dto.booking.enabled != null) nextBooking.enabled = !!dto.booking.enabled;
+      if (dto.booking.maxParty != null) nextBooking.maxParty = Number(dto.booking.maxParty);
+      if (dto.booking.minParty != null) nextBooking.minParty = Number(dto.booking.minParty);
+      if (dto.booking.slotMinutes != null)
+        nextBooking.slotMinutes = Number(dto.booking.slotMinutes);
+      if (dto.booking.horizonDays != null)
+        nextBooking.horizonDays = Number(dto.booking.horizonDays);
+      if (dto.booking.openHour != null) nextBooking.openHour = Number(dto.booking.openHour);
+      if (dto.booking.closeHour != null)
+        nextBooking.closeHour = Number(dto.booking.closeHour);
+      if (dto.booking.turnMinutes != null)
+        nextBooking.turnMinutes = Number(dto.booking.turnMinutes);
+      if (dto.booking.autoConfirm != null)
+        nextBooking.autoConfirm = !!dto.booking.autoConfirm;
+      if (dto.booking.autoNotify != null)
+        nextBooking.autoNotify = !!dto.booking.autoNotify;
+
+      if (dto.booking.publicSlug !== undefined) {
+        const raw = (dto.booking.publicSlug || '').trim().toLowerCase();
+        if (!raw) {
+          nextBooking.publicSlug = null;
+        } else {
+          const cleaned = raw
+            .replace(/[^a-z0-9-]+/g, '-')
+            .replace(/-+/g, '-')
+            .replace(/^-|-$/g, '')
+            .slice(0, 48);
+          if (!/^[a-z0-9][a-z0-9-]{1,46}[a-z0-9]$/.test(cleaned)) {
+            throw new BadRequestException(
+              'Invalid booking slug (use 3–48 chars: a-z, 0-9, hyphen)',
+            );
+          }
+          await this.assertBookingSlugAvailable(cleaned, companyId);
+          nextBooking.publicSlug = cleaned;
+        }
+      }
+
+      if (nextBooking.enabled && !nextBooking.publicSlug) {
+        nextBooking.publicSlug = await this.generateBookingSlug(
+          company.name,
+          companyId,
+        );
+      }
+      if (nextBooking.minParty > nextBooking.maxParty) {
+        nextBooking.minParty = nextBooking.maxParty;
+      }
+    }
+
     const prev =
       company.restoConfig &&
       typeof company.restoConfig === 'object' &&
@@ -551,12 +695,48 @@ export class RestoService {
       ...prev,
       dayParts: nextDayParts,
       kitchenSla: nextSla,
+      booking: nextBooking,
     };
     await this.prisma.company.update({
       where: { id: companyId },
       data: { restoConfig: next as Prisma.InputJsonValue },
     });
     return this.getRestoConfig(companyId);
+  }
+
+  private async generateBookingSlug(companyName: string, companyId: string) {
+    const base =
+      companyName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '')
+        .slice(0, 18) || 'resto';
+    for (let i = 0; i < 8; i++) {
+      const candidate = `${base}-${randomBytes(2).toString('hex')}`;
+      try {
+        await this.assertBookingSlugAvailable(candidate, companyId);
+        return candidate;
+      } catch {
+        /* try again */
+      }
+    }
+    return `resto-${randomBytes(4).toString('hex')}`;
+  }
+
+  private async assertBookingSlugAvailable(slug: string, companyId: string) {
+    const hit = await this.prisma.company.findFirst({
+      where: {
+        id: { not: companyId },
+        restoConfig: {
+          path: ['booking', 'publicSlug'],
+          equals: slug,
+        },
+      },
+      select: { id: true },
+    });
+    if (hit) {
+      throw new BadRequestException('Booking slug already in use');
+    }
   }
 
   private async normalizeGuestPhone(companyId: string, phone: string) {
@@ -4358,6 +4538,7 @@ export class RestoService {
     status: string;
     notes: string | null;
     tableId: string | null;
+    source?: string | null;
     confirmToken?: string | null;
     confirmedAt?: Date | null;
     reminderSentAt?: Date | null;
@@ -4373,6 +4554,7 @@ export class RestoService {
       status: r.status,
       notes: r.notes,
       tableId: r.tableId,
+      source: r.source || 'STAFF',
       confirmToken: r.confirmToken ?? null,
       confirmedAt: r.confirmedAt ?? null,
       reminderSentAt: r.reminderSentAt ?? null,
@@ -4418,6 +4600,8 @@ export class RestoService {
       reservedAt: string;
       tableId?: string;
       notes?: string;
+      source?: 'STAFF' | 'GUEST';
+      status?: 'PENDING' | 'CONFIRMED';
     },
   ) {
     const guestName = dto.guestName.trim();
@@ -4432,25 +4616,18 @@ export class RestoService {
       });
       if (!table) throw new NotFoundException('Table not found');
 
-      const windowMs = 90 * 60 * 1000;
-      const conflict = await this.prisma.restoReservation.findFirst({
-        where: {
-          companyId,
-          tableId: dto.tableId,
-          status: { in: ['PENDING', 'CONFIRMED'] },
-          reservedAt: {
-            gte: new Date(reservedAt.getTime() - windowMs),
-            lte: new Date(reservedAt.getTime() + windowMs),
-          },
-        },
-        select: { id: true, guestName: true, reservedAt: true },
-      });
+      const conflict = await this.findTableReservationConflict(
+        companyId,
+        dto.tableId,
+        reservedAt,
+      );
       if (conflict) {
         throw new BadRequestException(
           `Table already reserved near that time (${conflict.guestName} @ ${conflict.reservedAt.toISOString()})`,
         );
       }
     }
+    const status = dto.status || 'PENDING';
     const created = await this.prisma.restoReservation.create({
       data: {
         companyId,
@@ -4460,8 +4637,10 @@ export class RestoService {
         reservedAt,
         tableId: dto.tableId || null,
         notes: dto.notes?.trim() || null,
-        status: 'PENDING',
+        status,
+        source: dto.source || 'STAFF',
         confirmToken: this.guestNotify.newConfirmToken(),
+        ...(status === 'CONFIRMED' ? { confirmedAt: new Date() } : {}),
       },
       include: {
         table: { select: { id: true, code: true, name: true } },
@@ -4489,6 +4668,29 @@ export class RestoService {
       }
     }
     return this.mapReservation(created);
+  }
+
+  private async findTableReservationConflict(
+    companyId: string,
+    tableId: string,
+    reservedAt: Date,
+    turnMinutes = 90,
+    excludeId?: string,
+  ) {
+    const windowMs = turnMinutes * 60 * 1000;
+    return this.prisma.restoReservation.findFirst({
+      where: {
+        companyId,
+        tableId,
+        ...(excludeId ? { id: { not: excludeId } } : {}),
+        status: { in: ['PENDING', 'CONFIRMED'] },
+        reservedAt: {
+          gte: new Date(reservedAt.getTime() - windowMs),
+          lte: new Date(reservedAt.getTime() + windowMs),
+        },
+      },
+      select: { id: true, guestName: true, reservedAt: true },
+    });
   }
 
   async updateReservationStatus(
@@ -5156,6 +5358,361 @@ export class RestoService {
       canCancel:
         row.status === 'PENDING' || row.status === 'CONFIRMED',
     };
+  }
+
+  private async findCompanyByBookingSlug(slug: string) {
+    const cleaned = slug.trim().toLowerCase();
+    if (!cleaned) throw new NotFoundException('Booking page not found');
+    const company = await this.prisma.company.findFirst({
+      where: {
+        isActive: true,
+        restoConfig: {
+          path: ['booking', 'publicSlug'],
+          equals: cleaned,
+        },
+      },
+      select: {
+        id: true,
+        name: true,
+        logo: true,
+        timezone: true,
+        currency: true,
+        language: true,
+        restoConfig: true,
+      },
+    });
+    if (!company) throw new NotFoundException('Booking page not found');
+    const booking = this.parseRestoConfig(company.restoConfig).booking;
+    if (!booking.enabled || booking.publicSlug !== cleaned) {
+      throw new NotFoundException('Online booking is disabled');
+    }
+    return { company, booking };
+  }
+
+  async getPublicBookingPage(slug: string) {
+    const { company, booking } = await this.findCompanyByBookingSlug(slug);
+    return {
+      slug: booking.publicSlug,
+      company: {
+        name: company.name,
+        logo: company.logo,
+        currency: company.currency,
+        language: company.language || 'ar',
+        timezone: company.timezone || 'Asia/Muscat',
+      },
+      rules: {
+        maxParty: booking.maxParty,
+        minParty: booking.minParty,
+        slotMinutes: booking.slotMinutes,
+        horizonDays: booking.horizonDays,
+        openHour: booking.openHour,
+        closeHour: booking.closeHour,
+        requirePhone: true,
+      },
+    };
+  }
+
+  /**
+   * Build bookable slots for a calendar date (YYYY-MM-DD) in restaurant timezone.
+   * A slot is open when at least one table can seat the party without a conflict.
+   */
+  async getPublicBookingAvailability(
+    slug: string,
+    date: string,
+    guests: number,
+  ) {
+    const { company, booking } = await this.findCompanyByBookingSlug(slug);
+    const party = Math.max(
+      booking.minParty,
+      Math.min(booking.maxParty, Math.floor(guests) || booking.minParty),
+    );
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      throw new BadRequestException('date must be YYYY-MM-DD');
+    }
+
+    const timezone = company.timezone || 'Asia/Muscat';
+    const slots = this.buildDaySlots(
+      date,
+      timezone,
+      booking.openHour,
+      booking.closeHour,
+      booking.slotMinutes,
+    );
+    const now = Date.now();
+    const horizonEnd = now + booking.horizonDays * 24 * 60 * 60 * 1000;
+
+    const tables = await this.prisma.restoTable.findMany({
+      where: { companyId: company.id, seats: { gte: party } },
+      select: { id: true, seats: true },
+      orderBy: { seats: 'asc' },
+    });
+    if (tables.length === 0) {
+      return {
+        date,
+        guests: party,
+        slots: [] as Array<{ at: string; available: boolean }>,
+        reason: 'no_table_capacity',
+      };
+    }
+
+    const dayStart = slots[0] ? new Date(slots[0].getTime() - booking.turnMinutes * 60_000) : null;
+    const dayEnd = slots.length
+      ? new Date(slots[slots.length - 1].getTime() + booking.turnMinutes * 60_000)
+      : null;
+    const reservations =
+      dayStart && dayEnd
+        ? await this.prisma.restoReservation.findMany({
+            where: {
+              companyId: company.id,
+              status: { in: ['PENDING', 'CONFIRMED'] },
+              reservedAt: { gte: dayStart, lte: dayEnd },
+            },
+            select: { tableId: true, reservedAt: true, guests: true },
+          })
+        : [];
+
+    const turnMs = booking.turnMinutes * 60_000;
+    const result = slots.map((at) => {
+      const t = at.getTime();
+      if (t < now + 20 * 60_000 || t > horizonEnd) {
+        return { at: at.toISOString(), available: false };
+      }
+      const available = this.hasCoverCapacity(
+        tables,
+        reservations,
+        t,
+        turnMs,
+        party,
+      );
+      return { at: at.toISOString(), available };
+    });
+
+    return {
+      date,
+      guests: party,
+      slotMinutes: booking.slotMinutes,
+      slots: result,
+      openCount: result.filter((s) => s.available).length,
+    };
+  }
+
+  private hasCoverCapacity(
+    tables: Array<{ id: string; seats: number }>,
+    reservations: Array<{
+      tableId: string | null;
+      reservedAt: Date;
+      guests: number;
+    }>,
+    slotMs: number,
+    turnMs: number,
+    party: number,
+  ): boolean {
+    const overlapping = reservations.filter(
+      (r) => Math.abs(r.reservedAt.getTime() - slotMs) <= turnMs,
+    );
+    const usedTableIds = new Set(
+      overlapping.map((r) => r.tableId).filter(Boolean) as string[],
+    );
+    const freeTables = tables.filter((tb) => !usedTableIds.has(tb.id));
+    if (freeTables.some((tb) => tb.seats >= party)) return true;
+    // Fallback: total free seats vs party (for unassigned spill)
+    const freeSeats = freeTables.reduce((s, tb) => s + tb.seats, 0);
+    const unassignedGuests = overlapping
+      .filter((r) => !r.tableId)
+      .reduce((s, r) => s + r.guests, 0);
+    return freeSeats - unassignedGuests >= party;
+  }
+
+  private buildDaySlots(
+    dateYmd: string,
+    timeZone: string,
+    openHour: number,
+    closeHour: number,
+    slotMinutes: number,
+  ): Date[] {
+    const slots: Date[] = [];
+    // Walk candidate UTC hours around the day and keep those whose local date/hour match
+    const approx = new Date(`${dateYmd}T12:00:00Z`);
+    const startProbe = new Date(approx.getTime() - 36 * 3600_000);
+    const endProbe = new Date(approx.getTime() + 36 * 3600_000);
+    for (
+      let t = startProbe.getTime();
+      t <= endProbe.getTime();
+      t += slotMinutes * 60_000
+    ) {
+      const d = new Date(t);
+      const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hourCycle: 'h23',
+      }).formatToParts(d);
+      const get = (type: string) =>
+        parts.find((p) => p.type === type)?.value || '';
+      const ymd = `${get('year')}-${get('month')}-${get('day')}`;
+      if (ymd !== dateYmd) continue;
+      const hour = Number(get('hour'));
+      const minute = Number(get('minute'));
+      if (minute % slotMinutes !== 0) continue;
+      if (!this.hourInBookingWindow(hour, openHour, closeHour)) continue;
+      // Exclude closeHour exactly when open < close (last seating before close)
+      if (openHour < closeHour && hour >= closeHour) continue;
+      if (openHour > closeHour && hour === closeHour && minute === 0) continue;
+      slots.push(d);
+    }
+    return slots;
+  }
+
+  private hourInBookingWindow(
+    hour: number,
+    openHour: number,
+    closeHour: number,
+  ): boolean {
+    if (openHour === closeHour) return true; // 24h
+    if (openHour < closeHour) return hour >= openHour && hour < closeHour;
+    return hour >= openHour || hour < closeHour;
+  }
+
+  async createPublicBooking(
+    slug: string,
+    dto: {
+      guestName: string;
+      phone: string;
+      guests: number;
+      reservedAt: string;
+      notes?: string;
+    },
+  ) {
+    const { company, booking } = await this.findCompanyByBookingSlug(slug);
+    const guestName = dto.guestName.trim();
+    if (!guestName) throw new BadRequestException('Guest name required');
+    const guests = Math.floor(Number(dto.guests) || 0);
+    if (guests < booking.minParty || guests > booking.maxParty) {
+      throw new BadRequestException(
+        `Party size must be between ${booking.minParty} and ${booking.maxParty}`,
+      );
+    }
+    const reservedAt = new Date(dto.reservedAt);
+    if (Number.isNaN(reservedAt.getTime())) {
+      throw new BadRequestException('Invalid reservation time');
+    }
+    const now = Date.now();
+    if (reservedAt.getTime() < now + 15 * 60_000) {
+      throw new BadRequestException('Slot must be at least 15 minutes ahead');
+    }
+    if (
+      reservedAt.getTime() >
+      now + booking.horizonDays * 24 * 60 * 60 * 1000
+    ) {
+      throw new BadRequestException('Slot is outside booking horizon');
+    }
+
+    const avail = await this.getPublicBookingAvailability(
+      slug,
+      this.ymdInZone(reservedAt, company.timezone || 'Asia/Muscat'),
+      guests,
+    );
+    const slot = avail.slots.find(
+      (s) =>
+        Math.abs(new Date(s.at).getTime() - reservedAt.getTime()) < 60_000 &&
+        s.available,
+    );
+    if (!slot) {
+      throw new BadRequestException('Selected slot is no longer available');
+    }
+
+    const { e164: phone } = await this.normalizeGuestPhone(
+      company.id,
+      dto.phone,
+    );
+    const tableId = await this.pickFreeTableForSlot(
+      company.id,
+      guests,
+      reservedAt,
+      booking.turnMinutes,
+    );
+
+    const created = await this.createReservation(company.id, {
+      guestName,
+      phone,
+      guests,
+      reservedAt: reservedAt.toISOString(),
+      tableId: tableId || undefined,
+      notes: dto.notes,
+      source: 'GUEST',
+      status: booking.autoConfirm ? 'CONFIRMED' : 'PENDING',
+    });
+
+    let notify: {
+      ok: boolean;
+      channel: string | null;
+      error?: string;
+    } | null = null;
+    if (booking.autoNotify) {
+      try {
+        const n = await this.notifyReservationGuest(
+          company.id,
+          created.id,
+          'CONFIRM',
+        );
+        notify = n.notify;
+      } catch {
+        notify = { ok: false, channel: null, error: 'notify_failed' };
+      }
+    }
+
+    const manageUrl = `${this.guestNotify.frontendBaseUrl()}/book/${created.confirmToken}`;
+    return {
+      ok: true,
+      reservation: {
+        guestName: created.guestName,
+        guests: created.guests,
+        reservedAt: created.reservedAt,
+        status: created.status,
+        tableCode: created.table?.code ?? null,
+      },
+      manageUrl,
+      notify,
+      company: { name: company.name, logo: company.logo },
+    };
+  }
+
+  private ymdInZone(date: Date, timeZone: string): string {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(date);
+    const get = (type: string) =>
+      parts.find((p) => p.type === type)?.value || '';
+    return `${get('year')}-${get('month')}-${get('day')}`;
+  }
+
+  private async pickFreeTableForSlot(
+    companyId: string,
+    guests: number,
+    reservedAt: Date,
+    turnMinutes: number,
+  ): Promise<string | null> {
+    const tables = await this.prisma.restoTable.findMany({
+      where: { companyId, seats: { gte: guests } },
+      select: { id: true, seats: true },
+      orderBy: [{ seats: 'asc' }, { code: 'asc' }],
+    });
+    for (const tb of tables) {
+      const conflict = await this.findTableReservationConflict(
+        companyId,
+        tb.id,
+        reservedAt,
+        turnMinutes,
+      );
+      if (!conflict) return tb.id;
+    }
+    return null;
   }
 
   async publicConfirmReservation(token: string) {

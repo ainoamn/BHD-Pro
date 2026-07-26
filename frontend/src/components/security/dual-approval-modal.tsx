@@ -14,6 +14,7 @@ export type DualControlAction =
   | "POS_STOCK_OVERRIDE"
   | "POS_NO_SALE"
   | "POS_REFUND"
+  | "POS_BLIND_RETURN"
   | "STOCK_ADJUST"
   | "STOCK_TRANSFER"
   | "INVOICE_CANCEL"
@@ -77,6 +78,8 @@ const copy = {
     submit: "تأكيد الموافقة",
     waiting: "بانتظار موافقة المدير…",
     waitingHint: "اطلب من المدير فتح قائمة الموافقات والموافقة خلال 15 دقيقة",
+    expiresIn: "ينتهي خلال",
+    expiredLocal: "انتهت المهلة — أعد الطلب",
     approved: "تمت الموافقة — جاري التنفيذ",
     rejected: "رُفض الطلب",
     expired: "انتهت صلاحية الطلب",
@@ -107,6 +110,8 @@ const copy = {
     submit: "Confirm approval",
     waiting: "Waiting for manager approval…",
     waitingHint: "Ask a manager to open Approvals and decide within 15 minutes",
+    expiresIn: "Expires in",
+    expiredLocal: "Timed out — request again",
     approved: "Approved — continuing",
     rejected: "Request was rejected",
     expired: "Request expired",
@@ -146,6 +151,8 @@ export function DualApprovalModal({
   const [otpBusy, setOtpBusy] = useState(false);
   const [waitMode, setWaitMode] = useState<WaitMode>("idle");
   const [requestId, setRequestId] = useState<string | null>(null);
+  const [requestExpiresAt, setRequestExpiresAt] = useState<string | null>(null);
+  const [expireLeftSec, setExpireLeftSec] = useState<number | null>(null);
   const [requestBusy, setRequestBusy] = useState(false);
   const confirmedRef = useRef(false);
 
@@ -161,6 +168,8 @@ export function DualApprovalModal({
       setOtpBusy(false);
       setWaitMode("idle");
       setRequestId(null);
+      setRequestExpiresAt(null);
+      setExpireLeftSec(null);
       setRequestBusy(false);
       confirmedRef.current = false;
     }
@@ -212,6 +221,29 @@ export function DualApprovalModal({
     };
   }, [open, waitMode, requestId, onConfirm, reason, t.approved, t.expired, t.rejected]);
 
+  useEffect(() => {
+    if (!open || waitMode !== "waiting" || !requestExpiresAt) {
+      setExpireLeftSec(null);
+      return;
+    }
+    const tick = () => {
+      const left = Math.max(
+        0,
+        Math.floor((new Date(requestExpiresAt).getTime() - Date.now()) / 1000),
+      );
+      setExpireLeftSec(left);
+      if (left <= 0) {
+        setWaitMode("idle");
+        setRequestId(null);
+        setRequestExpiresAt(null);
+        toast.error(t.expiredLocal);
+      }
+    };
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, [open, waitMode, requestExpiresAt, t.expiredLocal]);
+
   if (!open) return null;
 
   const reasonOk = reason.trim().length >= 3;
@@ -244,6 +276,7 @@ export function DualApprovalModal({
           summary: summary || actionLabel,
         });
         setRequestId(res.data.id);
+        setRequestExpiresAt(res.data.expiresAt || null);
         setWaitMode("waiting");
       } catch {
         toast.error(t.requestFail);
@@ -337,6 +370,16 @@ export function DualApprovalModal({
               <Loader2 className="w-8 h-8 animate-spin text-sky-400 mx-auto" />
               <p className="text-sm font-semibold text-white">{t.waiting}</p>
               <p className="text-xs text-slate-400">{t.waitingHint}</p>
+              {expireLeftSec != null ? (
+                <p
+                  className={`text-sm font-bold tabular-nums ${
+                    expireLeftSec <= 60 ? "text-rose-300" : "text-amber-200"
+                  }`}
+                >
+                  {t.expiresIn} {Math.floor(expireLeftSec / 60)}:
+                  {String(expireLeftSec % 60).padStart(2, "0")}
+                </p>
+              ) : null}
               <button
                 type="button"
                 onClick={onCancel}

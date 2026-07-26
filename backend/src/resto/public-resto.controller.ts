@@ -1,8 +1,14 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { RestoService } from './resto.service';
-import { PublicGuestCallDto, PublicGuestOrderDto, PublicGuestPayDto, PublicGuestLoyaltyDto } from './dto/resto.dto';
+import {
+  PublicGuestCallDto,
+  PublicGuestOrderDto,
+  PublicGuestPayDto,
+  PublicGuestLoyaltyDto,
+  PublicCreateBookingDto,
+} from './dto/resto.dto';
 
 @ApiTags('Public Resto')
 @Controller('public/resto')
@@ -44,6 +50,38 @@ export class PublicRestoController {
   })
   loyalty(@Param('token') token: string, @Body() dto: PublicGuestLoyaltyDto) {
     return this.resto.publicAttachLoyalty(token, dto);
+  }
+
+  @Get('book/:slug')
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Public online booking page (brand + rules)' })
+  bookingPage(@Param('slug') slug: string) {
+    return this.resto.getPublicBookingPage(slug);
+  }
+
+  @Get('book/:slug/availability')
+  @Throttle({ default: { limit: 40, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Available reservation slots for a date' })
+  bookingAvailability(
+    @Param('slug') slug: string,
+    @Query('date') date: string,
+    @Query('guests') guests?: string,
+  ) {
+    return this.resto.getPublicBookingAvailability(
+      slug,
+      date,
+      Number(guests) || 2,
+    );
+  }
+
+  @Post('book/:slug')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Guest creates a reservation online' })
+  createBooking(
+    @Param('slug') slug: string,
+    @Body() dto: PublicCreateBookingDto,
+  ) {
+    return this.resto.createPublicBooking(slug, dto);
   }
 
   @Get('reservations/:token')

@@ -76,6 +76,23 @@ export default function RestoKitchenPage() {
   const knownIds = useRef<Set<string>>(new Set());
   const primed = useRef(false);
 
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem("resto-kds-station");
+      if (saved) setStationId(saved);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("resto-kds-station", stationId);
+    } catch {
+      /* ignore */
+    }
+  }, [stationId]);
+
   const load = useCallback(async () => {
     try {
       const res = await api.getRestoKitchen(stationId || undefined);

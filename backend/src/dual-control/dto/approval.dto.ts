@@ -81,6 +81,7 @@ export const DUAL_CONTROL_ACTIONS = [
   'POS_STOCK_OVERRIDE',
   'POS_NO_SALE',
   'POS_REFUND',
+  'POS_BLIND_RETURN',
   'STOCK_ADJUST',
   'STOCK_TRANSFER',
   'INVOICE_CANCEL',
@@ -118,6 +119,10 @@ export class DualControlActionsDto {
   @IsOptional()
   @IsBoolean()
   POS_REFUND?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  POS_BLIND_RETURN?: boolean;
 
   @IsOptional()
   @IsBoolean()

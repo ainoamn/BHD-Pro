@@ -22,6 +22,7 @@ import {
   PayoutCommissionDto,
   PosStoreCreditTopUpDto,
   RefundPosSaleDto,
+  BlindReturnDto,
   SetPosWarehouseDto,
   UpdateIncentivesConfigDto,
   UpdatePosDraftDto,
@@ -415,6 +416,17 @@ export class PosController {
     @Body() dto: RefundPosSaleDto,
   ) {
     return this.pos.refundSale(user.companyId, user, id, dto);
+  }
+
+  @Post('returns/blind')
+  @Roles(...POS_STAFF)
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @ApiOperation({ summary: 'Blind / no-receipt POS return (dual-control)' })
+  blindReturn(
+    @CurrentUser() user: TokenPayload,
+    @Body() dto: BlindReturnDto,
+  ) {
+    return this.pos.blindReturn(user.companyId, user, dto);
   }
 
   @Get('stats/today')

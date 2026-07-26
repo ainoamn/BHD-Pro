@@ -511,6 +511,8 @@ export const posCopy = {
     refundLastSale: "استرداد آخر بيع",
     tipAssignee: "مستلم البقشيش",
     tipsTotal: "إجمالي البقشيش",
+    approvalExpiresIn: "ينتهي خلال",
+    approvalExpired: "انتهت صلاحية الطلب",
   },
   en: {
     brand: "Hisaby POS",
@@ -1022,5 +1024,7 @@ export const posCopy = {
     refundLastSale: "Refund last sale",
     tipAssignee: "Tip recipient",
     tipsTotal: "Tips total",
+    approvalExpiresIn: "Expires in",
+    approvalExpired: "Request expired",
   },
 } as const;

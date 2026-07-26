@@ -67,6 +67,21 @@ export default function RestoSettingsPage() {
     expoWarnMinutes: 5,
   });
   const [slaBusy, setSlaBusy] = useState(false);
+  const [booking, setBooking] = useState({
+    enabled: false,
+    publicSlug: "",
+    publicUrl: "" as string | null,
+    maxParty: 12,
+    minParty: 1,
+    slotMinutes: 30,
+    horizonDays: 14,
+    openHour: 11,
+    closeHour: 23,
+    turnMinutes: 90,
+    autoConfirm: false,
+    autoNotify: true,
+  });
+  const [bookingBusy, setBookingBusy] = useState(false);
   const [qrTables, setQrTables] = useState<
     Array<{
       id: string;
@@ -120,6 +135,22 @@ export default function RestoSettingsPage() {
       const res = await api.getRestoConfig();
       setDayParts(res.data.dayParts || dayParts);
       if (res.data.kitchenSla) setKitchenSla(res.data.kitchenSla);
+      if (res.data.booking) {
+        setBooking({
+          enabled: !!res.data.booking.enabled,
+          publicSlug: res.data.booking.publicSlug || "",
+          publicUrl: res.data.booking.publicUrl,
+          maxParty: res.data.booking.maxParty,
+          minParty: res.data.booking.minParty,
+          slotMinutes: res.data.booking.slotMinutes,
+          horizonDays: res.data.booking.horizonDays,
+          openHour: res.data.booking.openHour,
+          closeHour: res.data.booking.closeHour,
+          turnMinutes: res.data.booking.turnMinutes,
+          autoConfirm: !!res.data.booking.autoConfirm,
+          autoNotify: res.data.booking.autoNotify !== false,
+        });
+      }
       setDayPartMeta({
         timezone: res.data.timezone,
         currentDayPart: res.data.currentDayPart,
@@ -172,6 +203,63 @@ export default function RestoSettingsPage() {
       toast.error(t.actionFail);
     } finally {
       setSlaBusy(false);
+    }
+  };
+
+  const saveBooking = async () => {
+    setBookingBusy(true);
+    try {
+      const res = await api.updateRestoConfig({
+        booking: {
+          enabled: booking.enabled,
+          publicSlug: booking.publicSlug.trim() || null,
+          maxParty: booking.maxParty,
+          minParty: booking.minParty,
+          slotMinutes: booking.slotMinutes,
+          horizonDays: booking.horizonDays,
+          openHour: booking.openHour,
+          closeHour: booking.closeHour,
+          turnMinutes: booking.turnMinutes,
+          autoConfirm: booking.autoConfirm,
+          autoNotify: booking.autoNotify,
+        },
+      });
+      if (res.data.booking) {
+        setBooking({
+          enabled: !!res.data.booking.enabled,
+          publicSlug: res.data.booking.publicSlug || "",
+          publicUrl: res.data.booking.publicUrl,
+          maxParty: res.data.booking.maxParty,
+          minParty: res.data.booking.minParty,
+          slotMinutes: res.data.booking.slotMinutes,
+          horizonDays: res.data.booking.horizonDays,
+          openHour: res.data.booking.openHour,
+          closeHour: res.data.booking.closeHour,
+          turnMinutes: res.data.booking.turnMinutes,
+          autoConfirm: !!res.data.booking.autoConfirm,
+          autoNotify: res.data.booking.autoNotify !== false,
+        });
+      }
+      toast.success(t.bookingSaved);
+    } catch {
+      toast.error(t.actionFail);
+    } finally {
+      setBookingBusy(false);
+    }
+  };
+
+  const copyBookingLink = async () => {
+    const url =
+      booking.publicUrl ||
+      (booking.publicSlug
+        ? `${window.location.origin}/reserve/${booking.publicSlug}`
+        : "");
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success(t.bookingLinkCopied);
+    } catch {
+      toast.error(t.actionFail);
     }
   };
 
@@ -401,6 +489,118 @@ export default function RestoSettingsPage() {
           >
             {slaBusy ? "…" : t.dayPartSave}
           </button>
+        </div>
+      ) : null}
+
+      {canManage ? (
+        <div className="rounded-2xl border border-amber-500/25 bg-amber-500/5 p-4 space-y-3">
+          <div>
+            <h2 className="font-bold">{t.bookingOnline}</h2>
+            <p className="text-xs text-stone-400 mt-1">{t.bookingOnlineSub}</p>
+          </div>
+          <label className="flex items-center gap-2 text-sm font-semibold">
+            <input
+              type="checkbox"
+              checked={booking.enabled}
+              disabled={bookingBusy}
+              onChange={(e) =>
+                setBooking((b) => ({ ...b, enabled: e.target.checked }))
+              }
+            />
+            {t.bookingEnabled}
+          </label>
+          <label className="block space-y-1">
+            <span className="text-[11px] text-stone-400">{t.bookingSlug}</span>
+            <input
+              value={booking.publicSlug}
+              disabled={bookingBusy}
+              onChange={(e) =>
+                setBooking((b) => ({
+                  ...b,
+                  publicSlug: e.target.value.toLowerCase().replace(/\s+/g, "-"),
+                }))
+              }
+              placeholder="my-restaurant"
+              className="w-full h-9 rounded-lg bg-black/30 border border-white/10 px-2 text-sm"
+            />
+          </label>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {(
+              [
+                ["minParty", t.bookingMinParty],
+                ["maxParty", t.bookingMaxParty],
+                ["slotMinutes", t.bookingSlot],
+                ["horizonDays", t.bookingHorizon],
+                ["openHour", t.bookingOpen],
+                ["closeHour", t.bookingClose],
+                ["turnMinutes", t.bookingTurn],
+              ] as const
+            ).map(([key, label]) => (
+              <label key={key} className="block space-y-1">
+                <span className="text-[11px] text-stone-400">{label}</span>
+                <input
+                  type="number"
+                  value={booking[key]}
+                  disabled={bookingBusy}
+                  onChange={(e) =>
+                    setBooking((b) => ({
+                      ...b,
+                      [key]: Number(e.target.value) || 0,
+                    }))
+                  }
+                  className="w-full h-9 rounded-lg bg-black/30 border border-white/10 px-2 text-sm tabular-nums"
+                />
+              </label>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-4 text-sm">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={booking.autoConfirm}
+                disabled={bookingBusy}
+                onChange={(e) =>
+                  setBooking((b) => ({ ...b, autoConfirm: e.target.checked }))
+                }
+              />
+              {t.bookingAutoConfirm}
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={booking.autoNotify}
+                disabled={bookingBusy}
+                onChange={(e) =>
+                  setBooking((b) => ({ ...b, autoNotify: e.target.checked }))
+                }
+              />
+              {t.bookingAutoNotify}
+            </label>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={bookingBusy}
+              onClick={() => void saveBooking()}
+              className="flex-1 min-w-[140px] rounded-xl bg-amber-500 py-2.5 text-sm font-bold text-[#14110f] disabled:opacity-50"
+            >
+              {bookingBusy ? "…" : t.dayPartSave}
+            </button>
+            <button
+              type="button"
+              disabled={!booking.enabled || (!booking.publicUrl && !booking.publicSlug)}
+              onClick={() => void copyBookingLink()}
+              className="rounded-xl border border-white/15 px-4 py-2.5 text-sm font-semibold disabled:opacity-40"
+            >
+              {t.bookingCopyLink}
+            </button>
+          </div>
+          {booking.publicUrl || booking.publicSlug ? (
+            <p className="text-[11px] text-amber-100/70 break-all" dir="ltr">
+              {booking.publicUrl ||
+                `${typeof window !== "undefined" ? window.location.origin : ""}/reserve/${booking.publicSlug}`}
+            </p>
+          ) : null}
         </div>
       ) : null}
 

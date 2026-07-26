@@ -62,6 +62,7 @@
       "POS_STOCK_OVERRIDE": "بيع بتجاوز المخزون المتاح",
       "POS_NO_SALE": "فتح الدرج بلا بيع",
       "POS_REFUND": "استرداد جزئي للكاشير",
+      "POS_BLIND_RETURN": "إرجاع بلا إيصال (كاشير)",
       "STOCK_ADJUST": "تعديل المخزون",
       "STOCK_TRANSFER": "تحويل المخزون",
       "INVOICE_CANCEL": "إلغاء فاتورة",

@@ -23,6 +23,42 @@ type ApprovalRow = {
 
 type Tab = "pending" | "history";
 
+function ApprovalCountdown({
+  expiresAt,
+  label,
+  expiredLabel,
+}: {
+  expiresAt: string;
+  label: string;
+  expiredLabel: string;
+}) {
+  const [left, setLeft] = useState(() =>
+    Math.max(0, Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000)),
+  );
+  useEffect(() => {
+    const tick = () =>
+      setLeft(
+        Math.max(0, Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000)),
+      );
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, [expiresAt]);
+  if (left <= 0) {
+    return <p className="text-[11px] font-semibold text-rose-300 mt-1">{expiredLabel}</p>;
+  }
+  const urgent = left <= 60;
+  return (
+    <p
+      className={`text-[11px] font-bold tabular-nums mt-1 ${
+        urgent ? "text-rose-300" : "text-amber-200"
+      }`}
+    >
+      {label} {Math.floor(left / 60)}:{String(left % 60).padStart(2, "0")}
+    </p>
+  );
+}
+
 export default function PosApprovalsPage() {
   const locale = useLocaleStore((s) => s.locale);
   const user = useAuthStore((s) => s.user);
@@ -151,6 +187,13 @@ export default function PosApprovalsPage() {
                   </p>
                   {row.summary ? (
                     <p className="text-xs text-slate-300 mt-1">{row.summary}</p>
+                  ) : null}
+                  {tab === "pending" && row.expiresAt ? (
+                    <ApprovalCountdown
+                      expiresAt={row.expiresAt}
+                      label={t.approvalExpiresIn}
+                      expiredLabel={t.approvalExpired}
+                    />
                   ) : null}
                   {row.decidedBy ? (
                     <p className="text-[11px] text-slate-500 mt-1">

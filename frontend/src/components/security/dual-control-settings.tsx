@@ -36,6 +36,7 @@ type SecurityPublic = {
     POS_STOCK_OVERRIDE: boolean;
     POS_NO_SALE: boolean;
     POS_REFUND: boolean;
+    POS_BLIND_RETURN: boolean;
     STOCK_ADJUST: boolean;
     STOCK_TRANSFER: boolean;
     INVOICE_CANCEL: boolean;
@@ -56,6 +57,7 @@ const ACTION_KEYS = [
   "POS_STOCK_OVERRIDE",
   "POS_NO_SALE",
   "POS_REFUND",
+  "POS_BLIND_RETURN",
   "STOCK_ADJUST",
   "STOCK_TRANSFER",
   "INVOICE_CANCEL",
@@ -83,6 +85,7 @@ export function DualControlSettings() {
     POS_STOCK_OVERRIDE: true,
     POS_NO_SALE: true,
     POS_REFUND: true,
+    POS_BLIND_RETURN: true,
     STOCK_ADJUST: true,
     STOCK_TRANSFER: true,
     INVOICE_CANCEL: true,
@@ -128,6 +131,7 @@ export function DualControlSettings() {
       POS_STOCK_OVERRIDE: true,
       POS_NO_SALE: true,
       POS_REFUND: true,
+      POS_BLIND_RETURN: true,
       STOCK_ADJUST: true,
       STOCK_TRANSFER: true,
       INVOICE_CANCEL: true,

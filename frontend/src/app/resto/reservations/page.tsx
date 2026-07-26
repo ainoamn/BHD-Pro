@@ -17,6 +17,7 @@ type Reservation = {
   reservedAt: string;
   status: string;
   notes: string | null;
+  source?: string;
   confirmedAt?: string | null;
   reminderSentAt?: string | null;
   table: { id: string; code: string; name: string | null } | null;
@@ -274,6 +275,10 @@ export default function RestoReservationsPage() {
                     {r.guests} {t.guests}
                     {r.table ? ` · ${t.table} ${r.table.code}` : ""}
                     {r.phone ? ` · ${r.phone}` : ""}
+                    {" · "}
+                    {r.source === "GUEST"
+                      ? t.bookingSourceGuest
+                      : t.bookingSourceStaff}
                   </p>
                   {r.notes ? (
                     <p className="text-xs text-amber-200/80 mt-1">{r.notes}</p>
