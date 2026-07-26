@@ -282,11 +282,10 @@ export class InvoicesService {
 
   async update(companyId: string, id: string, dto: UpdateInvoiceDto) {
     const existing = await this.findOne(companyId, id);
-    if (
-      existing.status === InvoiceStatus.PAID ||
-      existing.status === InvoiceStatus.CANCELLED
-    ) {
-      throw new ForbiddenException('Cannot edit paid or cancelled invoice');
+    if (existing.status !== InvoiceStatus.DRAFT) {
+      throw new ForbiddenException(
+        'Only draft invoices can be edited — unsend first to revert to draft',
+      );
     }
     if (Number(existing.paidAmount) > 0 || existing.payments.length > 0) {
       throw new ForbiddenException(
@@ -649,10 +648,8 @@ export class InvoicesService {
     if (paymentStatus === PaymentStatus.PAID) {
       status = InvoiceStatus.PAID;
     } else if (invoice.status === InvoiceStatus.PAID) {
-      status =
-        invoice.type === InvoiceType.PURCHASE
-          ? InvoiceStatus.DRAFT
-          : InvoiceStatus.SENT;
+      // Sales and purchase: after unpay, return to SENT (not DRAFT) so GL stays aligned
+      status = InvoiceStatus.SENT;
     }
 
     return { paidAmount: paid, paymentStatus, status };

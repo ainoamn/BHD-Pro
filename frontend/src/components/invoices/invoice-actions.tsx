@@ -19,7 +19,7 @@ export function canEditInvoice(
   paidAmount?: number,
   paymentStatus?: string
 ) {
-  if (["PAID", "CANCELLED"].includes(status)) return false;
+  if (status !== "DRAFT") return false;
   if (paymentStatus === "PAID" || paymentStatus === "PARTIAL") return false;
   if (paidAmount != null && Number(paidAmount) > 0) return false;
   return true;

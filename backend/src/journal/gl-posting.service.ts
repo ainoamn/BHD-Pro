@@ -782,6 +782,60 @@ export class GlPostingService {
     return journal;
   }
 
+  async reversePayrollAccrual(
+    companyId: string,
+    userId: string,
+    run: { id: string; number: string; glAccrualJournalId?: string | null },
+  ) {
+    if (!run.glAccrualJournalId) return null;
+
+    const revRef = `REV-PAYROLL-ACC:${run.id}`;
+    const existing = await this.prisma.journal.findFirst({
+      where: { companyId, reference: revRef },
+    });
+    if (existing) {
+      await this.prisma.payrollRun.update({
+        where: { id: run.id },
+        data: { glAccrualJournalId: null },
+      });
+      return existing;
+    }
+
+    const original = await this.prisma.journal.findFirst({
+      where: { id: run.glAccrualJournalId, companyId },
+      include: { lines: true },
+    });
+    if (!original || !original.lines.length) return null;
+
+    const lines: JournalLineInput[] = original.lines.map((line) => ({
+      accountId: line.accountId,
+      description: `عكس ${run.number}`,
+      debit: Number(line.credit),
+      credit: Number(line.debit),
+      ...(line.costCenterId ? { costCenterId: line.costCenterId } : {}),
+      ...(line.projectId ? { projectId: line.projectId } : {}),
+    }));
+
+    const journal = await this.createEntry(
+      companyId,
+      userId,
+      {
+        date: new Date(),
+        description: `عكس استحقاق رواتب ${run.number}`,
+        reference: revRef,
+      },
+      lines,
+    );
+
+    if (journal) {
+      await this.prisma.payrollRun.update({
+        where: { id: run.id },
+        data: { glAccrualJournalId: null },
+      });
+    }
+    return journal;
+  }
+
   async postPayrollPayment(
     companyId: string,
     userId: string,
@@ -870,6 +924,60 @@ export class GlPostingService {
       await this.prisma.employeeClaim.update({
         where: { id: claim.id },
         data: { glAccrualJournalId: journal.id },
+      });
+    }
+    return journal;
+  }
+
+  async reverseClaimAccrual(
+    companyId: string,
+    userId: string,
+    claim: { id: string; number: string; glAccrualJournalId?: string | null },
+  ) {
+    if (!claim.glAccrualJournalId) return null;
+
+    const revRef = `REV-CLAIM-ACC:${claim.id}`;
+    const existing = await this.prisma.journal.findFirst({
+      where: { companyId, reference: revRef },
+    });
+    if (existing) {
+      await this.prisma.employeeClaim.update({
+        where: { id: claim.id },
+        data: { glAccrualJournalId: null },
+      });
+      return existing;
+    }
+
+    const original = await this.prisma.journal.findFirst({
+      where: { id: claim.glAccrualJournalId, companyId },
+      include: { lines: true },
+    });
+    if (!original || !original.lines.length) return null;
+
+    const lines: JournalLineInput[] = original.lines.map((line) => ({
+      accountId: line.accountId,
+      description: `عكس ${claim.number}`,
+      debit: Number(line.credit),
+      credit: Number(line.debit),
+      ...(line.costCenterId ? { costCenterId: line.costCenterId } : {}),
+      ...(line.projectId ? { projectId: line.projectId } : {}),
+    }));
+
+    const journal = await this.createEntry(
+      companyId,
+      userId,
+      {
+        date: new Date(),
+        description: `عكس استحقاق مطالبة ${claim.number}`,
+        reference: revRef,
+      },
+      lines,
+    );
+
+    if (journal) {
+      await this.prisma.employeeClaim.update({
+        where: { id: claim.id },
+        data: { glAccrualJournalId: null },
       });
     }
     return journal;

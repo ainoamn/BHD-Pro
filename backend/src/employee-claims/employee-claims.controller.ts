@@ -46,12 +46,16 @@ export class EmployeeClaimsController {
   }
 
   @Post()
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   create(@CurrentUser() user: TokenPayload, @Body() dto: CreateEmployeeClaimDto) {
     return this.service.create(user.companyId, user.sub, dto);
   }
 
   @Put(':id')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 40, ttl: 60000 } })
   update(
     @CurrentUser() user: TokenPayload,
@@ -62,6 +66,8 @@ export class EmployeeClaimsController {
   }
 
   @Post(':id/submit')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Submit claim for approval' })
   submit(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
@@ -85,7 +91,7 @@ export class EmployeeClaimsController {
     @Param('id') id: string,
     @Body() dto: RejectClaimDto,
   ) {
-    return this.service.reject(user.companyId, id, dto);
+    return this.service.reject(user.companyId, user.sub, id, dto);
   }
 
   @Post(':id/pay')
@@ -103,6 +109,8 @@ export class EmployeeClaimsController {
   }
 
   @Delete(':id')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   remove(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.service.remove(user.companyId, id);

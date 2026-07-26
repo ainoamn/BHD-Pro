@@ -809,18 +809,22 @@ export class ErpService {
       });
     }
 
-    return this.prisma.payrollRun.update({
-      where: { id },
-      data: { status },
-      include: { lines: { include: { employee: true } } },
-    });
+    throw new BadRequestException(
+      `Unsupported payroll status transition from ${run.status} to ${status}`,
+    );
   }
 
-  async deletePayrollRun(companyId: string, id: string) {
+  async deletePayrollRun(companyId: string, userId: string, id: string) {
     const run = await this.prisma.payrollRun.findFirst({ where: { id, companyId } });
     if (!run) throw new NotFoundException('Payroll run not found');
     if (run.status === PayrollStatus.PAID) {
       throw new BadRequestException('Cannot delete paid payroll');
+    }
+    if (run.status !== PayrollStatus.DRAFT && run.status !== PayrollStatus.APPROVED) {
+      throw new BadRequestException('Only draft or approved (unpaid) payroll can be deleted');
+    }
+    if (run.glAccrualJournalId) {
+      await this.glPosting.reversePayrollAccrual(companyId, userId, run);
     }
     await this.prisma.payrollRun.delete({ where: { id } });
     return { message: 'Deleted' };

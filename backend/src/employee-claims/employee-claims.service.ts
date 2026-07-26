@@ -175,13 +175,16 @@ export class EmployeeClaimsService {
     return this.findOne(companyId, id);
   }
 
-  async reject(companyId: string, id: string, dto: RejectClaimDto) {
+  async reject(companyId: string, userId: string, id: string, dto: RejectClaimDto) {
     const claim = await this.findOne(companyId, id);
     if (
       claim.status !== EmployeeClaimStatus.SUBMITTED &&
       claim.status !== EmployeeClaimStatus.APPROVED
     ) {
       throw new BadRequestException('Only submitted or approved claims can be rejected');
+    }
+    if (claim.status === EmployeeClaimStatus.APPROVED && claim.glAccrualJournalId) {
+      await this.glPosting.reverseClaimAccrual(companyId, userId, claim);
     }
     return this.prisma.employeeClaim.update({
       where: { id },
@@ -241,6 +244,11 @@ export class EmployeeClaimsService {
       claim.status !== EmployeeClaimStatus.REJECTED
     ) {
       throw new BadRequestException('Only draft or rejected claims can be deleted');
+    }
+    if (claim.glAccrualJournalId) {
+      throw new BadRequestException(
+        'Cannot delete claim with accrual journal — reverse accrual first',
+      );
     }
     await this.prisma.employeeClaim.delete({ where: { id } });
     return { message: 'Deleted' };

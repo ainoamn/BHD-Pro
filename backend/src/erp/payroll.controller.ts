@@ -53,6 +53,6 @@ export class PayrollController {
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 15, ttl: 60000 } })
   remove(@CurrentUser() u: TokenPayload, @Param('id') id: string) {
-    return this.erp.deletePayrollRun(u.companyId, id);
+    return this.erp.deletePayrollRun(u.companyId, u.sub, id);
   }
 }
