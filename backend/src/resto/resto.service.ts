@@ -60,6 +60,8 @@ import {
   AssignRestoSectionDto,
   UpdateRestoConfigDto,
   IngestExternalRestoOrderDto,
+  SettleRestoBySeatDto,
+  SettleRestoEqualDto,
 } from './dto/resto.dto';
 import { productWhereForWarehouse } from '../common/warehouse-product-scope';
 
@@ -1163,6 +1165,7 @@ export class RestoService {
       unitPrice: Prisma.Decimal;
       notes: string | null;
       course?: number;
+      seat?: number | null;
       isComp?: boolean;
       voidReason?: string | null;
       source?: string | null;
@@ -1185,6 +1188,7 @@ export class RestoService {
       lineTotal: Number(it.qty) * Number(it.unitPrice),
       notes: it.notes,
       course: it.course ?? 1,
+      seat: it.seat ?? null,
       isComp: !!it.isComp,
       voidReason: it.voidReason ?? null,
       source: it.source === 'GUEST' ? 'GUEST' : 'STAFF',
@@ -1195,6 +1199,27 @@ export class RestoService {
     const subtotal = items
       .filter((it) => !it.isComp)
       .reduce((s, it) => s + it.lineTotal, 0);
+    const bySeat: Array<{
+      seat: number | null;
+      subtotal: number;
+      itemIds: string[];
+    }> = [];
+    const sharedItems = items.filter((it) => !it.isComp && it.seat == null);
+    if (sharedItems.length > 0) {
+      bySeat.push({
+        seat: null,
+        subtotal: sharedItems.reduce((s, it) => s + it.lineTotal, 0),
+        itemIds: sharedItems.map((it) => it.id),
+      });
+    }
+    for (let s = 1; s <= (order.guests || 1); s++) {
+      const seatItems = items.filter((it) => !it.isComp && it.seat === s);
+      bySeat.push({
+        seat: s,
+        subtotal: seatItems.reduce((x, it) => x + it.lineTotal, 0),
+        itemIds: seatItems.map((it) => it.id),
+      });
+    }
     const mapUser = (
       u: { id: string; name: string; email: string } | null | undefined,
     ) =>
@@ -1248,6 +1273,7 @@ export class RestoService {
       closedAt: order.closedAt,
       createdAt: order.createdAt,
       items,
+      bySeat,
       subtotal,
       total: subtotal,
       itemCount: items.length,
@@ -1614,6 +1640,8 @@ export class RestoService {
       modLabels.length ? `+ ${modLabels.join(', ')}` : '',
     ].filter(Boolean);
 
+    const seat = this.normalizeSeat(dto.seat, order.guests);
+
     await this.prisma.restoOrderItem.create({
       data: {
         orderId: order.id,
@@ -1624,12 +1652,28 @@ export class RestoService {
         unitPrice: this.decimal(Number(product.salePrice) + priceDelta),
         notes: noteParts.join(' — ') || null,
         course: dto.course ?? 1,
+        seat,
         source: dto.source === 'GUEST' ? 'GUEST' : 'STAFF',
         status: RestoOrderItemStatus.PENDING,
       },
     });
 
     return this.getOrder(companyId, order.id);
+  }
+
+  private normalizeSeat(
+    seat: number | null | undefined,
+    guests: number,
+  ): number | null {
+    if (seat === undefined || seat === null) return null;
+    const n = Math.floor(Number(seat));
+    if (!Number.isFinite(n) || n < 1) {
+      throw new BadRequestException('Seat must be >= 1');
+    }
+    if (n > Math.max(1, guests || 1)) {
+      throw new BadRequestException(`Seat must be <= ${guests} guests`);
+    }
+    return n;
   }
 
   private async assertActiveOrder(companyId: string, orderId: string) {
@@ -1902,11 +1946,32 @@ export class RestoService {
   ) {
     const item = await this.prisma.restoOrderItem.findFirst({
       where: { id: itemId, orderId, order: { companyId } },
+      include: { order: { select: { guests: true, status: true } } },
     });
     if (!item) throw new NotFoundException('Item not found');
-    if (item.status !== RestoOrderItemStatus.PENDING) {
+    if (
+      item.order.status === RestoOrderStatus.CLOSED ||
+      item.order.status === RestoOrderStatus.CANCELLED
+    ) {
+      throw new BadRequestException('Order is closed');
+    }
+    if (item.status === RestoOrderItemStatus.CANCELLED) {
+      throw new BadRequestException('Item is cancelled');
+    }
+
+    const touchesLine =
+      dto.qty !== undefined ||
+      dto.notes !== undefined ||
+      dto.course !== undefined;
+    if (touchesLine && item.status !== RestoOrderItemStatus.PENDING) {
       throw new BadRequestException('Only pending items can be edited');
     }
+
+    let seat: number | null | undefined = undefined;
+    if (dto.seat !== undefined) {
+      seat = this.normalizeSeat(dto.seat, item.order.guests);
+    }
+
     await this.prisma.restoOrderItem.update({
       where: { id: item.id },
       data: {
@@ -1915,6 +1980,7 @@ export class RestoService {
           ? { notes: dto.notes?.trim() || null }
           : {}),
         ...(dto.course !== undefined ? { course: dto.course } : {}),
+        ...(seat !== undefined ? { seat } : {}),
       },
     });
     return this.getOrder(companyId, orderId);
@@ -1961,6 +2027,15 @@ export class RestoService {
         ...(tipAssigneeId !== undefined ? { tipAssigneeId } : {}),
       },
     });
+    if (dto.guests !== undefined) {
+      await this.prisma.restoOrderItem.updateMany({
+        where: {
+          orderId,
+          seat: { gt: dto.guests },
+        },
+        data: { seat: null },
+      });
+    }
     return this.getOrder(companyId, orderId);
   }
 
@@ -2498,6 +2573,135 @@ export class RestoService {
     await this.refreshOrderStatus(companyId, item.orderId);
     this.notifyKitchen(companyId);
     return this.getOrder(companyId, item.orderId);
+  }
+
+  /**
+   * Pay one seat: carve seat lines onto a child takeaway check, then close it.
+   * Remaining seats stay open on the original table check.
+   */
+  async settleBySeat(
+    companyId: string,
+    actor: TokenPayload,
+    orderId: string,
+    dto: SettleRestoBySeatDto,
+  ) {
+    const order = await this.loadOrder(companyId, orderId);
+    if (!ACTIVE_ORDER.includes(order.status)) {
+      throw new BadRequestException('Order is not active');
+    }
+    const seat = this.normalizeSeat(dto.seat, order.guests);
+    if (seat == null) {
+      throw new BadRequestException('Seat required');
+    }
+    const seatItemIds = order.items
+      .filter(
+        (i) =>
+          i.seat === seat &&
+          !i.isComp &&
+          i.status !== RestoOrderItemStatus.CANCELLED,
+      )
+      .map((i) => i.id);
+    if (seatItemIds.length === 0) {
+      throw new BadRequestException(`No billable items on seat ${seat}`);
+    }
+    const otherBillable = order.items.filter(
+      (i) =>
+        !i.isComp &&
+        i.status !== RestoOrderItemStatus.CANCELLED &&
+        !seatItemIds.includes(i.id),
+    );
+    const closeDto: CloseRestoOrderDto = {
+      paymentMethod: dto.paymentMethod || PaymentMethod.CASH,
+      payments: dto.payments,
+      tipAmount: dto.tipAmount,
+      tipAssigneeId: dto.tipAssigneeId,
+      serviceChargePct: dto.serviceChargePct,
+      contactId: dto.contactId || order.contactId || undefined,
+      loyaltyPointsToRedeem: dto.loyaltyPointsToRedeem,
+    };
+
+    if (otherBillable.length === 0) {
+      const closed = await this.closeOrder(companyId, actor, orderId, closeDto);
+      return { source: null, closed, mode: 'full' as const };
+    }
+
+    const split = await this.splitOrder(companyId, orderId, actor.sub, {
+      itemIds: seatItemIds,
+      guests: 1,
+    });
+    await this.prisma.restoOrder.update({
+      where: { id: split.split.id },
+      data: {
+        notes: `Seat ${seat} · split from ${order.number}`,
+        guestName: order.guestName,
+        guestPhone: order.guestPhone,
+        contactId: order.contactId,
+      },
+    });
+    const closed = await this.closeOrder(
+      companyId,
+      actor,
+      split.split.id,
+      closeDto,
+    );
+    return {
+      source: await this.getOrder(companyId, orderId),
+      closed,
+      mode: 'seat' as const,
+      seat,
+    };
+  }
+
+  /** Equal N-way tender on one paid close (single invoice). */
+  async settleEqual(
+    companyId: string,
+    actor: TokenPayload,
+    orderId: string,
+    dto: SettleRestoEqualDto,
+  ) {
+    const order = await this.loadOrder(companyId, orderId);
+    if (!ACTIVE_ORDER.includes(order.status)) {
+      throw new BadRequestException('Order is not active');
+    }
+    const parts = Math.floor(Number(dto.parts) || 0);
+    if (parts < 2 || parts > 20) {
+      throw new BadRequestException('parts must be 2–20');
+    }
+    const billable = order.items.filter(
+      (i) => !i.isComp && i.status !== RestoOrderItemStatus.CANCELLED,
+    );
+    if (billable.length === 0) {
+      throw new BadRequestException('No billable items');
+    }
+    const subtotal = billable.reduce(
+      (s, i) => s + Number(i.qty) * Number(i.unitPrice),
+      0,
+    );
+    let serviceCharge = 0;
+    if (dto.serviceChargePct != null && dto.serviceChargePct > 0) {
+      serviceCharge = (subtotal * Number(dto.serviceChargePct)) / 100;
+    }
+    const tip = Number(dto.tipAmount) || 0;
+    const due = Number((subtotal + serviceCharge + tip).toFixed(3));
+    const amounts = this.splitAmountEqual(due, parts);
+    const method = dto.paymentMethod || PaymentMethod.CASH;
+    return this.closeOrder(companyId, actor, orderId, {
+      payments: amounts.map((amount) => ({ method, amount })),
+      tipAmount: tip || undefined,
+      tipAssigneeId: dto.tipAssigneeId,
+      serviceChargePct: dto.serviceChargePct,
+      contactId: dto.contactId || order.contactId || undefined,
+      loyaltyPointsToRedeem: dto.loyaltyPointsToRedeem,
+    });
+  }
+
+  private splitAmountEqual(total: number, parts: number): number[] {
+    const cents = Math.round(Number(total) * 1000);
+    const each = Math.floor(cents / parts);
+    const rem = cents % parts;
+    return Array.from({ length: parts }, (_, i) =>
+      Number(((each + (i < rem ? 1 : 0)) / 1000).toFixed(3)),
+    );
   }
 
   /**

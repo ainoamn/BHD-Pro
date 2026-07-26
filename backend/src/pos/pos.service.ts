@@ -2023,10 +2023,50 @@ export class PosService {
   /** Recent Hisaby POS cash sales for reprint / void / refund drawer. */
   async listRecentSales(
     companyId: string,
-    opts?: { take?: number; warehouseId?: string },
+    opts?: { take?: number; warehouseId?: string; q?: string },
   ) {
     const take = Math.min(Math.max(opts?.take ?? 20, 1), 50);
     const warehouseId = opts?.warehouseId?.trim() || undefined;
+    const q = String(opts?.q || '').trim();
+    const qDigits = q.replace(/\D/g, '');
+    const amountRaw = q.replace(/,/g, '');
+    const amount = parseFloat(amountRaw);
+    const looksLikeAmount =
+      Number.isFinite(amount) &&
+      amount >= 0 &&
+      /^[\d.,]+$/.test(amountRaw) &&
+      amountRaw.length > 0;
+
+    const searchOr =
+      q.length > 0
+        ? [
+            { number: { contains: q, mode: 'insensitive' as const } },
+            {
+              contact: {
+                is: {
+                  OR: [
+                    { name: { contains: q, mode: 'insensitive' as const } },
+                    ...(qDigits.length >= 3
+                      ? [{ phone: { contains: qDigits } }]
+                      : q.length >= 3
+                        ? [{ phone: { contains: q } }]
+                        : []),
+                  ],
+                },
+              },
+            },
+            ...(looksLikeAmount
+              ? [
+                  {
+                    total: {
+                      gte: Number((amount - 0.005).toFixed(3)),
+                      lte: Number((amount + 0.005).toFixed(3)),
+                    },
+                  },
+                ]
+              : []),
+          ]
+        : undefined;
 
     const sales = await this.prisma.invoice.findMany({
       where: {
@@ -2039,6 +2079,7 @@ export class PosService {
               posShift: { warehouseId },
             }
           : {}),
+        ...(searchOr ? { OR: searchOr } : {}),
       },
       orderBy: { createdAt: 'desc' },
       take,

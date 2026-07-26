@@ -2500,10 +2500,11 @@ class ApiClient {
     });
   }
 
-  listRecentPosSales(opts?: { take?: number; warehouseId?: string }) {
+  listRecentPosSales(opts?: { take?: number; warehouseId?: string; q?: string }) {
     const params = new URLSearchParams();
     if (opts?.take) params.set('take', String(opts.take));
     if (opts?.warehouseId) params.set('warehouseId', opts.warehouseId);
+    if (opts?.q?.trim()) params.set('q', opts.q.trim());
     const q = params.toString();
     return this.get<
       {

@@ -1,4 +1,4 @@
-import { ArrayMinSize, IsArray, IsBoolean, IsEnum, IsIn, IsInt, IsNumber, IsOptional, IsString, IsUUID, Max, MaxLength, Min, MinLength, ValidateNested } from 'class-validator';
+import { ArrayMinSize, IsArray, IsBoolean, IsEnum, IsIn, IsInt, IsNumber, IsOptional, IsString, IsUUID, Max, MaxLength, Min, MinLength, ValidateIf, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { PaymentMethod, RestoOrderChannel } from '@prisma/client';
 import { DualApprovalDto } from '../../dual-control/dto/approval.dto';
@@ -194,6 +194,15 @@ export class AddRestoOrderItemDto {
   @IsOptional()
   @IsIn(['STAFF', 'GUEST'])
   source?: 'STAFF' | 'GUEST';
+
+  /** 1..order.guests; omit/null = shared */
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== undefined)
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(99)
+  seat?: number | null;
 }
 
 export class FireRestoCourseDto {
@@ -345,6 +354,15 @@ export class UpdateRestoOrderItemDto {
   @Min(0)
   @Max(3)
   course?: number;
+
+  /** 1..order.guests; null clears to shared */
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== undefined)
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(99)
+  seat?: number | null;
 }
 
 export class UpdateRestoOrderDto {
@@ -484,6 +502,86 @@ export class CloseRestoOrderDto {
   @Min(0)
   @Max(30)
   serviceChargePct?: number;
+}
+
+/** Pay one seat: split those lines to a child check then close it */
+export class SettleRestoBySeatDto {
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(99)
+  seat: number;
+
+  @IsOptional()
+  @IsEnum(PaymentMethod)
+  paymentMethod?: PaymentMethod;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CloseRestoPaymentLineDto)
+  payments?: CloseRestoPaymentLineDto[];
+
+  @IsOptional()
+  @Type(() => Number)
+  @Min(0)
+  tipAmount?: number;
+
+  @IsOptional()
+  @IsUUID()
+  tipAssigneeId?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @Min(0)
+  @Max(30)
+  serviceChargePct?: number;
+
+  @IsOptional()
+  @IsUUID()
+  contactId?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @Min(0)
+  loyaltyPointsToRedeem?: number;
+}
+
+/** Equal N-way tender split on one close (single invoice) */
+export class SettleRestoEqualDto {
+  @Type(() => Number)
+  @IsInt()
+  @Min(2)
+  @Max(20)
+  parts: number;
+
+  @IsOptional()
+  @IsEnum(PaymentMethod)
+  paymentMethod?: PaymentMethod;
+
+  @IsOptional()
+  @Type(() => Number)
+  @Min(0)
+  tipAmount?: number;
+
+  @IsOptional()
+  @IsUUID()
+  tipAssigneeId?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @Min(0)
+  @Max(30)
+  serviceChargePct?: number;
+
+  @IsOptional()
+  @IsUUID()
+  contactId?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @Min(0)
+  loyaltyPointsToRedeem?: number;
 }
 
 /** Online pay link for table (partner checkout) — order stays open until paid */

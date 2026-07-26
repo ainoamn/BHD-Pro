@@ -165,6 +165,12 @@ Public flags: `asyncApprovals: true`, `nfcBadgesConfigured`, `shiftVarianceLimit
 - Duplicate-sale soft-warn (60s cart fingerprint)
 - Doc: [`UPGRADE-POS-WAVE16-2026-07.md`](./UPGRADE-POS-WAVE16-2026-07.md)
 
+### Done (Wave 17 — Receipt search, PIN keypad, customer display)
+- Receipts drawer search by number / phone / amount (`GET /pos/sales/recent?q=`)
+- Touch PIN keypad in dual-approval modal
+- Customer second screen `/pos/display` via BroadcastChannel
+- Doc: [`UPGRADE-POS-WAVE17-2026-07.md`](./UPGRADE-POS-WAVE17-2026-07.md)
+
 - [x] Full catalog sync API `GET /pos/catalog/sync` + offline IDB per warehouse
 - [x] Broader refunds + store-credit MVP (hardened debit / void restore / UI)
 - [x] Cash change due + receipt number lookup for refunds

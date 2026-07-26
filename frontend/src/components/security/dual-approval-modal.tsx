@@ -65,6 +65,7 @@ const copy = {
     email: "بريد المشرف",
     password: "كلمة المرور",
     pin: "رمز المشرف (4–8 أرقام)",
+    pinClear: "مسح",
     otp: "رمز واتساب (6 أرقام)",
     sendOtp: "إرسال الرمز",
     otpSent: "تم إرسال الرمز عبر واتساب",
@@ -91,6 +92,7 @@ const copy = {
     email: "Supervisor email",
     password: "Password",
     pin: "Supervisor PIN (4–8 digits)",
+    pinClear: "Clear",
     otp: "WhatsApp code (6 digits)",
     sendOtp: "Send code",
     otpSent: "Code sent via WhatsApp",
@@ -423,15 +425,49 @@ export function DualApprovalModal({
                   </div>
                 </div>
               ) : mode === "PIN" ? (
-                <div>
-                  <label className="block text-xs text-slate-400 mb-1">{t.pin}</label>
+                <div className="space-y-3">
+                  <label className="block text-xs text-slate-400">{t.pin}</label>
+                  <div className="rounded-xl bg-black/40 border border-white/10 px-4 py-3 text-center">
+                    <p
+                      className="text-2xl font-extrabold text-white tracking-[0.35em] tabular-nums min-h-[1.5rem]"
+                      aria-live="polite"
+                    >
+                      {pin ? "•".repeat(pin.length) : "····"}
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(
+                      ["1", "2", "3", "4", "5", "6", "7", "8", "9", t.pinClear, "0", "⌫"] as const
+                    ).map((k) => (
+                      <button
+                        key={k}
+                        type="button"
+                        className="h-12 rounded-xl bg-white/5 border border-white/10 text-base font-bold text-white hover:bg-white/10 active:bg-amber-500/20"
+                        onClick={() => {
+                          if (k === t.pinClear) {
+                            setPin("");
+                            return;
+                          }
+                          if (k === "⌫") {
+                            setPin((prev) => prev.slice(0, -1));
+                            return;
+                          }
+                          setPin((prev) => `${prev}${k}`.replace(/\D/g, "").slice(0, 8));
+                        }}
+                      >
+                        {k}
+                      </button>
+                    ))}
+                  </div>
                   <input
                     type="password"
                     inputMode="numeric"
                     maxLength={8}
                     value={pin}
                     onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 8))}
-                    className="w-full h-10 px-3 rounded-lg bg-black/30 border border-white/10 text-sm text-white tracking-widest"
+                    className="sr-only"
+                    autoComplete="one-time-code"
+                    aria-label={t.pin}
                   />
                 </div>
               ) : mode === "WHATSAPP" ? (

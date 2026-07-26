@@ -7,6 +7,7 @@ import {
   Camera,
   CircleHelp,
   Minus,
+  Monitor,
   PackagePlus,
   Plus,
   Printer,
@@ -43,6 +44,10 @@ import {
   savePosCartSession,
   writeLastSaleFingerprint,
 } from "@/lib/pos-cart-session";
+import {
+  openPosCustomerDisplayWindow,
+  publishPosCustomerDisplay,
+} from "@/lib/pos-customer-display";
 import { openPosReceiptEmail, sharePosReceiptWhatsAppWithPdf } from "@/lib/pos-receipt-share";
 import {
   printPosReceiptBrowser,
@@ -132,6 +137,7 @@ type RecentCashSale = {
   createdAt?: string;
   notes?: string | null;
   status?: string;
+  contact?: { id?: string; name?: string; phone?: string | null } | null;
   items?: {
     productId?: string | null;
     description: string;
@@ -518,13 +524,15 @@ export default function PosCheckoutPage() {
 
   const [receiptsOpen, setReceiptsOpen] = useState(false);
   const [receiptsLoading, setReceiptsLoading] = useState(false);
+  const [receiptsSearch, setReceiptsSearch] = useState("");
 
-  const loadRecentSales = useCallback(async () => {
+  const loadRecentSales = useCallback(async (q?: string) => {
     setReceiptsLoading(true);
     try {
       const res = await api.listRecentPosSales({
-        take: 20,
+        take: q?.trim() ? 40 : 20,
         warehouseId: warehouseId || undefined,
+        q: q?.trim() || undefined,
       });
       const rows = ((res.data as RecentCashSale[]) || []).filter(
         (inv) => String(inv.status || "").toUpperCase() !== "CANCELLED",
@@ -536,6 +544,15 @@ export default function PosCheckoutPage() {
       setReceiptsLoading(false);
     }
   }, [warehouseId]);
+
+  useEffect(() => {
+    if (!receiptsOpen) return;
+    const q = receiptsSearch.trim();
+    const id = window.setTimeout(() => {
+      void loadRecentSales(q || undefined);
+    }, q ? 280 : 0);
+    return () => window.clearTimeout(id);
+  }, [receiptsOpen, receiptsSearch, loadRecentSales]);
 
   useEffect(() => {
     if (!awaitingPayId) return;
@@ -1055,6 +1072,7 @@ export default function PosCheckoutPage() {
       }
       if (e.key === "F7") {
         e.preventDefault();
+        setReceiptsSearch("");
         setReceiptsOpen(true);
         void loadRecentSales();
         return;
@@ -1429,6 +1447,59 @@ export default function PosCheckoutPage() {
     const merch = Math.max(0, merchandiseTotal - redeemPointsValue);
     return Number((merch + tipValue).toFixed(3));
   }, [merchandiseTotal, redeemPointsValue, tipValue]);
+
+  useEffect(() => {
+    if (!companyId) return;
+    const tendered = parseFloat(cashTendered);
+    const hasTender = cashTendered.trim() !== "" && Number.isFinite(tendered);
+    const change =
+      hasTender && tendered + 0.0005 >= total
+        ? Number((tendered - total).toFixed(3))
+        : null;
+    let phase: "idle" | "cart" | "pay" | "thankyou" = "idle";
+    if (cart.length && (paying || hasTender)) phase = "pay";
+    else if (cart.length) phase = "cart";
+    else if (lastInvoice) phase = "thankyou";
+
+    publishPosCustomerDisplay({
+      v: 1,
+      companyId,
+      companyName: company?.name || "",
+      currency,
+      locale: locale === "en" ? "en" : "ar",
+      phase,
+      lines: cart.map((l) => ({
+        name: l.name,
+        qty: l.quantity,
+        total: Math.max(
+          0,
+          Number((l.unitPrice * l.quantity - (l.discount || 0)).toFixed(3)),
+        ),
+      })),
+      subtotal,
+      tax,
+      total:
+        phase === "thankyou" && lastInvoice
+          ? Number(lastInvoice.total) || total
+          : total,
+      cashTendered: hasTender ? tendered : null,
+      change,
+      thankYouNumber: lastInvoice?.number || null,
+      updatedAt: Date.now(),
+    });
+  }, [
+    companyId,
+    company?.name,
+    currency,
+    locale,
+    cart,
+    paying,
+    cashTendered,
+    subtotal,
+    tax,
+    total,
+    lastInvoice,
+  ]);
 
   const applyTipPercent = (pct: number) => {
     const next = Number(((merchandiseTotal * pct) / 100).toFixed(3));
@@ -2636,16 +2707,28 @@ export default function PosCheckoutPage() {
           </div>
           <div className="flex items-center justify-between gap-2">
             <p className="text-xs font-bold text-slate-300">{t.recentSales}</p>
-            <button
-              type="button"
-              onClick={() => {
-                setReceiptsOpen(true);
-                void loadRecentSales();
-              }}
-              className="h-7 px-2 rounded-lg border border-white/15 text-[10px] font-semibold text-slate-300 hover:bg-white/5"
-            >
-              {t.receiptsDrawer} · F7
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => openPosCustomerDisplayWindow()}
+                className="h-7 px-2 rounded-lg border border-emerald-500/30 text-[10px] font-semibold text-emerald-200 hover:bg-emerald-500/15 inline-flex items-center gap-1"
+                title={t.customerDisplay}
+              >
+                <Monitor className="w-3 h-3" />
+                {t.customerDisplay}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setReceiptsSearch("");
+                  setReceiptsOpen(true);
+                  void loadRecentSales();
+                }}
+                className="h-7 px-2 rounded-lg border border-white/15 text-[10px] font-semibold text-slate-300 hover:bg-white/5"
+              >
+                {t.receiptsDrawer} · F7
+              </button>
+            </div>
           </div>
           <form
             onSubmit={(e) => {
@@ -4142,6 +4225,15 @@ export default function PosCheckoutPage() {
                 ✕
               </button>
             </div>
+            <div className="px-3 pt-3">
+              <input
+                value={receiptsSearch}
+                onChange={(e) => setReceiptsSearch(e.target.value)}
+                placeholder={t.receiptsSearch}
+                className="w-full h-10 px-3 rounded-xl bg-black/40 border border-white/10 text-sm text-white placeholder:text-slate-500"
+                autoFocus
+              />
+            </div>
             <div className="overflow-y-auto p-3 space-y-2">
               {receiptsLoading ? (
                 <p className="text-sm text-slate-400 inline-flex items-center gap-2 py-6 justify-center w-full">
@@ -4149,7 +4241,9 @@ export default function PosCheckoutPage() {
                   …
                 </p>
               ) : !recentSales.length ? (
-                <p className="text-sm text-slate-500 text-center py-8">{t.noRecentSales}</p>
+                <p className="text-sm text-slate-500 text-center py-8">
+                  {receiptsSearch.trim() ? t.receiptsSearchEmpty : t.noRecentSales}
+                </p>
               ) : (
                 recentSales.map((sale) => (
                   <div
@@ -4165,6 +4259,15 @@ export default function PosCheckoutPage() {
                             : sale.date
                               ? new Date(sale.date).toLocaleDateString()
                               : "—"}
+                          {sale.contact?.name || sale.contact?.phone ? (
+                            <span className="text-slate-400">
+                              {" "}
+                              ·{" "}
+                              {[sale.contact?.name, sale.contact?.phone]
+                                .filter(Boolean)
+                                .join(" · ")}
+                            </span>
+                          ) : null}
                           {sale.reprintCount ? (
                             <span className="text-amber-300/90">
                               {" "}

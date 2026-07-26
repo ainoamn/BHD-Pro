@@ -55,6 +55,8 @@ export function PosShell({ children }: { children: React.ReactNode }) {
   const [queueOps, setQueueOps] = useState<PendingPosOp[]>([]);
   const [queueLoading, setQueueLoading] = useState(false);
   const isLogin = pathname?.startsWith("/pos/login");
+  const isCustomerDisplay = pathname?.startsWith("/pos/display");
+  const bareShell = isLogin || isCustomerDisplay;
   const canSeeApprovals = user?.role === "ADMIN" || user?.role === "MANAGER";
 
   const refreshPending = useCallback(async () => {
@@ -140,7 +142,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!hydrated || isLogin) return;
+    if (!hydrated || bareShell) return;
     void refreshPending();
     const onOnline = () => {
       void runFlush(true);
@@ -151,10 +153,10 @@ export function PosShell({ children }: { children: React.ReactNode }) {
       window.removeEventListener("online", onOnline);
       window.clearInterval(id);
     };
-  }, [hydrated, isLogin, refreshPending, runFlush]);
+  }, [hydrated, bareShell, refreshPending, runFlush]);
 
   useEffect(() => {
-    if (!hydrated || isLogin || !canSeeApprovals) return;
+    if (!hydrated || bareShell || !canSeeApprovals) return;
     let cancelled = false;
     const checkVoids = async () => {
       try {
@@ -203,10 +205,10 @@ export function PosShell({ children }: { children: React.ReactNode }) {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [hydrated, isLogin, canSeeApprovals, t.voidAlertToast]);
+  }, [hydrated, bareShell, canSeeApprovals, t.voidAlertToast]);
 
   useEffect(() => {
-    if (!hydrated || isLogin) return;
+    if (!hydrated || bareShell) return;
     let cancelled = false;
     (async () => {
       if (!isAuthenticated) {
@@ -238,7 +240,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [hydrated, isAuthenticated, isLogin, router, pathname]);
+  }, [hydrated, isAuthenticated, bareShell, router, pathname]);
 
   const handleLogout = async () => {
     try {
@@ -258,7 +260,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
     router.push("/pos/books");
   };
 
-  if (isLogin) {
+  if (bareShell) {
     return (
       <div className="min-h-screen bg-[#0b1220] text-slate-100" dir={locale === "en" ? "ltr" : "rtl"}>
         {children}

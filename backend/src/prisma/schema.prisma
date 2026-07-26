@@ -2046,6 +2046,8 @@ model RestoOrderItem {
   notes      String?
   /// 0=drinks · 1=starter · 2=main · 3=dessert — fire by course to KDS
   course     Int                  @default(1)
+  /// 1..order.guests; null = shared / unassigned
+  seat       Int?
   /// STAFF | GUEST — guest QR lines auto-fire to kitchen
   source     String               @default("STAFF")
   status     RestoOrderItemStatus @default(PENDING)
@@ -2061,6 +2063,7 @@ model RestoOrderItem {
 
   @@index([orderId, status])
   @@index([orderId, course, status])
+  @@index([orderId, seat])
   @@index([stationId, status])
   @@map("resto_order_items")
 }

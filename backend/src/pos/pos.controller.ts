@@ -314,16 +314,21 @@ export class PosController {
 
   @Get('sales/recent')
   @Roles(...POS_STAFF)
-  @ApiOperation({ summary: 'Recent Hisaby POS cash sales (reprint / void drawer)' })
+  @ApiOperation({
+    summary:
+      'Recent Hisaby POS cash sales (reprint / void drawer); optional q=number|phone|amount',
+  })
   recentSales(
     @CurrentUser() user: TokenPayload,
     @Query('take') take?: string,
     @Query('warehouseId') warehouseId?: string,
+    @Query('q') q?: string,
   ) {
     const n = take ? parseInt(take, 10) : 20;
     return this.pos.listRecentSales(user.companyId, {
       take: Number.isFinite(n) ? n : 20,
       warehouseId: warehouseId || undefined,
+      q: q || undefined,
     });
   }
 
