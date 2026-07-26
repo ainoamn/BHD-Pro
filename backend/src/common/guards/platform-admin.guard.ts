@@ -6,21 +6,21 @@ import {
 } from '@nestjs/common';
 
 /**
- * Platform operators for `/admin` gateways.
- * Production: ONLY emails listed in PLATFORM_ADMIN_EMAILS (comma-separated).
- * Non-production: also allows bootstrap admin@bhd.om for local/dev.
+ * Bootstrap operators always allowed, plus any emails in PLATFORM_ADMIN_EMAILS.
+ * Set PLATFORM_ADMIN_EMAILS on Render to add more operators.
  */
+const DEFAULT_PLATFORM_ADMINS = [
+  'admin@bhd.om',
+  'ammar89555200@gmail.com',
+];
+
 export function getPlatformAdminEmails(): string[] {
   const fromEnv = (process.env.PLATFORM_ADMIN_EMAILS || '')
     .split(',')
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
 
-  if (process.env.NODE_ENV === 'production') {
-    return Array.from(new Set(fromEnv));
-  }
-
-  return Array.from(new Set(['admin@bhd.om', ...fromEnv]));
+  return Array.from(new Set([...DEFAULT_PLATFORM_ADMINS, ...fromEnv]));
 }
 
 export function isPlatformAdminEmail(email?: string | null): boolean {
