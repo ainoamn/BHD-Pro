@@ -589,7 +589,7 @@ export default function AdminPlansPage() {
                 <th className="text-start p-3">%</th>
                 <th className="text-start p-3">{en ? "Code" : "الرمز"}</th>
                 <th className="text-start p-3">{en ? "Status" : "الحالة"}</th>
-                <th className="text-start p-3">{t.actions}</th>
+                <th className="text-start p-3">{en ? "Action" : "إجراء"}</th>
               </tr>
             </thead>
             <tbody>
