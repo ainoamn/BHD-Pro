@@ -248,6 +248,7 @@ export class AdminController {
   }
 
   @Patch('plans/:code')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @UseGuards(JwtAuthGuard, PlatformAdminGuard)
   @ApiBearerAuth()
   updatePlan(
@@ -258,6 +259,7 @@ export class AdminController {
   }
 
   @Delete('plans/:code')
+  @Throttle({ default: { limit: 15, ttl: 60_000 } })
   @UseGuards(JwtAuthGuard, PlatformAdminGuard)
   @ApiBearerAuth()
   deletePlan(@Param('code') code: string) {
