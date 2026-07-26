@@ -289,6 +289,7 @@ export class RestoController {
 
   @Patch('orders/:id')
   @Roles(...RESTO_STAFF)
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @ApiOperation({ summary: 'Update open order guests / notes' })
   updateOrder(
     @CurrentUser() user: TokenPayload,
@@ -501,6 +502,7 @@ export class RestoController {
 
   @Post('stations')
   @Roles(...RESTO_FLOOR_MGR)
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @ApiOperation({ summary: 'Create kitchen station' })
   createStation(
     @CurrentUser() user: TokenPayload,
@@ -690,6 +692,7 @@ export class RestoController {
 
   @Put('sections/assignments')
   @Roles(...RESTO_FLOOR_MGR, UserRole.WAITER)
+  @Throttle({ default: { limit: 40, ttl: 60000 } })
   @ApiOperation({ summary: 'Assign a server to a floor section (zone)' })
   assignSection(
     @CurrentUser() user: TokenPayload,
@@ -700,6 +703,7 @@ export class RestoController {
 
   @Delete('sections/assignments/:zoneId')
   @Roles(...RESTO_FLOOR_MGR, UserRole.WAITER)
+  @Throttle({ default: { limit: 40, ttl: 60000 } })
   @ApiOperation({ summary: 'Release active server from a floor section' })
   releaseSection(
     @CurrentUser() user: TokenPayload,
@@ -710,6 +714,7 @@ export class RestoController {
 
   @Patch('menu/:productId/station')
   @Roles(...RESTO_FLOOR_MGR)
+  @Throttle({ default: { limit: 40, ttl: 60000 } })
   @ApiOperation({ summary: 'Set default KDS station for a menu product' })
   setProductStation(
     @CurrentUser() user: TokenPayload,
@@ -725,6 +730,7 @@ export class RestoController {
 
   @Patch('menu/:productId/allergens')
   @Roles(...RESTO_FLOOR_MGR)
+  @Throttle({ default: { limit: 40, ttl: 60000 } })
   @ApiOperation({ summary: 'Set EU14 allergen codes for a menu product' })
   setProductAllergens(
     @CurrentUser() user: TokenPayload,
@@ -736,6 +742,7 @@ export class RestoController {
 
   @Patch('menu/:productId/dietary')
   @Roles(...RESTO_FLOOR_MGR)
+  @Throttle({ default: { limit: 40, ttl: 60000 } })
   @ApiOperation({ summary: 'Set dietary tags (halal, vegan, spicy, …)' })
   setProductDietary(
     @CurrentUser() user: TokenPayload,
@@ -747,6 +754,7 @@ export class RestoController {
 
   @Patch('menu/:productId/day-parts')
   @Roles(...RESTO_FLOOR_MGR)
+  @Throttle({ default: { limit: 40, ttl: 60000 } })
   @ApiOperation({
     summary: 'Set day-part availability (empty = all day)',
   })
@@ -760,6 +768,7 @@ export class RestoController {
 
   @Patch('menu/:productId/day-part-prices')
   @Roles(...RESTO_FLOOR_MGR)
+  @Throttle({ default: { limit: 40, ttl: 60000 } })
   @ApiOperation({
     summary: 'Set optional sale-price overrides per day-part',
   })

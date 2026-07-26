@@ -56,6 +56,7 @@ export class ProductsController {
   }
 
   @Post()
+  @Throttle({ default: { limit: 40, ttl: 60000 } })
   create(@CurrentUser() user: TokenPayload, @Body() dto: CreateProductDto) {
     return this.productsService.create(user.companyId, dto);
   }
@@ -83,6 +84,7 @@ export class ProductsController {
   }
 
   @Put(':id')
+  @Throttle({ default: { limit: 40, ttl: 60000 } })
   update(
     @CurrentUser() user: TokenPayload,
     @Param('id') id: string,
@@ -92,6 +94,7 @@ export class ProductsController {
   }
 
   @Delete(':id')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   remove(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.productsService.remove(user.companyId, id);
   }

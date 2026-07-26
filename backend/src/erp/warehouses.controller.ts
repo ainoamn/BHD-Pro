@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { ErpService } from './erp.service';
 import { WarehouseDto } from './dto/erp.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -17,11 +18,15 @@ export class WarehousesController {
     return this.erp.findWarehouses(u.companyId);
   }
 
-  @Post() create(@CurrentUser() u: TokenPayload, @Body() dto: WarehouseDto) {
+  @Post()
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  create(@CurrentUser() u: TokenPayload, @Body() dto: WarehouseDto) {
     return this.erp.createWarehouse(u.companyId, dto);
   }
 
-  @Put(':id') update(
+  @Put(':id')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  update(
     @CurrentUser() u: TokenPayload,
     @Param('id') id: string,
     @Body() dto: Partial<WarehouseDto>,
@@ -29,7 +34,9 @@ export class WarehousesController {
     return this.erp.updateWarehouse(u.companyId, id, dto);
   }
 
-  @Delete(':id') remove(@CurrentUser() u: TokenPayload, @Param('id') id: string) {
+  @Delete(':id')
+  @Throttle({ default: { limit: 15, ttl: 60000 } })
+  remove(@CurrentUser() u: TokenPayload, @Param('id') id: string) {
     return this.erp.deleteWarehouse(u.companyId, id);
   }
 }

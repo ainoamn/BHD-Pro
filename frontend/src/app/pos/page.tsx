@@ -256,6 +256,7 @@ export default function PosCheckoutPage() {
   const [shiftOpenedAt, setShiftOpenedAt] = useState<string | null>(null);
   const [tipAssigneeId, setTipAssigneeId] = useState("");
   const [tipStaff, setTipStaff] = useState<{ id: string; name: string }[]>([]);
+  const [tipStaffError, setTipStaffError] = useState(false);
   const [parkSuspendReason, setParkSuspendReason] = useState("");
   const [todayStats, setTodayStats] = useState<{
     salesCount: number;
@@ -783,27 +784,26 @@ export default function PosCheckoutPage() {
     if (companyId && user?.id) clearPosCartSession(companyId, user.id);
   }, [companyId, user?.id]);
 
+  const loadTipStaff = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const res = await api.getUsers();
+      const rows = ((res.data as { id: string; name: string; role?: string; isActive?: boolean }[]) || [])
+        .filter((u) => u.isActive !== false)
+        .map((u) => ({ id: u.id, name: u.name || u.id }));
+      setTipStaff(rows);
+      setTipStaffError(false);
+    } catch {
+      setTipStaff([{ id: user.id, name: user.name || user.email || user.id }]);
+      setTipStaffError(true);
+    }
+  }, [user?.id, user?.name, user?.email]);
+
   useEffect(() => {
     if (!user?.id) return;
     setTipAssigneeId((prev) => prev || user.id);
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await api.getUsers();
-        const rows = ((res.data as { id: string; name: string; role?: string; isActive?: boolean }[]) || [])
-          .filter((u) => u.isActive !== false)
-          .map((u) => ({ id: u.id, name: u.name || u.id }));
-        if (!cancelled) setTipStaff(rows);
-      } catch {
-        if (!cancelled && user?.id) {
-          setTipStaff([{ id: user.id, name: user.name || user.email || user.id }]);
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [user?.id, user?.name, user?.email]);
+    void loadTipStaff();
+  }, [user?.id, loadTipStaff]);
 
   useEffect(() => {
     if (!companyId || !user?.id) return;
@@ -3696,6 +3696,18 @@ export default function PosCheckoutPage() {
                       ))}
                     </select>
                   </div>
+                  {tipStaffError ? (
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-[10px] text-rose-300">{t.loadFailed}</p>
+                      <button
+                        type="button"
+                        onClick={() => void loadTipStaff()}
+                        className="rounded-md bg-amber-500 px-2 py-0.5 text-[10px] font-bold text-slate-950"
+                      >
+                        {t.retry}
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
             </div>
