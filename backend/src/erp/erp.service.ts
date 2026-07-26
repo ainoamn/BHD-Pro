@@ -396,7 +396,7 @@ export class ErpService {
   }
 
   async deleteAsset(companyId: string, id: string) {
-    await this.ensureAsset(companyId, id);
+    const asset = await this.ensureAsset(companyId, id);
     const depCount = await this.prisma.journal.count({
       where: {
         companyId,
@@ -410,6 +410,13 @@ export class ErpService {
       throw new BadRequestException(
         'Cannot delete asset with depreciation journals — reverse or keep for audit',
       );
+    }
+    if (Number(asset.purchaseCost) > 0.0005 || Number(asset.currentValue) > 0.0005) {
+      await this.prisma.fixedAsset.update({
+        where: { id },
+        data: { isActive: false },
+      });
+      return { message: 'Deactivated (cost history retained)', deactivated: true };
     }
     await this.prisma.fixedAsset.delete({ where: { id } });
     return { message: 'Deleted' };

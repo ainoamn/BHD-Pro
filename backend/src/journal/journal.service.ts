@@ -261,7 +261,8 @@ export class JournalService {
     }
     if (
       journal.reference?.startsWith('SC-ADJ:') ||
-      journal.reference?.startsWith('POS-SC-TOPUP:')
+      journal.reference?.startsWith('POS-SC-TOPUP:') ||
+      journal.reference?.startsWith('SC-OPEN:')
     ) {
       throw new BadRequestException(
         'Store-credit journal — reverse via POST /contacts/:id/store-credit-reverse-last',

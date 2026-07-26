@@ -3414,6 +3414,15 @@ export class PosService {
       items: cnItems,
     });
 
+    try {
+      await this.prisma.stockMovement.updateMany({
+        where: { reference: refundRef, product: { companyId } },
+        data: { reference: creditNote.number },
+      });
+    } catch {
+      /* ignore */
+    }
+
     if (isStoreCreditRefund) {
       const creditNoteTotal = Number(creditNote.total);
       const wallet = await this.prisma.contact.findFirst({

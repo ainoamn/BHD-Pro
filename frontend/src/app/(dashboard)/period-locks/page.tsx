@@ -6,9 +6,13 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Lock, Unlock, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
-import { formatDate, cn } from "@/lib/utils";
+import { formatDate, cn, apiErrorMessage } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
 import { PageHeader, LoadingSpinner, QueryError, GlassCard } from "@/components/ui/page-shell";
+import {
+  DualApprovalModal,
+  type DualApprovalPayload,
+} from "@/components/security/dual-approval-modal";
 
 interface PeriodRow {
   id: string;
@@ -31,6 +35,7 @@ export default function PeriodLocksPage() {
   const isAdmin = user?.role === "ADMIN";
   const queryClient = useQueryClient();
   const [year, setYear] = useState(new Date().getFullYear());
+  const [unlockMonth, setUnlockMonth] = useState<number | null>(null);
 
   const { data: periods = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["periods", year],
@@ -50,19 +55,26 @@ export default function PeriodLocksPage() {
       invalidate();
       toast.success(t("locked"));
     },
-    onError: (err: { response?: { data?: { message?: string } } }) => {
-      toast.error(err.response?.data?.message || tCommon("error"));
+    onError: (err: unknown) => {
+      toast.error(apiErrorMessage(err, tCommon("error")));
     },
   });
 
   const unlockMutation = useMutation({
-    mutationFn: (month: number) => api.unlockPeriod(year, month),
+    mutationFn: ({
+      month,
+      approval,
+    }: {
+      month: number;
+      approval?: DualApprovalPayload;
+    }) => api.unlockPeriod(year, month, approval),
     onSuccess: () => {
       invalidate();
+      setUnlockMonth(null);
       toast.success(t("unlocked"));
     },
-    onError: (err: { response?: { data?: { message?: string } } }) => {
-      toast.error(err.response?.data?.message || tCommon("error"));
+    onError: (err: unknown) => {
+      toast.error(apiErrorMessage(err, tCommon("error")));
     },
   });
 
@@ -124,7 +136,7 @@ export default function PeriodLocksPage() {
                   isAdmin && (
                     <button
                       disabled={pending}
-                      onClick={() => unlockMutation.mutate(p.month)}
+                      onClick={() => setUnlockMonth(p.month)}
                       className="text-xs px-3 py-1.5 rounded bg-slate-800 text-slate-200 inline-flex items-center gap-1"
                     >
                       {unlockMutation.isPending ? (
@@ -197,7 +209,7 @@ export default function PeriodLocksPage() {
                             isAdmin ? (
                               <button
                                 disabled={pending}
-                                onClick={() => unlockMutation.mutate(p.month)}
+                                onClick={() => setUnlockMonth(p.month)}
                                 className="text-xs px-3 py-1.5 rounded bg-slate-800 text-slate-200 inline-flex items-center gap-1 hover:text-white"
                               >
                                 <Unlock className="w-3 h-3" />
@@ -228,6 +240,19 @@ export default function PeriodLocksPage() {
           </GlassCard>
         </>
       )}
+
+      <DualApprovalModal
+        open={unlockMonth != null}
+        action="PERIOD_UNLOCK"
+        actionLabel={t("unlock")}
+        summary={t("title")}
+        actorRole={user?.role}
+        onCancel={() => setUnlockMonth(null)}
+        onConfirm={async (approval) => {
+          if (unlockMonth == null) return;
+          await unlockMutation.mutateAsync({ month: unlockMonth, approval });
+        }}
+      />
     </div>
   );
 }

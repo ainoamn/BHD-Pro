@@ -294,9 +294,17 @@ export function PosShell({ children }: { children: React.ReactNode }) {
     });
   };
 
-  const onUnlock = async (_approval: DualApprovalPayload) => {
-    setLocked(false);
-    setUnlockOpen(false);
+  const onUnlock = async (approval: DualApprovalPayload) => {
+    try {
+      await api.posIdleUnlock(approval);
+      setLocked(false);
+      setUnlockOpen(false);
+    } catch (err) {
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message || t.idleUnlockFail;
+      toast.error(typeof msg === "string" ? msg : t.idleUnlockFail);
+    }
   };
 
   useEffect(() => {

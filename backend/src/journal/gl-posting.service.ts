@@ -1579,7 +1579,7 @@ export class GlPostingService {
     });
     if (!original) return null;
     const ref = original.reference || '';
-    if (!ref.startsWith('SC-ADJ:') && !ref.startsWith('POS-SC-TOPUP:')) {
+    if (!ref.startsWith('SC-ADJ:') && !ref.startsWith('POS-SC-TOPUP:') && !ref.startsWith('SC-OPEN:')) {
       throw new BadRequestException('Journal is not a store-credit funding entry');
     }
 

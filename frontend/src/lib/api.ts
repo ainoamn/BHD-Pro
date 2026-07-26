@@ -839,6 +839,10 @@ class ApiClient {
     return this.post(`/products/${id}/transfer`, data);
   }
 
+  reverseLastProductTransfer(id: string, approval?: unknown) {
+    return this.post(`/products/${id}/transfer/reverse-last`, { approval });
+  }
+
   getProductMovements(id: string) {
     return this.get(`/products/${id}/movements`);
   }
@@ -1487,8 +1491,8 @@ class ApiClient {
     return this.post(`/periods/${year}/${month}/lock`);
   }
 
-  unlockPeriod(year: number, month: number) {
-    return this.post(`/periods/${year}/${month}/unlock`);
+  unlockPeriod(year: number, month: number, approval?: unknown) {
+    return this.post(`/periods/${year}/${month}/unlock`, { approval });
   }
 
   // Users
@@ -3240,6 +3244,10 @@ class ApiClient {
       method: string;
       cashMovementId?: string | null;
     }>('/pos/store-credit/top-up', data);
+  }
+
+  posIdleUnlock(approval?: DualApprovalPayload) {
+    return this.post('/pos/idle-unlock', { approval });
   }
 
   updatePosDraft(id: string, data: { name?: string; notes?: string }) {

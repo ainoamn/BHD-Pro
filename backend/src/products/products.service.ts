@@ -604,6 +604,8 @@ export class ProductsService {
       });
 
       const userNotes = dto.notes?.trim();
+      const xferRef =
+        dto.reference?.trim() || `XFER:${productId}:${Date.now()}`;
       await tx.stockMovement.create({
         data: {
           productId,
@@ -611,7 +613,7 @@ export class ProductsService {
           type: MovementType.TRANSFER,
           quantity: qty,
           unitCost: Number(product.costPrice),
-          reference: dto.reference || null,
+          reference: xferRef,
           notes: userNotes
             ? `Transfer → ${toWh.code}: ${userNotes}`
             : `Transfer → ${toWh.code}`,
@@ -624,7 +626,7 @@ export class ProductsService {
           type: MovementType.TRANSFER,
           quantity: qty,
           unitCost: Number(product.costPrice),
-          reference: dto.reference || null,
+          reference: xferRef,
           notes: userNotes
             ? `Transfer ← ${fromWh.code}: ${userNotes}`
             : `Transfer ← ${fromWh.code}`,
@@ -637,6 +639,132 @@ export class ProductsService {
         include: warehouseStockInclude,
       });
     });
+  }
+
+  async reverseLastTransfer(
+    companyId: string,
+    productId: string,
+    actor: TokenPayload,
+    approval?: TransferStockDto['approval'],
+  ) {
+    await this.dualControl.assertApproved(
+      companyId,
+      actor,
+      'STOCK_TRANSFER',
+      approval,
+    );
+    await this.periods.assertOpen(companyId, new Date());
+    const product = await this.findOne(companyId, productId);
+    if (!product.isTracked) {
+      throw new BadRequestException('Product is not stock-tracked');
+    }
+
+    const outMove = await this.prisma.stockMovement.findFirst({
+      where: {
+        productId,
+        type: MovementType.TRANSFER,
+        notes: { startsWith: 'Transfer →' },
+        product: { companyId },
+        NOT: { reference: { startsWith: 'REV-XFER:' } },
+      },
+      orderBy: { createdAt: 'desc' },
+      include: { warehouse: { select: { id: true, code: true } } },
+    });
+    if (!outMove?.reference) {
+      throw new BadRequestException('No stock transfer to reverse');
+    }
+    if (outMove.reference.startsWith('REV-XFER:')) {
+      throw new BadRequestException('Transfer already a reversal');
+    }
+
+    const revRef = `REV-XFER:${outMove.reference}`;
+    const already = await this.prisma.stockMovement.findFirst({
+      where: { productId, reference: revRef },
+    });
+    if (already) {
+      return { product, alreadyReversed: true, reference: outMove.reference };
+    }
+
+    const pair = await this.prisma.stockMovement.findMany({
+      where: {
+        productId,
+        type: MovementType.TRANSFER,
+        reference: outMove.reference,
+      },
+      include: { warehouse: { select: { id: true, code: true } } },
+    });
+    const fromMove = pair.find((m) => (m.notes || '').startsWith('Transfer →'));
+    const toMove = pair.find((m) => (m.notes || '').startsWith('Transfer ←'));
+    if (!fromMove || !toMove) {
+      throw new BadRequestException('Incomplete transfer pair');
+    }
+
+    const qty = Number(fromMove.quantity);
+    const fromWhId = fromMove.warehouseId;
+    const toWhId = toMove.warehouseId;
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.warehouseStock.upsert({
+        where: { productId_warehouseId: { productId, warehouseId: toWhId } },
+        create: { productId, warehouseId: toWhId, quantity: 0 },
+        update: {},
+      });
+      const decremented = await tx.warehouseStock.updateMany({
+        where: {
+          productId,
+          warehouseId: toWhId,
+          quantity: { gte: qty },
+        },
+        data: { quantity: { decrement: qty } },
+      });
+      if (decremented.count === 0) {
+        throw new BadRequestException(
+          'Insufficient stock at destination to reverse transfer',
+        );
+      }
+      await tx.warehouseStock.upsert({
+        where: { productId_warehouseId: { productId, warehouseId: fromWhId } },
+        create: { productId, warehouseId: fromWhId, quantity: qty },
+        update: { quantity: { increment: qty } },
+      });
+
+      const fromCode = fromMove.warehouse?.code || fromWhId;
+      const toCode = toMove.warehouse?.code || toWhId;
+      await tx.stockMovement.create({
+        data: {
+          productId,
+          warehouseId: toWhId,
+          type: MovementType.TRANSFER,
+          quantity: qty,
+          unitCost: Number(product.costPrice),
+          reference: revRef,
+          notes: `Transfer → ${fromCode}: reverse ${outMove.reference}`,
+        },
+      });
+      await tx.stockMovement.create({
+        data: {
+          productId,
+          warehouseId: fromWhId,
+          type: MovementType.TRANSFER,
+          quantity: qty,
+          unitCost: Number(product.costPrice),
+          reference: revRef,
+          notes: `Transfer ← ${toCode}: reverse ${outMove.reference}`,
+        },
+      });
+
+      await tx.product.update({
+        where: { id: productId },
+        data: { warehouseId: fromWhId },
+      });
+    });
+
+    return {
+      product: await this.findOne(companyId, productId),
+      alreadyReversed: false,
+      reference: outMove.reference,
+      reverseReference: revRef,
+    };
   }
 
   async listMovements(companyId: string, productId: string) {

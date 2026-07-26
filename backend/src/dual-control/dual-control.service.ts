@@ -133,6 +133,7 @@ export class DualControlService {
       FX_REVALUATION: config.actions?.FX_REVALUATION !== false,
       COMMISSION_PAYOUT: config.actions?.COMMISSION_PAYOUT !== false,
       STORE_CREDIT_ADJUST: config.actions?.STORE_CREDIT_ADJUST !== false,
+      PERIOD_UNLOCK: config.actions?.PERIOD_UNLOCK !== false,
       RESTO_VOID: config.actions?.RESTO_VOID !== false,
     };
     const whatsappReady = this.whatsapp.isConfigured();

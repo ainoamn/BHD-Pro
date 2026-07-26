@@ -25,6 +25,10 @@ export type DualControlAction =
   | "PAYROLL_PAY"
   | "CLAIM_PAY"
   | "BANK_INTERNAL_TRANSFER"
+  | "FX_REVALUATION"
+  | "COMMISSION_PAYOUT"
+  | "STORE_CREDIT_ADJUST"
+  | "PERIOD_UNLOCK"
   | "RESTO_VOID";
 
 export type DualApprovalPayload = {

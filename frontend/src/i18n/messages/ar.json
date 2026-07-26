@@ -85,6 +85,7 @@
       "FX_REVALUATION": "ترحيل/عكس إعادة تقييم العملات",
       "COMMISSION_PAYOUT": "صرف عمولة الكاشير",
       "STORE_CREDIT_ADJUST": "تعديل/عكس رصيد المتجر",
+      "PERIOD_UNLOCK": "فتح فترة محاسبية مقفلة",
       "RESTO_VOID": "إلغاء / مجاملة بند مطعم"
     },
     "pinSet": "رمز المشرف مضبوط",
@@ -744,6 +745,9 @@
     "fromWarehouse": "من المستودع",
     "toWarehouse": "إلى المستودع",
     "transferred": "تم تحويل المخزون",
+    "reverseLastTransfer": "عكس آخر تحويل",
+    "reverseLastTransferConfirm": "عكس آخر تحويل مستودعات لهذا المنتج؟",
+    "transferReversed": "تم عكس التحويل",
     "byWarehouse": "حسب المستودع"
   },
   "contacts": {

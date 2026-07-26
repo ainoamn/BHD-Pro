@@ -34,3 +34,11 @@ export class TransferStockDto {
   @Type(() => DualApprovalDto)
   approval?: DualApprovalDto;
 }
+
+export class ReverseTransferStockDto {
+  @ApiPropertyOptional({ type: DualApprovalDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DualApprovalDto)
+  approval?: DualApprovalDto;
+}

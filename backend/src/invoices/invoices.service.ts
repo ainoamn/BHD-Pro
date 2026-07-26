@@ -7,7 +7,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
 import { UpdateInvoiceDto } from './dto/update-invoice.dto';
-import { InvoiceStatus, PaymentStatus, InvoiceType, PaymentMethod } from '@prisma/client';
+import { InvoiceStatus, PaymentStatus, InvoiceType, PaymentMethod, MovementType } from '@prisma/client';
 import { RecordPaymentDto } from './dto/record-payment.dto';
 import { BatchRecordPaymentDto } from './dto/batch-record-payment.dto';
 import { GlPostingService } from '../journal/gl-posting.service';
@@ -426,6 +426,7 @@ export class InvoicesService {
       await this.clearPaymentsForLifecycle(companyId, userId, invoice);
       const fresh = await this.findOne(companyId, id);
       await this.glPosting.reverseInvoiceEntry(companyId, userId, fresh);
+      await this.unwindCreditNoteSideEffects(companyId, fresh);
       return this.prisma.invoice.update({
         where: { id },
         data: {
@@ -495,6 +496,147 @@ export class InvoicesService {
     }
     if (invoice.payments.length) {
       await this.prisma.payment.deleteMany({ where: { invoiceId: invoice.id } });
+    }
+  }
+
+  /**
+   * Credit-note cancel: reverse POS refund stock IN and store-credit wallet top-up.
+   * Idempotent via movement reference `{cnNumber}-CANCEL`.
+   */
+  private async unwindCreditNoteSideEffects(
+    companyId: string,
+    invoice: Awaited<ReturnType<InvoicesService['findOne']>>,
+  ) {
+    if (invoice.type !== InvoiceType.CREDIT_NOTE) return;
+
+    const already = await this.prisma.stockMovement.count({
+      where: {
+        reference: `${invoice.number}-CANCEL`,
+        product: { companyId },
+      },
+    });
+    if (already === 0) {
+      let moves = await this.prisma.stockMovement.findMany({
+        where: {
+          type: MovementType.IN,
+          reference: invoice.number,
+          product: { companyId, isTracked: true },
+        },
+      });
+      if (!moves.length) {
+        const fields = (invoice.customFieldsJson || {}) as {
+          refundOfNumber?: string;
+        };
+        const saleNum = fields.refundOfNumber;
+        if (saleNum) {
+          const candidates = await this.prisma.stockMovement.findMany({
+            where: {
+              type: MovementType.IN,
+              product: { companyId, isTracked: true },
+              OR: [
+                { reference: { startsWith: `${saleNum}-REFUND` } },
+                { notes: { contains: `POS refund of ${saleNum}` } },
+              ],
+            },
+            orderBy: { createdAt: 'desc' },
+          });
+          const want = new Map<string, number>();
+          for (const item of invoice.items) {
+            if (!item.productId) continue;
+            want.set(
+              item.productId,
+              (want.get(item.productId) || 0) + Number(item.quantity),
+            );
+          }
+          const filtered: typeof candidates = [];
+          for (const m of candidates) {
+            const left = want.get(m.productId) || 0;
+            if (left < 0.0005) continue;
+            const take = Math.min(left, Number(m.quantity));
+            if (take < 0.0005) continue;
+            filtered.push({ ...m, quantity: take as never });
+            want.set(m.productId, left - take);
+          }
+          moves = filtered;
+        }
+      }
+
+      for (const m of moves) {
+        const qty = Number(m.quantity);
+        if (qty < 0.0005) continue;
+        await this.prisma.$transaction(async (tx) => {
+          await tx.warehouseStock.upsert({
+            where: {
+              productId_warehouseId: {
+                productId: m.productId,
+                warehouseId: m.warehouseId,
+              },
+            },
+            create: {
+              productId: m.productId,
+              warehouseId: m.warehouseId,
+              quantity: 0,
+            },
+            update: {},
+          });
+          await tx.warehouseStock.update({
+            where: {
+              productId_warehouseId: {
+                productId: m.productId,
+                warehouseId: m.warehouseId,
+              },
+            },
+            data: { quantity: { decrement: qty } },
+          });
+          const agg = await tx.warehouseStock.aggregate({
+            where: { productId: m.productId },
+            _sum: { quantity: true },
+          });
+          await tx.product.updateMany({
+            where: { id: m.productId, companyId },
+            data: { quantity: agg._sum.quantity ?? 0 },
+          });
+          await tx.stockMovement.create({
+            data: {
+              productId: m.productId,
+              warehouseId: m.warehouseId,
+              type: MovementType.OUT,
+              quantity: qty,
+              unitCost: Number(m.unitCost || 0),
+              reference: `${invoice.number}-CANCEL`,
+              notes: `Cancel credit note ${invoice.number}`,
+            },
+          });
+        });
+      }
+    }
+
+    const notes = String(invoice.notes || '');
+    const isStoreCredit =
+      notes.includes('[STORE_CREDIT]') ||
+      invoice.payments.some(
+        (p) =>
+          p.method === PaymentMethod.STORE_CREDIT ||
+          String(p.notes || '').includes('[STORE_CREDIT]'),
+      );
+    if (isStoreCredit && invoice.contactId) {
+      const amount = Number(invoice.total);
+      if (amount > 0.0005) {
+        const contact = await this.prisma.contact.findFirst({
+          where: { id: invoice.contactId, companyId },
+          select: { currentBalance: true },
+        });
+        if (contact) {
+          const next = Math.max(
+            0,
+            Number((Number(contact.currentBalance || 0) - amount).toFixed(3)),
+          );
+          await this.prisma.contact.update({
+            where: { id: invoice.contactId },
+            data: { currentBalance: next },
+          });
+        }
+      }
     }
   }
 

@@ -22,6 +22,7 @@ import {
   calculateTotal,
   extractTaxFromInclusive,
   cn,
+  apiErrorMessage,
 } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
 import { InvoiceDocument, InvoiceDocumentData } from "@/components/invoices/invoice-document";
@@ -722,7 +723,7 @@ export function AccountingModule() {
       invalidateInvoiceQueries();
       toast.success(t("deleted"));
     },
-    onError: () => toast.error(t("actionError")),
+    onError: (err) => toast.error(apiErrorMessage(err, t("actionError"))),
   });
 
   const statusMutation = useMutation({
@@ -744,7 +745,7 @@ export function AccountingModule() {
       } else if (status === "CANCELLED") toast.success(t("cancelledSuccess"));
       else toast.success(t("saved"));
     },
-    onError: () => toast.error(t("actionError")),
+    onError: (err) => toast.error(apiErrorMessage(err, t("actionError"))),
   });
 
   const unsendMutation = useMutation({
@@ -754,8 +755,7 @@ export function AccountingModule() {
       toast.success(t("undoSendSuccess"));
     },
     onError: (err: unknown) => {
-      const axiosErr = err as { response?: { data?: { message?: string } } };
-      toast.error(axiosErr?.response?.data?.message || t("actionError"));
+      toast.error(apiErrorMessage(err, t("actionError")));
     },
   });
 
@@ -773,7 +773,7 @@ export function AccountingModule() {
         setDocumentVariant("invoice");
       }
     },
-    onError: () => toast.error(t("actionError")),
+    onError: (err) => toast.error(apiErrorMessage(err, t("actionError"))),
   });
 
   const handleUnsend = (id: string) => {

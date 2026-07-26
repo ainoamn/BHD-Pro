@@ -15,7 +15,7 @@ import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { AdjustStockDto } from './dto/adjust-stock.dto';
-import { TransferStockDto } from './dto/transfer-stock.dto';
+import { TransferStockDto, ReverseTransferStockDto } from './dto/transfer-stock.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -90,6 +90,24 @@ export class ProductsController {
     @Body() dto: TransferStockDto,
   ) {
     return this.productsService.transferStock(user.companyId, id, dto, user);
+  }
+
+  @Post(':id/transfer/reverse-last')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @ApiOperation({ summary: 'Reverse the latest warehouse transfer for a product' })
+  reverseLastTransfer(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+    @Body() dto: ReverseTransferStockDto,
+  ) {
+    return this.productsService.reverseLastTransfer(
+      user.companyId,
+      id,
+      user,
+      dto?.approval,
+    );
   }
 
   @Put(':id')

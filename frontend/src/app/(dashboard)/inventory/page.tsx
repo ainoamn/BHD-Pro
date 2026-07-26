@@ -309,6 +309,18 @@ export default function InventoryPage() {
     },
   });
 
+  const [reverseTransferId, setReverseTransferId] = useState<string | null>(null);
+  const reverseTransferMutation = useMutation({
+    mutationFn: (approval: DualApprovalPayload) =>
+      api.reverseLastProductTransfer(reverseTransferId!, approval),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      toast.success(t("transferReversed"));
+      setReverseTransferId(null);
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, t("saveError"))),
+  });
+
   const isLowStock = (p: Product) =>
     Number(p.quantity) <= Number(p.minQuantity);
 
@@ -466,6 +478,13 @@ export default function InventoryPage() {
                         className="text-xs px-2 py-1 rounded bg-amber-500/10 text-amber-400 hover:bg-amber-500/20"
                       >
                         {t("adjust")}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setReverseTransferId(product.id)}
+                        className="text-xs px-2 py-1 rounded bg-sky-500/10 text-sky-400 hover:bg-sky-500/20"
+                      >
+                        {t("reverseLastTransfer")}
                       </button>
                       <button
                         type="button"
@@ -964,6 +983,20 @@ export default function InventoryPage() {
         onCancel={() => !adjustMutation.isPending && setStockApprovalOpen(false)}
         onConfirm={async (approval) => {
           await adjustMutation.mutateAsync(approval);
+        }}
+      />
+      <DualApprovalModal
+        open={!!reverseTransferId}
+        action="STOCK_TRANSFER"
+        actionLabel={t("reverseLastTransfer")}
+        summary={t("reverseLastTransferConfirm")}
+        actorRole={user?.role}
+        busy={reverseTransferMutation.isPending}
+        onCancel={() =>
+          !reverseTransferMutation.isPending && setReverseTransferId(null)
+        }
+        onConfirm={async (approval) => {
+          await reverseTransferMutation.mutateAsync(approval);
         }}
       />
     </div>

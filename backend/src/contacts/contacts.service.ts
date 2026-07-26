@@ -268,6 +268,7 @@ export class ContactsService {
         OR: [
           { reference: { startsWith: `SC-ADJ:${id}:` } },
           { reference: { startsWith: `POS-SC-TOPUP:${id}:` } },
+          { reference: `SC-OPEN:${id}` },
         ],
       },
       include: { lines: true },

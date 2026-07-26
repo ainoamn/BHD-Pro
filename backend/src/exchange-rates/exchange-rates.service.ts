@@ -86,7 +86,16 @@ export class ExchangeRatesService {
   }
 
   async remove(companyId: string, id: string) {
-    await this.ensure(companyId, id);
+    const row = await this.ensure(companyId, id);
+    const asOfKey = row.date.toISOString().slice(0, 10);
+    const fxDay = await this.prisma.journal.count({
+      where: { companyId, reference: `FX-REV:${asOfKey}` },
+    });
+    if (fxDay > 0) {
+      throw new BadRequestException(
+        `Cannot delete exchange rate used by FX revaluation on ${asOfKey}`,
+      );
+    }
     await this.prisma.exchangeRate.delete({ where: { id } });
     return { message: 'Deleted' };
   }

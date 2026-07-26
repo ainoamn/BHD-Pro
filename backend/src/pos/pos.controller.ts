@@ -14,6 +14,7 @@ import {
   ClosePosShiftDto,
   CreatePosCashMovementDto,
   ReversePosCashMovementDto,
+  PosIdleUnlockDto,
   CreatePosNoSaleDto,
   CreatePosDraftDto,
   CreatePosSaleDto,
@@ -516,6 +517,23 @@ export class PosController {
     @Query('warehouseId') warehouseId?: string,
   ) {
     return this.pos.getCurrentShift(user.companyId, warehouseId || null);
+  }
+
+  @Post('idle-unlock')
+  @Roles(...POS_STAFF)
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  @ApiOperation({ summary: 'Assert dual-control for POS idle-lock unlock' })
+  async idleUnlock(
+    @CurrentUser() user: TokenPayload,
+    @Body() dto: PosIdleUnlockDto,
+  ) {
+    await this.dualControl.assertApproved(
+      user.companyId,
+      user,
+      'POS_IDLE_UNLOCK',
+      dto?.approval,
+    );
+    return { unlocked: true };
   }
 
   @Post('shifts/current/cash-movements')

@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Loader2, X, FileInput, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
-import { formatMoney, formatDate, cn } from "@/lib/utils";
+import { formatMoney, formatDate, cn, apiErrorMessage } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
 import { PageHeader, LoadingSpinner, QueryError, EmptyState, GlassCard } from "@/components/ui/page-shell";
 import { DecimalInput } from "@/components/ui/decimal-input";
@@ -138,7 +138,7 @@ export function ProcurementPage({ mode }: ProcurementPageProps) {
       setOpen(false);
       resetForm();
     },
-    onError: () => toast.error(tCommon("error")),
+    onError: (err) => toast.error(apiErrorMessage(err, tCommon("error"))),
   });
 
   const convertMutation = useMutation({
@@ -149,7 +149,7 @@ export function ProcurementPage({ mode }: ProcurementPageProps) {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       toast.success(isPO ? t("converted") : t("generated"));
     },
-    onError: () => toast.error(tCommon("error")),
+    onError: (err) => toast.error(apiErrorMessage(err, tCommon("error"))),
   });
 
   const deleteMutation = useMutation({
@@ -159,7 +159,7 @@ export function ProcurementPage({ mode }: ProcurementPageProps) {
       queryClient.invalidateQueries({ queryKey: [queryKey] });
       toast.success(tCommon("deleted"));
     },
-    onError: () => toast.error(tCommon("error")),
+    onError: (err) => toast.error(apiErrorMessage(err, tCommon("error"))),
   });
 
   const toggleScheduleMutation = useMutation({
@@ -168,7 +168,7 @@ export function ProcurementPage({ mode }: ProcurementPageProps) {
       queryClient.invalidateQueries({ queryKey: [queryKey] });
       toast.success(tCommon("saved"));
     },
-    onError: () => toast.error(tCommon("error")),
+    onError: (err) => toast.error(apiErrorMessage(err, tCommon("error"))),
   });
 
   const processDueMutation = useMutation({
@@ -179,7 +179,7 @@ export function ProcurementPage({ mode }: ProcurementPageProps) {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       toast.success(t("processDueDone", { count: data.generated }));
     },
-    onError: () => toast.error(tCommon("error")),
+    onError: (err) => toast.error(apiErrorMessage(err, tCommon("error"))),
   });
 
   const lineTotal = lines.reduce((s, l) => {

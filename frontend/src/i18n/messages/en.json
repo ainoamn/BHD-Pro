@@ -85,6 +85,7 @@
       "FX_REVALUATION": "FX revaluation post/reverse",
       "COMMISSION_PAYOUT": "POS commission payout",
       "STORE_CREDIT_ADJUST": "Store credit adjust/reverse",
+      "PERIOD_UNLOCK": "Unlock accounting period",
       "RESTO_VOID": "Restaurant void / comp"
     },
     "pinSet": "Supervisor PIN is set",
@@ -744,6 +745,9 @@
     "fromWarehouse": "From warehouse",
     "toWarehouse": "To warehouse",
     "transferred": "Stock transferred",
+    "reverseLastTransfer": "Reverse last transfer",
+    "reverseLastTransferConfirm": "Reverse the latest warehouse transfer for this product?",
+    "transferReversed": "Transfer reversed",
     "byWarehouse": "By warehouse"
   },
   "contacts": {
