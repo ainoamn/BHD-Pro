@@ -115,12 +115,14 @@ export class InvoicesController {
   }
 
   @Post()
+  @Throttle({ default: { limit: 40, ttl: 60000 } })
   @ApiOperation({ summary: 'Create invoice' })
   create(@CurrentUser() user: TokenPayload, @Body() dto: CreateInvoiceDto) {
     return this.invoicesService.create(user.companyId, user.sub, dto);
   }
 
   @Put(':id')
+  @Throttle({ default: { limit: 40, ttl: 60000 } })
   @ApiOperation({ summary: 'Update invoice' })
   update(
     @CurrentUser() user: TokenPayload,
@@ -232,6 +234,7 @@ export class InvoicesController {
   }
 
   @Delete(':id')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @ApiOperation({ summary: 'Delete invoice' })
   remove(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.invoicesService.remove(user.companyId, id);

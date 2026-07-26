@@ -22,7 +22,9 @@ export class PayrollController {
   @Get() findAll(@CurrentUser() u: TokenPayload) {
     return this.erp.findPayrollRuns(u.companyId);
   }
-  @Post() create(@CurrentUser() u: TokenPayload, @Body() dto: CreatePayrollDto) {
+  @Post()
+  @Throttle({ default: { limit: 15, ttl: 60000 } })
+  create(@CurrentUser() u: TokenPayload, @Body() dto: CreatePayrollDto) {
     return this.erp.createPayrollRun(u.companyId, dto);
   }
   @Patch(':id/status')
@@ -40,7 +42,9 @@ export class PayrollController {
       paymentMethod: dto.paymentMethod,
     });
   }
-  @Delete(':id') remove(@CurrentUser() u: TokenPayload, @Param('id') id: string) {
+  @Delete(':id')
+  @Throttle({ default: { limit: 15, ttl: 60000 } })
+  remove(@CurrentUser() u: TokenPayload, @Param('id') id: string) {
     return this.erp.deletePayrollRun(u.companyId, id);
   }
 }

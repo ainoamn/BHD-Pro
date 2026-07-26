@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { ErpService } from './erp.service';
 import { ProjectDto } from './dto/erp.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -16,13 +17,19 @@ export class ProjectsController {
   @Get() findAll(@CurrentUser() u: TokenPayload) {
     return this.erp.findProjects(u.companyId);
   }
-  @Post() create(@CurrentUser() u: TokenPayload, @Body() dto: ProjectDto) {
+  @Post()
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  create(@CurrentUser() u: TokenPayload, @Body() dto: ProjectDto) {
     return this.erp.createProject(u.companyId, dto);
   }
-  @Put(':id') update(@CurrentUser() u: TokenPayload, @Param('id') id: string, @Body() dto: Partial<ProjectDto>) {
+  @Put(':id')
+  @Throttle({ default: { limit: 40, ttl: 60000 } })
+  update(@CurrentUser() u: TokenPayload, @Param('id') id: string, @Body() dto: Partial<ProjectDto>) {
     return this.erp.updateProject(u.companyId, id, dto);
   }
-  @Delete(':id') remove(@CurrentUser() u: TokenPayload, @Param('id') id: string) {
+  @Delete(':id')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  remove(@CurrentUser() u: TokenPayload, @Param('id') id: string) {
     return this.erp.deleteProject(u.companyId, id);
   }
 }

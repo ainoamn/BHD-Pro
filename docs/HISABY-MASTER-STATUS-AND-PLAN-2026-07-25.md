@@ -76,6 +76,7 @@
 - موجة W: صدق شريط كاشير/قائمة 86 + throttles صالة وربط مخزن — [`HISABY-WAVE-W-POS-OPS-86-RESTO-THROTTLE-2026-07-26.md`](./HISABY-WAVE-W-POS-OPS-86-RESTO-THROTTLE-2026-07-26.md)
 - موجة X: صدق مخازن الورديات + throttles أصناف طلب/حسابات/خروج — [`HISABY-WAVE-X-SHIFTS-ITEMS-ACCOUNTS-2026-07-26.md`](./HISABY-WAVE-X-SHIFTS-ITEMS-ACCOUNTS-2026-07-26.md)
 - موجة Y: صدق مستلم البقشيش + throttles قائمة/جهات/منتجات/مخازن/فروع — [`HISABY-WAVE-Y-TIP-STAFF-MENU-CRUD-2026-07-26.md`](./HISABY-WAVE-Y-TIP-STAFF-MENU-CRUD-2026-07-26.md)
+- موجة Z: صدق وردية الشِل + throttles فواتير/بنوك/أصول/رواتب/مراكز/مشاريع — [`HISABY-WAVE-Z-SHELL-INVOICE-ERP-2026-07-26.md`](./HISABY-WAVE-Z-SHELL-INVOICE-ERP-2026-07-26.md)
 
 ### 1.6 المنصة ولوحة الإدارة (محدث 26 يوليو مساءً)
 - اشتراكات، بوابات دفع، `/admin`، PWA، GeoIP، keep-warm

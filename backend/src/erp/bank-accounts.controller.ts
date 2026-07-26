@@ -32,7 +32,9 @@ export class BankAccountsController {
     return this.erp.findBankAccounts(u.companyId);
   }
 
-  @Post() create(@CurrentUser() u: TokenPayload, @Body() dto: BankAccountDto) {
+  @Post()
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  create(@CurrentUser() u: TokenPayload, @Body() dto: BankAccountDto) {
     return this.erp.createBankAccount(u.companyId, dto);
   }
 
@@ -101,7 +103,9 @@ export class BankAccountsController {
     );
   }
 
-  @Put(':id') update(
+  @Put(':id')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  update(
     @CurrentUser() u: TokenPayload,
     @Param('id') id: string,
     @Body() dto: Partial<BankAccountDto>,
@@ -109,7 +113,9 @@ export class BankAccountsController {
     return this.erp.updateBankAccount(u.companyId, id, dto);
   }
 
-  @Delete(':id') remove(@CurrentUser() u: TokenPayload, @Param('id') id: string) {
+  @Delete(':id')
+  @Throttle({ default: { limit: 15, ttl: 60000 } })
+  remove(@CurrentUser() u: TokenPayload, @Param('id') id: string) {
     return this.erp.deleteBankAccount(u.companyId, id);
   }
 }

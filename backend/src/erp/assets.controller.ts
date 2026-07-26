@@ -17,13 +17,19 @@ export class AssetsController {
   @Get() findAll(@CurrentUser() u: TokenPayload) {
     return this.erp.findAssets(u.companyId);
   }
-  @Post() create(@CurrentUser() u: TokenPayload, @Body() dto: AssetDto) {
+  @Post()
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  create(@CurrentUser() u: TokenPayload, @Body() dto: AssetDto) {
     return this.erp.createAsset(u.companyId, dto);
   }
-  @Put(':id') update(@CurrentUser() u: TokenPayload, @Param('id') id: string, @Body() dto: Partial<AssetDto>) {
+  @Put(':id')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  update(@CurrentUser() u: TokenPayload, @Param('id') id: string, @Body() dto: Partial<AssetDto>) {
     return this.erp.updateAsset(u.companyId, id, dto);
   }
-  @Delete(':id') remove(@CurrentUser() u: TokenPayload, @Param('id') id: string) {
+  @Delete(':id')
+  @Throttle({ default: { limit: 15, ttl: 60000 } })
+  remove(@CurrentUser() u: TokenPayload, @Param('id') id: string) {
     return this.erp.deleteAsset(u.companyId, id);
   }
 
