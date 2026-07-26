@@ -152,6 +152,7 @@ export class AuthController {
   @Post('logout')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Logout user' })
   async logout(@Req() req: Request & { user: { sub: string } }, @Res({ passthrough: true }) res: Response) {

@@ -36,6 +36,7 @@ export class JournalController {
   }
 
   @Delete(':id')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   remove(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.journalService.remove(user.companyId, id);
   }

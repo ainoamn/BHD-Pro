@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Clock3, Loader2, Mail, MessageCircle, Printer } from "lucide-react";
@@ -216,6 +216,7 @@ export function PosShiftsView({
   const [lastX, setLastX] = useState<ZReport | null>(null);
   const [warehouseId, setWarehouseId] = useState("");
   const [warehouses, setWarehouses] = useState<{ id: string; name: string; code: string }[]>([]);
+  const [warehousesError, setWarehousesError] = useState(false);
   const [varianceLimit, setVarianceLimit] = useState(DEFAULT_VARIANCE_LIMIT);
   const [approvalOpen, setApprovalOpen] = useState(false);
   const [cashApprovalOpen, setCashApprovalOpen] = useState(false);
@@ -233,6 +234,21 @@ export function PosShiftsView({
     llmNote?: string | null;
   } | null>(null);
 
+  const loadWarehouses = useCallback(async () => {
+    if (forcedWarehouseId) return;
+    try {
+      const res = await api.getWarehouses();
+      const rows = ((res.data as { id: string; name: string; code: string; isActive?: boolean }[]) || []).filter(
+        (w) => w.isActive !== false,
+      );
+      setWarehouses(rows);
+      setWarehousesError(false);
+    } catch {
+      setWarehouses([]);
+      setWarehousesError(true);
+    }
+  }, [forcedWarehouseId]);
+
   useEffect(() => {
     if (forcedWarehouseId) {
       setWarehouseId(forcedWarehouseId);
@@ -243,16 +259,8 @@ export function PosShiftsView({
     } catch {
       /* ignore */
     }
+    void loadWarehouses();
     (async () => {
-      try {
-        const res = await api.getWarehouses();
-        const rows = ((res.data as { id: string; name: string; code: string; isActive?: boolean }[]) || []).filter(
-          (w) => w.isActive !== false,
-        );
-        setWarehouses(rows);
-      } catch {
-        /* ignore */
-      }
       try {
         const sec = await api.getCompanySecurity();
         const cfg = sec.data as {
@@ -267,7 +275,7 @@ export function PosShiftsView({
         /* ignore */
       }
     })();
-  }, [forcedWarehouseId]);
+  }, [forcedWarehouseId, loadWarehouses]);
 
   useEffect(() => {
     if (!forcedWarehouseId) return;
@@ -617,6 +625,19 @@ export function PosShiftsView({
           <p className="text-sm text-slate-400">{t.shiftsHint}</p>
         </div>
       </div>
+
+      {!hideWarehousePicker && warehousesError ? (
+        <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm text-rose-300">{t.loadFailed}</p>
+          <button
+            type="button"
+            onClick={() => void loadWarehouses()}
+            className="rounded-lg bg-amber-500 px-3 py-1 text-xs font-bold text-slate-950"
+          >
+            {t.retry}
+          </button>
+        </div>
+      ) : null}
 
       {!hideWarehousePicker && warehouses.length > 0 ? (
         <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">

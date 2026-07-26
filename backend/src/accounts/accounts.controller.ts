@@ -9,6 +9,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { AccountsService } from './accounts.service';
 import { CreateAccountDto, UpdateAccountDto } from './dto/account.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -40,11 +41,13 @@ export class AccountsController {
   }
 
   @Post()
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   create(@CurrentUser() user: TokenPayload, @Body() dto: CreateAccountDto) {
     return this.accountsService.create(user.companyId, dto);
   }
 
   @Put(':id')
+  @Throttle({ default: { limit: 40, ttl: 60000 } })
   update(
     @CurrentUser() user: TokenPayload,
     @Param('id') id: string,
@@ -54,6 +57,7 @@ export class AccountsController {
   }
 
   @Delete(':id')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   remove(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
     return this.accountsService.remove(user.companyId, id);
   }

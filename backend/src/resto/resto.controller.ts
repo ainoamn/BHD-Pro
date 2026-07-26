@@ -210,6 +210,7 @@ export class RestoController {
 
   @Post('zones')
   @Roles(...RESTO_FLOOR_MGR)
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   createZone(
     @CurrentUser() user: TokenPayload,
     @Body() dto: CreateRestoZoneDto,
@@ -219,6 +220,7 @@ export class RestoController {
 
   @Post('tables')
   @Roles(...RESTO_FLOOR_MGR)
+  @Throttle({ default: { limit: 40, ttl: 60000 } })
   createTable(
     @CurrentUser() user: TokenPayload,
     @Body() dto: CreateRestoTableDto,
@@ -341,6 +343,7 @@ export class RestoController {
 
   @Post('modifiers')
   @Roles(...RESTO_FLOOR_MGR)
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Create a menu modifier' })
   createModifier(
     @CurrentUser() user: TokenPayload,
@@ -351,6 +354,7 @@ export class RestoController {
 
   @Post('orders/:id/items')
   @Roles(...RESTO_STAFF)
+  @Throttle({ default: { limit: 120, ttl: 60000 } })
   addItem(
     @CurrentUser() user: TokenPayload,
     @Param('id') id: string,
@@ -361,6 +365,7 @@ export class RestoController {
 
   @Patch('orders/:id/items/:itemId')
   @Roles(...RESTO_STAFF)
+  @Throttle({ default: { limit: 120, ttl: 60000 } })
   updateItem(
     @CurrentUser() user: TokenPayload,
     @Param('id') id: string,
@@ -372,6 +377,7 @@ export class RestoController {
 
   @Delete('orders/:id/items/:itemId')
   @Roles(...RESTO_STAFF)
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
   removeItem(
     @CurrentUser() user: TokenPayload,
     @Param('id') id: string,
@@ -781,6 +787,7 @@ export class RestoController {
 
   @Post('reservations')
   @Roles(...RESTO_FLOOR_MGR, UserRole.WAITER)
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Create reservation' })
   createReservation(
     @CurrentUser() user: TokenPayload,
@@ -825,6 +832,7 @@ export class RestoController {
 
   @Put('recipes/:productId')
   @Roles(...RESTO_FLOOR_MGR)
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Create or replace recipe for a menu product' })
   upsertRecipe(
     @CurrentUser() user: TokenPayload,
@@ -836,6 +844,7 @@ export class RestoController {
 
   @Delete('recipes/:productId')
   @Roles(...RESTO_FLOOR_MGR)
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @ApiOperation({ summary: 'Delete recipe for a menu product' })
   deleteRecipe(
     @CurrentUser() user: TokenPayload,
@@ -853,6 +862,7 @@ export class RestoController {
 
   @Post('waitlist')
   @Roles(...RESTO_STAFF)
+  @Throttle({ default: { limit: 40, ttl: 60000 } })
   @ApiOperation({ summary: 'Add guest to waitlist' })
   createWaitlist(
     @CurrentUser() user: TokenPayload,
