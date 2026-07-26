@@ -835,6 +835,10 @@ class ApiClient {
     return this.post(`/products/${id}/adjust`, data);
   }
 
+  reverseLastProductAdjust(id: string, approval?: unknown) {
+    return this.post(`/products/${id}/adjust/reverse-last`, { approval });
+  }
+
   transferProductStock(id: string, data: unknown) {
     return this.post(`/products/${id}/transfer`, data);
   }
@@ -954,11 +958,11 @@ class ApiClient {
   deleteAsset(id: string) {
     return this.delete(`/assets/${id}`);
   }
-  depreciateAsset(id: string) {
-    return this.post(`/assets/${id}/depreciate`);
+  depreciateAsset(id: string, approval?: DualApprovalPayload) {
+    return this.post(`/assets/${id}/depreciate`, { approval });
   }
-  reverseLastAssetDepreciation(id: string) {
-    return this.post(`/assets/${id}/reverse-last-depreciation`);
+  reverseLastAssetDepreciation(id: string, approval?: DualApprovalPayload) {
+    return this.post(`/assets/${id}/reverse-last-depreciation`, { approval });
   }
 
   getBankAccounts() {
@@ -1303,6 +1307,10 @@ class ApiClient {
 
   completeStockCount(id: string) {
     return this.post(`/stock-counts/${id}/complete`);
+  }
+
+  reverseCompletedStockCount(id: string) {
+    return this.post(`/stock-counts/${id}/reverse-completed`);
   }
 
   cancelStockCount(id: string) {

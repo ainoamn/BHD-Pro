@@ -54,6 +54,7 @@ type SecurityPublic = {
     COMMISSION_PAYOUT: boolean;
     STORE_CREDIT_ADJUST: boolean;
     PERIOD_UNLOCK: boolean;
+    ASSET_DEPRECIATE: boolean;
     RESTO_VOID: boolean;
   };
 };
@@ -80,6 +81,7 @@ const ACTION_KEYS = [
   "COMMISSION_PAYOUT",
   "STORE_CREDIT_ADJUST",
   "PERIOD_UNLOCK",
+  "ASSET_DEPRECIATE",
   "RESTO_VOID",
 ] as const;
 
@@ -113,6 +115,7 @@ export function DualControlSettings() {
     COMMISSION_PAYOUT: true,
     STORE_CREDIT_ADJUST: true,
     PERIOD_UNLOCK: true,
+    ASSET_DEPRECIATE: true,
     RESTO_VOID: true,
   });
   const [pin, setPin] = useState("");
@@ -167,6 +170,7 @@ export function DualControlSettings() {
       COMMISSION_PAYOUT: true,
       STORE_CREDIT_ADJUST: true,
       PERIOD_UNLOCK: true,
+      ASSET_DEPRECIATE: true,
       RESTO_VOID: true,
     };
     setActions({ ...defaults, ...data.actions });

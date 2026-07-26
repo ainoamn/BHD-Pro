@@ -266,6 +266,91 @@ export class StockCountsService {
     });
   }
 
+  /**
+   * Undo a completed stock count: reverse variance movements and mark CANCELLED.
+   * Idempotent via movement reference `{countNumber}-REV`.
+   */
+  async reverseCompleted(companyId: string, id: string) {
+    const count = await this.findOne(companyId, id);
+    if (count.status !== StockCountStatus.COMPLETED) {
+      throw new BadRequestException('Only completed counts can be reversed');
+    }
+
+    const revRef = `${count.number}-REV`;
+    const already = await this.prisma.stockMovement.count({
+      where: { reference: revRef, product: { companyId } },
+    });
+    if (already > 0) {
+      return {
+        ...(await this.findOne(companyId, id)),
+        alreadyReversed: true,
+      };
+    }
+
+    const warehouseId =
+      count.warehouseId || (await this.resolveWarehouse(companyId));
+
+    await this.prisma.$transaction(async (tx) => {
+      for (const line of count.lines) {
+        const system = Number(line.systemQty);
+        const counted = Number(line.countedQty);
+        const variance = Number((counted - system).toFixed(3));
+        if (Math.abs(variance) < 0.0005) continue;
+
+        const product = await tx.product.findFirst({
+          where: { id: line.productId, companyId },
+        });
+        if (!product || !product.isTracked) continue;
+
+        await tx.warehouseStock.upsert({
+          where: {
+            productId_warehouseId: {
+              productId: product.id,
+              warehouseId,
+            },
+          },
+          create: {
+            productId: product.id,
+            warehouseId,
+            quantity: system,
+          },
+          update: { quantity: system },
+        });
+
+        const agg = await tx.warehouseStock.aggregate({
+          where: { productId: product.id },
+          _sum: { quantity: true },
+        });
+        await tx.product.update({
+          where: { id: product.id },
+          data: { quantity: agg._sum.quantity ?? 0 },
+        });
+
+        await tx.stockMovement.create({
+          data: {
+            productId: product.id,
+            warehouseId,
+            type: MovementType.ADJUSTMENT,
+            quantity: Math.abs(variance),
+            unitCost: Number(product.costPrice),
+            reference: revRef,
+            notes: `Reverse stock count ${count.number}: ${counted} → ${system}`,
+          },
+        });
+      }
+
+      await tx.stockCount.update({
+        where: { id },
+        data: { status: StockCountStatus.CANCELLED },
+      });
+    });
+
+    return {
+      ...(await this.findOne(companyId, id)),
+      alreadyReversed: false,
+    };
+  }
+
   async remove(companyId: string, id: string) {
     const count = await this.prisma.stockCount.findFirst({
       where: { id, companyId },

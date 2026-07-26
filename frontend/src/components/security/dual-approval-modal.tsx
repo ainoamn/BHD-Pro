@@ -29,6 +29,7 @@ export type DualControlAction =
   | "COMMISSION_PAYOUT"
   | "STORE_CREDIT_ADJUST"
   | "PERIOD_UNLOCK"
+  | "ASSET_DEPRECIATE"
   | "RESTO_VOID";
 
 export type DualApprovalPayload = {

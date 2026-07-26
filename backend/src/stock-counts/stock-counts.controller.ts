@@ -70,6 +70,15 @@ export class StockCountsController {
     return this.service.complete(user.companyId, id);
   }
 
+  @Post(':id/reverse-completed')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @ApiOperation({ summary: 'Reverse a completed stock count (restore prior qty)' })
+  reverseCompleted(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
+    return this.service.reverseCompleted(user.companyId, id);
+  }
+
   @Post(':id/cancel')
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)

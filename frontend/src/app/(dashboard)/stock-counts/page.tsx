@@ -125,9 +125,17 @@ export default function StockCountsPage() {
       toast.success(t("completed"));
       setDetailId(null);
     },
-    onError: (err: { response?: { data?: { message?: string } } }) => {
-      toast.error(err.response?.data?.message || tCommon("error"));
+    onError: (err) => toast.error(apiErrorMessage(err, tCommon("error"))),
+  });
+
+  const reverseCompletedMutation = useMutation({
+    mutationFn: (id: string) => api.reverseCompletedStockCount(id),
+    onSuccess: () => {
+      invalidate();
+      toast.success(t("reversedCompleted"));
+      setDetailId(null);
     },
+    onError: (err) => toast.error(apiErrorMessage(err, tCommon("error"))),
   });
 
   const cancelMutation = useMutation({
@@ -147,9 +155,7 @@ export default function StockCountsPage() {
       toast.success(tCommon("deleted"));
       setDetailId(null);
     },
-    onError: (err: { response?: { data?: { message?: string } } }) => {
-      toast.error(err.response?.data?.message || tCommon("error"));
-    },
+    onError: (err) => toast.error(apiErrorMessage(err, tCommon("error"))),
   });
 
   const statusClass = (s: string) => {
@@ -442,6 +448,24 @@ export default function StockCountsPage() {
                       className="px-4 py-2 text-rose-400 hover:bg-rose-500/10 rounded-lg"
                     >
                       {tCommon("delete")}
+                    </button>
+                  </div>
+                )}
+                {detail.status === "COMPLETED" && (
+                  <div className="flex flex-wrap gap-2 pt-2">
+                    <button
+                      onClick={() => {
+                        if (confirm(t("reverseCompletedConfirm"))) {
+                          reverseCompletedMutation.mutate(detail.id);
+                        }
+                      }}
+                      disabled={reverseCompletedMutation.isPending}
+                      className="flex items-center gap-2 px-4 py-2 bg-amber-500/20 text-amber-200 rounded-lg disabled:opacity-50"
+                    >
+                      {reverseCompletedMutation.isPending && (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      )}
+                      {t("reverseCompleted")}
                     </button>
                   </div>
                 )}

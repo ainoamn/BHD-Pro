@@ -268,6 +268,18 @@ export class JournalService {
         'Store-credit journal — reverse via POST /contacts/:id/store-credit-reverse-last',
       );
     }
+    if (
+      journal.reference?.startsWith('REV-') ||
+      journal.reference?.startsWith('INV:') ||
+      journal.reference?.startsWith('PAY:') ||
+      journal.reference?.startsWith('PAYROLL-') ||
+      journal.reference?.startsWith('CLAIM-') ||
+      journal.reference?.startsWith('POS-CASH')
+    ) {
+      throw new BadRequestException(
+        'Protected system journal — reverse via the originating workflow, do not delete',
+      );
+    }
 
     const accountIds = [...new Set(journal.lines.map((l) => l.accountId))];
     const accountRows = await this.prisma.account.findMany({

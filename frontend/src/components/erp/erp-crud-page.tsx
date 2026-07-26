@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import { Plus, Edit, Trash2, X, Loader2, Inbox } from "lucide-react";
 import toast from "react-hot-toast";
 import { PageHeader, EmptyState, LoadingSpinner, QueryError, GlassCard } from "@/components/ui/page-shell";
-import { cn, formatMoney } from "@/lib/utils";
+import { cn, formatMoney, apiErrorMessage } from "@/lib/utils";
 
 export interface ErpColumn<T> {
   key: string;
@@ -79,8 +79,8 @@ export function ErpCrudPage<T extends { id: string }>({
       setEditId(null);
       setForm(emptyForm());
     },
-    onError: (err: { response?: { data?: { message?: string } } }) => {
-      toast.error(err.response?.data?.message || tCommon("error"));
+    onError: (err: unknown) => {
+      toast.error(apiErrorMessage(err, tCommon("error")));
     },
   });
 
@@ -90,8 +90,8 @@ export function ErpCrudPage<T extends { id: string }>({
       queryClient.invalidateQueries({ queryKey: [queryKey] });
       toast.success(tCommon("deleted"));
     },
-    onError: (err: { response?: { data?: { message?: string } } }) => {
-      toast.error(err.response?.data?.message || tCommon("error"));
+    onError: (err: unknown) => {
+      toast.error(apiErrorMessage(err, tCommon("error")));
     },
   });
 

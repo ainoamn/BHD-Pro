@@ -242,6 +242,11 @@ export class PurchaseOrdersService {
     if (order.status === PurchaseOrderStatus.RECEIVED) {
       throw new ForbiddenException('Cannot delete received purchase order');
     }
+    if (order.status !== PurchaseOrderStatus.DRAFT) {
+      throw new BadRequestException(
+        'Only DRAFT purchase orders can be deleted — cancel SENT orders instead',
+      );
+    }
     await this.prisma.purchaseOrder.delete({ where: { id } });
     return { message: 'Deleted' };
   }

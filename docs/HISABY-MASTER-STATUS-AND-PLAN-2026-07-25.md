@@ -93,6 +93,7 @@
 - موجة AN: عكس رصيد متجر + حماية حذف فرع/مستودع/مركز/موظف + dual رصيد متجر — [`HISABY-WAVE-AN-STORE-CREDIT-ERP-DELETE-2026-07-26.md`](./HISABY-WAVE-AN-STORE-CREDIT-ERP-DELETE-2026-07-26.md)
 - موجة AO: حماية حذف مشروع/حساب/ضريبة + `apiErrorMessage` على صفحات ERP — [`HISABY-WAVE-AO-ERP-DELETE-FE-HONESTY-2026-07-26.md`](./HISABY-WAVE-AO-ERP-DELETE-FE-HONESTY-2026-07-26.md)
 - موجة AP: عكس SC-OPEN + إلغاء CN يسترد مخزون/محفظة + عكس تحويل مخزون + PERIOD_UNLOCK + idle-unlock — [`HISABY-WAVE-AP-CN-STOCK-PERIOD-IDLE-2026-07-26.md`](./HISABY-WAVE-AP-CN-STOCK-PERIOD-IDLE-2026-07-26.md)
+- موجة AQ: عكس تعديل مخزون + عكس جرد مكتمل + حماية REV/INV/PAY journals + dual إهلاك + حراسة حذف — [`HISABY-WAVE-AQ-STOCK-ADJ-COUNT-JOURNAL-2026-07-26.md`](./HISABY-WAVE-AQ-STOCK-ADJ-COUNT-JOURNAL-2026-07-26.md)
 
 ### 1.6 المنصة ولوحة الإدارة (محدث 26 يوليو مساءً)
 - اشتراكات، بوابات دفع، `/admin`، PWA، GeoIP، keep-warm

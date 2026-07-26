@@ -41,6 +41,7 @@
 **موجة AN (عكس رصيد متجر + حماية حذف ERP):** [`HISABY-WAVE-AN-STORE-CREDIT-ERP-DELETE-2026-07-26.md`](./HISABY-WAVE-AN-STORE-CREDIT-ERP-DELETE-2026-07-26.md)
 **موجة AO (حذف مشروع/حساب/ضريبة + صدق واجهة):** [`HISABY-WAVE-AO-ERP-DELETE-FE-HONESTY-2026-07-26.md`](./HISABY-WAVE-AO-ERP-DELETE-FE-HONESTY-2026-07-26.md)
 **موجة AP (إشعار دائن/تحويل مخزون/فترة/خمول):** [`HISABY-WAVE-AP-CN-STOCK-PERIOD-IDLE-2026-07-26.md`](./HISABY-WAVE-AP-CN-STOCK-PERIOD-IDLE-2026-07-26.md)
+**موجة AQ (عكس تعديل/جرد + حماية قيود):** [`HISABY-WAVE-AQ-STOCK-ADJ-COUNT-JOURNAL-2026-07-26.md`](./HISABY-WAVE-AQ-STOCK-ADJ-COUNT-JOURNAL-2026-07-26.md)
 
 ---
 

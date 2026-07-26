@@ -24,6 +24,8 @@ export class UsersController {
   }
 
   @Get()
+  @Roles('ADMIN', 'MANAGER')
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
   findAll(@CurrentUser() user: TokenPayload) {
     return this.usersService.findAll(user.companyId);
   }

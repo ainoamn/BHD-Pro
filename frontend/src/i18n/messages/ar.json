@@ -86,6 +86,7 @@
       "COMMISSION_PAYOUT": "صرف عمولة الكاشير",
       "STORE_CREDIT_ADJUST": "تعديل/عكس رصيد المتجر",
       "PERIOD_UNLOCK": "فتح فترة محاسبية مقفلة",
+      "ASSET_DEPRECIATE": "إهلاك أصل / عكس",
       "RESTO_VOID": "إلغاء / مجاملة بند مطعم"
     },
     "pinSet": "رمز المشرف مضبوط",
@@ -748,6 +749,9 @@
     "reverseLastTransfer": "عكس آخر تحويل",
     "reverseLastTransferConfirm": "عكس آخر تحويل مستودعات لهذا المنتج؟",
     "transferReversed": "تم عكس التحويل",
+    "reverseLastAdjust": "عكس آخر تعديل",
+    "reverseLastAdjustConfirm": "عكس آخر تعديل مخزون لهذا المنتج؟",
+    "adjustReversed": "تم عكس التعديل",
     "byWarehouse": "حسب المستودع"
   },
   "contacts": {
@@ -1209,6 +1213,9 @@
     "complete": "إتمام وتسوية المخزون",
     "completeConfirm": "تطبيق الكميات المعدودة على المخزون؟ سيتم إنشاء حركات تسوية للفروقات.",
     "completed": "تم إتمام الجرد وتسوية المخزون",
+    "reverseCompleted": "عكس الجرد المكتمل",
+    "reverseCompletedConfirm": "استعادة الكميات السابقة وإلغاء هذا الجرد المكتمل؟",
+    "reversedCompleted": "تم عكس الجرد",
     "cancel": "إلغاء الجرد",
     "cancelConfirm": "إلغاء مسودة الجرد؟",
     "cancelled": "تم إلغاء الجرد",

@@ -734,6 +734,11 @@ export class ErpService {
       where: { id: lineId, companyId },
     });
     if (!line) throw new NotFoundException('Statement line not found');
+    if (line.isReconciled) {
+      throw new BadRequestException(
+        'Cannot delete a reconciled statement line — unreconcile first',
+      );
+    }
     await this.prisma.bankStatementLine.delete({ where: { id: lineId } });
     return { message: 'Deleted' };
   }

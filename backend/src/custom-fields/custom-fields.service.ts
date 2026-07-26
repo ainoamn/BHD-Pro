@@ -82,8 +82,11 @@ export class CustomFieldsService {
 
   async remove(companyId: string, id: string) {
     await this.ensure(companyId, id);
-    await this.prisma.customFieldDefinition.delete({ where: { id } });
-    return { message: 'Deleted' };
+    await this.prisma.customFieldDefinition.update({
+      where: { id },
+      data: { isActive: false },
+    });
+    return { message: 'Deactivated', deactivated: true };
   }
 
   private async ensure(companyId: string, id: string) {

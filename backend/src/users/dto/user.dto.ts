@@ -1,4 +1,14 @@
-import { IsString, IsEmail, IsNotEmpty, IsEnum, MinLength, IsOptional, IsObject, IsBoolean } from 'class-validator';
+import {
+  IsString,
+  IsEmail,
+  IsNotEmpty,
+  IsEnum,
+  MinLength,
+  IsOptional,
+  IsObject,
+  IsBoolean,
+} from 'class-validator';
+import { PartialType, OmitType } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 
 export class CreateUserDto {
@@ -21,15 +31,9 @@ export class CreateUserDto {
   permissions?: Record<string, 'hidden' | 'view' | 'edit'>;
 }
 
-export class UpdateUserDto {
-  @IsOptional()
-  @IsString()
-  name?: string;
-
-  @IsOptional()
-  @IsEnum(UserRole)
-  role?: UserRole;
-
+export class UpdateUserDto extends PartialType(
+  OmitType(CreateUserDto, ['email', 'password'] as const),
+) {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;

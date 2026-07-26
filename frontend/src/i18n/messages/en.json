@@ -86,6 +86,7 @@
       "COMMISSION_PAYOUT": "POS commission payout",
       "STORE_CREDIT_ADJUST": "Store credit adjust/reverse",
       "PERIOD_UNLOCK": "Unlock accounting period",
+      "ASSET_DEPRECIATE": "Asset depreciate / reverse",
       "RESTO_VOID": "Restaurant void / comp"
     },
     "pinSet": "Supervisor PIN is set",
@@ -748,6 +749,9 @@
     "reverseLastTransfer": "Reverse last transfer",
     "reverseLastTransferConfirm": "Reverse the latest warehouse transfer for this product?",
     "transferReversed": "Transfer reversed",
+    "reverseLastAdjust": "Reverse last adjust",
+    "reverseLastAdjustConfirm": "Reverse the latest stock adjustment for this product?",
+    "adjustReversed": "Adjustment reversed",
     "byWarehouse": "By warehouse"
   },
   "contacts": {
@@ -1209,6 +1213,9 @@
     "complete": "Complete & adjust stock",
     "completeConfirm": "Apply counted quantities to inventory? Variances will create adjustment movements.",
     "completed": "Stock count completed and inventory adjusted",
+    "reverseCompleted": "Reverse completed count",
+    "reverseCompletedConfirm": "Restore prior quantities and cancel this completed count?",
+    "reversedCompleted": "Stock count reversed",
     "cancel": "Cancel count",
     "cancelConfirm": "Cancel this draft stock count?",
     "cancelled": "Stock count cancelled",

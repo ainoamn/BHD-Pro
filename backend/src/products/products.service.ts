@@ -506,13 +506,149 @@ export class ProductsService {
           type: movementType,
           quantity: movementQty,
           unitCost: Number(product.costPrice),
-          reference: dto.reference || null,
-          notes: dto.notes || null,
+          reference: dto.reference?.trim() || `ADJ:${id}:${Date.now()}`,
+          notes:
+            dto.mode === StockAdjustMode.SET
+              ? `Adjust SET ${currentWh}→${Number(qty.toFixed(3))}${
+                  dto.notes?.trim() ? `: ${dto.notes.trim()}` : ''
+                }`
+              : dto.notes?.trim() || `Adjust ${dto.mode}`,
         },
       });
 
       return this.syncProductQuantity(tx, id, warehouseId!);
     });
+  }
+
+  async reverseLastAdjust(
+    companyId: string,
+    productId: string,
+    actor: TokenPayload,
+    approval?: AdjustStockDto['approval'],
+  ) {
+    await this.dualControl.assertApproved(
+      companyId,
+      actor,
+      'STOCK_ADJUST',
+      approval,
+    );
+    await this.periods.assertOpen(companyId, new Date());
+    const product = await this.findOne(companyId, productId);
+    if (!product.isTracked) {
+      throw new BadRequestException('Product is not stock-tracked');
+    }
+
+    const original = await this.prisma.stockMovement.findFirst({
+      where: {
+        productId,
+        product: { companyId },
+        OR: [
+          { reference: { startsWith: `ADJ:${productId}:` } },
+          { notes: { startsWith: 'Adjust ' } },
+        ],
+        NOT: { reference: { startsWith: 'REV-ADJ:' } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!original?.reference) {
+      throw new BadRequestException('No stock adjustment to reverse');
+    }
+    if (original.reference.startsWith('REV-ADJ:')) {
+      throw new BadRequestException('Movement already a reversal');
+    }
+
+    const revRef = `REV-ADJ:${original.reference}`;
+    const already = await this.prisma.stockMovement.findFirst({
+      where: { productId, reference: revRef },
+    });
+    if (already) {
+      return { product, alreadyReversed: true, reference: original.reference };
+    }
+
+    const qty = Number(original.quantity);
+    const whId = original.warehouseId;
+    const notes = String(original.notes || '');
+    const setMatch = notes.match(/Adjust SET\s+([-\d.]+)→([-\d.]+)/);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.warehouseStock.upsert({
+        where: { productId_warehouseId: { productId, warehouseId: whId } },
+        create: { productId, warehouseId: whId, quantity: 0 },
+        update: {},
+      });
+
+      if (setMatch) {
+        const fromQty = Number(setMatch[1]);
+        await tx.warehouseStock.update({
+          where: { productId_warehouseId: { productId, warehouseId: whId } },
+          data: { quantity: fromQty },
+        });
+        await tx.stockMovement.create({
+          data: {
+            productId,
+            warehouseId: whId,
+            type: MovementType.ADJUSTMENT,
+            quantity: qty,
+            unitCost: Number(product.costPrice),
+            reference: revRef,
+            notes: `Reverse SET → ${fromQty} (${original.reference})`,
+          },
+        });
+      } else if (original.type === MovementType.IN) {
+        const updated = await tx.warehouseStock.updateMany({
+          where: { productId, warehouseId: whId, quantity: { gte: qty } },
+          data: { quantity: { decrement: qty } },
+        });
+        if (updated.count === 0) {
+          throw new BadRequestException('Insufficient stock to reverse IN adjustment');
+        }
+        await tx.stockMovement.create({
+          data: {
+            productId,
+            warehouseId: whId,
+            type: MovementType.OUT,
+            quantity: qty,
+            unitCost: Number(product.costPrice),
+            reference: revRef,
+            notes: `Reverse Adjust IN (${original.reference})`,
+          },
+        });
+      } else if (original.type === MovementType.OUT) {
+        await tx.warehouseStock.update({
+          where: { productId_warehouseId: { productId, warehouseId: whId } },
+          data: { quantity: { increment: qty } },
+        });
+        await tx.stockMovement.create({
+          data: {
+            productId,
+            warehouseId: whId,
+            type: MovementType.IN,
+            quantity: qty,
+            unitCost: Number(product.costPrice),
+            reference: revRef,
+            notes: `Reverse Adjust OUT (${original.reference})`,
+          },
+        });
+      } else {
+        throw new BadRequestException('Unsupported adjustment movement to reverse');
+      }
+
+      const agg = await tx.warehouseStock.aggregate({
+        where: { productId },
+        _sum: { quantity: true },
+      });
+      await tx.product.update({
+        where: { id: productId },
+        data: { quantity: agg._sum.quantity ?? 0 },
+      });
+    });
+
+    return {
+      product: await this.findOne(companyId, productId),
+      alreadyReversed: false,
+      reference: original.reference,
+      reverseReference: revRef,
+    };
   }
 
   async transferStock(

@@ -310,6 +310,7 @@ export default function InventoryPage() {
   });
 
   const [reverseTransferId, setReverseTransferId] = useState<string | null>(null);
+  const [reverseAdjustId, setReverseAdjustId] = useState<string | null>(null);
   const reverseTransferMutation = useMutation({
     mutationFn: (approval: DualApprovalPayload) =>
       api.reverseLastProductTransfer(reverseTransferId!, approval),
@@ -317,6 +318,16 @@ export default function InventoryPage() {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       toast.success(t("transferReversed"));
       setReverseTransferId(null);
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, t("saveError"))),
+  });
+  const reverseAdjustMutation = useMutation({
+    mutationFn: (approval: DualApprovalPayload) =>
+      api.reverseLastProductAdjust(reverseAdjustId!, approval),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      toast.success(t("adjustReversed"));
+      setReverseAdjustId(null);
     },
     onError: (err) => toast.error(apiErrorMessage(err, t("saveError"))),
   });
@@ -485,6 +496,13 @@ export default function InventoryPage() {
                         className="text-xs px-2 py-1 rounded bg-sky-500/10 text-sky-400 hover:bg-sky-500/20"
                       >
                         {t("reverseLastTransfer")}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setReverseAdjustId(product.id)}
+                        className="text-xs px-2 py-1 rounded bg-violet-500/10 text-violet-300 hover:bg-violet-500/20"
+                      >
+                        {t("reverseLastAdjust")}
                       </button>
                       <button
                         type="button"
@@ -997,6 +1015,20 @@ export default function InventoryPage() {
         }
         onConfirm={async (approval) => {
           await reverseTransferMutation.mutateAsync(approval);
+        }}
+      />
+      <DualApprovalModal
+        open={!!reverseAdjustId}
+        action="STOCK_ADJUST"
+        actionLabel={t("reverseLastAdjust")}
+        summary={t("reverseLastAdjustConfirm")}
+        actorRole={user?.role}
+        busy={reverseAdjustMutation.isPending}
+        onCancel={() =>
+          !reverseAdjustMutation.isPending && setReverseAdjustId(null)
+        }
+        onConfirm={async (approval) => {
+          await reverseAdjustMutation.mutateAsync(approval);
         }}
       />
     </div>

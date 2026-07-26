@@ -14,7 +14,7 @@ import { UserRole } from '@prisma/client';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
-import { AdjustStockDto } from './dto/adjust-stock.dto';
+import { AdjustStockDto, ReverseAdjustStockDto } from './dto/adjust-stock.dto';
 import { TransferStockDto, ReverseTransferStockDto } from './dto/transfer-stock.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -77,6 +77,24 @@ export class ProductsController {
     @Body() dto: AdjustStockDto,
   ) {
     return this.productsService.adjustStock(user.companyId, id, dto, user);
+  }
+
+  @Post(':id/adjust/reverse-last')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @ApiOperation({ summary: 'Reverse the latest stock adjustment for a product' })
+  reverseLastAdjust(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+    @Body() dto: ReverseAdjustStockDto,
+  ) {
+    return this.productsService.reverseLastAdjust(
+      user.companyId,
+      id,
+      user,
+      dto?.approval,
+    );
   }
 
   @Post(':id/transfer')

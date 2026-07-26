@@ -40,3 +40,11 @@ export class AdjustStockDto {
   @Type(() => DualApprovalDto)
   approval?: DualApprovalDto;
 }
+
+export class ReverseAdjustStockDto {
+  @ApiPropertyOptional({ type: DualApprovalDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DualApprovalDto)
+  approval?: DualApprovalDto;
+}
