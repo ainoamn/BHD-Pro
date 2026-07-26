@@ -39,6 +39,8 @@ export type PosReceiptPrintData = {
   lines: PosReceiptLine[];
   locale?: "ar" | "en";
   footerNote?: string;
+  /** Gift receipt: hide prices, payment, and totals */
+  gift?: boolean;
   labels: {
     vat: string;
     cr: string;
@@ -49,6 +51,7 @@ export type PosReceiptPrintData = {
     total: string;
     barcode: string;
     printBtn: string;
+    giftTitle?: string;
   };
 };
 
@@ -98,6 +101,7 @@ export function buildPosReceiptHtml(data: PosReceiptPrintData): string {
   if (address) metaRows.push(escapeHtml(address));
   if (country) metaRows.push(escapeHtml(country));
 
+  const gift = !!data.gift;
   const linesHtml = (data.lines || [])
     .map((l) => {
       const code = (l.barcode || l.sku || "").trim();
@@ -112,7 +116,11 @@ export function buildPosReceiptHtml(data: PosReceiptPrintData): string {
           ${bcBlock}
         </td>
         <td class="qty">${l.qty}</td>
-        <td class="amt">${escapeHtml(formatMoney(l.lineTotal, data.currency))}</td>
+        ${
+          gift
+            ? ""
+            : `<td class="amt">${escapeHtml(formatMoney(l.lineTotal, data.currency))}</td>`
+        }
       </tr>`;
     })
     .join("");
@@ -171,12 +179,11 @@ export function buildPosReceiptHtml(data: PosReceiptPrintData): string {
     ${metaRows.map((r) => `<p class="meta">${r}</p>`).join("")}
     ${data.warehouseLabel ? `<p class="sub">${escapeHtml(L.warehouse)}: ${escapeHtml(data.warehouseLabel)}</p>` : ""}
     <hr/>
-    <p class="sub"><strong>${escapeHtml(data.number || "")}</strong></p>
-    ${data.paymentMethod ? `<p class="sub">${escapeHtml(L.payment)}: ${escapeHtml(data.paymentMethod)}</p>` : ""}
+    <p class="sub"><strong>${escapeHtml(data.number || "")}</strong>${gift && L.giftTitle ? ` · ${escapeHtml(L.giftTitle)}` : ""}</p>
+    ${!gift && data.paymentMethod ? `<p class="sub">${escapeHtml(L.payment)}: ${escapeHtml(data.paymentMethod)}</p>` : ""}
     <table><tbody>${linesHtml}</tbody></table>
     <hr/>
-    <p class="total">${escapeHtml(L.total)}: ${escapeHtml(formatMoney(data.total || 0, data.currency))}</p>
-    <hr/>
+    ${gift ? "" : `<p class="total">${escapeHtml(L.total)}: ${escapeHtml(formatMoney(data.total || 0, data.currency))}</p><hr/>`}
     <p class="footer">${escapeHtml(data.footerNote || data.brand || "Hisaby POS")} · ${escapeHtml(L.barcode)}</p>
   </div>
   <script>

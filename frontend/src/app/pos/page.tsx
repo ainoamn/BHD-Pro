@@ -233,6 +233,10 @@ export default function PosCheckoutPage() {
   const [catalogRefreshing, setCatalogRefreshing] = useState(false);
   const [awaitingPayId, setAwaitingPayId] = useState<string | null>(null);
   const [shiftOpen, setShiftOpen] = useState(false);
+  const [shiftOpenedAt, setShiftOpenedAt] = useState<string | null>(null);
+  const [tipAssigneeId, setTipAssigneeId] = useState("");
+  const [tipStaff, setTipStaff] = useState<{ id: string; name: string }[]>([]);
+  const [parkSuspendReason, setParkSuspendReason] = useState("");
   const [todayStats, setTodayStats] = useState<{
     salesCount: number;
     salesTotal: number;
@@ -518,6 +522,8 @@ export default function PosCheckoutPage() {
         api.getPosTodayStats(wh),
       ]);
       setShiftOpen(!!shiftRes.data?.shift);
+      const opened = (shiftRes.data?.shift as { openedAt?: string } | null)?.openedAt;
+      setShiftOpenedAt(opened || null);
       const s = statsRes.data;
       setTodayStats(
         s
@@ -737,6 +743,28 @@ export default function PosCheckoutPage() {
   const clearActiveCartSession = useCallback(() => {
     if (companyId && user?.id) clearPosCartSession(companyId, user.id);
   }, [companyId, user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    setTipAssigneeId((prev) => prev || user.id);
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.getUsers();
+        const rows = ((res.data as { id: string; name: string; role?: string; isActive?: boolean }[]) || [])
+          .filter((u) => u.isActive !== false)
+          .map((u) => ({ id: u.id, name: u.name || u.id }));
+        if (!cancelled) setTipStaff(rows);
+      } catch {
+        if (!cancelled && user?.id) {
+          setTipStaff([{ id: user.id, name: user.name || user.email || user.id }]);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, user?.name, user?.email]);
 
   useEffect(() => {
     if (!companyId || !user?.id) return;

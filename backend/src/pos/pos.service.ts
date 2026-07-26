@@ -2310,6 +2310,7 @@ export class PosService {
     companyId: string,
     actor: TokenPayload,
     invoiceId: string,
+    variant: 'STANDARD' | 'GIFT' = 'STANDARD',
   ) {
     const inv = await this.prisma.invoice.findFirst({
       where: {
@@ -2329,7 +2330,11 @@ export class PosService {
       action: POS_REPRINT_ACTION,
       entity: 'Invoice',
       entityId: inv.id,
-      newValues: { number: inv.number, status: inv.status },
+      newValues: {
+        number: inv.number,
+        status: inv.status,
+        variant: variant === 'GIFT' ? 'GIFT' : 'STANDARD',
+      },
     });
 
     const reprintCount = await this.prisma.auditLog.count({
@@ -2345,6 +2350,7 @@ export class PosService {
       id: inv.id,
       number: inv.number,
       reprintCount,
+      variant: variant === 'GIFT' ? 'GIFT' : 'STANDARD',
     };
   }
 
@@ -3015,6 +3021,8 @@ export class PosService {
     let voidsTotal = 0;
     let salesCount = 0;
     let voidsCount = 0;
+    let tipsTotal = 0;
+    const tipsByAssignee: Record<string, number> = {};
     const byPaymentMethod: Record<string, number> = {};
 
     for (const inv of sales) {
@@ -3026,6 +3034,19 @@ export class PosService {
       }
       salesTotal += total;
       salesCount += 1;
+      const fields = ((inv as { customFieldsJson?: Record<string, unknown> })
+        .customFieldsJson || {}) as {
+        tipAmount?: number;
+        tipAssigneeId?: string;
+      };
+      const tipAmt = Number(fields.tipAmount || 0);
+      if (tipAmt > 0.0005) {
+        tipsTotal += tipAmt;
+        const who = fields.tipAssigneeId?.trim() || 'UNASSIGNED';
+        tipsByAssignee[who] = Number(
+          ((tipsByAssignee[who] || 0) + tipAmt).toFixed(3),
+        );
+      }
       const pays = inv.payments || [];
       if (pays.length) {
         for (const pay of pays) {
@@ -3111,6 +3132,8 @@ export class PosService {
       cardSales: Number(cardSales.toFixed(3)),
       bankSales: Number(bankSales.toFixed(3)),
       storeCreditSales: Number(storeCreditSales.toFixed(3)),
+      tipsTotal: Number(tipsTotal.toFixed(3)),
+      tipsByAssignee,
       cashIn,
       cashOut,
       commissionCashOut,

@@ -27,6 +27,7 @@ import {
   UpdatePosDraftDto,
   UpdatePosFavoritesDto,
   VoidPosSaleDto,
+  ReprintPosSaleDto,
 } from './dto/pos.dto';
 import { PaymentsService } from '../payments/payments.service';
 import { CompanyGatewaysService } from '../payments/company-gateways.service';
@@ -378,12 +379,18 @@ export class PosController {
   @Post('sales/:id/reprint')
   @Roles(...POS_STAFF)
   @Throttle({ default: { limit: 60, ttl: 60000 } })
-  @ApiOperation({ summary: 'Audit a POS receipt reprint and return reprint count' })
+  @ApiOperation({ summary: 'Audit a POS receipt reprint (STANDARD or GIFT) and return count' })
   reprintSale(
     @CurrentUser() user: TokenPayload,
     @Param('id') id: string,
+    @Body() dto: ReprintPosSaleDto,
   ) {
-    return this.pos.recordReceiptReprint(user.companyId, user, id);
+    return this.pos.recordReceiptReprint(
+      user.companyId,
+      user,
+      id,
+      dto?.variant === 'GIFT' ? 'GIFT' : 'STANDARD',
+    );
   }
 
   @Post('sales/:id/void')

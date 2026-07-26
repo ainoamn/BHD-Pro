@@ -2588,6 +2588,7 @@ class ApiClient {
     paymentMethod?: string;
     payments?: { method: string; amount: number }[];
     tipAmount?: number;
+    tipAssigneeId?: string;
     useStoreCredit?: boolean;
     partnerCheckout?: boolean;
     taxRate?: number;
@@ -2779,11 +2780,15 @@ class ApiClient {
     }>(`/pos/stats/today?${q}`);
   }
 
-  recordPosSaleReprint(id: string) {
-    return this.post<{ id: string; number: string; reprintCount: number }>(
-      `/pos/sales/${encodeURIComponent(id)}/reprint`,
-      {},
-    );
+  recordPosSaleReprint(id: string, variant?: "STANDARD" | "GIFT") {
+    return this.post<{
+      id: string;
+      number: string;
+      reprintCount: number;
+      variant?: string;
+    }>(`/pos/sales/${encodeURIComponent(id)}/reprint`, {
+      variant: variant || "STANDARD",
+    });
   }
 
   getPosBooksSummary() {
@@ -2940,6 +2945,7 @@ class ApiClient {
     contactId?: string;
     heldAmount?: number;
     heldMethod?: 'CASH' | 'CREDIT_CARD' | 'BANK_TRANSFER';
+    suspendReason: string;
     lines: {
       productId: string;
       name: string;
