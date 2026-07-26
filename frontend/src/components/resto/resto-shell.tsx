@@ -21,6 +21,7 @@ import {
   Users,
   UtensilsCrossed,
   BellRing,
+  Wallet,
 } from "lucide-react";
 import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
@@ -158,6 +159,12 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
       label: t.reports,
       icon: BarChart3,
       active: pathname?.startsWith("/resto/reports"),
+    },
+    {
+      href: "/resto/shifts",
+      label: t.shifts,
+      icon: Wallet,
+      active: pathname?.startsWith("/resto/shifts"),
     },
     {
       href: "/resto/settings",

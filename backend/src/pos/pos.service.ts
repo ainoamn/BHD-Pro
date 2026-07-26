@@ -1575,6 +1575,7 @@ export class PosService {
         heldAmount: heldAmount > 0.0005 ? heldAmount : null,
         heldMethod: heldAmount > 0.0005 ? heldMethod : null,
         heldMovementId,
+        suspendReason: dto.suspendReason.trim(),
       },
     });
   }

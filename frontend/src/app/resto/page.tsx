@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import {
   Loader2,
   Plus,
@@ -131,6 +132,7 @@ export default function RestoFloorPage() {
   const [seat, setSeat] = useState<number | null>(1);
   const [settleSeat, setSettleSeat] = useState(1);
   const [equalParts, setEqualParts] = useState("2");
+  const [shiftOpen, setShiftOpen] = useState<boolean | null>(null);
 
   const loadFloor = useCallback(async () => {
     setLoading(true);
@@ -153,6 +155,16 @@ export default function RestoFloorPage() {
       .getRestoStaff()
       .then((res) => setStaff(res.data.staff || []))
       .catch(() => undefined);
+    void (async () => {
+      try {
+        const link = await api.getRestoLinkStatus();
+        const wh = link.data.warehouseId || undefined;
+        const shift = await api.getCurrentPosShift(wh);
+        setShiftOpen(!!(shift.data as { shift?: unknown })?.shift);
+      } catch {
+        setShiftOpen(null);
+      }
+    })();
   }, [loadFloor]);
 
   useEffect(() => {
@@ -685,8 +697,16 @@ export default function RestoFloorPage() {
       setLoyaltyName("");
       setLoyaltyRedeem("");
       await loadFloor();
-    } catch {
-      setError(t.actionFail);
+    } catch (err) {
+      const raw = (err as { response?: { data?: { message?: string | string[] } } })
+        ?.response?.data?.message;
+      const msg = Array.isArray(raw) ? raw.join(" ") : String(raw || "");
+      if (/shift|وردية/i.test(msg)) {
+        setError(t.needOpenShift);
+        setShiftOpen(false);
+      } else {
+        setError(t.actionFail);
+      }
     } finally {
       setBusy(false);
     }
@@ -802,6 +822,18 @@ export default function RestoFloorPage() {
           </button>
         </div>
       </div>
+
+      {shiftOpen === false ? (
+        <div className="rounded-xl border border-amber-500/35 bg-amber-500/10 px-3 py-2.5 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm text-amber-100">{t.needOpenShift}</p>
+          <Link
+            href="/resto/shifts"
+            className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-bold text-[#14110f]"
+          >
+            {t.goToShifts}
+          </Link>
+        </div>
+      ) : null}
 
       {error ? (
         <p className="text-sm text-rose-300 bg-rose-500/10 border border-rose-500/20 rounded-xl px-3 py-2">

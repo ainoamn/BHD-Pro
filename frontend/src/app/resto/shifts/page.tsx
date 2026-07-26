@@ -1,0 +1,95 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { Loader2, Wallet } from "lucide-react";
+import api from "@/lib/api";
+import { useLocaleStore } from "@/store/locale";
+import { restoCopy } from "@/lib/resto-copy";
+import { PosShiftsView } from "@/components/pos/pos-shifts-view";
+
+export default function RestoShiftsPage() {
+  const locale = useLocaleStore((s) => s.locale);
+  const t = restoCopy[locale === "en" ? "en" : "ar"];
+  const [warehouseId, setWarehouseId] = useState<string | null>(null);
+  const [warehouseLabel, setWarehouseLabel] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [missingWh, setMissingWh] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.getRestoLinkStatus();
+        const id = res.data.warehouseId || null;
+        const wh = res.data.warehouse as
+          | { code?: string; name?: string }
+          | null
+          | undefined;
+        if (!cancelled) {
+          setWarehouseId(id);
+          setWarehouseLabel(
+            wh
+              ? `${wh.code || ""}${wh.name ? ` — ${wh.name}` : ""}`.trim()
+              : "",
+          );
+          setMissingWh(!id);
+        }
+      } catch {
+        if (!cancelled) setMissingWh(true);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-24 text-stone-400">
+        <Loader2 className="w-7 h-7 animate-spin" />
+      </div>
+    );
+  }
+
+  if (missingWh || !warehouseId) {
+    return (
+      <div className="p-4 sm:p-6 max-w-lg mx-auto space-y-4">
+        <div className="flex items-center gap-3">
+          <Wallet className="w-6 h-6 text-amber-400" />
+          <div>
+            <h1 className="text-xl font-extrabold">{t.shiftsTitle}</h1>
+            <p className="text-sm text-stone-400 mt-1">{t.shiftsSub}</p>
+          </div>
+        </div>
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 space-y-3">
+          <p className="text-sm text-amber-100">{t.shiftsNeedWarehouse}</p>
+          <Link
+            href="/resto/settings"
+            className="inline-flex rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-bold text-[#14110f]"
+          >
+            {t.settings}
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {warehouseLabel ? (
+        <p className="px-4 sm:px-6 pt-4 text-xs text-stone-500">
+          {t.shiftsWarehouse}:{" "}
+          <span className="text-stone-300 font-semibold">{warehouseLabel}</span>
+        </p>
+      ) : null}
+      <PosShiftsView
+        forcedWarehouseId={warehouseId}
+        hideWarehousePicker
+        titleOverride={t.shiftsTitle}
+      />
+    </div>
+  );
+}

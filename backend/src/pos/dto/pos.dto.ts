@@ -172,6 +172,12 @@ export class VoidPosSaleDto {
   approval?: DualApprovalDto;
 }
 
+export class ReprintPosSaleDto {
+  @IsOptional()
+  @IsIn(['STANDARD', 'GIFT'])
+  variant?: 'STANDARD' | 'GIFT';
+}
+
 export class PosRefundItemDto {
   @IsUUID()
   productId: string;
@@ -380,6 +386,12 @@ export class CreatePosDraftDto {
   @IsOptional()
   @IsIn(['CASH', 'CREDIT_CARD', 'BANK_TRANSFER'])
   heldMethod?: 'CASH' | 'CREDIT_CARD' | 'BANK_TRANSFER';
+
+  /** Required park/suspend reason (chip or free text, min 3 chars) */
+  @IsString()
+  @MinLength(3)
+  @MaxLength(120)
+  suspendReason: string;
 }
 
 export class DeletePosDraftDto {

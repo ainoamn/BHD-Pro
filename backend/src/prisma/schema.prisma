@@ -1560,6 +1560,8 @@ model PosDraft {
   heldMethod      String?  @map("held_method")
   /// PosCashMovement IN id when heldMethod=CASH (drawer expected cash)
   heldMovementId  String?  @map("held_movement_id")
+  /// Required reason when parking (chip or free text)
+  suspendReason   String?  @map("suspend_reason")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
