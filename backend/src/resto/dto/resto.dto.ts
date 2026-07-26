@@ -735,6 +735,15 @@ export class PublicGuestOrderItemDto {
   @Max(3)
   course?: number;
 
+  /** Seat 1..guests; omit/null = shared */
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== undefined)
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(99)
+  seat?: number | null;
+
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })

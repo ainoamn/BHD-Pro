@@ -64,6 +64,7 @@ type CartLine = {
   qty: number;
   notes: string;
   course: number;
+  seat: number | null;
   modifiers: Array<{ name: string; priceDelta: number }>;
 };
 
@@ -73,10 +74,12 @@ type Session = {
   menu: MenuItem[];
   dayPart?: string | null;
   modifiers?: Modifier[];
+  seatCount?: number;
   openOrder: {
     id: string;
     number: string;
     status: string;
+    guests?: number;
     invoiceId?: string | null;
     paymentStatus?: string | null;
     payUrl?: string | null;
@@ -88,6 +91,7 @@ type Session = {
       lineTotal: number;
       status: string;
       course?: number;
+      seat?: number | null;
     }>;
     subtotal: number;
   } | null;
@@ -116,6 +120,7 @@ export default function GuestOrderPage() {
   const [hideAllergens, setHideAllergens] = useState<string[]>([]);
   const [needDietary, setNeedDietary] = useState<string[]>([]);
   const [course, setCourse] = useState(1);
+  const [seat, setSeat] = useState<number | null>(1);
   const [pickedMods, setPickedMods] = useState<string[]>([]);
   const [lineNote, setLineNote] = useState("");
   const [composeFor, setComposeFor] = useState<MenuItem | null>(null);
@@ -162,6 +167,30 @@ export default function GuestOrderPage() {
     }
     return ["مشروبات", "مقبلات", "رئيسية", "حلويات"][c] || String(c);
   };
+
+  const seatCount = Math.min(
+    99,
+    Math.max(
+      1,
+      session?.seatCount ||
+        session?.openOrder?.guests ||
+        session?.table.seats ||
+        2,
+    ),
+  );
+
+  const seatLabel = (s: number | null | undefined) => {
+    if (s == null) {
+      return locale === "en" ? "Shared" : "مشترك";
+    }
+    return locale === "en" ? `Seat ${s}` : `مقعد ${s}`;
+  };
+
+  useEffect(() => {
+    if (seat != null && seat > seatCount) {
+      setSeat(seatCount >= 1 ? 1 : null);
+    }
+  }, [seat, seatCount]);
 
   const filtered = useMemo(() => {
     const list = session?.menu || [];
@@ -238,7 +267,7 @@ export default function GuestOrderPage() {
     const delta = mods.reduce((s, m) => s + m.priceDelta, 0);
     const name =
       locale === "en" && composeFor.nameEn ? composeFor.nameEn : composeFor.name;
-    const key = `${composeFor.id}|${course}|${mods.map((m) => m.name).join(",")}|${lineNote}`;
+    const key = `${composeFor.id}|${course}|${seat ?? "s"}|${mods.map((m) => m.name).join(",")}|${lineNote}`;
     setCart((prev) => {
       const i = prev.findIndex((x) => x.key === key);
       if (i >= 0) {
@@ -256,6 +285,7 @@ export default function GuestOrderPage() {
           qty: 1,
           notes: lineNote.trim(),
           course,
+          seat,
           modifiers: mods,
         },
       ];
@@ -289,6 +319,7 @@ export default function GuestOrderPage() {
               qty: l.qty,
               notes: l.notes || undefined,
               course: l.course,
+              seat: l.seat,
               modifiers: l.modifiers.length ? l.modifiers : undefined,
             })),
           }),
@@ -608,6 +639,11 @@ export default function GuestOrderPage() {
                         ({courseLabel(it.course)})
                       </span>
                     ) : null}
+                    {it.seat != null ? (
+                      <span className="text-[10px] text-sky-300/80 ms-1">
+                        · {seatLabel(it.seat)}
+                      </span>
+                    ) : null}
                   </span>
                   <span className="tabular-nums text-amber-200">
                     {fmt(it.lineTotal)}
@@ -734,6 +770,39 @@ export default function GuestOrderPage() {
           ))}
         </div>
 
+        <div className="space-y-1.5">
+          <p className="text-[11px] font-bold text-stone-400">
+            {locale === "en" ? "Your seat" : "مقعدك"}
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={() => setSeat(null)}
+              className={`rounded-lg px-2.5 py-1.5 text-[11px] font-bold border ${
+                seat === null
+                  ? "border-sky-400/50 bg-sky-500/20 text-sky-100"
+                  : "border-white/10 text-stone-400"
+              }`}
+            >
+              {locale === "en" ? "Shared" : "مشترك"}
+            </button>
+            {Array.from({ length: seatCount }, (_, i) => i + 1).map((n) => (
+              <button
+                key={n}
+                type="button"
+                onClick={() => setSeat(n)}
+                className={`rounded-lg px-2.5 py-1.5 text-[11px] font-bold border tabular-nums ${
+                  seat === n
+                    ? "border-sky-400/50 bg-sky-500/20 text-sky-100"
+                    : "border-white/10 text-stone-400"
+                }`}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -801,7 +870,9 @@ export default function GuestOrderPage() {
                     ? composeFor.nameEn
                     : composeFor.name}
                 </p>
-                <p className="text-xs text-stone-500 mt-0.5">{courseLabel(course)}</p>
+                <p className="text-xs text-stone-500 mt-0.5">
+                  {courseLabel(course)} · {seatLabel(seat)}
+                </p>
               </div>
               <button
                 type="button"
@@ -878,7 +949,7 @@ export default function GuestOrderPage() {
                   <span className="truncate">
                     {l.name}
                     <span className="text-[10px] text-stone-500 ms-1">
-                      ({courseLabel(l.course)})
+                      ({courseLabel(l.course)} · {seatLabel(l.seat)})
                     </span>
                   </span>
                   <div className="flex items-center gap-1.5 shrink-0">

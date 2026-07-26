@@ -27,7 +27,7 @@ POS lives at **`/pos`**, optionally linked to Accounting via shared login or tec
 | **3 — Messaging** | WhatsApp OTP to manager + notify on `ApprovalRequest` create | Done (env-gated OTP + best-effort create alert) |
 | **4 — Badge** | NFC / proximity token (`NFC` + bcrypt `nfcBadgeHashes`) | Done (25 Jul 2026) — Web NFC on Android Chrome HTTPS; manual paste for desktop testing |
 
-Sensitive actions covered today: `POS_VOID`, `POS_PRICE_OVERRIDE`, `POS_LINE_DISCOUNT`, `POS_STOCK_OVERRIDE`, `POS_NO_SALE`, `POS_REFUND`, `STOCK_ADJUST`, `STOCK_TRANSFER`, `INVOICE_CANCEL`, `PAYMENT_REVERSE`, `SHIFT_CLOSE_VARIANCE`, `SHIFT_CASH_OUT`, `PAYROLL_PAY`, `CLAIM_PAY`, `BANK_INTERNAL_TRANSFER`.
+Sensitive actions covered today: `POS_VOID`, `POS_PRICE_OVERRIDE`, `POS_LINE_DISCOUNT`, `POS_STOCK_OVERRIDE`, `POS_NO_SALE`, `POS_REFUND`, `POS_BLIND_RETURN`, `STOCK_ADJUST`, `STOCK_TRANSFER`, `INVOICE_CANCEL`, `PAYMENT_REVERSE`, `SHIFT_CLOSE_VARIANCE`, `SHIFT_CASH_OUT`, `PAYROLL_PAY`, `CLAIM_PAY`, `BANK_INTERNAL_TRANSFER`.
 
 Config: `companies.security_config` + `GET/PATCH /companies/me/security`.  
 Async API: `POST/GET /dual-control/requests`, `POST .../decide`.  
@@ -182,6 +182,12 @@ Public flags: `asyncApprovals: true`, `nfcBadgesConfigured`, `shiftVarianceLimit
 - Gift receipt reprint (no prices) + one-tap last-sale refund
 - Tip assignee picker + tipsTotal / tipsByAssignee on X/Z
 - Doc: [`UPGRADE-POS-WAVE19-2026-07.md`](./UPGRADE-POS-WAVE19-2026-07.md)
+
+### Done (Wave 20 — Blind return, approval TTL, sold-by-weight)
+- Blind / no-receipt return (`POST /pos/returns/blind` + `POS_BLIND_RETURN`)
+- Approval expiry countdown on `/pos/approvals` + dual-approval waiting UX
+- `Product.soldByWeight` + decimal kg keypad on POS floor
+- Doc: [`UPGRADE-POS-WAVE20-2026-07.md`](./UPGRADE-POS-WAVE20-2026-07.md)
 
 - [x] Full catalog sync API `GET /pos/catalog/sync` + offline IDB per warehouse
 - [x] Broader refunds + store-credit MVP (hardened debit / void restore / UI)

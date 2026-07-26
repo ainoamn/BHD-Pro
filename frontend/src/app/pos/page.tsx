@@ -75,6 +75,8 @@ type PosProduct = {
   quantity: number | string;
   isTracked: boolean;
   minQuantity?: number | string | null;
+  unit?: string | null;
+  soldByWeight?: boolean;
 };
 
 type CartLine = {
@@ -89,6 +91,8 @@ type CartLine = {
   stock: number;
   isTracked: boolean;
   notes?: string;
+  unit?: string | null;
+  soldByWeight?: boolean;
 };
 
 type ParkedCart = {
@@ -206,6 +210,18 @@ export default function PosCheckoutPage() {
   );
   const [refundAwaitingApproval, setRefundAwaitingApproval] = useState(false);
   const [refundBusy, setRefundBusy] = useState(false);
+  const [blindReturnOpen, setBlindReturnOpen] = useState(false);
+  const [blindLines, setBlindLines] = useState<
+    { productId: string; name: string; quantity: string; unitPrice: number }[]
+  >([]);
+  const [blindReason, setBlindReason] = useState("");
+  const [blindMethod, setBlindMethod] = useState<"CASH" | "STORE_CREDIT">("CASH");
+  const [blindAwaitingApproval, setBlindAwaitingApproval] = useState(false);
+  const [blindBusy, setBlindBusy] = useState(false);
+  const [blindSearch, setBlindSearch] = useState("");
+  const [weightPendingProduct, setWeightPendingProduct] = useState<PosProduct | null>(
+    null,
+  );
   const [cashTenderOpen, setCashTenderOpen] = useState(false);
   const [cashTendered, setCashTendered] = useState("");
   const [receiptLookup, setReceiptLookup] = useState("");
@@ -1264,6 +1280,7 @@ export default function PosCheckoutPage() {
         p.minQuantity != null && p.minQuantity !== ""
           ? Number(p.minQuantity)
           : 0;
+      const soldByWeight = p.soldByWeight === true;
       let added = false;
       let lowStock = false;
       setCart((prev) => {
@@ -1303,6 +1320,8 @@ export default function PosCheckoutPage() {
             discount: 0,
             stock,
             isTracked: p.isTracked,
+            unit: p.unit || (soldByWeight ? "kg" : null),
+            soldByWeight,
           },
         ];
       });
@@ -1324,6 +1343,21 @@ export default function PosCheckoutPage() {
     }
     playPosScanBeep();
   };
+
+  const offerAddProduct = useCallback(
+    (p: PosProduct, qty?: number, opts?: { fromPlu?: boolean }) => {
+      if (p.soldByWeight === true && !opts?.fromPlu) {
+        const hasPluQty =
+          typeof qty === "number" && Number.isFinite(qty) && qty > 0 && qty !== 1;
+        if (!hasPluQty) {
+          setWeightPendingProduct(p);
+          return;
+        }
+      }
+      playAddFeedback(addProduct(p, qty ?? 1));
+    },
+    [addProduct],
+  );
 
   const handleScan = async (e: FormEvent) => {
     e.preventDefault();
@@ -1356,13 +1390,15 @@ export default function PosCheckoutPage() {
         focusScan();
         return;
       }
-      const qty =
-        typeof data.scanQty === "number" && data.scanQty > 0
-          ? data.scanQty
-          : 1;
-      const result = addProduct(data, qty);
-      if (result.added && qty !== 1) toast.success(`${t.pluWeightAdded}: ${qty}`);
-      playAddFeedback(result);
+      const fromPlu =
+        typeof data.scanQty === "number" && data.scanQty > 0;
+      if (fromPlu) {
+        const result = addProduct(data, data.scanQty!);
+        if (result.added) toast.success(`${t.pluWeightAdded}: ${data.scanQty}`);
+        playAddFeedback(result);
+      } else {
+        offerAddProduct(data);
+      }
       setScan("");
       setCameraOpen(false);
       focusScan();
@@ -1392,15 +1428,17 @@ export default function PosCheckoutPage() {
             focusScan();
             return;
           }
-          const qty =
-            typeof cached.scanQty === "number" && cached.scanQty > 0
-              ? cached.scanQty
-              : 1;
-          const result = addProduct(cached as PosProduct, qty);
-          if (result.added && qty !== 1) {
-            toast.success(`${t.pluWeightAdded}: ${qty}`);
+          const fromPlu =
+            typeof cached.scanQty === "number" && cached.scanQty > 0;
+          if (fromPlu) {
+            const result = addProduct(cached as PosProduct, cached.scanQty!);
+            if (result.added) {
+              toast.success(`${t.pluWeightAdded}: ${cached.scanQty}`);
+            }
+            playAddFeedback(result);
+          } else {
+            offerAddProduct(cached as PosProduct);
           }
-          playAddFeedback(result);
           setScan("");
           setCameraOpen(false);
           focusScan();
@@ -1470,7 +1508,7 @@ export default function PosCheckoutPage() {
         /* ignore cache */
       }
       setCatalog((prev) => [asPos, ...prev.filter((p) => p.id !== asPos.id)]);
-      playAddFeedback(addProduct(asPos, 1));
+      offerAddProduct(asPos);
       setQuickProductOpen(false);
       toast.success(t.quickProductOk);
       focusScan();
@@ -1885,6 +1923,55 @@ export default function PosCheckoutPage() {
       toast.error(typeof msg === "string" ? msg : t.refundFail);
     } finally {
       setRefundBusy(false);
+    }
+  };
+
+  const blindItemsPayload = () =>
+    blindLines
+      .map((l) => ({
+        productId: l.productId,
+        quantity: Number(l.quantity),
+        unitPrice: l.unitPrice,
+      }))
+      .filter((l) => l.quantity > 0.0005);
+
+  const confirmBlindReturn = async (approval: DualApprovalPayload) => {
+    const items = blindItemsPayload();
+    if (!items.length) {
+      toast.error(t.blindReturnNeedItems);
+      return;
+    }
+    if (blindReason.trim().length < 3) {
+      toast.error(t.blindReturnNeedReason);
+      return;
+    }
+    if (blindMethod === "STORE_CREDIT" && !contactId) {
+      toast.error(t.blindReturnNeedCustomer);
+      return;
+    }
+    setBlindBusy(true);
+    try {
+      await api.blindPosReturn({
+        items,
+        reason: blindReason.trim(),
+        refundMethod: blindMethod,
+        contactId: contactId || undefined,
+        warehouseId: warehouseId || undefined,
+        approval,
+      });
+      toast.success(t.blindReturnOk);
+      setBlindReturnOpen(false);
+      setBlindAwaitingApproval(false);
+      setBlindLines([]);
+      await loadOpsStrip();
+      await loadCatalog(search, warehouseId || undefined);
+      focusScan();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response
+        ?.data?.message;
+      toast.error(typeof msg === "string" ? msg : t.blindReturnFail);
+    } finally {
+      setBlindBusy(false);
     }
   };
 
@@ -2932,6 +3019,20 @@ export default function PosCheckoutPage() {
               {receiptLookupBusy && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
               {t.refundSale}
             </button>
+            <button
+              type="button"
+              onClick={() => {
+                setBlindLines([]);
+                setBlindReason("");
+                setBlindMethod("CASH");
+                setBlindSearch("");
+                setBlindAwaitingApproval(false);
+                setBlindReturnOpen(true);
+              }}
+              className="shrink-0 h-9 px-3 rounded-lg border border-rose-400/30 text-[11px] font-semibold text-rose-100 hover:bg-rose-500/15"
+            >
+              {t.blindReturn}
+            </button>
           </form>
           {!recentSales.length ? (
             <p className="text-[11px] text-slate-500">{t.noRecentSales}</p>
@@ -3002,7 +3103,7 @@ export default function PosCheckoutPage() {
                     <button
                       key={`fav-${p.id}`}
                       type="button"
-                      onClick={() => addProduct(p)}
+                      onClick={() => offerAddProduct(p)}
                       className="shrink-0 max-w-[10rem] text-start rounded-xl border border-amber-400/30 bg-amber-500/10 hover:bg-amber-500/20 px-3 py-2 transition"
                     >
                       <p className="text-xs font-semibold text-white truncate">{p.name}</p>
@@ -3028,7 +3129,7 @@ export default function PosCheckoutPage() {
                 <button
                   key={p.id}
                   type="button"
-                  onClick={() => addProduct(p)}
+                  onClick={() => offerAddProduct(p)}
                   className="relative text-start rounded-2xl border border-white/10 bg-white/[0.03] hover:bg-sky-500/10 hover:border-sky-400/40 p-3 transition"
                 >
                   <span
@@ -4301,6 +4402,186 @@ export default function PosCheckoutPage() {
         onConfirm={confirmVoidSale}
       />
 
+      {blindReturnOpen && !blindAwaitingApproval ? (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 p-3">
+          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#121a2b] p-4 space-y-3 shadow-xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between gap-2">
+              <p className="font-bold text-white">{t.blindReturnTitle}</p>
+              <button
+                type="button"
+                className="text-slate-400 text-sm"
+                onClick={() => setBlindReturnOpen(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-xs text-slate-400">{t.blindReturnHint}</p>
+            <input
+              value={blindSearch}
+              onChange={(e) => setBlindSearch(e.target.value)}
+              placeholder={t.searchPlaceholder}
+              className="w-full h-10 rounded-xl bg-white/5 border border-white/10 px-3 text-sm text-white placeholder:text-slate-500"
+            />
+            {blindSearch.trim() ? (
+              <div className="max-h-28 overflow-y-auto space-y-1 rounded-xl border border-white/10 p-1">
+                {catalog
+                  .filter((p) => {
+                    const q = blindSearch.trim().toLowerCase();
+                    return (
+                      p.name.toLowerCase().includes(q) ||
+                      p.sku.toLowerCase().includes(q) ||
+                      (p.barcode || "").toLowerCase().includes(q)
+                    );
+                  })
+                  .slice(0, 8)
+                  .map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => {
+                        setBlindLines((prev) => {
+                          if (prev.some((x) => x.productId === p.id)) return prev;
+                          return [
+                            ...prev,
+                            {
+                              productId: p.id,
+                              name: p.name,
+                              quantity: p.soldByWeight ? "0.100" : "1",
+                              unitPrice: Number(p.salePrice),
+                            },
+                          ];
+                        });
+                        setBlindSearch("");
+                      }}
+                      className="w-full text-start px-2 py-1.5 rounded-lg text-xs text-white hover:bg-white/10"
+                    >
+                      {p.name} · {formatMoney(Number(p.salePrice), currency)}
+                    </button>
+                  ))}
+              </div>
+            ) : null}
+            <div className="space-y-2 max-h-40 overflow-y-auto">
+              {!blindLines.length ? (
+                <p className="text-[11px] text-slate-500">{t.blindReturnNeedItems}</p>
+              ) : (
+                blindLines.map((line) => (
+                  <div
+                    key={line.productId}
+                    className="flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm text-white truncate">{line.name}</p>
+                    </div>
+                    <input
+                      type="number"
+                      min={0.001}
+                      step="0.001"
+                      value={line.quantity}
+                      onChange={(e) =>
+                        setBlindLines((prev) =>
+                          prev.map((x) =>
+                            x.productId === line.productId
+                              ? { ...x, quantity: e.target.value }
+                              : x,
+                          ),
+                        )
+                      }
+                      className="h-9 w-24 rounded-lg bg-white/5 border border-white/10 px-2 text-sm text-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setBlindLines((prev) =>
+                          prev.filter((x) => x.productId !== line.productId),
+                        )
+                      }
+                      className="text-rose-300 text-xs px-1"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <p className="text-[11px] text-slate-400">{t.refundReason}</p>
+              <div className="flex flex-wrap gap-1.5">
+                {REFUND_REASON_CHIPS.map((chip) => (
+                  <button
+                    key={chip.key}
+                    type="button"
+                    onClick={() => setBlindReason(chip.label)}
+                    className={`h-8 px-2.5 rounded-lg text-[11px] font-semibold border transition ${
+                      blindReason === chip.label
+                        ? "border-rose-400/50 bg-rose-500/20 text-rose-100"
+                        : "border-white/10 text-slate-300 hover:bg-white/5"
+                    }`}
+                  >
+                    {chip.label}
+                  </button>
+                ))}
+              </div>
+              <input
+                value={blindReason}
+                onChange={(e) => setBlindReason(e.target.value)}
+                placeholder={t.refundReason}
+                className="w-full h-10 rounded-xl bg-white/5 border border-white/10 px-3 text-sm text-white placeholder:text-slate-500"
+              />
+            </div>
+            <label className="space-y-1.5 block">
+              <span className="text-[11px] text-slate-400">{t.refundMethod}</span>
+              <select
+                value={blindMethod}
+                onChange={(e) =>
+                  setBlindMethod(e.target.value as "CASH" | "STORE_CREDIT")
+                }
+                className="w-full h-10 rounded-xl bg-white/5 border border-white/10 px-3 text-sm text-white"
+              >
+                <option value="CASH" className="bg-[#111827] text-white">
+                  {t.refundCash}
+                </option>
+                <option value="STORE_CREDIT" className="bg-[#111827] text-white">
+                  {t.refundStoreCredit}
+                </option>
+              </select>
+            </label>
+            <button
+              type="button"
+              disabled={
+                !blindItemsPayload().length || blindReason.trim().length < 3
+              }
+              onClick={() => {
+                if (blindMethod === "STORE_CREDIT" && !contactId) {
+                  toast.error(t.blindReturnNeedCustomer);
+                  return;
+                }
+                setBlindAwaitingApproval(true);
+              }}
+              className="w-full h-11 rounded-xl bg-rose-500 text-white font-bold disabled:opacity-40"
+            >
+              {t.refundContinue}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      <DualApprovalModal
+        open={blindReturnOpen && blindAwaitingApproval}
+        action="POS_BLIND_RETURN"
+        actionLabel={t.blindReturnTitle}
+        payload={{ items: blindItemsPayload(), reason: blindReason.trim() }}
+        summary={`${t.blindReturn}: ${blindItemsPayload().length}`}
+        actorRole={user?.role}
+        busy={blindBusy}
+        onCancel={() => {
+          if (!blindBusy) {
+            setBlindAwaitingApproval(false);
+            setBlindReturnOpen(false);
+          }
+        }}
+        onConfirm={confirmBlindReturn}
+      />
+
       {refundTarget && !refundAwaitingApproval ? (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 p-3">
           <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#121a2b] p-4 space-y-3 shadow-xl">
@@ -4811,15 +5092,51 @@ export default function PosCheckoutPage() {
       ) : null}
 
       <QtyKeypadModal
-        open={!!qtyKeypadLine}
-        title={qtyKeypadLine?.name || t.qty}
-        initialQty={qtyKeypadLine?.quantity || 1}
-        maxQty={qtyKeypadLine?.isTracked ? qtyKeypadLine.stock : null}
+        open={!!weightPendingProduct || !!qtyKeypadLine}
+        title={
+          weightPendingProduct
+            ? `${t.enterWeight}: ${weightPendingProduct.name}`
+            : qtyKeypadLine?.name || t.qty
+        }
+        initialQty={
+          weightPendingProduct
+            ? 0
+            : qtyKeypadLine?.quantity || 1
+        }
+        maxQty={
+          weightPendingProduct
+            ? weightPendingProduct.isTracked
+              ? Number(weightPendingProduct.quantity)
+              : null
+            : qtyKeypadLine?.isTracked
+              ? qtyKeypadLine.stock
+              : null
+        }
         stockLabel={t.stock}
         okLabel={t.keypadOk}
         clearLabel={t.keypadClear}
-        onCancel={() => setQtyKeypadLineId(null)}
+        allowDecimal={
+          !!weightPendingProduct || qtyKeypadLine?.soldByWeight === true
+        }
+        unitLabel={
+          weightPendingProduct || qtyKeypadLine?.soldByWeight
+            ? weightPendingProduct?.unit ||
+              qtyKeypadLine?.unit ||
+              t.weightUnitKg
+            : undefined
+        }
+        onCancel={() => {
+          setWeightPendingProduct(null);
+          setQtyKeypadLineId(null);
+        }}
         onConfirm={(qty) => {
+          if (weightPendingProduct) {
+            const p = weightPendingProduct;
+            setWeightPendingProduct(null);
+            playAddFeedback(addProduct(p, qty));
+            focusScan();
+            return;
+          }
           if (!qtyKeypadLineId) return;
           setCart((prev) =>
             prev

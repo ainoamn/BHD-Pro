@@ -13,6 +13,7 @@ type KitchenItem = {
   qty: number;
   notes: string | null;
   course?: number;
+  seat?: number | null;
   source?: string;
   status: string;
   isRush?: boolean;

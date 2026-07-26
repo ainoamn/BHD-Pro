@@ -14,6 +14,8 @@ export type CachedPosProduct = {
   quantity: number | string;
   isTracked: boolean;
   minQuantity?: number | string | null;
+  unit?: string | null;
+  soldByWeight?: boolean;
 };
 
 type CatalogSnapshot = {

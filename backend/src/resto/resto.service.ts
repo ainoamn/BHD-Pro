@@ -2801,6 +2801,7 @@ export class RestoService {
       qty: Number(it.qty),
       notes: it.notes,
       course: it.course ?? 1,
+      seat: it.seat ?? null,
       source: it.source === 'GUEST' ? 'GUEST' : 'STAFF',
       status: it.status,
       isRush: !!it.isRush,
@@ -5962,6 +5963,7 @@ export class RestoService {
             notes: true,
             status: true,
             course: true,
+            seat: true,
           },
         },
       },
@@ -6067,6 +6069,7 @@ export class RestoService {
             id: open.id,
             number: open.number,
             status: open.status,
+            guests: open.guests,
             invoiceId,
             paymentStatus,
             payUrl,
@@ -6080,6 +6083,7 @@ export class RestoService {
               notes: i.notes,
               status: i.status,
               course: i.course ?? 1,
+              seat: i.seat ?? null,
             })),
             subtotal: open.items.reduce(
               (s, i) => s + Number(i.qty) * Number(i.unitPrice),
@@ -6087,6 +6091,11 @@ export class RestoService {
             ),
           }
         : null,
+      /** Max seat number guests may pick (open order guests or table capacity) */
+      seatCount: Math.min(
+        99,
+        Math.max(1, open?.guests || table.seats || 2),
+      ),
     };
   }
 
@@ -6109,7 +6118,7 @@ export class RestoService {
       const opened = await this.openOrder(table.companyId, '', {
         tableId: table.id,
         channel: RestoOrderChannel.DINE_IN,
-        guests: 2,
+        guests: Math.min(99, Math.max(1, table.seats || 2)),
         notes: dto.guestNote?.trim() || 'Guest QR order',
       });
       order = await this.prisma.restoOrder.findFirst({
@@ -6129,6 +6138,7 @@ export class RestoService {
         qty: line.qty ?? 1,
         notes: line.notes,
         course: line.course ?? 1,
+        seat: line.seat ?? null,
         modifiers: line.modifiers,
         source: 'GUEST',
       });

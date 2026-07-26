@@ -25,6 +25,7 @@ type PosProductRow = {
   costPrice: number | string;
   salePrice: number | string;
   isTracked?: boolean;
+  soldByWeight?: boolean;
 };
 
 const emptyForm = () => ({
@@ -37,6 +38,7 @@ const emptyForm = () => ({
   minQuantity: 5,
   costPrice: 0,
   salePrice: 0,
+  soldByWeight: false,
 });
 
 export default function PosInventoryPage() {
@@ -116,6 +118,7 @@ export default function PosInventoryPage() {
       minQuantity: Number(p.minQuantity ?? 5),
       costPrice: Number(p.costPrice),
       salePrice: Number(p.salePrice),
+      soldByWeight: p.soldByWeight === true,
     });
     setModalOpen(true);
   };
@@ -127,11 +130,12 @@ export default function PosInventoryPage() {
         barcode: form.barcode.trim() || undefined,
         name: form.name.trim(),
         category: form.category.trim(),
-        unit: form.unit.trim() || "pcs",
+        unit: form.soldByWeight ? form.unit.trim() || "kg" : form.unit.trim() || "pcs",
         quantity: Number(form.quantity) || 0,
         minQuantity: Number(form.minQuantity) || 0,
         costPrice: Number(form.costPrice) || 0,
         salePrice: Number(form.salePrice) || 0,
+        soldByWeight: form.soldByWeight === true,
       };
       if (editingId) {
         return api.updateProduct(editingId, {
@@ -331,6 +335,21 @@ export default function PosInventoryPage() {
                   />
                 </div>
               </div>
+              <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.soldByWeight}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      soldByWeight: e.target.checked,
+                      unit: e.target.checked && form.unit === "pcs" ? "kg" : form.unit,
+                    })
+                  }
+                  className="rounded border-white/20"
+                />
+                <span className="text-sm text-slate-200">{t.soldByWeight}</span>
+              </label>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-slate-400 mb-1 block">{t.costPrice}</label>

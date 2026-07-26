@@ -2734,6 +2734,22 @@ class ApiClient {
     return this.post(`/pos/sales/${id}/refund`, body);
   }
 
+  /** No-receipt return (manager dual-control). */
+  blindPosReturn(body: {
+    items: { productId: string; quantity: number; unitPrice?: number }[];
+    reason: string;
+    refundMethod?: 'CASH' | 'STORE_CREDIT';
+    contactId?: string;
+    warehouseId?: string;
+    approval?: DualApprovalPayload;
+  }) {
+    return this.post<{
+      refunded: boolean;
+      blind: boolean;
+      creditNote: { id: string; number: string; total: number | string };
+    }>('/pos/returns/blind', body);
+  }
+
   getCurrentPosShift(warehouseId?: string) {
     const q = warehouseId ? `?warehouseId=${encodeURIComponent(warehouseId)}` : "";
     return this.get<{
