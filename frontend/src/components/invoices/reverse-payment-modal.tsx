@@ -223,7 +223,10 @@ export function ReversePaymentModal({
               <button
                 type="button"
                 disabled={busy || (payments.length === 0 && !canForceReverse)}
-                onClick={() => setApprovalOpen(true)}
+                onClick={() => {
+                  setPendingPaymentId(null);
+                  setApprovalOpen(true);
+                }}
                 className="flex-1 h-10 rounded-lg bg-amber-600 text-white hover:bg-amber-500 disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {reverseAll.isPending ? (
@@ -243,13 +246,21 @@ export function ReversePaymentModal({
       <DualApprovalModal
         open={approvalOpen}
         action="PAYMENT_REVERSE"
-        actionLabel={t("reverseAllConfirm")}
-        payload={{ invoiceId }}
-        summary={t("reverseAllConfirm")}
+        actionLabel={pendingPaymentId ? t("reverseThis") : t("reverseAllConfirm")}
+        payload={{ invoiceId, paymentId: pendingPaymentId }}
+        summary={pendingPaymentId ? t("reversePaymentConfirm") : t("reverseAllConfirm")}
         actorRole={user?.role}
-        busy={reverseAll.isPending}
-        onCancel={() => !reverseAll.isPending && setApprovalOpen(false)}
+        busy={reverseAll.isPending || reverseOne.isPending}
+        onCancel={() => {
+          if (reverseAll.isPending || reverseOne.isPending) return;
+          setApprovalOpen(false);
+          setPendingPaymentId(null);
+        }}
         onConfirm={async (approval) => {
+          if (pendingPaymentId) {
+            await reverseOne.mutateAsync({ paymentId: pendingPaymentId, approval });
+            return;
+          }
           await reverseAll.mutateAsync(approval);
         }}
       />
