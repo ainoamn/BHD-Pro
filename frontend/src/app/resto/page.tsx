@@ -120,6 +120,7 @@ export default function RestoFloorPage() {
     reason: string;
   } | null>(null);
   const [voidBusy, setVoidBusy] = useState(false);
+  const [cancelDualOpen, setCancelDualOpen] = useState(false);
   const [modifiers, setModifiers] = useState<
     Array<{ id: string; name: string; nameEn: string | null; priceDelta: number }>
   >([]);
@@ -772,14 +773,21 @@ export default function RestoFloorPage() {
 
   const cancelOrder = async () => {
     if (!order) return;
-    if (!window.confirm(t.cancelConfirm)) return;
+    setCancelDualOpen(true);
+  };
+
+  const confirmCancelOrder = async (approval: DualApprovalPayload) => {
+    if (!order) return;
     setBusy(true);
     try {
-      await api.cancelRestoOrder(order.id);
+      await api.cancelRestoOrder(order.id, approval);
       setOrder(null);
+      setCancelDualOpen(false);
       await loadFloor();
-    } catch {
-      setError(t.actionFail);
+    } catch (err) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response
+        ?.data?.message;
+      setError(typeof msg === "string" ? msg : t.actionFail);
     } finally {
       setBusy(false);
     }
@@ -1853,6 +1861,18 @@ export default function RestoFloorPage() {
         busy={voidBusy}
         onCancel={() => !voidBusy && setVoidTarget(null)}
         onConfirm={confirmVoidOrComp}
+      />
+
+      <DualApprovalModal
+        open={cancelDualOpen}
+        action="RESTO_VOID"
+        actionLabel={t.cancelOrder}
+        payload={order ? { orderId: order.id } : undefined}
+        summary={t.cancelConfirm}
+        actorRole={user?.role}
+        busy={busy}
+        onCancel={() => !busy && setCancelDualOpen(false)}
+        onConfirm={confirmCancelOrder}
       />
     </div>
   );

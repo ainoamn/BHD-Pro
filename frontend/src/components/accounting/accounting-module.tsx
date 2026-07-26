@@ -217,6 +217,7 @@ export function AccountingModule() {
   const [collectInvoiceId, setCollectInvoiceId] = useState<string | undefined>();
   const [reversePaymentInvoice, setReversePaymentInvoice] = useState<Invoice | null>(null);
   const [cancelPendingId, setCancelPendingId] = useState<string | null>(null);
+  const [unsendPendingId, setUnsendPendingId] = useState<string | null>(null);
   const [shareDocument, setShareDocument] = useState<{
     invoice: InvoiceDocumentData;
     variant: "invoice" | "receipt";
@@ -749,9 +750,16 @@ export function AccountingModule() {
   });
 
   const unsendMutation = useMutation({
-    mutationFn: (id: string) => api.unsendInvoice(id),
+    mutationFn: ({
+      id,
+      approval,
+    }: {
+      id: string;
+      approval?: DualApprovalPayload;
+    }) => api.unsendInvoice(id, approval),
     onSuccess: () => {
       invalidateInvoiceQueries();
+      setUnsendPendingId(null);
       toast.success(t("undoSendSuccess"));
     },
     onError: (err: unknown) => {
@@ -777,7 +785,7 @@ export function AccountingModule() {
   });
 
   const handleUnsend = (id: string) => {
-    if (confirm(t("undoSendConfirm"))) unsendMutation.mutate(id);
+    setUnsendPendingId(id);
   };
 
   const handleOpenReversePayment = (inv: Invoice) => {
@@ -1560,6 +1568,21 @@ export function AccountingModule() {
             status: "CANCELLED",
             approval,
           });
+        }}
+      />
+
+      <DualApprovalModal
+        open={!!unsendPendingId}
+        action="INVOICE_CANCEL"
+        actionLabel={t("undoSendConfirm")}
+        payload={unsendPendingId ? { invoiceId: unsendPendingId } : undefined}
+        summary={t("undoSendConfirm")}
+        actorRole={user?.role}
+        busy={unsendMutation.isPending}
+        onCancel={() => !unsendMutation.isPending && setUnsendPendingId(null)}
+        onConfirm={async (approval) => {
+          if (!unsendPendingId) return;
+          await unsendMutation.mutateAsync({ id: unsendPendingId, approval });
         }}
       />
 

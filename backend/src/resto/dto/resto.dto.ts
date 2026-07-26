@@ -423,6 +423,13 @@ export class VoidRestoOrderItemDto {
   approval?: DualApprovalDto;
 }
 
+export class CancelRestoOrderDto {
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DualApprovalDto)
+  approval?: DualApprovalDto;
+}
+
 export class SetRestoProductAllergensDto {
   @IsArray()
   @IsIn([...RESTO_ALLERGEN_CODES], { each: true })

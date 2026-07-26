@@ -27,6 +27,7 @@ import { BatchRecordPaymentDto } from './dto/batch-record-payment.dto';
 import {
   ReverseAllPaymentsDto,
   UpdateInvoiceStatusDto,
+  UnsendInvoiceDto,
 } from './dto/update-status.dto';
 import { DualControlService } from '../dual-control/dual-control.service';
 
@@ -198,7 +199,17 @@ export class InvoicesController {
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Revert sent invoice back to draft (no payments recorded)' })
-  unsend(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
+  async unsend(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+    @Body() dto: UnsendInvoiceDto,
+  ) {
+    await this.dualControl.assertApproved(
+      user.companyId,
+      user,
+      'INVOICE_CANCEL',
+      dto?.approval,
+    );
     return this.invoicesService.unsend(user.companyId, user.sub, id);
   }
 

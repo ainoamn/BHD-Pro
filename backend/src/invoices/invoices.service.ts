@@ -1136,6 +1136,12 @@ export class InvoicesService {
     if (quote.status === InvoiceStatus.CANCELLED) {
       throw new BadRequestException('Cannot convert cancelled quotation');
     }
+    if (
+      quote.notes &&
+      /تم التحويل إلى فاتورة|Converted to invoice/i.test(quote.notes)
+    ) {
+      throw new BadRequestException('Quotation already converted to an invoice');
+    }
 
     const invoice = await this.create(companyId, userId, {
       type: InvoiceType.SALES,
@@ -1159,6 +1165,7 @@ export class InvoicesService {
     await this.prisma.invoice.update({
       where: { id: quote.id },
       data: {
+        status: InvoiceStatus.CANCELLED,
         notes: quote.notes ? `${quote.notes}\n${convertedNote}` : convertedNote,
       },
     });

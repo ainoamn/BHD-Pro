@@ -23,3 +23,11 @@ export class ReverseAllPaymentsDto {
   @Type(() => DualApprovalDto)
   approval?: DualApprovalDto;
 }
+
+export class UnsendInvoiceDto {
+  @ApiPropertyOptional({ type: DualApprovalDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DualApprovalDto)
+  approval?: DualApprovalDto;
+}

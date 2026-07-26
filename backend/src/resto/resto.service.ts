@@ -3717,7 +3717,19 @@ export class RestoService {
     return this.getOrder(companyId, orderId);
   }
 
-  async cancelOrder(companyId: string, userId: string, orderId: string) {
+  async cancelOrder(
+    companyId: string,
+    actor: TokenPayload,
+    orderId: string,
+    approval?: DualApprovalDto,
+  ) {
+    await this.dualControl.assertApproved(
+      companyId,
+      actor,
+      'RESTO_VOID',
+      approval,
+    );
+    const userId = actor.sub;
     const order = await this.loadOrder(companyId, orderId);
     if (order.status === RestoOrderStatus.CLOSED) {
       throw new BadRequestException('Order already closed');

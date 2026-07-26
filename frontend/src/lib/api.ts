@@ -459,8 +459,8 @@ class ApiClient {
     return this.post('/invoices/payments/batch', data);
   }
 
-  unsendInvoice(id: string) {
-    return this.post(`/invoices/${id}/unsend`);
+  unsendInvoice(id: string, approval?: DualApprovalPayload) {
+    return this.post(`/invoices/${id}/unsend`, { approval });
   }
 
   reverseInvoicePayment(
@@ -2372,8 +2372,10 @@ class ApiClient {
     return this.patch<RestoOrderPayload>(`/resto/orders/${orderId}/delivery`, data);
   }
 
-  cancelRestoOrder(orderId: string) {
-    return this.post<RestoOrderPayload>(`/resto/orders/${orderId}/cancel`, {});
+  cancelRestoOrder(orderId: string, approval?: DualApprovalPayload) {
+    return this.post<RestoOrderPayload>(`/resto/orders/${orderId}/cancel`, {
+      approval,
+    });
   }
 
   getRestoStations() {

@@ -65,6 +65,7 @@ import {
   UpsertRestoRecipeDto,
   UpdateRestoReservationStatusDto,
   VoidRestoOrderItemDto,
+  CancelRestoOrderDto,
 } from './dto/resto.dto';
 import { IsIn } from 'class-validator';
 import { PlanFeatureGuard } from '../common/guards/plan-feature.guard';
@@ -490,8 +491,13 @@ export class RestoController {
   @Post('orders/:id/cancel')
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   @Roles(...RESTO_FLOOR_MGR)
-  cancel(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
-    return this.resto.cancelOrder(user.companyId, user.sub, id);
+  @ApiOperation({ summary: 'Cancel open order (dual RESTO_VOID; may cancel unpaid invoice)' })
+  async cancel(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+    @Body() dto: CancelRestoOrderDto,
+  ) {
+    return this.resto.cancelOrder(user.companyId, user, id, dto?.approval);
   }
 
   @Get('stations')

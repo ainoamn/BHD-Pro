@@ -18,7 +18,11 @@ import { useLocaleStore } from "@/store/locale";
 import { useAuthStore } from "@/store/auth";
 import { restoCopy } from "@/lib/resto-copy";
 import { printRestoGuestCheck } from "@/lib/resto-guest-check";
-import { cn } from "@/lib/utils";
+import { cn, apiErrorMessage } from "@/lib/utils";
+import {
+  DualApprovalModal,
+  type DualApprovalPayload,
+} from "@/components/security/dual-approval-modal";
 
 type MenuItem = {
   id: string;
@@ -41,6 +45,7 @@ export default function RestoOrderPage() {
   const locale = useLocaleStore((s) => s.locale);
   const t = restoCopy[locale === "en" ? "en" : "ar"];
   const company = useAuthStore((s) => s.company);
+  const user = useAuthStore((s) => s.user);
   const [order, setOrder] = useState<RestoOrderPayload | null>(null);
   const [menu, setMenu] = useState<MenuItem[]>([]);
   const [menuError, setMenuError] = useState(false);
@@ -54,6 +59,7 @@ export default function RestoOrderPage() {
   const [loadError, setLoadError] = useState(false);
   const [busy, setBusy] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [cancelDualOpen, setCancelDualOpen] = useState(false);
 
   const refresh = useCallback(async () => {
     const res = await api.getRestoOrder(orderId);
@@ -275,17 +281,19 @@ export default function RestoOrderPage() {
     }
   };
 
-  const cancel = async () => {
-    if (!window.confirm(t.cancelConfirm)) return;
+  const cancel = () => {
+    setCancelDualOpen(true);
+  };
+
+  const confirmCancel = async (approval: DualApprovalPayload) => {
     setBusy(true);
     try {
-      await api.cancelRestoOrder(orderId);
+      await api.cancelRestoOrder(orderId, approval);
       toast.success(t.cancelOk);
+      setCancelDualOpen(false);
       router.push("/resto");
     } catch (err) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response
-        ?.data?.message;
-      toast.error(typeof msg === "string" ? msg : t.fail);
+      toast.error(apiErrorMessage(err, t.fail));
     } finally {
       setBusy(false);
     }
@@ -639,6 +647,18 @@ export default function RestoOrderPage() {
           </span>
         </div>
       </div>
+
+      <DualApprovalModal
+        open={cancelDualOpen}
+        action="RESTO_VOID"
+        actionLabel={t.cancelOrder}
+        payload={{ orderId }}
+        summary={t.cancelConfirm}
+        actorRole={user?.role}
+        busy={busy}
+        onCancel={() => !busy && setCancelDualOpen(false)}
+        onConfirm={confirmCancel}
+      />
     </div>
   );
 }
