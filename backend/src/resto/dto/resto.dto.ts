@@ -877,21 +877,31 @@ export class RestoDayPartsScheduleDto {
   late?: RestoDayPartWindowDto;
 }
 
-export class UpdateRestoConfigDto {
+/** Declared before UpdateRestoConfigDto — emitDecoratorMetadata needs classes initialized first. */
+export class RestoKitchenSlaDto {
+  /** Minutes until warn tone on KDS (default 8) */
   @IsOptional()
-  @ValidateNested()
-  @Type(() => RestoDayPartsScheduleDto)
-  dayParts?: RestoDayPartsScheduleDto;
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(120)
+  warnMinutes?: number;
 
+  /** Minutes until critical tone on KDS (default 15) */
   @IsOptional()
-  @ValidateNested()
-  @Type(() => RestoKitchenSlaDto)
-  kitchenSla?: RestoKitchenSlaDto;
+  @Type(() => Number)
+  @IsInt()
+  @Min(2)
+  @Max(180)
+  criticalMinutes?: number;
 
+  /** Minutes until warn on expo pass (default 5) */
   @IsOptional()
-  @ValidateNested()
-  @Type(() => RestoBookingConfigDto)
-  booking?: RestoBookingConfigDto;
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(60)
+  expoWarnMinutes?: number;
 }
 
 export class RestoBookingConfigDto {
@@ -964,6 +974,23 @@ export class RestoBookingConfigDto {
   autoNotify?: boolean;
 }
 
+export class UpdateRestoConfigDto {
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => RestoDayPartsScheduleDto)
+  dayParts?: RestoDayPartsScheduleDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => RestoKitchenSlaDto)
+  kitchenSla?: RestoKitchenSlaDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => RestoBookingConfigDto)
+  booking?: RestoBookingConfigDto;
+}
+
 export class PublicCreateBookingDto {
   @IsString()
   @MinLength(1)
@@ -989,32 +1016,6 @@ export class PublicCreateBookingDto {
   @IsString()
   @MaxLength(500)
   notes?: string;
-}
-
-export class RestoKitchenSlaDto {
-  /** Minutes until warn tone on KDS (default 8) */
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(120)
-  warnMinutes?: number;
-
-  /** Minutes until critical tone on KDS (default 15) */
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(2)
-  @Max(180)
-  criticalMinutes?: number;
-
-  /** Minutes until warn on expo pass (default 5) */
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(60)
-  expoWarnMinutes?: number;
 }
 
 export class RestoKitchenRushDto {
