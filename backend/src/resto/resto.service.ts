@@ -47,6 +47,7 @@ import {
   SetRestoProductAllergensDto,
   SetRestoProductDietaryDto,
   SetRestoProductDayPartsDto,
+  SetRestoProductDayPartPricesDto,
   RESTO_ALLERGEN_CODES,
   RESTO_DIETARY_TAGS,
   RESTO_DAY_PARTS,
@@ -959,6 +960,34 @@ export class RestoService {
     return parts.includes(dayPart);
   }
 
+  private parseDayPartPrices(raw: unknown): Partial<
+    Record<(typeof RESTO_DAY_PARTS)[number], number>
+  > {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+    const out: Partial<Record<(typeof RESTO_DAY_PARTS)[number], number>> = {};
+    const obj = raw as Record<string, unknown>;
+    for (const key of RESTO_DAY_PARTS) {
+      const n = Number(obj[key]);
+      if (Number.isFinite(n) && n >= 0) out[key] = n;
+    }
+    return out;
+  }
+
+  /** Effective sale price for a day-part (fallback = base salePrice). */
+  resolveDayPartSalePrice(
+    salePrice: number | string | Prisma.Decimal,
+    dayPartPrices: unknown,
+    dayPart: string | null | undefined,
+  ): number {
+    const base = Number(salePrice);
+    if (!dayPart || !(RESTO_DAY_PARTS as readonly string[]).includes(dayPart)) {
+      return base;
+    }
+    const map = this.parseDayPartPrices(dayPartPrices);
+    const override = map[dayPart as (typeof RESTO_DAY_PARTS)[number]];
+    return override != null && Number.isFinite(override) ? Number(override) : base;
+  }
+
   /** Menu = products in the linked restaurant warehouse only */
   async getMenu(
     companyId: string,
@@ -1005,6 +1034,7 @@ export class RestoService {
         allergens: true,
         dietaryTags: true,
         dayParts: true,
+        dayPartPrices: true,
       },
       orderBy: { name: 'asc' },
       take: 500,
@@ -1040,16 +1070,25 @@ export class RestoService {
     });
     const byProduct = new Map(routes.map((r) => [r.productId, r]));
     const withRecipe = new Set(recipes.map((r) => r.productId));
+    const priceDayPart = dayPart || resolved.dayPart;
     return {
       items: available.map((p) => {
         const route = byProduct.get(p.id);
+        const dayPartPrices = this.parseDayPartPrices(p.dayPartPrices);
+        const basePrice = Number(p.salePrice);
         return {
           id: p.id,
           name: p.name,
           nameEn: p.nameEn,
           sku: p.sku,
           barcode: p.barcode,
-          price: p.salePrice,
+          price: this.resolveDayPartSalePrice(
+            p.salePrice,
+            p.dayPartPrices,
+            priceDayPart,
+          ),
+          basePrice,
+          dayPartPrices,
           unit: p.unit,
           category: p.category,
           isTracked: p.isTracked,
@@ -1852,7 +1891,7 @@ export class RestoService {
 
     const product = await this.prisma.product.findFirst({
       where: { id: dto.productId, companyId, isActive: true },
-      select: { id: true, name: true, salePrice: true },
+      select: { id: true, name: true, salePrice: true, dayPartPrices: true },
     });
     if (!product) throw new NotFoundException('Product not found');
 
@@ -1900,6 +1939,12 @@ export class RestoService {
     ].filter(Boolean);
 
     const seat = this.normalizeSeat(dto.seat, order.guests);
+    const { dayPart } = await this.resolveDayPartForCompany(companyId);
+    const unitBase = this.resolveDayPartSalePrice(
+      product.salePrice,
+      product.dayPartPrices,
+      dayPart,
+    );
 
     await this.prisma.restoOrderItem.create({
       data: {
@@ -1908,7 +1953,7 @@ export class RestoService {
         stationId: station.id,
         name: displayName,
         qty: this.decimal(qty),
-        unitPrice: this.decimal(Number(product.salePrice) + priceDelta),
+        unitPrice: this.decimal(unitBase + priceDelta),
         notes: noteParts.join(' — ') || null,
         course: dto.course ?? 1,
         seat,
@@ -2470,6 +2515,43 @@ export class RestoService {
       data: { dayParts: unique },
     });
     return { productId, dayParts: unique };
+  }
+
+  async setProductDayPartPrices(
+    companyId: string,
+    productId: string,
+    dto: SetRestoProductDayPartPricesDto,
+  ) {
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, companyId },
+      select: { id: true, dayPartPrices: true },
+    });
+    if (!product) throw new NotFoundException('Product not found');
+    const next: Partial<
+      Record<(typeof RESTO_DAY_PARTS)[number], number>
+    > = {};
+    for (const key of RESTO_DAY_PARTS) {
+      const raw = dto[key];
+      if (raw === undefined) {
+        const prev = this.parseDayPartPrices(product.dayPartPrices)[key];
+        if (prev != null) next[key] = prev;
+        continue;
+      }
+      if (raw === null) continue;
+      const n = Number(raw);
+      if (!Number.isFinite(n) || n < 0) {
+        throw new BadRequestException(`Invalid price for ${key}`);
+      }
+      next[key] = n;
+    }
+    await this.prisma.product.update({
+      where: { id: productId },
+      data: { dayPartPrices: next as Prisma.InputJsonValue },
+    });
+    return {
+      productId,
+      dayPartPrices: next,
+    };
   }
 
   /** Expo / runner pass — READY tickets awaiting SERVED */

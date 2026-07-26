@@ -442,6 +442,40 @@ export class SetRestoProductDayPartsDto {
   dayParts: string[];
 }
 
+export class SetRestoProductDayPartPricesDto {
+  /**
+   * Map of day-part → price. Pass null to clear that override.
+   * Sending all null/empty clears overrides (always use salePrice).
+   */
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== undefined)
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 3 })
+  @Min(0)
+  breakfast?: number | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== undefined)
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 3 })
+  @Min(0)
+  lunch?: number | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== undefined)
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 3 })
+  @Min(0)
+  dinner?: number | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== undefined)
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 3 })
+  @Min(0)
+  late?: number | null;
+}
+
 export class CloseRestoPaymentLineDto {
   @IsEnum(PaymentMethod)
   method: PaymentMethod;

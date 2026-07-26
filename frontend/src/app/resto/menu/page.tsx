@@ -16,6 +16,10 @@ type MenuItem = {
   sku: string;
   barcode: string | null;
   price: string | number;
+  basePrice?: string | number;
+  dayPartPrices?: Partial<
+    Record<"breakfast" | "lunch" | "dinner" | "late", number>
+  >;
   unit: string;
   category: string;
   image?: string | null;
@@ -63,6 +67,94 @@ const DIETARY_TAGS = [
 ] as const;
 
 const DAY_PARTS = ["breakfast", "lunch", "dinner", "late"] as const;
+
+function DayPartPriceEditor({
+  item,
+  busy,
+  labels,
+  onSave,
+}: {
+  item: MenuItem;
+  busy: boolean;
+  labels: {
+    title: string;
+    hint: string;
+    base: string;
+    save: string;
+    part: (code: string) => string;
+  };
+  onSave: (
+    draft: Partial<Record<(typeof DAY_PARTS)[number], string>>,
+  ) => Promise<void>;
+}) {
+  const [draft, setDraft] = useState<
+    Partial<Record<(typeof DAY_PARTS)[number], string>>
+  >(() => {
+    const init: Partial<Record<(typeof DAY_PARTS)[number], string>> = {};
+    for (const key of DAY_PARTS) {
+      const v = item.dayPartPrices?.[key];
+      init[key] = v != null ? String(v) : "";
+    }
+    return init;
+  });
+
+  useEffect(() => {
+    const init: Partial<Record<(typeof DAY_PARTS)[number], string>> = {};
+    for (const key of DAY_PARTS) {
+      const v = item.dayPartPrices?.[key];
+      init[key] = v != null ? String(v) : "";
+    }
+    setDraft(init);
+  }, [item.id, item.dayPartPrices]);
+
+  const base =
+    item.basePrice != null
+      ? typeof item.basePrice === "number"
+        ? item.basePrice
+        : Number(item.basePrice)
+      : typeof item.price === "number"
+        ? item.price
+        : Number(item.price);
+
+  return (
+    <div className="space-y-1.5 rounded-xl border border-amber-500/15 bg-amber-500/5 p-2">
+      <p className="text-[10px] text-stone-400">
+        {labels.title}{" "}
+        <span className="text-stone-600">({labels.hint})</span>
+      </p>
+      <p className="text-[10px] text-amber-100/70 tabular-nums">
+        {labels.base}: {Number.isFinite(base) ? base.toFixed(3) : "—"}
+      </p>
+      <div className="grid grid-cols-2 gap-1.5">
+        {DAY_PARTS.map((code) => (
+          <label key={code} className="block space-y-0.5">
+            <span className="text-[9px] text-stone-500">{labels.part(code)}</span>
+            <input
+              type="number"
+              min={0}
+              step="0.001"
+              disabled={busy}
+              value={draft[code] ?? ""}
+              placeholder="—"
+              onChange={(e) =>
+                setDraft((d) => ({ ...d, [code]: e.target.value }))
+              }
+              className="w-full h-8 rounded-lg bg-black/30 border border-white/10 px-1.5 text-xs tabular-nums"
+            />
+          </label>
+        ))}
+      </div>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => void onSave(draft)}
+        className="w-full rounded-lg bg-amber-500/90 py-1.5 text-[10px] font-bold text-[#14110f] disabled:opacity-50"
+      >
+        {labels.save}
+      </button>
+    </div>
+  );
+}
 
 export default function RestoMenuPage() {
   const locale = useLocaleStore((s) => s.locale);
@@ -231,6 +323,38 @@ export default function RestoMenuPage() {
           it.id === productId ? { ...it, dayParts: next } : it,
         ),
       );
+    } catch {
+      toast.error(t.actionFail);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const saveDayPartPrices = async (
+    productId: string,
+    draft: Partial<Record<(typeof DAY_PARTS)[number], string>>,
+  ) => {
+    setBusyId(productId);
+    try {
+      const payload: Partial<
+        Record<(typeof DAY_PARTS)[number], number | null>
+      > = {};
+      for (const key of DAY_PARTS) {
+        const raw = (draft[key] ?? "").trim();
+        payload[key] = raw === "" ? null : Number(raw);
+      }
+      const res = await api.setRestoProductDayPartPrices(productId, payload);
+      setItems((prev) =>
+        prev.map((it) =>
+          it.id === productId
+            ? {
+                ...it,
+                dayPartPrices: res.data.dayPartPrices,
+              }
+            : it,
+        ),
+      );
+      toast.success(t.dayPartPriceSaved);
     } catch {
       toast.error(t.actionFail);
     } finally {
@@ -457,6 +581,32 @@ export default function RestoMenuPage() {
                   ) : (
                     <p className="text-[10px] text-stone-500">{t.dayPartAll}</p>
                   )}
+                  {canManage ? (
+                    <DayPartPriceEditor
+                      item={item}
+                      busy={busyId === item.id}
+                      labels={{
+                        title: t.dayPartPrices,
+                        hint: t.dayPartPricesHint,
+                        base: t.basePrice,
+                        save: t.dayPartSave,
+                        part: dayPartLabel,
+                      }}
+                      onSave={(draft) => saveDayPartPrices(item.id, draft)}
+                    />
+                  ) : Object.keys(item.dayPartPrices || {}).length > 0 ? (
+                    <p className="text-[10px] text-amber-200/80">
+                      {t.dayPartPrices}:{" "}
+                      {DAY_PARTS.filter(
+                        (c) => item.dayPartPrices?.[c] != null,
+                      )
+                        .map(
+                          (c) =>
+                            `${dayPartLabel(c)} ${Number(item.dayPartPrices?.[c]).toFixed(3)}`,
+                        )
+                        .join(" · ")}
+                    </p>
+                  ) : null}
                   {canManage ? (
                     <div className="flex items-center justify-between gap-2 mt-auto">
                       <Link

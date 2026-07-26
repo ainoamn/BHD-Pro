@@ -51,6 +51,7 @@ import {
   SetRestoProductAllergensDto,
   SetRestoProductDietaryDto,
   SetRestoProductDayPartsDto,
+  SetRestoProductDayPartPricesDto,
   SetRestoWarehouseDto,
   SplitRestoOrderDto,
   TransferRestoOrderDto,
@@ -716,6 +717,19 @@ export class RestoController {
     @Body() dto: SetRestoProductDayPartsDto,
   ) {
     return this.resto.setProductDayParts(user.companyId, productId, dto);
+  }
+
+  @Patch('menu/:productId/day-part-prices')
+  @Roles(...RESTO_FLOOR_MGR)
+  @ApiOperation({
+    summary: 'Set optional sale-price overrides per day-part',
+  })
+  setProductDayPartPrices(
+    @CurrentUser() user: TokenPayload,
+    @Param('productId') productId: string,
+    @Body() dto: SetRestoProductDayPartPricesDto,
+  ) {
+    return this.resto.setProductDayPartPrices(user.companyId, productId, dto);
   }
 
   @Get('reservations')

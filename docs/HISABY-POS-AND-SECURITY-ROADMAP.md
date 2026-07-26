@@ -189,6 +189,16 @@ Public flags: `asyncApprovals: true`, `nfcBadgesConfigured`, `shiftVarianceLimit
 - `Product.soldByWeight` + decimal kg keypad on POS floor
 - Doc: [`UPGRADE-POS-WAVE20-2026-07.md`](./UPGRADE-POS-WAVE20-2026-07.md)
 
+### Done (Wave 21 — Day-part pricing)
+- `Product.dayPartPrices` JSON overrides; menu/addItem resolve effective price by company day-part
+- Staff UI on `/resto/menu` + `PATCH /resto/menu/:id/day-part-prices`
+- Docs: [`UPGRADE-POS-WAVE21-2026-07.md`](./UPGRADE-POS-WAVE21-2026-07.md), [`UPGRADE-RESTO-WORLD-CLASS-2026-07.md`](./UPGRADE-RESTO-WORLD-CLASS-2026-07.md)
+
+### Resto world-class (recent, same track)
+- Public online booking `/reserve/[slug]` + guest notify + `/book/[token]`
+- Guest QR seat picker; KDS station filter persistence; reservation `source`
+- Master resto doc: [`UPGRADE-RESTO-WORLD-CLASS-2026-07.md`](./UPGRADE-RESTO-WORLD-CLASS-2026-07.md)
+
 - [x] Full catalog sync API `GET /pos/catalog/sync` + offline IDB per warehouse
 - [x] Broader refunds + store-credit MVP (hardened debit / void restore / UI)
 - [x] Cash change due + receipt number lookup for refunds
@@ -229,6 +239,7 @@ Public flags: `asyncApprovals: true`, `nfcBadgesConfigured`, `shiftVarianceLimit
 28. Customer phone-first: dial default from `company.country`; CUSTOMER create requires E.164 phone; POS/accounting quick-add uses dial+local.
 29. Auto POS receipt WhatsApp (`CustomerNotifyService`) after sale + void/refund notify; dispute URL `/dispute/{publicVerifyCode}`; migration `20260725230000_customer_disputes`.
 30. Next: Twilio SMS optional. Email receipts via Resend/SMTP when configured. Deploy `20260725240000_pos_incentives` after pull.
+31. Deploy `20260726190000_product_day_part_prices` for resto day-part price overrides; configure on `/resto/menu`. Also apply recent resto migrations (`resto_guest_notify`, `resto_public_booking`) if not yet.
 
 ---
 

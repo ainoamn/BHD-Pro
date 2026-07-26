@@ -1512,6 +1512,10 @@ class ApiClient {
         sku: string;
         barcode: string | null;
         price: string | number;
+        basePrice?: string | number;
+        dayPartPrices?: Partial<
+          Record<'breakfast' | 'lunch' | 'dinner' | 'late', number>
+        >;
         unit: string;
         category: string;
         images?: string[];
@@ -1579,6 +1583,20 @@ class ApiClient {
       `/resto/menu/${productId}/day-parts`,
       { dayParts },
     );
+  }
+
+  setRestoProductDayPartPrices(
+    productId: string,
+    prices: Partial<
+      Record<'breakfast' | 'lunch' | 'dinner' | 'late', number | null>
+    >,
+  ) {
+    return this.patch<{
+      productId: string;
+      dayPartPrices: Partial<
+        Record<'breakfast' | 'lunch' | 'dinner' | 'late', number>
+      >;
+    }>(`/resto/menu/${productId}/day-part-prices`, prices);
   }
 
   getRestoReservations(days?: number) {

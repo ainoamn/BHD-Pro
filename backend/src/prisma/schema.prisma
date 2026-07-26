@@ -989,6 +989,8 @@ model Product {
   dietaryTags String[] @default([]) @map("dietary_tags")
   /// Day-part availability: breakfast|lunch|dinner|late — empty = all day
   dayParts    String[] @default([]) @map("day_parts")
+  /// Optional price overrides per day-part: { "lunch": 3.5, ... } — missing = salePrice
+  dayPartPrices Json @default("{}") @map("day_part_prices")
 
   customFieldsJson Json @default("{}") @map("custom_fields_json")
 
