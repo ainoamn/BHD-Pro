@@ -182,7 +182,7 @@ function buildPlanCompareRows(
     });
   });
 
-  const codes = [...itemMeta.entries()].sort((a, b) => {
+  const codes = Array.from(itemMeta.entries()).sort((a, b) => {
     if (a[1].groupOrder !== b[1].groupOrder) {
       return a[1].groupOrder - b[1].groupOrder;
     }
