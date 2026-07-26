@@ -5,6 +5,8 @@ ALTER TABLE "companies" ALTER COLUMN "plan" SET DEFAULT 'STARTER';
 
 ALTER TABLE "plan_offers" ALTER COLUMN "plan" TYPE TEXT USING ("plan"::text);
 
+DROP TYPE IF EXISTS "Plan";
+
 CREATE TABLE IF NOT EXISTS "plan_definitions" (
     "id" TEXT NOT NULL,
     "code" TEXT NOT NULL,

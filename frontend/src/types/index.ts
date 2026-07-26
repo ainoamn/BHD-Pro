@@ -21,7 +21,7 @@ export interface Company {
   phone?: string;
   email?: string;
   logo?: string;
-  plan: 'STARTER' | 'PROFESSIONAL' | 'ENTERPRISE';
+  plan: string;
   planExpiry?: string | null;
   currency: string;
   language: string;
