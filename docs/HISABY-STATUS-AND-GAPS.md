@@ -46,6 +46,7 @@
 **موجة AS (Dual عمولة POS + إلغاء التزام ناعم + صدق قيود):** [`HISABY-WAVE-AS-POS-COMMISSION-COMMIT-SOFT-2026-07-26.md`](./HISABY-WAVE-AS-POS-COMMISSION-COMMIT-SOFT-2026-07-26.md)
 **موجة AT (صدق أخطاء واجهة مالية/مخزون/POS):** [`HISABY-WAVE-AT-FE-ERROR-HONESTY-2026-07-26.md`](./HISABY-WAVE-AT-FE-ERROR-HONESTY-2026-07-26.md)
 **موجة AU (Dual إلغاء مطعم + unsend + تحويل عرض):** [`HISABY-WAVE-AU-RESTO-CANCEL-UNSEND-2026-07-27.md`](./HISABY-WAVE-AU-RESTO-CANCEL-UNSEND-2026-07-27.md)
+**موجة AV (منع تحويل أمر شراء مكرر + صدق أخطاء):** [`HISABY-WAVE-AV-PO-CONVERT-HONESTY-2026-07-27.md`](./HISABY-WAVE-AV-PO-CONVERT-HONESTY-2026-07-27.md)
 
 ---
 

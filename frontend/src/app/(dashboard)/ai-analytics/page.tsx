@@ -24,7 +24,7 @@ import {
 import toast from "react-hot-toast";
 import Link from "next/link";
 import api from "@/lib/api";
-import { cn, formatMoney, formatDate } from "@/lib/utils";
+import { cn, formatMoney, formatDate, apiErrorMessage } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
 import { PageHeader, LoadingSpinner, QueryError, GlassCard } from "@/components/ui/page-shell";
 
@@ -132,7 +132,7 @@ export default function AiAnalyticsPage() {
       queryClient.invalidateQueries({ queryKey: ["ai-analytics"] });
     },
     onError: (err: { response?: { data?: { message?: string } } }) => {
-      toast.error(err.response?.data?.message || t("proposeFail"));
+      toast.error(apiErrorMessage(err, t("proposeFail")));
     },
   });
 

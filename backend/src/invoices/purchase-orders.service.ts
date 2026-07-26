@@ -256,6 +256,9 @@ export class PurchaseOrdersService {
     if (order.status === PurchaseOrderStatus.CANCELLED) {
       throw new BadRequestException('Cannot convert cancelled order');
     }
+    if (order.status === PurchaseOrderStatus.RECEIVED) {
+      throw new BadRequestException('Purchase order already converted / received');
+    }
 
     const invoice = await this.invoicesService.create(companyId, userId, {
       type: InvoiceType.PURCHASE,

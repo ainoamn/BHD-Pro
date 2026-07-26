@@ -152,10 +152,7 @@ export default function RestoOrderPage() {
       });
       setOrder(res.data);
       setItemNote("");
-    } catch (err) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response
-        ?.data?.message;
-      toast.error(typeof msg === "string" ? msg : t.fail);
+    } catch (err) { toast.error(apiErrorMessage(err, t.fail));
     } finally {
       setBusy(false);
     }
@@ -167,10 +164,7 @@ export default function RestoOrderPage() {
     try {
       const res = await api.updateRestoOrderItem(orderId, itemId, { qty });
       setOrder(res.data);
-    } catch (err) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response
-        ?.data?.message;
-      toast.error(typeof msg === "string" ? msg : t.fail);
+    } catch (err) { toast.error(apiErrorMessage(err, t.fail));
     } finally {
       setBusy(false);
     }
@@ -181,10 +175,7 @@ export default function RestoOrderPage() {
     try {
       const res = await api.updateRestoOrderItem(orderId, itemId, { notes });
       setOrder(res.data);
-    } catch (err) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response
-        ?.data?.message;
-      toast.error(typeof msg === "string" ? msg : t.fail);
+    } catch (err) { toast.error(apiErrorMessage(err, t.fail));
     } finally {
       setBusy(false);
     }
@@ -195,10 +186,7 @@ export default function RestoOrderPage() {
     try {
       const res = await api.updateRestoOrder(orderId, { guests: n });
       setOrder(res.data);
-    } catch (err) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response
-        ?.data?.message;
-      toast.error(typeof msg === "string" ? msg : t.fail);
+    } catch (err) { toast.error(apiErrorMessage(err, t.fail));
     } finally {
       setBusy(false);
     }
@@ -209,10 +197,7 @@ export default function RestoOrderPage() {
     try {
       const res = await api.removeRestoOrderItem(orderId, itemId);
       setOrder(res.data);
-    } catch (err) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response
-        ?.data?.message;
-      toast.error(typeof msg === "string" ? msg : t.fail);
+    } catch (err) { toast.error(apiErrorMessage(err, t.fail));
     } finally {
       setBusy(false);
     }
@@ -224,10 +209,7 @@ export default function RestoOrderPage() {
       const res = await api.sendRestoOrder(orderId);
       setOrder(res.data);
       toast.success(t.sendOk);
-    } catch (err) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response
-        ?.data?.message;
-      toast.error(typeof msg === "string" ? msg : t.fail);
+    } catch (err) { toast.error(apiErrorMessage(err, t.fail));
     } finally {
       setBusy(false);
     }
@@ -272,10 +254,7 @@ export default function RestoOrderPage() {
         toast.success(t.closePaidOk);
       }
       router.push("/resto");
-    } catch (err) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response
-        ?.data?.message;
-      toast.error(typeof msg === "string" ? msg : t.fail);
+    } catch (err) { toast.error(apiErrorMessage(err, t.fail));
     } finally {
       setBusy(false);
     }

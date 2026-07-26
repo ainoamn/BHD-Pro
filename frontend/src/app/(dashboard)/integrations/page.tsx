@@ -16,7 +16,7 @@ import {
 import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { PageHeader, LoadingSpinner, QueryError, GlassCard } from "@/components/ui/page-shell";
-import { cn } from "@/lib/utils";
+import { cn, apiErrorMessage } from "@/lib/utils";
 
 type MessagingStatus = {
   whatsapp: { configured: boolean; mode: string };
@@ -87,7 +87,7 @@ export default function IntegrationsPage() {
       queryClient.invalidateQueries({ queryKey: ["messaging-status"] });
     },
     onError: (err: { response?: { data?: { message?: string } } }) => {
-      toast.error(err.response?.data?.message || t("testFail"));
+      toast.error(apiErrorMessage(err, t("testFail")));
     },
   });
 
