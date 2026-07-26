@@ -299,6 +299,13 @@ export class PublicVisitsController {
     return this.admin.getMaintenancePublic();
   }
 
+  @Get('plans')
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Public active plans for landing pricing' })
+  plans() {
+    return this.admin.publicPlans();
+  }
+
   @Get('customer-logos')
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
   @ApiOperation({

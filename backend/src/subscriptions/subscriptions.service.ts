@@ -28,6 +28,7 @@ export class SubscriptionsService {
       nameEn: p.nameEn,
       monthlyPrice: p.monthlyPrice,
       yearlyPrice: p.yearlyPrice,
+      yearlyDiscountPct: p.yearlyDiscountPct,
       invoicesLimit: p.invoicesLimit,
       usersLimit: p.usersLimit,
       support: p.support,

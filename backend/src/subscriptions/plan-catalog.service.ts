@@ -9,6 +9,10 @@ import {
   normalizePlanAccess,
   type PlanModuleGrant,
 } from '../common/plan-access-catalog';
+import {
+  discountFromPrices,
+  yearlyFromMonthly,
+} from '../common/plan-pricing';
 
 export type PlanCatalogItem = {
   id: string;
@@ -17,6 +21,7 @@ export type PlanCatalogItem = {
   nameEn: string;
   monthlyPrice: number;
   yearlyPrice: number;
+  yearlyDiscountPct: number;
   invoicesLimit: number;
   usersLimit: number;
   support: string;
@@ -57,6 +62,10 @@ export class PlanCatalogService implements OnModuleInit {
     for (const row of defaults) {
       const details = PLAN_DETAILS[row.code as keyof typeof PLAN_DETAILS];
       if (!details) continue;
+      const yearlyDiscountPct = discountFromPrices(
+        details.monthlyPrice,
+        details.yearlyPrice,
+      );
       await this.prisma.planDefinition.upsert({
         where: { code: row.code },
         create: {
@@ -65,6 +74,7 @@ export class PlanCatalogService implements OnModuleInit {
           nameEn: details.nameEn,
           monthlyPrice: details.monthlyPrice,
           yearlyPrice: details.yearlyPrice,
+          yearlyDiscountPct,
           invoicesLimit: details.invoicesLimit,
           usersLimit: details.usersLimit,
           support: details.support,
@@ -91,6 +101,7 @@ export class PlanCatalogService implements OnModuleInit {
     nameEn: string;
     monthlyPrice: { toNumber?: () => number } | number | string;
     yearlyPrice: { toNumber?: () => number } | number | string;
+    yearlyDiscountPct?: { toNumber?: () => number } | number | string | null;
     invoicesLimit: number;
     usersLimit: number;
     support: string;
@@ -99,7 +110,10 @@ export class PlanCatalogService implements OnModuleInit {
     isSystem: boolean;
     sortOrder: number;
   }): PlanCatalogItem {
-      const num = (v: { toNumber?: () => number } | number | string) => {
+    const num = (
+      v: { toNumber?: () => number } | number | string | null | undefined,
+    ) => {
+      if (v == null) return 0;
       if (typeof v === 'number') return v;
       if (typeof v === 'string') return Number(v);
       if (v && typeof v.toNumber === 'function') return v.toNumber();
@@ -109,13 +123,21 @@ export class PlanCatalogService implements OnModuleInit {
       r.features as Record<string, unknown>,
       PLAN_FEATURES[r.code] || PLAN_FEATURES.STARTER,
     );
+    const monthlyPrice = num(r.monthlyPrice);
+    const yearlyPrice = num(r.yearlyPrice);
+    let yearlyDiscountPct = num(r.yearlyDiscountPct);
+    if (!yearlyDiscountPct && monthlyPrice > 0 && yearlyPrice > 0) {
+      yearlyDiscountPct = discountFromPrices(monthlyPrice, yearlyPrice);
+    }
+    if (!yearlyDiscountPct) yearlyDiscountPct = 20;
     return {
       id: r.id,
       code: r.code,
       nameAr: r.nameAr,
       nameEn: r.nameEn,
-      monthlyPrice: num(r.monthlyPrice),
-      yearlyPrice: num(r.yearlyPrice),
+      monthlyPrice,
+      yearlyPrice,
+      yearlyDiscountPct,
       invoicesLimit: r.invoicesLimit,
       usersLimit: r.usersLimit,
       support: r.support,
@@ -130,12 +152,6 @@ export class PlanCatalogService implements OnModuleInit {
 
   async listAll(includeInactive = false): Promise<PlanCatalogItem[]> {
     if (
-      this.cache &&
-      Date.now() - this.cache.at < this.ttlMs &&
-      includeInactive
-    ) {
-      // don't use cache for admin includeInactive mixed — fall through when admin
-    } else if (
       this.cache &&
       Date.now() - this.cache.at < this.ttlMs &&
       !includeInactive
@@ -165,18 +181,28 @@ export class PlanCatalogService implements OnModuleInit {
         nameEn: row.nameEn,
         monthlyPrice: row.monthlyPrice,
         yearlyPrice: row.yearlyPrice,
+        yearlyDiscountPct: row.yearlyDiscountPct,
         invoicesLimit: row.invoicesLimit,
         usersLimit: row.usersLimit,
         support: row.support,
       };
     }
     const fallback = PLAN_DETAILS[code as keyof typeof PLAN_DETAILS];
-    if (fallback) return { ...fallback };
+    if (fallback) {
+      return {
+        ...fallback,
+        yearlyDiscountPct: discountFromPrices(
+          fallback.monthlyPrice,
+          fallback.yearlyPrice,
+        ),
+      };
+    }
     return {
       nameAr: code,
       nameEn: code,
       monthlyPrice: 0,
       yearlyPrice: 0,
+      yearlyDiscountPct: 20,
       invoicesLimit: 50,
       usersLimit: 2,
       support: 'email',
@@ -186,14 +212,20 @@ export class PlanCatalogService implements OnModuleInit {
   async featuresFor(code: string): Promise<Record<PlanFeatureKey, boolean>> {
     const row = await this.getByCode(code);
     if (row) return row.features;
-    const access = normalizePlanAccess(null, PLAN_FEATURES[code] || PLAN_FEATURES.STARTER);
+    const access = normalizePlanAccess(
+      null,
+      PLAN_FEATURES[code] || PLAN_FEATURES.STARTER,
+    );
     return access.legacy as Record<PlanFeatureKey, boolean>;
   }
 
   async modulesFor(code: string): Promise<Record<string, PlanModuleGrant>> {
     const row = await this.getByCode(code);
     if (row) return row.modules;
-    return normalizePlanAccess(null, PLAN_FEATURES[code] || PLAN_FEATURES.STARTER).modules;
+    return normalizePlanAccess(
+      null,
+      PLAN_FEATURES[code] || PLAN_FEATURES.STARTER,
+    ).modules;
   }
 
   private packFeatures(input?: {
@@ -218,6 +250,7 @@ export class PlanCatalogService implements OnModuleInit {
     nameEn: string;
     monthlyPrice: number;
     yearlyPrice: number;
+    yearlyDiscountPct?: number;
     invoicesLimit: number;
     usersLimit: number;
     support?: string;
@@ -236,13 +269,22 @@ export class PlanCatalogService implements OnModuleInit {
       features: data.features,
       modules: data.modules,
     });
+    const yearlyDiscountPct =
+      data.yearlyDiscountPct != null
+        ? data.yearlyDiscountPct
+        : discountFromPrices(data.monthlyPrice, data.yearlyPrice) || 20;
+    const yearlyPrice =
+      data.yearlyPrice > 0
+        ? data.yearlyPrice
+        : yearlyFromMonthly(data.monthlyPrice, yearlyDiscountPct);
     const created = await this.prisma.planDefinition.create({
       data: {
         code,
         nameAr: data.nameAr.trim(),
         nameEn: data.nameEn.trim(),
         monthlyPrice: data.monthlyPrice,
-        yearlyPrice: data.yearlyPrice,
+        yearlyPrice,
+        yearlyDiscountPct,
         invoicesLimit: data.invoicesLimit,
         usersLimit: data.usersLimit,
         support: data.support || 'email',
@@ -263,6 +305,7 @@ export class PlanCatalogService implements OnModuleInit {
       nameEn: string;
       monthlyPrice: number;
       yearlyPrice: number;
+      yearlyDiscountPct: number;
       invoicesLimit: number;
       usersLimit: number;
       support: string;
@@ -292,6 +335,9 @@ export class PlanCatalogService implements OnModuleInit {
           monthlyPrice: data.monthlyPrice,
         }),
         ...(data.yearlyPrice !== undefined && { yearlyPrice: data.yearlyPrice }),
+        ...(data.yearlyDiscountPct !== undefined && {
+          yearlyDiscountPct: data.yearlyDiscountPct,
+        }),
         ...(data.invoicesLimit !== undefined && {
           invoicesLimit: data.invoicesLimit,
         }),
@@ -312,7 +358,9 @@ export class PlanCatalogService implements OnModuleInit {
     });
     if (!existing) throw new Error('Plan not found');
     if (existing.isSystem) {
-      throw new Error('System plans cannot be deleted — deactivate or edit features instead');
+      throw new Error(
+        'System plans cannot be deleted — deactivate or edit features instead',
+      );
     }
     const inUse = await this.prisma.company.count({
       where: { plan: code, deletedAt: null },

@@ -273,6 +273,22 @@ export class AdminService implements OnModuleInit {
     return data;
   }
 
+  /** Active plans for landing-page pricing (monthly / yearly). */
+  async publicPlans() {
+    const rows = await this.planCatalog.listAll(false);
+    return rows.map((p) => ({
+      id: p.code,
+      nameAr: p.nameAr,
+      nameEn: p.nameEn,
+      monthlyPrice: p.monthlyPrice,
+      yearlyPrice: p.yearlyPrice,
+      yearlyDiscountPct: p.yearlyDiscountPct,
+      currency: p.currency,
+      invoicesLimit: p.invoicesLimit,
+      usersLimit: p.usersLimit,
+    }));
+  }
+
   /**
    * Logos of paid active companies for the landing page.
    * Paid = planExpiry in the future (set after successful subscription payment).
@@ -1230,6 +1246,7 @@ export class AdminService implements OnModuleInit {
     nameEn: string;
     monthlyPrice: number;
     yearlyPrice: number;
+    yearlyDiscountPct?: number;
     invoicesLimit: number;
     usersLimit: number;
     support?: string;
@@ -1259,6 +1276,7 @@ export class AdminService implements OnModuleInit {
       nameEn: string;
       monthlyPrice: number;
       yearlyPrice: number;
+      yearlyDiscountPct: number;
       invoicesLimit: number;
       usersLimit: number;
       support: string;

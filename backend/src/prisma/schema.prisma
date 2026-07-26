@@ -1547,6 +1547,8 @@ model PlanDefinition {
   nameEn        String   @map("name_en")
   monthlyPrice  Decimal  @map("monthly_price") @db.Decimal(12, 3)
   yearlyPrice   Decimal  @map("yearly_price") @db.Decimal(12, 3)
+  /// Percent off list yearly (monthly × 12). Used to auto-calc yearly from monthly.
+  yearlyDiscountPct Decimal @default(20) @map("yearly_discount_pct") @db.Decimal(5, 2)
   invoicesLimit Int      @map("invoices_limit")
   usersLimit    Int      @map("users_limit")
   support       String   @default("email")

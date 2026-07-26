@@ -691,6 +691,22 @@ class ApiClient {
     }>('/public/customer-logos');
   }
 
+  getPublicPlans() {
+    return this.client.get<
+      {
+        id: string;
+        nameAr: string;
+        nameEn: string;
+        monthlyPrice: number;
+        yearlyPrice: number;
+        yearlyDiscountPct: number;
+        currency: string;
+        invoicesLimit: number;
+        usersLimit: number;
+      }[]
+    >('/public/plans');
+  }
+
   getPublicMaintenance() {
     return this.client.get<{
       enabled: boolean;

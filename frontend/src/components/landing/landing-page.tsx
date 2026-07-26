@@ -18,6 +18,10 @@ import { landingCopy } from "@/lib/landing-copy";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useCountUp } from "@/hooks/use-count-up";
+import {
+  monthlyFromYearly,
+  yearlySavings,
+} from "@/lib/plan-pricing";
 
 const featureIcons = [FileText, ShoppingCart, UtensilsCrossed, Package, PieChart, Shield];
 
@@ -44,6 +48,16 @@ type PlatformStats = {
     visits: number | null;
     volume: number | null;
   };
+};
+
+type PublicPlan = {
+  id: string;
+  nameAr: string;
+  nameEn: string;
+  monthlyPrice: number;
+  yearlyPrice: number;
+  yearlyDiscountPct: number;
+  currency: string;
 };
 
 function formatCompact(n: number, locale: string) {
@@ -118,6 +132,8 @@ export function LandingPage() {
   const [customerLogos, setCustomerLogos] = useState<
     { id: string; name: string; logo: string }[]
   >([]);
+  const [billing, setBilling] = useState<"monthly" | "yearly">("monthly");
+  const [livePlans, setLivePlans] = useState<PublicPlan[]>([]);
   const t = landingCopy[locale === "en" ? "en" : "ar"];
   const isAr = locale !== "en";
 
@@ -157,6 +173,30 @@ export function LandingPage() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.getPublicPlans();
+        if (!cancelled && Array.isArray(res.data) && res.data.length) {
+          setLivePlans(res.data as PublicPlan[]);
+        }
+      } catch {
+        /* fall back to static copy */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const showPricing = (mode: "monthly" | "yearly") => {
+    setBilling(mode);
+    if (typeof document !== "undefined") {
+      document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" });
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#fafcfb] text-slate-900" dir={isAr ? "rtl" : "ltr"}>
@@ -306,6 +346,13 @@ export function LandingPage() {
                     >
                       {t.register}
                     </Link>
+                    <button
+                      type="button"
+                      onClick={() => showPricing(billing === "monthly" ? "yearly" : "monthly")}
+                      className="rounded-2xl border border-emerald-950/10 bg-white/80 px-7 py-3 text-[15px] font-bold text-emerald-950 transition hover:bg-white"
+                    >
+                      {t.compareBilling}
+                    </button>
                     <Link
                       href="/login"
                       className="rounded-2xl border border-emerald-950/10 bg-white/80 px-7 py-3 text-[15px] font-bold text-emerald-950 transition hover:bg-white"
@@ -509,57 +556,173 @@ export function LandingPage() {
 
       <section id="pricing" className="border-y border-emerald-950/[0.04] bg-white py-20 md:py-24">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <h2 className="text-2xl font-extrabold tracking-tight text-emerald-950 sm:text-3xl">{t.pricingTitle}</h2>
-          <p className="mt-3 text-[15px] text-slate-500">{t.pricingSub}</p>
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="text-2xl font-extrabold tracking-tight text-emerald-950 sm:text-3xl">
+                {t.pricingTitle}
+              </h2>
+              <p className="mt-3 text-[15px] text-slate-500">{t.pricingSub}</p>
+            </div>
+            <div className="inline-flex rounded-2xl border border-emerald-950/10 bg-[#fafcfb] p-1 self-start">
+              <button
+                type="button"
+                onClick={() => setBilling("monthly")}
+                className={cn(
+                  "rounded-xl px-4 py-2 text-sm font-bold transition",
+                  billing === "monthly"
+                    ? "bg-emerald-900 text-white shadow-sm"
+                    : "text-slate-500 hover:text-emerald-950",
+                )}
+              >
+                {t.billingMonthly}
+              </button>
+              <button
+                type="button"
+                onClick={() => setBilling("yearly")}
+                className={cn(
+                  "rounded-xl px-4 py-2 text-sm font-bold transition",
+                  billing === "yearly"
+                    ? "bg-emerald-900 text-white shadow-sm"
+                    : "text-slate-500 hover:text-emerald-950",
+                )}
+              >
+                {t.billingYearly}
+              </button>
+            </div>
+          </div>
+
           <div className="mt-12 grid gap-4 md:grid-cols-3">
-            {t.plans.map((p) => {
-              const featured = Boolean((p as { featured?: boolean }).featured);
-              return (
-                <div
-                  key={p.name}
-                  className={cn(
-                    "rounded-2xl border p-7 transition",
-                    featured
-                      ? "border-emerald-900/20 bg-emerald-950 text-white shadow-lg shadow-emerald-950/10"
-                      : "border-emerald-950/8 bg-[#fafcfb] hover:border-emerald-900/15"
-                  )}
-                >
-                  <p className={cn("text-xs font-medium", featured ? "text-emerald-200/70" : "text-slate-400")}>
-                    {p.note}
-                  </p>
-                  <h3 className={cn("mt-1.5 text-lg font-bold", featured ? "text-white" : "text-emerald-950")}>
-                    {p.name}
-                  </h3>
+            {(livePlans.length
+              ? livePlans.map((p, i) => {
+                  const featured = p.id === "PROFESSIONAL" || i === 1;
+                  const price =
+                    billing === "monthly" ? p.monthlyPrice : p.yearlyPrice;
+                  const unit = billing === "monthly" ? t.perMonth : t.perYear;
+                  const save = yearlySavings(p.monthlyPrice, p.yearlyPrice);
+                  const disc =
+                    p.yearlyDiscountPct ||
+                    (p.monthlyPrice > 0
+                      ? Math.round(
+                          ((p.monthlyPrice * 12 - p.yearlyPrice) /
+                            (p.monthlyPrice * 12)) *
+                            100,
+                        )
+                      : 0);
+                  return {
+                    key: p.id,
+                    name: isAr ? p.nameAr : p.nameEn,
+                    note:
+                      p.id === "STARTER"
+                        ? t.plans[0]?.note
+                        : p.id === "ENTERPRISE"
+                          ? t.plans[2]?.note
+                          : t.plans[1]?.note,
+                    featured,
+                    price: String(price),
+                    unit,
+                    save,
+                    disc,
+                    equiv: monthlyFromYearly(p.yearlyPrice),
+                  };
+                })
+              : t.plans.map((p) => {
+                  const monthly = Number(p.price) || 0;
+                  const yearly = Math.round(monthly * 12 * 0.8 * 1000) / 1000;
+                  const price = billing === "monthly" ? monthly : yearly;
+                  return {
+                    key: p.name,
+                    name: p.name,
+                    note: p.note,
+                    featured: Boolean((p as { featured?: boolean }).featured),
+                    price: String(price),
+                    unit: billing === "monthly" ? t.perMonth : t.perYear,
+                    save: monthly * 12 - yearly,
+                    disc: 20,
+                    equiv: monthlyFromYearly(yearly),
+                  };
+                })
+            ).map((p) => (
+              <div
+                key={p.key}
+                className={cn(
+                  "rounded-2xl border p-7 transition",
+                  p.featured
+                    ? "border-emerald-900/20 bg-emerald-950 text-white shadow-lg shadow-emerald-950/10"
+                    : "border-emerald-950/8 bg-[#fafcfb] hover:border-emerald-900/15",
+                )}
+              >
+                <div className="flex items-start justify-between gap-2">
                   <p
                     className={cn(
-                      "mt-6 text-4xl font-extrabold tracking-tight",
-                      featured ? "text-white" : "text-emerald-950"
+                      "text-xs font-medium",
+                      p.featured ? "text-emerald-200/70" : "text-slate-400",
                     )}
                   >
-                    {p.price}
+                    {p.note}
+                  </p>
+                  {billing === "yearly" && p.disc > 0 ? (
                     <span
                       className={cn(
-                        "ms-2 text-sm font-medium",
-                        featured ? "text-emerald-200/60" : "text-slate-400"
+                        "text-[10px] font-bold px-2 py-0.5 rounded-full",
+                        p.featured
+                          ? "bg-white/15 text-emerald-100"
+                          : "bg-emerald-100 text-emerald-800",
                       )}
                     >
-                      {p.unit}
+                      {t.saveYearly} {p.disc}%
                     </span>
-                  </p>
-                  <Link
-                    href="/register"
+                  ) : null}
+                </div>
+                <h3
+                  className={cn(
+                    "mt-1.5 text-lg font-bold",
+                    p.featured ? "text-white" : "text-emerald-950",
+                  )}
+                >
+                  {p.name}
+                </h3>
+                <p
+                  className={cn(
+                    "mt-6 text-4xl font-extrabold tracking-tight",
+                    p.featured ? "text-white" : "text-emerald-950",
+                  )}
+                >
+                  {p.price}
+                  <span
                     className={cn(
-                      "mt-8 inline-flex w-full justify-center rounded-xl py-2.5 text-sm font-bold transition",
-                      featured
-                        ? "bg-white text-emerald-950 hover:bg-emerald-50"
-                        : "bg-emerald-900 text-white hover:bg-emerald-800"
+                      "ms-2 text-sm font-medium",
+                      p.featured ? "text-emerald-200/60" : "text-slate-400",
                     )}
                   >
-                    {t.register}
-                  </Link>
-                </div>
-              );
-            })}
+                    {p.unit}
+                  </span>
+                </p>
+                {billing === "yearly" && p.equiv > 0 ? (
+                  <p
+                    className={cn(
+                      "mt-2 text-xs font-semibold",
+                      p.featured ? "text-emerald-200/70" : "text-teal-800",
+                    )}
+                  >
+                    {t.equivMonth} {p.equiv} {isAr ? "ر.ع / شهر" : "OMR / mo"}
+                    {p.save > 0
+                      ? ` · ${t.saveYearly} ${p.save} ${isAr ? "ر.ع" : "OMR"}`
+                      : ""}
+                  </p>
+                ) : null}
+                <Link
+                  href="/register"
+                  className={cn(
+                    "mt-8 inline-flex w-full justify-center rounded-xl py-2.5 text-sm font-bold transition",
+                    p.featured
+                      ? "bg-white text-emerald-950 hover:bg-emerald-50"
+                      : "bg-emerald-900 text-white hover:bg-emerald-800",
+                  )}
+                >
+                  {t.register}
+                </Link>
+              </div>
+            ))}
           </div>
         </div>
       </section>

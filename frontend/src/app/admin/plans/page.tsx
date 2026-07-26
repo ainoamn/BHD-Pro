@@ -16,6 +16,12 @@ import {
   type PlanModuleGrant,
 } from "@/lib/plan-access-catalog";
 import { PLAN_FEATURES } from "@/lib/plan-features-defaults";
+import {
+  discountFromPrices,
+  monthlyFromYearly,
+  yearlyFromMonthly,
+  yearlySavings,
+} from "@/lib/plan-pricing";
 
 type PlanDef = {
   id: string;
@@ -24,6 +30,7 @@ type PlanDef = {
   nameEn: string;
   monthlyPrice: number;
   yearlyPrice: number;
+  yearlyDiscountPct?: number;
   invoicesLimit: number;
   usersLimit: number;
   support: string;
@@ -49,6 +56,7 @@ type Draft = {
   nameEn: string;
   monthlyPrice: number;
   yearlyPrice: number;
+  yearlyDiscountPct: number;
   invoicesLimit: number;
   usersLimit: number;
   isActive: boolean;
@@ -68,7 +76,7 @@ const emptyNewPlan = {
   nameAr: "",
   nameEn: "",
   monthlyPrice: "10",
-  yearlyPrice: "96",
+  yearlyDiscountPct: "20",
   invoicesLimit: "100",
   usersLimit: "5",
 };
@@ -80,11 +88,16 @@ function toDraft(p: PlanDef): Draft {
       : (p.features as Record<string, unknown>),
     PLAN_FEATURES[p.code] || PLAN_FEATURES.STARTER,
   );
+  const yearlyDiscountPct =
+    p.yearlyDiscountPct != null && p.yearlyDiscountPct > 0
+      ? Number(p.yearlyDiscountPct)
+      : discountFromPrices(p.monthlyPrice, p.yearlyPrice) || 20;
   return {
     nameAr: p.nameAr,
     nameEn: p.nameEn,
     monthlyPrice: p.monthlyPrice,
     yearlyPrice: p.yearlyPrice,
+    yearlyDiscountPct,
     invoicesLimit: p.invoicesLimit,
     usersLimit: p.usersLimit,
     isActive: p.isActive,
@@ -138,6 +151,7 @@ export default function AdminPlansPage() {
         nameEn: d.nameEn,
         monthlyPrice: Number(d.monthlyPrice),
         yearlyPrice: Number(d.yearlyPrice),
+        yearlyDiscountPct: Number(d.yearlyDiscountPct),
         invoicesLimit: Number(d.invoicesLimit),
         usersLimit: Number(d.usersLimit),
         isActive: d.isActive,
@@ -159,12 +173,15 @@ export default function AdminPlansPage() {
     if (!newPlan.code.trim() || !newPlan.nameAr.trim()) return;
     setCreating(true);
     try {
+      const monthly = Number(newPlan.monthlyPrice) || 0;
+      const disc = Number(newPlan.yearlyDiscountPct) || 20;
       await api.createAdminPlan({
         code: newPlan.code,
         nameAr: newPlan.nameAr,
         nameEn: newPlan.nameEn || newPlan.nameAr,
-        monthlyPrice: Number(newPlan.monthlyPrice) || 0,
-        yearlyPrice: Number(newPlan.yearlyPrice) || 0,
+        monthlyPrice: monthly,
+        yearlyPrice: yearlyFromMonthly(monthly, disc),
+        yearlyDiscountPct: disc,
         invoicesLimit: Number(newPlan.invoicesLimit) || 50,
         usersLimit: Number(newPlan.usersLimit) || 2,
         modules: defaultModulesFromLegacy(PLAN_FEATURES.STARTER),
@@ -209,6 +226,53 @@ export default function AdminPlansPage() {
       const cur = prev[code];
       if (!cur) return prev;
       return { ...prev, [code]: { ...cur, ...patch } };
+    });
+  };
+
+  const setMonthly = (code: string, monthlyPrice: number) => {
+    setDrafts((prev) => {
+      const cur = prev[code];
+      if (!cur) return prev;
+      const yearlyDiscountPct = cur.yearlyDiscountPct;
+      return {
+        ...prev,
+        [code]: {
+          ...cur,
+          monthlyPrice,
+          yearlyPrice: yearlyFromMonthly(monthlyPrice, yearlyDiscountPct),
+        },
+      };
+    });
+  };
+
+  const setYearlyDiscount = (code: string, yearlyDiscountPct: number) => {
+    setDrafts((prev) => {
+      const cur = prev[code];
+      if (!cur) return prev;
+      return {
+        ...prev,
+        [code]: {
+          ...cur,
+          yearlyDiscountPct,
+          yearlyPrice: yearlyFromMonthly(cur.monthlyPrice, yearlyDiscountPct),
+        },
+      };
+    });
+  };
+
+  const setYearly = (code: string, yearlyPrice: number) => {
+    setDrafts((prev) => {
+      const cur = prev[code];
+      if (!cur) return prev;
+      return {
+        ...prev,
+        [code]: {
+          ...cur,
+          yearlyPrice,
+          // Keep list monthly; derive discount so annual savings stay meaningful.
+          yearlyDiscountPct: discountFromPrices(cur.monthlyPrice, yearlyPrice),
+        },
+      };
     });
   };
 
@@ -286,38 +350,122 @@ export default function AdminPlansPage() {
                   </div>
 
                   <div className="mt-3 grid grid-cols-2 gap-2">
-                    {(
-                      [
-                        ["nameAr", en ? "Name AR" : "الاسم عربي", d.nameAr, "text"],
-                        ["nameEn", en ? "Name EN" : "الاسم إنجليزي", d.nameEn, "text"],
-                        ["monthlyPrice", en ? "Monthly" : "شهري", d.monthlyPrice, "number"],
-                        ["yearlyPrice", en ? "Yearly" : "سنوي", d.yearlyPrice, "number"],
-                        [
-                          "invoicesLimit",
-                          en ? "Invoices/mo" : "فواتير/شهر",
-                          d.invoicesLimit,
-                          "number",
-                        ],
-                        ["usersLimit", en ? "Users" : "مستخدمون", d.usersLimit, "number"],
-                      ] as const
-                    ).map(([key, label, val, kind]) => (
-                      <label key={key} className="text-[10px] space-y-0.5 col-span-1">
-                        <span className="text-slate-500 font-bold">{label}</span>
-                        <input
-                          type={kind}
-                          value={val as string | number}
-                          onChange={(e) =>
-                            patchDraft(p.code, {
-                              [key]:
-                                kind === "number"
-                                  ? Number(e.target.value)
-                                  : e.target.value,
-                            } as Partial<Draft>)
-                          }
-                          className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs"
-                        />
-                      </label>
-                    ))}
+                    <label className="text-[10px] space-y-0.5">
+                      <span className="text-slate-500 font-bold">
+                        {en ? "Name AR" : "الاسم عربي"}
+                      </span>
+                      <input
+                        value={d.nameAr}
+                        onChange={(e) =>
+                          patchDraft(p.code, { nameAr: e.target.value })
+                        }
+                        className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs"
+                      />
+                    </label>
+                    <label className="text-[10px] space-y-0.5">
+                      <span className="text-slate-500 font-bold">
+                        {en ? "Name EN" : "الاسم إنجليزي"}
+                      </span>
+                      <input
+                        value={d.nameEn}
+                        onChange={(e) =>
+                          patchDraft(p.code, { nameEn: e.target.value })
+                        }
+                        className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs"
+                      />
+                    </label>
+                    <label className="text-[10px] space-y-0.5">
+                      <span className="text-slate-500 font-bold">
+                        {en ? "Monthly" : "شهري"}
+                      </span>
+                      <input
+                        type="number"
+                        step="0.001"
+                        value={d.monthlyPrice}
+                        onChange={(e) =>
+                          setMonthly(p.code, Number(e.target.value))
+                        }
+                        className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs"
+                      />
+                    </label>
+                    <label className="text-[10px] space-y-0.5">
+                      <span className="text-slate-500 font-bold">
+                        {en ? "Yearly discount %" : "تخفيض سنوي %"}
+                      </span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        step="0.01"
+                        value={d.yearlyDiscountPct}
+                        onChange={(e) =>
+                          setYearlyDiscount(p.code, Number(e.target.value))
+                        }
+                        className="w-full rounded-lg border border-teal-200 bg-white px-2 py-1.5 text-xs"
+                      />
+                    </label>
+                    <label className="text-[10px] space-y-0.5 col-span-2">
+                      <span className="text-slate-500 font-bold">
+                        {en ? "Yearly total" : "الإجمالي السنوي"}
+                      </span>
+                      <input
+                        type="number"
+                        step="0.001"
+                        value={d.yearlyPrice}
+                        onChange={(e) =>
+                          setYearly(p.code, Number(e.target.value))
+                        }
+                        className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs"
+                      />
+                      <span className="text-[10px] text-teal-800 font-semibold block mt-1 leading-relaxed">
+                        {en
+                          ? `Auto: ${d.monthlyPrice}×12 − ${d.yearlyDiscountPct}% → ${d.yearlyPrice} OMR · effective ${monthlyFromYearly(d.yearlyPrice)}/mo · save ${yearlySavings(d.monthlyPrice, d.yearlyPrice)}`
+                          : `تلقائي: ${d.monthlyPrice}×12 − ${d.yearlyDiscountPct}% ← ${d.yearlyPrice} ر.ع · يعادل ${monthlyFromYearly(d.yearlyPrice)}/شهر · توفير ${yearlySavings(d.monthlyPrice, d.yearlyPrice)}`}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          patchDraft(p.code, {
+                            monthlyPrice: monthlyFromYearly(d.yearlyPrice),
+                          })
+                        }
+                        className="text-[10px] font-bold text-slate-600 hover:text-teal-800 underline mt-1"
+                      >
+                        {en
+                          ? "Set monthly = yearly ÷ 12"
+                          : "تعيين الشهري = السنوي ÷ 12"}
+                      </button>
+                    </label>
+                    <label className="text-[10px] space-y-0.5">
+                      <span className="text-slate-500 font-bold">
+                        {en ? "Invoices/mo" : "فواتير/شهر"}
+                      </span>
+                      <input
+                        type="number"
+                        value={d.invoicesLimit}
+                        onChange={(e) =>
+                          patchDraft(p.code, {
+                            invoicesLimit: Number(e.target.value),
+                          })
+                        }
+                        className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs"
+                      />
+                    </label>
+                    <label className="text-[10px] space-y-0.5">
+                      <span className="text-slate-500 font-bold">
+                        {en ? "Users" : "مستخدمون"}
+                      </span>
+                      <input
+                        type="number"
+                        value={d.usersLimit}
+                        onChange={(e) =>
+                          patchDraft(p.code, {
+                            usersLimit: Number(e.target.value),
+                          })
+                        }
+                        className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs"
+                      />
+                    </label>
                   </div>
 
                   <div className="mt-3 flex flex-wrap items-center gap-2">
