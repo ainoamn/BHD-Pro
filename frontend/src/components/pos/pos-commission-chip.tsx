@@ -111,6 +111,23 @@ export function PosCommissionChip() {
     }
   };
 
+  const doReversePayout = async (ledgerId: string) => {
+    if (!window.confirm(t.reversePayoutConfirm)) return;
+    setBusy(true);
+    try {
+      await api.reversePosCommissionPayout(ledgerId);
+      toast.success(t.reversePayoutOk);
+      await refresh();
+    } catch (err) {
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message || t.reversePayoutFail;
+      toast.error(typeof msg === "string" ? msg : t.reversePayoutFail);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div ref={rootRef} className="relative">
       <button
@@ -169,8 +186,20 @@ export function PosCommissionChip() {
                     {row.type}
                     {row.note ? ` · ${row.note}` : ""}
                   </span>
-                  <span className="shrink-0 tabular-nums text-slate-200">
-                    {fmt(Number(row.amount))}
+                  <span className="flex shrink-0 items-center gap-1">
+                    <span className="tabular-nums text-slate-200">
+                      {fmt(Number(row.amount))}
+                    </span>
+                    {isAdmin && row.type === "PAYOUT" ? (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void doReversePayout(row.id)}
+                        className="rounded px-1 text-[9px] font-semibold text-rose-300 hover:bg-rose-500/20 disabled:opacity-50"
+                      >
+                        {t.reversePayout}
+                      </button>
+                    ) : null}
                   </span>
                 </li>
               ))

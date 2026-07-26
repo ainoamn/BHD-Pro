@@ -385,6 +385,59 @@ export class ErpService {
     });
   }
 
+  async reverseLastDepreciation(companyId: string, userId: string, id: string) {
+    const asset = await this.ensureAsset(companyId, id);
+    const deps = await this.prisma.journal.findMany({
+      where: {
+        companyId,
+        OR: [
+          { reference: `DEP:${id}` },
+          { reference: { startsWith: `DEP:${id}:` } },
+        ],
+      },
+      orderBy: { createdAt: 'desc' },
+      include: { lines: true },
+    });
+
+    let target = null as (typeof deps)[number] | null;
+    for (const j of deps) {
+      const rev = await this.prisma.journal.findFirst({
+        where: { companyId, reference: `REV-DEP:${j.id}` },
+      });
+      if (!rev) {
+        target = j;
+        break;
+      }
+    }
+    if (!target) {
+      throw new BadRequestException('No depreciation to reverse');
+    }
+
+    const amount = Number(
+      target.lines.reduce((s, l) => s + Number(l.debit), 0).toFixed(3),
+    );
+    const journal = await this.glPosting.reverseAssetDepreciation(
+      companyId,
+      userId,
+      target.id,
+    );
+    if (!journal) {
+      throw new BadRequestException('Failed to reverse depreciation journal');
+    }
+
+    const nextValue = Number((Number(asset.currentValue) + amount).toFixed(3));
+    const updated = await this.prisma.fixedAsset.update({
+      where: { id },
+      data: { currentValue: nextValue },
+    });
+    return {
+      asset: updated,
+      reversedJournalId: target.id,
+      reverseJournalId: journal.id,
+      amount,
+    };
+  }
+
   private async ensureAsset(companyId: string, id: string) {
     const row = await this.prisma.fixedAsset.findFirst({ where: { id, companyId } });
     if (!row) throw new NotFoundException('Asset not found');
@@ -450,7 +503,31 @@ export class ErpService {
   }
 
   async deleteBankAccount(companyId: string, id: string) {
-    await this.ensureBankAccount(companyId, id);
+    const bank = await this.ensureBankAccount(companyId, id);
+    if (Math.abs(Number(bank.currentBalance)) > 0.0005) {
+      throw new BadRequestException(
+        'Cannot delete bank account with non-zero balance — transfer out first',
+      );
+    }
+    const [payments, payroll, claims, commitments, statements] = await Promise.all([
+      this.prisma.payment.count({ where: { bankAccountId: id } }),
+      this.prisma.payrollRun.count({ where: { bankAccountId: id } }),
+      this.prisma.employeeClaim.count({ where: { bankAccountId: id } }),
+      this.prisma.recurringCommitment.count({ where: { bankAccountId: id } }),
+      this.prisma.bankStatementLine.count({ where: { bankAccountId: id } }),
+    ]);
+    if (payments + payroll + claims + commitments > 0) {
+      throw new BadRequestException(
+        'Cannot delete bank account linked to payments/payroll/claims/commitments — deactivate instead',
+      );
+    }
+    if (statements > 0) {
+      await this.prisma.bankAccount.update({
+        where: { id },
+        data: { isActive: false },
+      });
+      return { message: 'Deactivated (statement history retained)', deactivated: true };
+    }
     await this.prisma.bankAccount.delete({ where: { id } });
     return { message: 'Deleted' };
   }

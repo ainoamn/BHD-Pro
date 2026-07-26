@@ -82,6 +82,8 @@
       "PAYROLL_PAY": "صرف مسير الرواتب",
       "CLAIM_PAY": "صرف مطالبة موظف",
       "BANK_INTERNAL_TRANSFER": "تحويل بين الحسابات البنكية",
+      "FX_REVALUATION": "ترحيل/عكس إعادة تقييم العملات",
+      "COMMISSION_PAYOUT": "صرف عمولة الكاشير",
       "RESTO_VOID": "إلغاء / مجاملة بند مطعم"
     },
     "pinSet": "رمز المشرف مضبوط",
@@ -1101,6 +1103,9 @@
     "depreciate": "إهلاك شهري",
     "depreciateConfirm": "تطبيق إهلاك شهري على هذا الأصل؟",
     "depreciated": "تم تطبيق الإهلاك",
+    "reverseDep": "عكس آخر إهلاك",
+    "reverseDepConfirm": "عكس آخر قيد إهلاك لهذا الأصل؟",
+    "reversedDep": "تم عكس الإهلاك",
     "glAccount": "حساب دفتر الأستاذ",
     "assetCat_BUILDING": "مباني",
     "assetCat_VEHICLE": "مركبات",
@@ -1381,6 +1386,8 @@
     "ap": "ذمم دائنة",
     "skipped": "تم تخطيها",
     "confirmPost": "ترحيل قيد إعادة تقييم العملات لهذا التاريخ؟",
+    "confirmReverse": "عكس قيد إعادة تقييم العملات لهذا التاريخ؟",
+    "reversed": "تم عكس إعادة التقييم ({number})",
     "nothingToPost": "لا يوجد ما يُرحَّل",
     "posted": "تم ترحيل القيد {number} — {count} فاتورة"
   },

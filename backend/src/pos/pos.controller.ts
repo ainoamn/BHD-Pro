@@ -21,6 +21,7 @@ import {
   LinkPosDto,
   OpenPosShiftDto,
   PayoutCommissionDto,
+  ReverseCommissionPayoutDto,
   PosStoreCreditTopUpDto,
   RefundPosSaleDto,
   BlindReturnDto,
@@ -39,6 +40,7 @@ import { IsEnum, IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
 import { PlanFeatureGuard } from '../common/guards/plan-feature.guard';
 import { RequirePlanFeature } from '../common/decorators/require-plan-feature.decorator';
 import { ModulePermissionGuard } from '../common/guards/module-permission.guard';
+import { DualControlService } from '../dual-control/dual-control.service';
 
 class PartnerCheckoutDto {
   @IsOptional()
@@ -85,6 +87,7 @@ export class PosController {
     private payments: PaymentsService,
     private companyGateways: CompanyGatewaysService,
     private terminalTap: TerminalTapService,
+    private dualControl: DualControlService,
   ) {}
 
   @Get('incentives/config')
@@ -156,10 +159,16 @@ export class PosController {
   @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Pay out cashier commission (ADMIN/MANAGER)' })
-  payoutCommission(
+  async payoutCommission(
     @CurrentUser() user: TokenPayload,
     @Body() dto: PayoutCommissionDto,
   ) {
+    await this.dualControl.assertApproved(
+      user.companyId,
+      user,
+      'COMMISSION_PAYOUT',
+      dto.approval,
+    );
     return this.incentives.payout(
       user.companyId,
       user.sub,
@@ -171,6 +180,24 @@ export class PosController {
         warehouseId: dto.warehouseId,
       },
     );
+  }
+
+  @Post('incentives/payout/:ledgerId/reverse')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @ApiOperation({ summary: 'Reverse a commission payout (ledger + drawer cash/GL)' })
+  async reversePayoutCommission(
+    @CurrentUser() user: TokenPayload,
+    @Param('ledgerId') ledgerId: string,
+    @Body() dto: ReverseCommissionPayoutDto,
+  ) {
+    await this.dualControl.assertApproved(
+      user.companyId,
+      user,
+      'COMMISSION_PAYOUT',
+      dto?.approval,
+    );
+    return this.incentives.reversePayout(user.companyId, user.sub, ledgerId);
   }
 
   @Get('incentives/customers/:contactId/points')
@@ -335,7 +362,7 @@ export class PosController {
   }
 
   @Post('store-credit/top-up')
-  @Roles(...POS_STAFF)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Top up customer store credit from POS floor' })
   topUpStoreCredit(

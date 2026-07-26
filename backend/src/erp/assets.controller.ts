@@ -49,4 +49,12 @@ export class AssetsController {
   depreciate(@CurrentUser() u: TokenPayload, @Param('id') id: string) {
     return this.erp.depreciateAsset(u.companyId, u.sub, id);
   }
+
+  @Post(':id/reverse-last-depreciation')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  reverseLastDepreciation(@CurrentUser() u: TokenPayload, @Param('id') id: string) {
+    return this.erp.reverseLastDepreciation(u.companyId, u.sub, id);
+  }
 }

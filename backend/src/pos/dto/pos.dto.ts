@@ -583,6 +583,18 @@ export class PayoutCommissionDto {
   @IsOptional()
   @IsUUID()
   warehouseId?: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DualApprovalDto)
+  approval?: DualApprovalDto;
+}
+
+export class ReverseCommissionPayoutDto {
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DualApprovalDto)
+  approval?: DualApprovalDto;
 }
 
 export class UpdatePosFavoritesDto {

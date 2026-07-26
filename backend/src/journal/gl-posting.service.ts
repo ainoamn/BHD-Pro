@@ -1495,4 +1495,76 @@ export class GlPostingService {
       lines,
     );
   }
+
+  async reverseFxRevaluation(companyId: string, userId: string, journalId: string) {
+    const original = await this.prisma.journal.findFirst({
+      where: { id: journalId, companyId },
+      include: { lines: true },
+    });
+    if (!original) return null;
+    if (!original.reference?.startsWith('FX-REV:')) {
+      throw new BadRequestException('Journal is not an FX revaluation');
+    }
+
+    const revRef = `REV-FX:${journalId}`;
+    const existing = await this.prisma.journal.findFirst({
+      where: { companyId, reference: revRef },
+    });
+    if (existing) return existing;
+    if (!original.lines.length) return null;
+
+    const lines: JournalLineInput[] = original.lines.map((line) => ({
+      accountId: line.accountId,
+      description: `عكس ${line.description || 'FX'}`,
+      debit: Number(line.credit),
+      credit: Number(line.debit),
+    }));
+
+    return this.createEntry(
+      companyId,
+      userId,
+      {
+        date: new Date(),
+        description: `عكس ${original.description || 'إعادة تقييم عملات'}`,
+        reference: revRef,
+      },
+      lines,
+    );
+  }
+
+  async reverseAssetDepreciation(companyId: string, userId: string, journalId: string) {
+    const original = await this.prisma.journal.findFirst({
+      where: { id: journalId, companyId },
+      include: { lines: true },
+    });
+    if (!original) return null;
+    if (!original.reference?.startsWith('DEP:')) {
+      throw new BadRequestException('Journal is not an asset depreciation');
+    }
+
+    const revRef = `REV-DEP:${journalId}`;
+    const existing = await this.prisma.journal.findFirst({
+      where: { companyId, reference: revRef },
+    });
+    if (existing) return existing;
+    if (!original.lines.length) return null;
+
+    const lines: JournalLineInput[] = original.lines.map((line) => ({
+      accountId: line.accountId,
+      description: `عكس ${line.description || 'إهلاك'}`,
+      debit: Number(line.credit),
+      credit: Number(line.debit),
+    }));
+
+    return this.createEntry(
+      companyId,
+      userId,
+      {
+        date: new Date(),
+        description: `عكس ${original.description || 'إهلاك أصل'}`,
+        reference: revRef,
+      },
+      lines,
+    );
+  }
 }

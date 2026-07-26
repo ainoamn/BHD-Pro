@@ -130,6 +130,8 @@ export class DualControlService {
       PAYROLL_PAY: config.actions?.PAYROLL_PAY !== false,
       CLAIM_PAY: config.actions?.CLAIM_PAY !== false,
       BANK_INTERNAL_TRANSFER: config.actions?.BANK_INTERNAL_TRANSFER !== false,
+      FX_REVALUATION: config.actions?.FX_REVALUATION !== false,
+      COMMISSION_PAYOUT: config.actions?.COMMISSION_PAYOUT !== false,
       RESTO_VOID: config.actions?.RESTO_VOID !== false,
     };
     const whatsappReady = this.whatsapp.isConfigured();

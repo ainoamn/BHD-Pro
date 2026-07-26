@@ -47,6 +47,8 @@ export default function FxRevaluationPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [previewKey, setPreviewKey] = useState(0);
 
+  const [lastJournalId, setLastJournalId] = useState<string | null>(null);
+
   const { data, isLoading, isFetching, refetch, error } = useQuery({
     queryKey: ["fx-revaluation-preview", asOf, previewKey],
     queryFn: async () => {
@@ -79,11 +81,33 @@ export default function FxRevaluationPage() {
         invoiceIds: selected.size ? Array.from(selected) : undefined,
       }),
     onSuccess: (res) => {
-      const body = res.data as { journalNumber?: string; postedCount: number };
+      const body = res.data as {
+        journalId?: string;
+        journalNumber?: string;
+        postedCount: number;
+      };
+      if (body.journalId) setLastJournalId(body.journalId);
       toast.success(
         t("posted", { number: body.journalNumber || "", count: body.postedCount }),
       );
       setSelected(new Set());
+      setPreviewKey((k) => k + 1);
+      queryClient.invalidateQueries({ queryKey: ["journals"] });
+    },
+    onError: (err: { response?: { data?: { message?: string } } }) => {
+      toast.error(err.response?.data?.message || tCommon("error"));
+    },
+  });
+
+  const reverseMutation = useMutation({
+    mutationFn: () =>
+      api.reverseFxRevaluation(
+        lastJournalId ? { journalId: lastJournalId } : { asOf },
+      ),
+    onSuccess: (res) => {
+      const body = res.data as { journalNumber?: string };
+      toast.success(t("reversed", { number: body.journalNumber || "" }));
+      setLastJournalId(null);
       setPreviewKey((k) => k + 1);
       queryClient.invalidateQueries({ queryKey: ["journals"] });
     },
@@ -99,6 +123,11 @@ export default function FxRevaluationPage() {
     }
     if (!confirm(t("confirmPost"))) return;
     postMutation.mutate();
+  };
+
+  const handleReverse = () => {
+    if (!confirm(t("confirmReverse"))) return;
+    reverseMutation.mutate();
   };
 
   return (
@@ -151,6 +180,16 @@ export default function FxRevaluationPage() {
           >
             {postMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
             {t("postJournal")}
+          </button>
+          <button
+            type="button"
+            onClick={handleReverse}
+            disabled={reverseMutation.isPending}
+            className="flex items-center gap-2 h-10 px-4 bg-amber-600/90 text-white rounded-lg disabled:opacity-50"
+          >
+            {reverseMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+            <ArrowLeftRight className="w-4 h-4" />
+            {t("confirmReverse")}
           </button>
         </div>
         <p className="text-sm text-slate-400">{t("hint")}</p>

@@ -79,7 +79,9 @@ export function ErpCrudPage<T extends { id: string }>({
       setEditId(null);
       setForm(emptyForm());
     },
-    onError: () => toast.error(tCommon("error")),
+    onError: (err: { response?: { data?: { message?: string } } }) => {
+      toast.error(err.response?.data?.message || tCommon("error"));
+    },
   });
 
   const deleteMutation = useMutation({
@@ -88,7 +90,9 @@ export function ErpCrudPage<T extends { id: string }>({
       queryClient.invalidateQueries({ queryKey: [queryKey] });
       toast.success(tCommon("deleted"));
     },
-    onError: () => toast.error(tCommon("error")),
+    onError: (err: { response?: { data?: { message?: string } } }) => {
+      toast.error(err.response?.data?.message || tCommon("error"));
+    },
   });
 
   const openCreate = () => {

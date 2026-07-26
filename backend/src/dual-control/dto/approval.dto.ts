@@ -92,6 +92,8 @@ export const DUAL_CONTROL_ACTIONS = [
   'PAYROLL_PAY',
   'CLAIM_PAY',
   'BANK_INTERNAL_TRANSFER',
+  'FX_REVALUATION',
+  'COMMISSION_PAYOUT',
   'RESTO_VOID',
 ] as const;
 export type DualControlAction = (typeof DUAL_CONTROL_ACTIONS)[number];
@@ -167,6 +169,14 @@ export class DualControlActionsDto {
 
   @IsOptional()
   @IsBoolean()
+  FX_REVALUATION?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  COMMISSION_PAYOUT?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
   RESTO_VOID?: boolean;
 }
 
@@ -200,6 +210,8 @@ export class UpdateSecurityConfigDto {
   /** E.164-ish phone numbers that receive WhatsApp OTP (digits with country code) */
   @ApiPropertyOptional({ type: [String] })
   @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
   whatsappNotifyPhones?: string[];
 
   /** Raw NFC badge secret — hashed and appended to nfcBadgeHashes (never stored raw) */

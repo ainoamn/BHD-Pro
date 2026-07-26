@@ -949,6 +949,9 @@ class ApiClient {
   depreciateAsset(id: string) {
     return this.post(`/assets/${id}/depreciate`);
   }
+  reverseLastAssetDepreciation(id: string) {
+    return this.post(`/assets/${id}/reverse-last-depreciation`);
+  }
 
   getBankAccounts() {
     return this.get('/bank-accounts');
@@ -1249,6 +1252,9 @@ class ApiClient {
 
   postFxRevaluation(data: { asOf: string; invoiceIds?: string[] }) {
     return this.post('/fx-revaluation/post', data);
+  }
+  reverseFxRevaluation(data: { journalId?: string; asOf?: string }) {
+    return this.post('/fx-revaluation/reverse', data);
   }
 
   getDeliveryNotes() {
@@ -3314,6 +3320,10 @@ class ApiClient {
     deductFromDrawer?: boolean;
   }) {
     return this.post("/pos/incentives/payout", data);
+  }
+
+  reversePosCommissionPayout(ledgerId: string) {
+    return this.post(`/pos/incentives/payout/${ledgerId}/reverse`);
   }
 
   getPosShiftAnomalies(shiftId: string) {

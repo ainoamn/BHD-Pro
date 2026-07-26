@@ -273,4 +273,44 @@ export class FxRevaluationService {
       items,
     };
   }
+
+  async reverse(companyId: string, userId: string, opts: { journalId?: string; asOf?: string }) {
+    let journalId = opts.journalId;
+    if (!journalId && opts.asOf) {
+      const asOfDate = opts.asOf.slice(0, 10);
+      const original = await this.prisma.journal.findFirst({
+        where: { companyId, reference: `FX-REV:${asOfDate}` },
+      });
+      if (!original) {
+        throw new NotFoundException(`No FX revaluation for ${asOfDate}`);
+      }
+      journalId = original.id;
+    }
+    if (!journalId) {
+      throw new BadRequestException('journalId or asOf is required');
+    }
+
+    const already = await this.prisma.journal.findFirst({
+      where: { companyId, reference: `REV-FX:${journalId}` },
+    });
+    if (already) {
+      return {
+        journalId: already.id,
+        journalNumber: already.number,
+        reversedOf: journalId,
+        alreadyReversed: true,
+      };
+    }
+
+    const journal = await this.glPosting.reverseFxRevaluation(companyId, userId, journalId);
+    if (!journal) {
+      throw new BadRequestException('FX revaluation journal not found or failed to reverse');
+    }
+    return {
+      journalId: journal.id,
+      journalNumber: journal.number,
+      reversedOf: journalId,
+      alreadyReversed: false,
+    };
+  }
 }

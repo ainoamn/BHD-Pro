@@ -82,6 +82,8 @@
       "PAYROLL_PAY": "Payroll payout",
       "CLAIM_PAY": "Employee claim payout",
       "BANK_INTERNAL_TRANSFER": "Internal bank transfer",
+      "FX_REVALUATION": "FX revaluation post/reverse",
+      "COMMISSION_PAYOUT": "POS commission payout",
       "RESTO_VOID": "Restaurant void / comp"
     },
     "pinSet": "Supervisor PIN is set",
@@ -1101,6 +1103,9 @@
     "depreciate": "Depreciate month",
     "depreciateConfirm": "Apply one month of depreciation to this asset?",
     "depreciated": "Depreciation applied",
+    "reverseDep": "Reverse last dep.",
+    "reverseDepConfirm": "Reverse the latest depreciation for this asset?",
+    "reversedDep": "Depreciation reversed",
     "glAccount": "GL account",
     "assetCat_BUILDING": "Building",
     "assetCat_VEHICLE": "Vehicle",
@@ -1381,6 +1386,8 @@
     "ap": "AP",
     "skipped": "Skipped",
     "confirmPost": "Post FX revaluation journal for this date?",
+    "confirmReverse": "Reverse the FX revaluation journal for this date?",
+    "reversed": "FX revaluation reversed ({number})",
     "nothingToPost": "Nothing to post",
     "posted": "Posted journal {number} — {count} invoices"
   },

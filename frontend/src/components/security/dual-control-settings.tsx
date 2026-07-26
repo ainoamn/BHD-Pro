@@ -50,6 +50,8 @@ type SecurityPublic = {
     PAYROLL_PAY: boolean;
     CLAIM_PAY: boolean;
     BANK_INTERNAL_TRANSFER: boolean;
+    FX_REVALUATION: boolean;
+    COMMISSION_PAYOUT: boolean;
     RESTO_VOID: boolean;
   };
 };
@@ -72,6 +74,8 @@ const ACTION_KEYS = [
   "PAYROLL_PAY",
   "CLAIM_PAY",
   "BANK_INTERNAL_TRANSFER",
+  "FX_REVALUATION",
+  "COMMISSION_PAYOUT",
   "RESTO_VOID",
 ] as const;
 
@@ -101,6 +105,8 @@ export function DualControlSettings() {
     PAYROLL_PAY: true,
     CLAIM_PAY: true,
     BANK_INTERNAL_TRANSFER: true,
+    FX_REVALUATION: true,
+    COMMISSION_PAYOUT: true,
     RESTO_VOID: true,
   });
   const [pin, setPin] = useState("");
@@ -151,6 +157,8 @@ export function DualControlSettings() {
       PAYROLL_PAY: true,
       CLAIM_PAY: true,
       BANK_INTERNAL_TRANSFER: true,
+      FX_REVALUATION: true,
+      COMMISSION_PAYOUT: true,
       RESTO_VOID: true,
     };
     setActions({ ...defaults, ...data.actions });

@@ -643,13 +643,14 @@ export class PosIncentivesService {
       return { ledger, cashMovement: null };
     }
 
+    const cashReason = `${COMMISSION_CASH_OUT_REASON}:${ledger.id}`;
     let cashMovement = await this.prisma.posCashMovement.create({
       data: {
         companyId,
         shiftId: shift.id,
         type: 'OUT',
         amount: amt,
-        reason: COMMISSION_CASH_OUT_REASON,
+        reason: cashReason,
         createdById: adminId,
       },
       include: {
@@ -660,7 +661,7 @@ export class PosIncentivesService {
     const reference = `POS-CASH-OUT:${cashMovement.id}`;
     const journal = await this.glPosting.postPosCashOut(companyId, adminId, {
       amount: amt,
-      reason: COMMISSION_CASH_OUT_REASON,
+      reason: cashReason,
       reference,
     });
 
@@ -675,6 +676,56 @@ export class PosIncentivesService {
     }
 
     return { ledger, cashMovement };
+  }
+
+  async reversePayout(companyId: string, adminId: string, ledgerId: string) {
+    const ledger = await this.prisma.cashierCommissionLedger.findFirst({
+      where: { id: ledgerId, companyId, type: 'PAYOUT' },
+    });
+    if (!ledger) throw new NotFoundException('Commission payout not found');
+
+    const revNote = `REV-PAYOUT:${ledger.id}`;
+    const existing = await this.prisma.cashierCommissionLedger.findFirst({
+      where: { companyId, note: revNote },
+    });
+    if (existing) {
+      return { ledger, adjust: existing, cashMovement: null, alreadyReversed: true };
+    }
+
+    const amt = Number(ledger.amount);
+    const adjust = await this.prisma.cashierCommissionLedger.create({
+      data: {
+        companyId,
+        userId: ledger.userId,
+        type: 'ADJUST',
+        amount: amt,
+        note: revNote,
+        createdById: adminId,
+      },
+    });
+
+    const cashMovement = await this.prisma.posCashMovement.findFirst({
+      where: {
+        companyId,
+        type: 'OUT',
+        reason: { contains: ledger.id },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (cashMovement) {
+      if (cashMovement.journalId) {
+        await this.glPosting.reversePosCashMovement(companyId, adminId, cashMovement);
+      }
+      await this.prisma.posCashMovement.delete({ where: { id: cashMovement.id } });
+    }
+
+    return {
+      ledger,
+      adjust,
+      cashMovementId: cashMovement?.id || null,
+      alreadyReversed: false,
+    };
   }
 
   async getContactPoints(companyId: string, contactId: string) {

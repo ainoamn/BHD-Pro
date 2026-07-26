@@ -56,6 +56,18 @@ export default function AssetsPage() {
     },
   });
 
+  const reverseDepMutation = useMutation({
+    mutationFn: (id: string) => api.reverseLastAssetDepreciation(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["assets"] });
+      queryClient.invalidateQueries({ queryKey: ["accounts-tree"] });
+      toast.success(t("reversedDep"));
+    },
+    onError: (err: { response?: { data?: { message?: string } } }) => {
+      toast.error(err.response?.data?.message || tCommon("error"));
+    },
+  });
+
   return (
     <ErpCrudPage<AssetRow>
       title={t("assetsTitle")}
@@ -119,17 +131,31 @@ export default function AssetsPage() {
         { key: "location", label: t("location") },
       ]}
       rowActions={(row) =>
-        Number(row.depreciationRate) > 0 && Number(row.currentValue) > 0 ? (
-          <button
-            type="button"
-            disabled={depreciateMutation.isPending}
-            onClick={() => {
-              if (confirm(t("depreciateConfirm"))) depreciateMutation.mutate(row.id);
-            }}
-            className="text-xs px-2 py-1 rounded bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 disabled:opacity-50"
-          >
-            {t("depreciate")}
-          </button>
+        Number(row.depreciationRate) > 0 ? (
+          <div className="flex gap-1">
+            {Number(row.currentValue) > 0 ? (
+              <button
+                type="button"
+                disabled={depreciateMutation.isPending}
+                onClick={() => {
+                  if (confirm(t("depreciateConfirm"))) depreciateMutation.mutate(row.id);
+                }}
+                className="text-xs px-2 py-1 rounded bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 disabled:opacity-50"
+              >
+                {t("depreciate")}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              disabled={reverseDepMutation.isPending}
+              onClick={() => {
+                if (confirm(t("reverseDepConfirm"))) reverseDepMutation.mutate(row.id);
+              }}
+              className="text-xs px-2 py-1 rounded bg-sky-500/10 text-sky-400 hover:bg-sky-500/20 disabled:opacity-50"
+            >
+              {t("reverseDep")}
+            </button>
+          </div>
         ) : null
       }
     />

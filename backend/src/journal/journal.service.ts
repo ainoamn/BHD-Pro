@@ -249,6 +249,16 @@ export class JournalService {
         'Commitment accrual journal — reverse via POST /commitments/:id/reverse-last',
       );
     }
+    if (journal.reference?.startsWith('FX-REV:')) {
+      throw new BadRequestException(
+        'FX revaluation journal — reverse via POST /fx-revaluation/reverse',
+      );
+    }
+    if (journal.reference?.startsWith('DEP:')) {
+      throw new BadRequestException(
+        'Depreciation journal — reverse via POST /assets/:id/reverse-last-depreciation',
+      );
+    }
 
     const accountIds = [...new Set(journal.lines.map((l) => l.accountId))];
     const accountRows = await this.prisma.account.findMany({
