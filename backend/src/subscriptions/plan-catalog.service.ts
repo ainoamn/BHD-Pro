@@ -1,12 +1,14 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import {
-  ALL_PLAN_FEATURE_KEYS,
-  normalizePlanFeatures,
   PLAN_DETAILS,
   PLAN_FEATURES,
   PlanFeatureKey,
 } from '../common/plan-features';
+import {
+  normalizePlanAccess,
+  type PlanModuleGrant,
+} from '../common/plan-access-catalog';
 
 export type PlanCatalogItem = {
   id: string;
@@ -18,7 +20,10 @@ export type PlanCatalogItem = {
   invoicesLimit: number;
   usersLimit: number;
   support: string;
+  /** Coarse flags for existing API guards */
   features: Record<PlanFeatureKey, boolean>;
+  /** Granular sidebar/POS/resto grants */
+  modules: Record<string, PlanModuleGrant>;
   isActive: boolean;
   isSystem: boolean;
   sortOrder: number;
@@ -63,7 +68,13 @@ export class PlanCatalogService implements OnModuleInit {
           invoicesLimit: details.invoicesLimit,
           usersLimit: details.usersLimit,
           support: details.support,
-          features: PLAN_FEATURES[row.code] || PLAN_FEATURES.STARTER,
+          features: {
+            ...PLAN_FEATURES[row.code],
+            modules: normalizePlanAccess(
+              null,
+              PLAN_FEATURES[row.code],
+            ).modules,
+          },
           isActive: true,
           isSystem: true,
           sortOrder: row.sortOrder,
@@ -88,12 +99,16 @@ export class PlanCatalogService implements OnModuleInit {
     isSystem: boolean;
     sortOrder: number;
   }): PlanCatalogItem {
-    const num = (v: { toNumber?: () => number } | number | string) => {
+      const num = (v: { toNumber?: () => number } | number | string) => {
       if (typeof v === 'number') return v;
       if (typeof v === 'string') return Number(v);
       if (v && typeof v.toNumber === 'function') return v.toNumber();
       return Number(v);
     };
+    const access = normalizePlanAccess(
+      r.features as Record<string, unknown>,
+      PLAN_FEATURES[r.code] || PLAN_FEATURES.STARTER,
+    );
     return {
       id: r.id,
       code: r.code,
@@ -104,10 +119,8 @@ export class PlanCatalogService implements OnModuleInit {
       invoicesLimit: r.invoicesLimit,
       usersLimit: r.usersLimit,
       support: r.support,
-      features: normalizePlanFeatures(
-        r.features as Record<string, unknown>,
-        r.code,
-      ),
+      features: access.legacy as Record<PlanFeatureKey, boolean>,
+      modules: access.modules,
       isActive: r.isActive,
       isSystem: r.isSystem,
       sortOrder: r.sortOrder,
@@ -173,7 +186,30 @@ export class PlanCatalogService implements OnModuleInit {
   async featuresFor(code: string): Promise<Record<PlanFeatureKey, boolean>> {
     const row = await this.getByCode(code);
     if (row) return row.features;
-    return normalizePlanFeatures(null, code);
+    const access = normalizePlanAccess(null, PLAN_FEATURES[code] || PLAN_FEATURES.STARTER);
+    return access.legacy as Record<PlanFeatureKey, boolean>;
+  }
+
+  async modulesFor(code: string): Promise<Record<string, PlanModuleGrant>> {
+    const row = await this.getByCode(code);
+    if (row) return row.modules;
+    return normalizePlanAccess(null, PLAN_FEATURES[code] || PLAN_FEATURES.STARTER).modules;
+  }
+
+  private packFeatures(input?: {
+    features?: Record<string, boolean>;
+    modules?: Record<string, PlanModuleGrant | boolean>;
+  }) {
+    const access = normalizePlanAccess(
+      input?.modules
+        ? { modules: input.modules as Record<string, unknown> }
+        : (input?.features as Record<string, unknown>) || null,
+      PLAN_FEATURES.STARTER,
+    );
+    return {
+      ...access.legacy,
+      modules: access.modules,
+    };
   }
 
   async create(data: {
@@ -186,6 +222,7 @@ export class PlanCatalogService implements OnModuleInit {
     usersLimit: number;
     support?: string;
     features?: Record<string, boolean>;
+    modules?: Record<string, PlanModuleGrant | boolean>;
     isActive?: boolean;
     sortOrder?: number;
   }) {
@@ -195,10 +232,10 @@ export class PlanCatalogService implements OnModuleInit {
       .replace(/[^A-Z0-9_]/g, '_')
       .slice(0, 32);
     if (!code) throw new Error('Invalid plan code');
-    const features = normalizePlanFeatures(data.features || null, 'STARTER');
-    // New custom plans: accounting/inventory on by default
-    features.accounting = data.features?.accounting ?? true;
-    features.inventory = data.features?.inventory ?? true;
+    const features = this.packFeatures({
+      features: data.features,
+      modules: data.modules,
+    });
     const created = await this.prisma.planDefinition.create({
       data: {
         code,
@@ -230,6 +267,7 @@ export class PlanCatalogService implements OnModuleInit {
       usersLimit: number;
       support: string;
       features: Record<string, boolean>;
+      modules: Record<string, PlanModuleGrant | boolean>;
       isActive: boolean;
       sortOrder: number;
     }>,
@@ -239,8 +277,11 @@ export class PlanCatalogService implements OnModuleInit {
     });
     if (!existing) throw new Error('Plan not found');
     const features =
-      data.features !== undefined
-        ? normalizePlanFeatures(data.features, code)
+      data.modules !== undefined || data.features !== undefined
+        ? this.packFeatures({
+            features: data.features,
+            modules: data.modules,
+          })
         : undefined;
     const updated = await this.prisma.planDefinition.update({
       where: { code },
@@ -282,9 +323,5 @@ export class PlanCatalogService implements OnModuleInit {
     await this.prisma.planDefinition.delete({ where: { code } });
     this.invalidate();
     return { ok: true };
-  }
-
-  featureKeys() {
-    return ALL_PLAN_FEATURE_KEYS;
   }
 }

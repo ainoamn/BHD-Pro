@@ -52,6 +52,11 @@ import {
   subscriptionUpgradeHref,
   type UpgradeFeatureKey,
 } from "@/lib/plan-upgrade";
+import {
+  findPlanModule,
+  moduleCodeByHref,
+  type PlanModuleGrant,
+} from "@/lib/plan-access-catalog";
 
 const navItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "dashboard" },
@@ -109,6 +114,36 @@ export function Sidebar() {
     multiBranch: true,
     advancedReports: true,
   });
+  const [modules, setModules] = useState<Record<string, PlanModuleGrant> | null>(
+    null,
+  );
+
+  const isModuleOpen = (code: string, legacyFallback?: boolean) => {
+    const grant = modules?.[code];
+    if (grant) return grant.enabled !== false;
+    if (legacyFallback !== undefined) return legacyFallback;
+    return true;
+  };
+
+  const lockForHref = (
+    href: string,
+  ): { code: string; upgradeKey: UpgradeFeatureKey | string } | null => {
+    const code = moduleCodeByHref(href);
+    if (!code) return null;
+    if (isModuleOpen(code)) return null;
+    const mod = findPlanModule(code);
+    const legacy = mod?.legacyFeature;
+    const upgradeKey =
+      legacy === "pos" ||
+      legacy === "resto" ||
+      legacy === "aiAnalytics" ||
+      legacy === "multiBranch" ||
+      legacy === "apiKeys" ||
+      legacy === "advancedReports"
+        ? legacy
+        : code;
+    return { code, upgradeKey };
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -131,8 +166,14 @@ export function Sidebar() {
     (async () => {
       try {
         const res = await api.getCurrentSubscription();
-        const f = (res.data as { features?: Record<string, boolean> })?.features;
-        if (!cancelled && f) setFeatures((prev) => ({ ...prev, ...f }));
+        const data = res.data as {
+          features?: Record<string, boolean>;
+          modules?: Record<string, PlanModuleGrant>;
+        };
+        if (!cancelled) {
+          if (data.features) setFeatures((prev) => ({ ...prev, ...data.features }));
+          if (data.modules) setModules(data.modules);
+        }
       } catch {
         /* keep defaults until subscription loads */
       }
@@ -189,7 +230,7 @@ export function Sidebar() {
       </div>
 
       <div className="px-3 pt-3 shrink-0 space-y-2">
-        {features.pos !== false ? (
+        {isModuleOpen("pos", features.pos !== false) ? (
           <Link
             href="/pos"
             onClick={() => {
@@ -229,7 +270,7 @@ export function Sidebar() {
             )}
           </Link>
         )}
-        {features.resto !== false ? (
+        {isModuleOpen("resto", features.resto !== false) ? (
           <Link
             href="/resto"
             onClick={() => {
@@ -274,24 +315,28 @@ export function Sidebar() {
       <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
         <nav className="px-3 py-4 space-y-1">
           {navItems.map((item) => {
-            const lockedFeature: UpgradeFeatureKey | null =
-              item.href === "/ai-analytics" && features.aiAnalytics === false
-                ? "aiAnalytics"
-                : (item.href === "/branches" || item.href === "/projects") &&
-                    features.multiBranch === false
-                  ? "multiBranch"
-                  : null;
+            const locked = lockForHref(item.href);
             const isActive =
-              !lockedFeature &&
+              !locked &&
               (pathname === item.href || pathname.startsWith(item.href + "/"));
             const Icon = item.icon;
-            if (lockedFeature) {
+            if (locked) {
+              const upgradeKey = locked.upgradeKey;
+              const known =
+                upgradeKey === "pos" ||
+                upgradeKey === "resto" ||
+                upgradeKey === "aiAnalytics" ||
+                upgradeKey === "multiBranch" ||
+                upgradeKey === "apiKeys" ||
+                upgradeKey === "advancedReports"
+                  ? (upgradeKey as UpgradeFeatureKey)
+                  : null;
               return (
                 <Link
                   key={item.href}
-                  href={subscriptionUpgradeHref(lockedFeature, item.href)}
+                  href={subscriptionUpgradeHref(upgradeKey, item.href)}
                   onClick={() => {
-                    rememberUpgradeIntent(lockedFeature, item.href);
+                    rememberUpgradeIntent(known, item.href);
                     closeMobile();
                   }}
                   className={cn(
@@ -359,17 +404,26 @@ export function Sidebar() {
             </Link>
           )}
           {settingsItems.map((item) => {
-            const lockedFeature: UpgradeFeatureKey | null =
-              item.href === "/api-keys" && features.apiKeys === false ? "apiKeys" : null;
-            const isActive = !lockedFeature && pathname === item.href;
+            const locked = lockForHref(item.href);
+            const isActive = !locked && pathname === item.href;
             const Icon = item.icon;
-            if (lockedFeature) {
+            if (locked) {
+              const upgradeKey = locked.upgradeKey;
+              const known =
+                upgradeKey === "apiKeys" ||
+                upgradeKey === "advancedReports" ||
+                upgradeKey === "multiBranch" ||
+                upgradeKey === "aiAnalytics" ||
+                upgradeKey === "pos" ||
+                upgradeKey === "resto"
+                  ? (upgradeKey as UpgradeFeatureKey)
+                  : null;
               return (
                 <Link
                   key={item.href}
-                  href={subscriptionUpgradeHref(lockedFeature, item.href)}
+                  href={subscriptionUpgradeHref(upgradeKey, item.href)}
                   onClick={() => {
-                    rememberUpgradeIntent(lockedFeature, item.href);
+                    rememberUpgradeIntent(known, item.href);
                     closeMobile();
                   }}
                   className={cn(

@@ -49,6 +49,18 @@ export class AdminService implements OnModuleInit {
           ? { permissions: ['full'], isActive: true }
           : {},
       });
+
+      // Owner login user must stay active (platformOperator ≠ User.isActive)
+      if (isOwner) {
+        await this.prisma.user.updateMany({
+          where: { email },
+          data: {
+            isActive: true,
+            loginAttempts: 0,
+            lockedUntil: null,
+          },
+        });
+      }
     }
   }
 
@@ -975,6 +987,10 @@ export class AdminService implements OnModuleInit {
     usersLimit: number;
     support?: string;
     features?: Record<string, boolean>;
+    modules?: Record<
+      string,
+      { enabled: boolean; transactionLimit: number | null } | boolean
+    >;
     isActive?: boolean;
     sortOrder?: number;
   }) {
@@ -1000,6 +1016,7 @@ export class AdminService implements OnModuleInit {
       usersLimit: number;
       support: string;
       features: Record<string, boolean>;
+      modules: Record<string, { enabled: boolean; transactionLimit: number | null } | boolean>;
       isActive: boolean;
       sortOrder: number;
     }>,

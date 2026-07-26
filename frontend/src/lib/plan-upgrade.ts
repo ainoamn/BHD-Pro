@@ -93,6 +93,7 @@ export function subscriptionUpgradeHref(
   const params = new URLSearchParams();
   const f = parseUpgradeFeature(feature);
   if (f) params.set("feature", f);
+  else if (feature && typeof feature === "string") params.set("module", feature);
   if (from) params.set("from", from);
   const q = params.toString();
   return q ? `/subscription?${q}` : "/subscription";

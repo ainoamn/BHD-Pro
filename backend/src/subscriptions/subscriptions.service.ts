@@ -32,6 +32,7 @@ export class SubscriptionsService {
       usersLimit: p.usersLimit,
       support: p.support,
       features: p.features,
+      modules: p.modules,
       currency: 'OMR',
     }));
   }
@@ -55,6 +56,7 @@ export class SubscriptionsService {
         ? company.invoicesLimitOverride
         : planDetails.invoicesLimit;
     const features = await this.plans.featuresFor(company.plan);
+    const modules = await this.plans.modulesFor(company.plan);
 
     const invoiceCount = await this.prisma.invoice.count({
       where: {
@@ -73,6 +75,7 @@ export class SubscriptionsService {
         invoicesLimit,
       },
       features,
+      modules,
       planExpiry: company.planExpiry,
       planStartedAt: company.planStartedAt,
       currency: company.currency,
