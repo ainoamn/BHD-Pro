@@ -129,8 +129,9 @@ export class AccountsService {
     }
 
     const data: Record<string, unknown> = { ...dto };
+    // Never clobber posted currentBalance from openingBalance edits
     if (dto.openingBalance != null) {
-      data.currentBalance = dto.openingBalance;
+      delete data.currentBalance;
     }
 
     return this.prisma.account.update({

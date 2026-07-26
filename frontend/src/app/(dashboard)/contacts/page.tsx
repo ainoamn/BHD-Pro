@@ -275,6 +275,9 @@ function ContactsContent() {
       queryClient.invalidateQueries({ queryKey: ["contacts"] });
       toast.success(t("deleted"));
     },
+    onError: (err: { response?: { data?: { message?: string } } }) => {
+      toast.error(err.response?.data?.message || t("saveError"));
+    },
   });
 
   return (

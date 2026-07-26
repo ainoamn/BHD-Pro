@@ -108,6 +108,20 @@ export class EmployeeClaimsController {
     return this.service.markPaid(user.companyId, user.sub, id, dto);
   }
 
+  @Post(':id/unpay')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @ApiOperation({ summary: 'Reverse claim payment GL and return to approved' })
+  async unpay(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+    @Body() dto: MarkClaimPaidDto,
+  ) {
+    await this.dualControl.assertApproved(user.companyId, user, 'CLAIM_PAY', dto?.approval);
+    return this.service.unpay(user.companyId, user.sub, id);
+  }
+
   @Delete(':id')
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)

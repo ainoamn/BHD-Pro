@@ -1288,6 +1288,8 @@
     "action_approve": "تم اعتماد المطالبة",
     "action_reject": "تم رفض المطالبة",
     "action_pay": "تم تمييز المطالبة كمدفوعة",
+    "unpay": "عكس الصرف",
+    "action_unpay": "تم عكس صرف المطالبة",
     "status_DRAFT": "مسودة",
     "status_SUBMITTED": "مُرسلة",
     "status_APPROVED": "معتمدة",

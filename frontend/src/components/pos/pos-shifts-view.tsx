@@ -220,6 +220,7 @@ export function PosShiftsView({
   const [varianceLimit, setVarianceLimit] = useState(DEFAULT_VARIANCE_LIMIT);
   const [approvalOpen, setApprovalOpen] = useState(false);
   const [cashApprovalOpen, setCashApprovalOpen] = useState(false);
+  const [reverseCashId, setReverseCashId] = useState<string | null>(null);
   const [pendingCloseCash, setPendingCloseCash] = useState<number | null>(null);
   const [cashType, setCashType] = useState<"IN" | "OUT">("IN");
   const [cashAmount, setCashAmount] = useState("");
@@ -439,6 +440,35 @@ export function PosShiftsView({
       response?: { status?: number; data?: { message?: string | string[] } };
     }) => {
       if (isDualControlRequired(err) && cashType === "OUT") {
+        setCashApprovalOpen(true);
+        toast.error(t.cashOutNeedApproval);
+        return;
+      }
+      const raw = err.response?.data?.message;
+      const msg = Array.isArray(raw) ? raw[0] : raw;
+      toast.error(msg || t.cashMovementFail);
+    },
+  });
+
+  const reverseCashMut = useMutation({
+    mutationFn: ({
+      id,
+      approval,
+    }: {
+      id: string;
+      approval?: DualApprovalPayload;
+    }) => api.reversePosCashMovement(id, { approval }),
+    onSuccess: () => {
+      toast.success(t.cashReverseOk);
+      setReverseCashId(null);
+      setCashApprovalOpen(false);
+      qc.invalidateQueries({ queryKey: ["pos-shift-current"] });
+      qc.invalidateQueries({ queryKey: ["pos-shifts-today"] });
+    },
+    onError: (err: {
+      response?: { status?: number; data?: { message?: string | string[] } };
+    }) => {
+      if (isDualControlRequired(err) && reverseCashId) {
         setCashApprovalOpen(true);
         toast.error(t.cashOutNeedApproval);
         return;
@@ -821,7 +851,21 @@ export function PosShiftsView({
                         {m.createdBy?.name ? ` · ${m.createdBy.name}` : ""}
                       </span>
                     </span>
-                    <span className="font-bold text-white shrink-0">{m.amount}</span>
+                    <span className="flex flex-col items-end gap-1 shrink-0">
+                      <span className="font-bold text-white">{m.amount}</span>
+                      <button
+                        type="button"
+                        disabled={reverseCashMut.isPending}
+                        onClick={() => {
+                          if (!confirm(t.cashReverseConfirm)) return;
+                          setReverseCashId(m.id);
+                          reverseCashMut.mutate({ id: m.id });
+                        }}
+                        className="text-[10px] text-rose-300 hover:text-rose-200 disabled:opacity-50"
+                      >
+                        {t.cashReverse}
+                      </button>
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -1348,9 +1392,16 @@ export function PosShiftsView({
         }}
         summary={`${t.cashOut}: ${cashAmount} (≥ ${cashOutLimit})`}
         actorRole={user?.role}
-        busy={cashMut.isPending}
-        onCancel={() => setCashApprovalOpen(false)}
+        busy={cashMut.isPending || reverseCashMut.isPending}
+        onCancel={() => {
+          setCashApprovalOpen(false);
+          setReverseCashId(null);
+        }}
         onConfirm={async (approval) => {
+          if (reverseCashId) {
+            await reverseCashMut.mutateAsync({ id: reverseCashId, approval });
+            return;
+          }
           await cashMut.mutateAsync(approval);
         }}
       />

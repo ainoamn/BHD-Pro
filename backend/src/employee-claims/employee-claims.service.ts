@@ -237,6 +237,27 @@ export class EmployeeClaimsService {
     return this.findOne(companyId, id);
   }
 
+  async unpay(companyId: string, userId: string, id: string) {
+    const claim = await this.findOne(companyId, id);
+    if (claim.status !== EmployeeClaimStatus.PAID) {
+      throw new BadRequestException('Only paid claims can be unpaid');
+    }
+    await this.glPosting.reverseClaimPayment(companyId, userId, claim);
+    return this.prisma.employeeClaim.update({
+      where: { id },
+      data: {
+        status: EmployeeClaimStatus.APPROVED,
+        paidAt: null,
+        paymentMethod: null,
+        bankAccountId: null,
+      },
+      include: {
+        employee: { select: { id: true, name: true, employeeNumber: true } },
+        lines: true,
+      },
+    });
+  }
+
   async remove(companyId: string, id: string) {
     const claim = await this.findOne(companyId, id);
     if (

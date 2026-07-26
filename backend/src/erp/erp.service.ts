@@ -317,6 +317,20 @@ export class ErpService {
 
   async deleteAsset(companyId: string, id: string) {
     await this.ensureAsset(companyId, id);
+    const depCount = await this.prisma.journal.count({
+      where: {
+        companyId,
+        OR: [
+          { reference: `DEP:${id}` },
+          { reference: { startsWith: `DEP:${id}:` } },
+        ],
+      },
+    });
+    if (depCount > 0) {
+      throw new BadRequestException(
+        'Cannot delete asset with depreciation journals — reverse or keep for audit',
+      );
+    }
     await this.prisma.fixedAsset.delete({ where: { id } });
     return { message: 'Deleted' };
   }
@@ -333,21 +347,21 @@ export class ErpService {
       throw new BadRequestException('Asset is already fully depreciated');
     }
 
-    // Straight-line monthly: annual rate / 12 applied to purchase cost
     const monthly = Number(((cost * rate) / 100 / 12).toFixed(3));
     if (monthly <= 0) {
       throw new BadRequestException('Depreciation amount is zero');
     }
 
     const amount = Math.min(monthly, current);
-    const nextValue = Number((current - amount).toFixed(3));
-
-    const updated = await this.prisma.fixedAsset.update({
-      where: { id },
-      data: { currentValue: nextValue },
+    const periodKey = new Date().toISOString().slice(0, 7);
+    const already = await this.prisma.journal.findFirst({
+      where: { companyId, reference: `DEP:${id}:${periodKey}` },
     });
+    if (already) {
+      throw new BadRequestException(`Asset already depreciated for ${periodKey}`);
+    }
 
-    await this.glPosting.postAssetDepreciation(
+    const journal = await this.glPosting.postAssetDepreciation(
       companyId,
       userId,
       {
@@ -358,8 +372,17 @@ export class ErpService {
       },
       amount,
     );
+    if (!journal) {
+      throw new BadRequestException(
+        'Could not post depreciation journal — check chart of accounts (5300/1510)',
+      );
+    }
 
-    return updated;
+    const nextValue = Number((current - amount).toFixed(3));
+    return this.prisma.fixedAsset.update({
+      where: { id },
+      data: { currentValue: nextValue },
+    });
   }
 
   private async ensureAsset(companyId: string, id: string) {

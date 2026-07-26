@@ -271,6 +271,9 @@ export default function InventoryPage() {
       queryClient.invalidateQueries({ queryKey: ["product-stats"] });
       toast.success(t("deleted"));
     },
+    onError: (err: { response?: { data?: { message?: string } } }) => {
+      toast.error(err.response?.data?.message || t("saveError"));
+    },
   });
 
   const adjustMutation = useMutation({

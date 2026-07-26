@@ -333,6 +333,13 @@ export class CreatePosCashMovementDto {
   approval?: DualApprovalDto;
 }
 
+export class ReversePosCashMovementDto {
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DualApprovalDto)
+  approval?: DualApprovalDto;
+}
+
 /** Audited drawer open without a sale (amount 0, type NO_SALE). */
 export class CreatePosNoSaleDto {
   @IsString()

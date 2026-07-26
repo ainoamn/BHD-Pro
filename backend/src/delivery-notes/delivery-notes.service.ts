@@ -225,12 +225,78 @@ export class DeliveryNotesService {
 
   async cancel(companyId: string, id: string) {
     const note = await this.findOne(companyId, id);
-    if (note.status === DeliveryNoteStatus.DELIVERED) {
-      throw new BadRequestException('Cannot cancel a delivered note (reverse stock manually)');
-    }
     if (note.status === DeliveryNoteStatus.CANCELLED) {
       return note;
     }
+
+    if (note.status === DeliveryNoteStatus.DELIVERED) {
+      const warehouseId = note.warehouseId;
+      if (!warehouseId) {
+        throw new BadRequestException('Delivered note has no warehouse to reverse stock');
+      }
+
+      return this.prisma.$transaction(async (tx) => {
+        for (const item of note.items) {
+          if (!item.productId) continue;
+          const product = await tx.product.findFirst({
+            where: { id: item.productId, companyId },
+          });
+          if (!product || !product.isTracked) continue;
+
+          const qty = Number(item.quantity);
+
+          await tx.warehouseStock.upsert({
+            where: {
+              productId_warehouseId: {
+                productId: product.id,
+                warehouseId,
+              },
+            },
+            create: {
+              productId: product.id,
+              warehouseId,
+              quantity: qty,
+            },
+            update: { quantity: { increment: qty } },
+          });
+
+          await tx.stockMovement.create({
+            data: {
+              productId: product.id,
+              warehouseId,
+              type: MovementType.IN,
+              quantity: qty,
+              unitCost: Number(product.costPrice),
+              reference: note.number,
+              notes: `Undeliver / cancel ${note.number}`,
+            },
+          });
+
+          const agg = await tx.warehouseStock.aggregate({
+            where: { productId: product.id },
+            _sum: { quantity: true },
+          });
+          await tx.product.update({
+            where: { id: product.id },
+            data: { quantity: agg._sum.quantity ?? 0 },
+          });
+        }
+
+        return tx.deliveryNote.update({
+          where: { id },
+          data: {
+            status: DeliveryNoteStatus.CANCELLED,
+            deliveredAt: null,
+          },
+          include: {
+            contact: { select: { id: true, name: true } },
+            warehouse: { select: { id: true, code: true, name: true } },
+            items: { include: { product: { select: { id: true, sku: true, name: true } } } },
+          },
+        });
+      });
+    }
+
     return this.prisma.deliveryNote.update({
       where: { id },
       data: { status: DeliveryNoteStatus.CANCELLED },

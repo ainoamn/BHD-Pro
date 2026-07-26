@@ -1118,6 +1118,10 @@ class ApiClient {
     return this.post(`/employee-claims/${id}/pay`, data || {});
   }
 
+  unpayEmployeeClaim(id: string, data?: { approval?: DualApprovalPayload }) {
+    return this.post(`/employee-claims/${id}/unpay`, data || {});
+  }
+
   deleteEmployeeClaim(id: string) {
     return this.delete(`/employee-claims/${id}`);
   }
@@ -2923,6 +2927,18 @@ class ApiClient {
       journalId?: string | null;
       postedToGl?: boolean;
     }>('/pos/shifts/current/cash-movements', data);
+  }
+
+  reversePosCashMovement(
+    id: string,
+    data?: { approval?: DualApprovalPayload },
+  ) {
+    return this.post<{
+      reversed: boolean;
+      movementId: string;
+      live?: Record<string, unknown>;
+      cashMovements?: unknown[];
+    }>(`/pos/shifts/current/cash-movements/${id}/reverse`, data || {});
   }
 
   createPosNoSale(data: {

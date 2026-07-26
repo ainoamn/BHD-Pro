@@ -576,6 +576,13 @@ export class GlPostingService {
   ) {
     await this.ensureDepreciationAccounts(companyId);
 
+    const periodKey = new Date().toISOString().slice(0, 7);
+    const depRef = `DEP:${asset.id}:${periodKey}`;
+    const existing = await this.prisma.journal.findFirst({
+      where: { companyId, reference: depRef },
+    });
+    if (existing) return existing;
+
     const [depExpense, accumDep, fixedAsset, fallbackExpense] = await Promise.all([
       this.accountByCode(companyId, '5300'),
       this.accountByCode(companyId, '1510'),
@@ -607,7 +614,7 @@ export class GlPostingService {
     return this.createEntry(companyId, userId, {
       date: new Date(),
       description: `إهلاك أصل ${asset.name}`,
-      reference: `DEP:${asset.id}`,
+      reference: depRef,
     }, lines);
   }
 
@@ -1043,6 +1050,60 @@ export class GlPostingService {
     return journal;
   }
 
+  async reverseClaimPayment(
+    companyId: string,
+    userId: string,
+    claim: { id: string; number: string; glPaymentJournalId?: string | null },
+  ) {
+    if (!claim.glPaymentJournalId) return null;
+
+    const revRef = `REV-CLAIM-PAY:${claim.id}`;
+    const existing = await this.prisma.journal.findFirst({
+      where: { companyId, reference: revRef },
+    });
+    if (existing) {
+      await this.prisma.employeeClaim.update({
+        where: { id: claim.id },
+        data: { glPaymentJournalId: null },
+      });
+      return existing;
+    }
+
+    const original = await this.prisma.journal.findFirst({
+      where: { id: claim.glPaymentJournalId, companyId },
+      include: { lines: true },
+    });
+    if (!original || !original.lines.length) return null;
+
+    const lines: JournalLineInput[] = original.lines.map((line) => ({
+      accountId: line.accountId,
+      description: `عكس صرف ${claim.number}`,
+      debit: Number(line.credit),
+      credit: Number(line.debit),
+      ...(line.costCenterId ? { costCenterId: line.costCenterId } : {}),
+      ...(line.projectId ? { projectId: line.projectId } : {}),
+    }));
+
+    const journal = await this.createEntry(
+      companyId,
+      userId,
+      {
+        date: new Date(),
+        description: `عكس صرف مطالبة ${claim.number}`,
+        reference: revRef,
+      },
+      lines,
+    );
+
+    if (journal) {
+      await this.prisma.employeeClaim.update({
+        where: { id: claim.id },
+        data: { glPaymentJournalId: null },
+      });
+    }
+    return journal;
+  }
+
   async postCommitmentAccrual(
     companyId: string,
     userId: string,
@@ -1200,6 +1261,64 @@ export class GlPostingService {
         { accountId: income.id, description: desc, debit: 0, credit: amount },
       ],
     );
+  }
+
+  /** Reverse a POS cash in/out journal by flipping original lines. */
+  async reversePosCashMovement(
+    companyId: string,
+    userId: string,
+    movement: {
+      id: string;
+      type: string;
+      journalId?: string | null;
+      reason?: string | null;
+    },
+  ) {
+    if (!movement.journalId) return null;
+
+    const revRef = `REV-POS-CASH:${movement.id}`;
+    const existing = await this.prisma.journal.findFirst({
+      where: { companyId, reference: revRef },
+    });
+    if (existing) {
+      await this.prisma.posCashMovement.update({
+        where: { id: movement.id },
+        data: { journalId: null },
+      });
+      return existing;
+    }
+
+    const original = await this.prisma.journal.findFirst({
+      where: { id: movement.journalId, companyId },
+      include: { lines: true },
+    });
+    if (!original || !original.lines.length) return null;
+
+    const lines: JournalLineInput[] = original.lines.map((line) => ({
+      accountId: line.accountId,
+      description: `عكس حركة نقد ${movement.type}`,
+      debit: Number(line.credit),
+      credit: Number(line.debit),
+    }));
+
+    const journal = await this.createEntry(
+      companyId,
+      userId,
+      {
+        date: new Date(),
+        description: `عكس ${movement.type === 'OUT' ? 'إخراج' : 'إدخال'} نقد POS`,
+        reference: revRef,
+      },
+      lines,
+    );
+
+    if (journal) {
+      await this.prisma.posCashMovement.update({
+        where: { id: movement.id },
+        data: { journalId: null },
+      });
+    }
+    return journal;
   }
 
   /** Internal transfer between two company bank accounts (Dr to / Cr from). */

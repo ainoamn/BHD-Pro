@@ -13,6 +13,7 @@ import {
   ActivatePosLinkDto,
   ClosePosShiftDto,
   CreatePosCashMovementDto,
+  ReversePosCashMovementDto,
   CreatePosNoSaleDto,
   CreatePosDraftDto,
   CreatePosSaleDto,
@@ -499,6 +500,18 @@ export class PosController {
     @Body() dto: CreatePosCashMovementDto,
   ) {
     return this.pos.createCashMovement(user.companyId, user, dto);
+  }
+
+  @Post('shifts/current/cash-movements/:id/reverse')
+  @Roles(...POS_STAFF)
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  @ApiOperation({ summary: 'Reverse a cash in/out on the open shift (GL + till totals)' })
+  reverseCashMovement(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+    @Body() dto: ReversePosCashMovementDto,
+  ) {
+    return this.pos.reverseCashMovement(user.companyId, user, id, dto?.approval);
   }
 
   @Post('shifts/current/no-sale')

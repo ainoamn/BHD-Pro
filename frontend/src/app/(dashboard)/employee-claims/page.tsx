@@ -13,6 +13,7 @@ import {
   CheckCircle2,
   Ban,
   Banknote,
+  Undo2,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
@@ -74,6 +75,7 @@ export default function EmployeeClaimsPage() {
   const [payingId, setPayingId] = useState<string | null>(null);
   const [payBankId, setPayBankId] = useState("");
   const [dualPayOpen, setDualPayOpen] = useState(false);
+  const [dualMode, setDualMode] = useState<"pay" | "unpay">("pay");
 
   const { data: employees = [] } = useQuery({
     queryKey: ["employees"],
@@ -150,7 +152,7 @@ export default function EmployeeClaimsPage() {
       approval,
     }: {
       id: string;
-      action: "submit" | "approve" | "reject" | "pay";
+      action: "submit" | "approve" | "reject" | "pay" | "unpay";
       reason?: string;
       bankAccountId?: string;
       approval?: DualApprovalPayload;
@@ -158,6 +160,7 @@ export default function EmployeeClaimsPage() {
       if (action === "submit") return api.submitEmployeeClaim(id);
       if (action === "approve") return api.approveEmployeeClaim(id);
       if (action === "reject") return api.rejectEmployeeClaim(id, { reason });
+      if (action === "unpay") return api.unpayEmployeeClaim(id, { approval });
       return api.payEmployeeClaim(id, {
         bankAccountId,
         paymentMethod: bankAccountId ? "BANK_TRANSFER" : "CASH",
@@ -267,11 +270,18 @@ export default function EmployeeClaimsPage() {
                   onPayBankChange={setPayBankId}
                   onPayConfirm={() => {
                     setPayingId(row.id);
+                    setDualMode("pay");
                     setDualPayOpen(true);
                   }}
-                  onAction={(action, reason) =>
-                    actionMutation.mutate({ id: row.id, action, reason })
-                  }
+                  onAction={(action, reason) => {
+                    if (action === "unpay") {
+                      setPayingId(row.id);
+                      setDualMode("unpay");
+                      setDualPayOpen(true);
+                      return;
+                    }
+                    actionMutation.mutate({ id: row.id, action, reason });
+                  }}
                   onDelete={() => {
                     if (confirm(tCommon("confirmDelete"))) deleteMutation.mutate(row.id);
                   }}
@@ -326,11 +336,18 @@ export default function EmployeeClaimsPage() {
                         onPayBankChange={setPayBankId}
                         onPayConfirm={() => {
                           setPayingId(row.id);
+                          setDualMode("pay");
                           setDualPayOpen(true);
                         }}
-                        onAction={(action, reason) =>
-                          actionMutation.mutate({ id: row.id, action, reason })
-                        }
+                        onAction={(action, reason) => {
+                          if (action === "unpay") {
+                            setPayingId(row.id);
+                            setDualMode("unpay");
+                            setDualPayOpen(true);
+                            return;
+                          }
+                          actionMutation.mutate({ id: row.id, action, reason });
+                        }}
                         onDelete={() => {
                           if (confirm(tCommon("confirmDelete"))) deleteMutation.mutate(row.id);
                         }}
@@ -489,13 +506,16 @@ export default function EmployeeClaimsPage() {
         }
         actorRole={user?.role}
         busy={actionMutation.isPending}
-        onCancel={() => setDualPayOpen(false)}
+        onCancel={() => {
+          setDualPayOpen(false);
+          setDualMode("pay");
+        }}
         onConfirm={async (approval) => {
           if (!payingId) return;
           await actionMutation.mutateAsync({
             id: payingId,
-            action: "pay",
-            bankAccountId: payBankId || undefined,
+            action: dualMode,
+            bankAccountId: dualMode === "pay" ? payBankId || undefined : undefined,
             approval,
           });
         }}
@@ -528,7 +548,7 @@ function ClaimActions({
   onPayStart: () => void;
   onPayBankChange: (id: string) => void;
   onPayConfirm: () => void;
-  onAction: (action: "submit" | "approve" | "reject" | "pay", reason?: string) => void;
+  onAction: (action: "submit" | "approve" | "reject" | "pay" | "unpay", reason?: string) => void;
   onDelete: () => void;
 }) {
   return (
@@ -632,6 +652,16 @@ function ClaimActions({
           className="text-rose-400 hover:bg-rose-500/10"
         >
           <Trash2 className="w-4 h-4" />
+        </IconBtn>
+      )}
+      {row.status === "PAID" && (
+        <IconBtn
+          title={t("unpay")}
+          disabled={busy}
+          onClick={() => onAction("unpay")}
+          className="text-amber-400 hover:bg-amber-500/10"
+        >
+          <Undo2 className="w-4 h-4" />
         </IconBtn>
       )}
     </div>

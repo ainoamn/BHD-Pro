@@ -1288,6 +1288,8 @@
     "action_approve": "Claim approved",
     "action_reject": "Claim rejected",
     "action_pay": "Claim marked as paid",
+    "unpay": "Reverse payout",
+    "action_unpay": "Claim payment reversed",
     "status_DRAFT": "Draft",
     "status_SUBMITTED": "Submitted",
     "status_APPROVED": "Approved",

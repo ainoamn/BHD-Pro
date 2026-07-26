@@ -2125,6 +2125,63 @@ export class PosService {
     };
   }
 
+  async reverseCashMovement(
+    companyId: string,
+    actor: TokenPayload,
+    movementId: string,
+    approval?: DualApprovalDto,
+  ) {
+    const movement = await this.prisma.posCashMovement.findFirst({
+      where: { id: movementId, companyId },
+      include: { shift: true },
+    });
+    if (!movement) throw new NotFoundException('Cash movement not found');
+    if (movement.shift.closedAt) {
+      throw new BadRequestException('Cannot reverse cash movement on a closed shift');
+    }
+    if (Number(movement.amount) <= 0.0005 && !movement.journalId) {
+      throw new BadRequestException('Movement already reversed');
+    }
+
+    if (movement.type === 'OUT') {
+      const limit = await this.dualControl.getCashOutApprovalLimit(companyId);
+      if (Number(movement.amount) >= limit) {
+        await this.dualControl.assertApproved(
+          companyId,
+          actor,
+          'SHIFT_CASH_OUT',
+          approval,
+        );
+      }
+    }
+
+    if (movement.journalId) {
+      await this.glPosting.reversePosCashMovement(companyId, actor.sub, movement);
+    }
+
+    await this.prisma.posCashMovement.delete({ where: { id: movement.id } });
+
+    const live = await this.buildZReport(
+      companyId,
+      movement.shiftId,
+      movement.shift.openedAt,
+      new Date(),
+      Number(movement.shift.openingFloat),
+    );
+    const cashMovements = await this.prisma.posCashMovement.findMany({
+      where: { companyId, shiftId: movement.shiftId },
+      orderBy: { createdAt: 'desc' },
+      include: { createdBy: { select: { id: true, name: true } } },
+    });
+    return {
+      reversed: true,
+      movementId: movement.id,
+      live,
+      cashMovements,
+      shift: { id: movement.shiftId },
+    };
+  }
+
   /** Audited no-sale drawer open (amount 0). Does not affect expected cash. */
   async createNoSale(
     companyId: string,

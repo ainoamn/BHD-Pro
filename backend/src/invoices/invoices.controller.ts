@@ -89,6 +89,8 @@ export class InvoicesController {
   }
 
   @Post(':id/share-link')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Create public share link for document view/download' })
   createShareLink(
@@ -100,6 +102,8 @@ export class InvoicesController {
   }
 
   @Post(':id/verify-link')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Create long-lived public verify URL for document QR authenticity' })
   createVerifyLink(

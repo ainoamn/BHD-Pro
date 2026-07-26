@@ -6,7 +6,7 @@ import {
   IsNumber,
   MinLength,
 } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { AccountType, AccountCategory } from '@prisma/client';
 
 export class CreateAccountDto {
@@ -58,59 +58,9 @@ export class CreateAccountDto {
   bankAccount?: string;
 }
 
-export class UpdateAccountDto {
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  code?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  name?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  nameEn?: string;
-
-  @ApiPropertyOptional({ enum: AccountType })
-  @IsOptional()
-  @IsEnum(AccountType)
-  type?: AccountType;
-
-  @ApiPropertyOptional({ enum: AccountCategory })
-  @IsOptional()
-  @IsEnum(AccountCategory)
-  category?: AccountCategory;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  parentId?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  openingBalance?: number;
-
+export class UpdateAccountDto extends PartialType(CreateAccountDto) {
   @ApiPropertyOptional()
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsBoolean()
-  isBank?: boolean;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  bankName?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  bankAccount?: string;
 }
