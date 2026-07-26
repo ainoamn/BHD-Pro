@@ -12,7 +12,7 @@
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { ErpService } from './erp.service';
-import { BankAccountDto, BankStatementLineDto, BankTransferDto, UpdateBankAccountDto } from './dto/erp.dto';
+import { BankAccountDto, BankStatementLineDto, BankTransferDto, ReverseBankTransferDto, UpdateBankAccountDto } from './dto/erp.dto';
 import { UserRole } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -56,6 +56,25 @@ export class BankAccountsController {
       dto.approval,
     );
     return this.erp.transferBetweenBanks(u.companyId, u.sub, dto);
+  }
+
+  @Post('transfer/:journalId/reverse')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @ApiOperation({ summary: 'Reverse an internal bank transfer journal' })
+  async reverseTransfer(
+    @CurrentUser() u: TokenPayload,
+    @Param('journalId') journalId: string,
+    @Body() dto: ReverseBankTransferDto,
+  ) {
+    await this.dualControl.assertApproved(
+      u.companyId,
+      u,
+      'BANK_INTERNAL_TRANSFER',
+      dto?.approval,
+    );
+    return this.erp.reverseBankTransfer(u.companyId, u.sub, journalId);
   }
 
   @Post('statement-lines/:lineId/toggle-reconciled')

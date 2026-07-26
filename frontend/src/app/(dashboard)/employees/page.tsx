@@ -52,6 +52,7 @@ export default function EmployeesPage() {
   const [payBankId, setPayBankId] = useState("");
   const [payingId, setPayingId] = useState<string | null>(null);
   const [dualPayOpen, setDualPayOpen] = useState(false);
+  const [dualMode, setDualMode] = useState<"pay" | "unpay">("pay");
 
   const { data: payroll = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["payroll"],
@@ -101,7 +102,39 @@ export default function EmployeesPage() {
       setPayingId(null);
       setPayBankId("");
       setDualPayOpen(false);
+      setDualMode("pay");
       toast.success(tCommon("saved"));
+    },
+    onError: (err: { response?: { data?: { message?: string } } }) => {
+      toast.error(err.response?.data?.message || tCommon("error"));
+    },
+  });
+
+  const unpayMutation = useMutation({
+    mutationFn: ({
+      id,
+      approval,
+    }: {
+      id: string;
+      approval?: DualApprovalPayload;
+    }) => api.unpayPayrollRun(id, approval),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["payroll"] });
+      setPayingId(null);
+      setDualPayOpen(false);
+      setDualMode("pay");
+      toast.success(t("unpay"));
+    },
+    onError: (err: { response?: { data?: { message?: string } } }) => {
+      toast.error(err.response?.data?.message || tCommon("error"));
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.deletePayrollRun(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["payroll"] });
+      toast.success(tCommon("deleted"));
     },
     onError: (err: { response?: { data?: { message?: string } } }) => {
       toast.error(err.response?.data?.message || tCommon("error"));
@@ -114,6 +147,13 @@ export default function EmployeesPage() {
 
   const confirmPaid = (id: string) => {
     setPayingId(id);
+    setDualMode("pay");
+    setDualPayOpen(true);
+  };
+
+  const confirmUnpay = (id: string) => {
+    setPayingId(id);
+    setDualMode("unpay");
     setDualPayOpen(true);
   };
 
@@ -261,16 +301,26 @@ export default function EmployeesPage() {
                         )}
                       </button>
                       {p.status === "DRAFT" && (
-                        <button
-                          onClick={() => statusMutation.mutate({ id: p.id, status: "APPROVED" })}
-                          className="text-xs px-2 py-1 rounded bg-blue-600/20 text-blue-300"
-                        >
-                          {t("approve")}
-                        </button>
+                        <>
+                          <button
+                            onClick={() => statusMutation.mutate({ id: p.id, status: "APPROVED" })}
+                            className="text-xs px-2 py-1 rounded bg-blue-600/20 text-blue-300"
+                          >
+                            {t("approve")}
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (confirm(tCommon("confirmDelete"))) deleteMutation.mutate(p.id);
+                            }}
+                            className="text-xs px-2 py-1 rounded bg-rose-600/20 text-rose-300"
+                          >
+                            {t("deleteRun")}
+                          </button>
+                        </>
                       )}
                       {p.status === "APPROVED" && (
                         <div className="flex flex-col gap-2 w-full">
-                          {payingId === p.id ? (
+                          {payingId === p.id && dualMode === "pay" ? (
                             <>
                               <select
                                 value={payBankId}
@@ -292,14 +342,32 @@ export default function EmployeesPage() {
                               </button>
                             </>
                           ) : (
-                            <button
-                              onClick={() => markPaid(p.id)}
-                              className="text-xs px-2 py-1 rounded bg-emerald-600/20 text-emerald-300"
-                            >
-                              {t("markPaid")}
-                            </button>
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                onClick={() => markPaid(p.id)}
+                                className="text-xs px-2 py-1 rounded bg-emerald-600/20 text-emerald-300"
+                              >
+                                {t("markPaid")}
+                              </button>
+                              <button
+                                onClick={() => {
+                                  if (confirm(tCommon("confirmDelete"))) deleteMutation.mutate(p.id);
+                                }}
+                                className="text-xs px-2 py-1 rounded bg-rose-600/20 text-rose-300"
+                              >
+                                {t("deleteRun")}
+                              </button>
+                            </div>
                           )}
                         </div>
+                      )}
+                      {p.status === "PAID" && (
+                        <button
+                          onClick={() => confirmUnpay(p.id)}
+                          className="text-xs px-2 py-1 rounded bg-amber-600/20 text-amber-300"
+                        >
+                          {t("unpay")}
+                        </button>
                       )}
                     </div>
                     {expandedId === p.id && p.lines && p.lines.length > 0 && (
@@ -360,18 +428,29 @@ export default function EmployeesPage() {
                                 )}
                               </button>
                               {p.status === "DRAFT" && (
-                                <button
-                                  onClick={() =>
-                                    statusMutation.mutate({ id: p.id, status: "APPROVED" })
-                                  }
-                                  className="text-xs px-2 py-1 rounded bg-blue-600/20 text-blue-300"
-                                >
-                                  {t("approve")}
-                                </button>
+                                <>
+                                  <button
+                                    onClick={() =>
+                                      statusMutation.mutate({ id: p.id, status: "APPROVED" })
+                                    }
+                                    className="text-xs px-2 py-1 rounded bg-blue-600/20 text-blue-300"
+                                  >
+                                    {t("approve")}
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      if (confirm(tCommon("confirmDelete")))
+                                        deleteMutation.mutate(p.id);
+                                    }}
+                                    className="text-xs px-2 py-1 rounded bg-rose-600/20 text-rose-300"
+                                  >
+                                    {t("deleteRun")}
+                                  </button>
+                                </>
                               )}
                               {p.status === "APPROVED" && (
                                 <div className="flex items-center gap-2">
-                                  {payingId === p.id ? (
+                                  {payingId === p.id && dualMode === "pay" ? (
                                     <>
                                       <select
                                         value={payBankId}
@@ -393,14 +472,33 @@ export default function EmployeesPage() {
                                       </button>
                                     </>
                                   ) : (
-                                    <button
-                                      onClick={() => markPaid(p.id)}
-                                      className="text-xs px-2 py-1 rounded bg-emerald-600/20 text-emerald-300"
-                                    >
-                                      {t("markPaid")}
-                                    </button>
+                                    <>
+                                      <button
+                                        onClick={() => markPaid(p.id)}
+                                        className="text-xs px-2 py-1 rounded bg-emerald-600/20 text-emerald-300"
+                                      >
+                                        {t("markPaid")}
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          if (confirm(tCommon("confirmDelete")))
+                                            deleteMutation.mutate(p.id);
+                                        }}
+                                        className="text-xs px-2 py-1 rounded bg-rose-600/20 text-rose-300"
+                                      >
+                                        {t("deleteRun")}
+                                      </button>
+                                    </>
                                   )}
                                 </div>
+                              )}
+                              {p.status === "PAID" && (
+                                <button
+                                  onClick={() => confirmUnpay(p.id)}
+                                  className="text-xs px-2 py-1 rounded bg-amber-600/20 text-amber-300"
+                                >
+                                  {t("unpay")}
+                                </button>
                               )}
                             </div>
                           </td>
@@ -458,10 +556,17 @@ export default function EmployeesPage() {
             : undefined
         }
         actorRole={user?.role}
-        busy={statusMutation.isPending}
-        onCancel={() => setDualPayOpen(false)}
+        busy={statusMutation.isPending || unpayMutation.isPending}
+        onCancel={() => {
+          setDualPayOpen(false);
+          setDualMode("pay");
+        }}
         onConfirm={async (approval) => {
           if (!payingId) return;
+          if (dualMode === "unpay") {
+            await unpayMutation.mutateAsync({ id: payingId, approval });
+            return;
+          }
           await statusMutation.mutateAsync({
             id: payingId,
             status: "PAID",

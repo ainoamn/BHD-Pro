@@ -6,7 +6,7 @@ import {
   Min,
   MinLength,
 } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 
 export class CreateCommitmentDto {
   @ApiProperty()
@@ -69,38 +69,7 @@ export class CreateCommitmentDto {
   notes?: string;
 }
 
-export class UpdateCommitmentDto {
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  name?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  type?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  @Min(0.001)
-  amount?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  frequency?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsDateString()
-  nextRunAt?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  dayOfMonth?: number;
-
+export class UpdateCommitmentDto extends PartialType(CreateCommitmentDto) {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
@@ -110,26 +79,6 @@ export class UpdateCommitmentDto {
   @IsOptional()
   @IsDateString()
   pausedUntil?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  expenseAccountId?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  payableAccountId?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  bankAccountId?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  notes?: string;
 }
 
 export class PauseCommitmentDto {

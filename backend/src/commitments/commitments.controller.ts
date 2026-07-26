@@ -90,6 +90,15 @@ export class CommitmentsController {
     return this.service.resume(user.companyId, id);
   }
 
+  @Post(':id/reverse-last')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @ApiOperation({ summary: 'Reverse the latest (or next unreversed) commitment accrual journal' })
+  reverseLast(@CurrentUser() user: TokenPayload, @Param('id') id: string) {
+    return this.service.reverseLast(user.companyId, user.sub, id);
+  }
+
   @Delete(':id')
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)

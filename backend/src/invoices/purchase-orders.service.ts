@@ -208,7 +208,28 @@ export class PurchaseOrdersService {
   }
 
   async updateStatus(companyId: string, id: string, status: PurchaseOrderStatus) {
-    await this.findOne(companyId, id);
+    const existing = await this.findOne(companyId, id);
+    if (existing.status === PurchaseOrderStatus.RECEIVED) {
+      throw new BadRequestException(
+        'Cannot change status of a received purchase order',
+      );
+    }
+    if (existing.status === PurchaseOrderStatus.CANCELLED) {
+      throw new BadRequestException('Cannot change status of a cancelled purchase order');
+    }
+    if (status === PurchaseOrderStatus.CANCELLED) {
+      if (
+        existing.status !== PurchaseOrderStatus.DRAFT &&
+        existing.status !== PurchaseOrderStatus.SENT
+      ) {
+        throw new BadRequestException('Only draft or sent purchase orders can be cancelled');
+      }
+    }
+    if (status === PurchaseOrderStatus.RECEIVED) {
+      throw new BadRequestException(
+        'Mark received by converting to invoice, not by status patch',
+      );
+    }
     return this.prisma.purchaseOrder.update({
       where: { id },
       data: { status },

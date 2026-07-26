@@ -11,7 +11,7 @@ import {
   ValidateNested,
   ArrayMinSize,
 } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
 import { PaymentMethod } from '@prisma/client';
 import { DualApprovalDto } from '../../dual-control/dto/approval.dto';
 
@@ -59,25 +59,9 @@ export class CreateEmployeeClaimDto {
   lines: EmployeeClaimLineDto[];
 }
 
-export class UpdateEmployeeClaimDto {
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsDateString()
-  date?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  notes?: string;
-
-  @ApiPropertyOptional({ type: [EmployeeClaimLineDto] })
-  @IsOptional()
-  @IsArray()
-  @ArrayMinSize(1)
-  @ValidateNested({ each: true })
-  @Type(() => EmployeeClaimLineDto)
-  lines?: EmployeeClaimLineDto[];
-}
+export class UpdateEmployeeClaimDto extends PartialType(
+  OmitType(CreateEmployeeClaimDto, ['employeeId'] as const),
+) {}
 
 export class RejectClaimDto {
   @ApiPropertyOptional()

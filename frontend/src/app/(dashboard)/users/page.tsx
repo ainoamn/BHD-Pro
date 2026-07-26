@@ -95,6 +95,9 @@ export default function UsersPage() {
       queryClient.invalidateQueries({ queryKey: ["users"] });
       toast.success(t("updated"));
     },
+    onError: (err: { response?: { data?: { message?: string } } }) => {
+      toast.error(err.response?.data?.message || t("createError"));
+    },
   });
 
   const updatePermsMutation = useMutation({

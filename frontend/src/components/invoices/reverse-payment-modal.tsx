@@ -44,6 +44,7 @@ export function ReversePaymentModal({
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
   const [approvalOpen, setApprovalOpen] = useState(false);
+  const [pendingPaymentId, setPendingPaymentId] = useState<string | null>(null);
 
   const { data: invoice, isLoading } = useQuery({
     queryKey: ["invoice", invoiceId],
@@ -68,10 +69,18 @@ export function ReversePaymentModal({
   };
 
   const reverseOne = useMutation({
-    mutationFn: (paymentId: string) => api.reverseInvoicePayment(invoiceId, paymentId),
+    mutationFn: ({
+      paymentId,
+      approval,
+    }: {
+      paymentId: string;
+      approval?: DualApprovalPayload;
+    }) => api.reverseInvoicePayment(invoiceId, paymentId, approval),
     onSuccess: () => {
       invalidate();
       toast.success(t("paymentReversed"));
+      setApprovalOpen(false);
+      setPendingPaymentId(null);
       onSuccess?.();
       onClose();
     },
@@ -88,6 +97,7 @@ export function ReversePaymentModal({
       invalidate();
       toast.success(t("allPaymentsReversed"));
       setApprovalOpen(false);
+      setPendingPaymentId(null);
       onSuccess?.();
       onClose();
     },
@@ -188,7 +198,8 @@ export function ReversePaymentModal({
                     disabled={busy}
                     onClick={() => {
                       if (confirm(t("reversePaymentConfirm"))) {
-                        reverseOne.mutate(p.id);
+                        setPendingPaymentId(p.id);
+                        setApprovalOpen(true);
                       }
                     }}
                     className="shrink-0 px-3 py-1.5 text-xs rounded-lg bg-amber-600/20 text-amber-300 border border-amber-600/40 hover:bg-amber-600/30 disabled:opacity-50"

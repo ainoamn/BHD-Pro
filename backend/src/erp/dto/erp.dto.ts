@@ -150,6 +150,14 @@ export class BankTransferDto {
   approval?: DualApprovalDto;
 }
 
+export class ReverseBankTransferDto {
+  @ApiPropertyOptional({ type: DualApprovalDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DualApprovalDto)
+  approval?: DualApprovalDto;
+}
+
 export class WarehouseDto {
   @ApiProperty() @IsString() code: string;
   @ApiProperty({ description: 'Arabic / primary name' }) @IsString() name: string;

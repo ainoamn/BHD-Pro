@@ -36,6 +36,7 @@
 **موجة AI (GL مطالبات/رواتب/تحرير فواتير + ready):** [`HISABY-WAVE-AI-GL-CLAIMS-PAYROLL-INVOICE-2026-07-26.md`](./HISABY-WAVE-AI-GL-CLAIMS-PAYROLL-INVOICE-2026-07-26.md)
 **موجة AJ (إلغاء فاتورة/دفتر/مطاعم + صلاحيات):** [`HISABY-WAVE-AJ-CANCEL-JOURNAL-ROLES-2026-07-26.md`](./HISABY-WAVE-AJ-CANCEL-JOURNAL-ROLES-2026-07-26.md)
 **موجة AK (عكس نقد POS/مطالبات + أصول/تسليم):** [`HISABY-WAVE-AK-POS-CLAIM-ASSET-DELIVERY-2026-07-26.md`](./HISABY-WAVE-AK-POS-CLAIM-ASSET-DELIVERY-2026-07-26.md)
+**موجة AL (عكس رواتب/تحويل/التزامات + صلاحيات):** [`HISABY-WAVE-AL-PAYROLL-BANK-COMMIT-2026-07-26.md`](./HISABY-WAVE-AL-PAYROLL-BANK-COMMIT-2026-07-26.md)
 
 ---
 

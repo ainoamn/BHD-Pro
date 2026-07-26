@@ -121,8 +121,74 @@ export class CommitmentsService {
 
   async remove(companyId: string, id: string) {
     await this.findOne(companyId, id);
+    const accruals = await this.prisma.journal.findMany({
+      where: { companyId, reference: { startsWith: `COMMIT:${id}:` } },
+      select: { id: true },
+    });
+    for (const j of accruals) {
+      const rev = await this.prisma.journal.findFirst({
+        where: { companyId, reference: `REV-COMMIT:${j.id}` },
+        select: { id: true },
+      });
+      if (!rev) {
+        throw new BadRequestException(
+          'Reverse commitment accruals (reverse-last) before deleting',
+        );
+      }
+    }
     await this.prisma.recurringCommitment.delete({ where: { id } });
     return { message: 'Deleted' };
+  }
+
+  async reverseLast(companyId: string, userId: string, id: string) {
+    const row = await this.findOne(companyId, id);
+    const last = await this.prisma.journal.findFirst({
+      where: { companyId, reference: { startsWith: `COMMIT:${id}:` } },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!last) {
+      throw new BadRequestException('No commitment accrual to reverse');
+    }
+    const already = await this.prisma.journal.findFirst({
+      where: { companyId, reference: `REV-COMMIT:${last.id}` },
+    });
+    if (already) {
+      // Find next unreversed
+      const all = await this.prisma.journal.findMany({
+        where: { companyId, reference: { startsWith: `COMMIT:${id}:` } },
+        orderBy: { createdAt: 'desc' },
+      });
+      let target = null as typeof last | null;
+      for (const j of all) {
+        const rev = await this.prisma.journal.findFirst({
+          where: { companyId, reference: `REV-COMMIT:${j.id}` },
+        });
+        if (!rev) {
+          target = j;
+          break;
+        }
+      }
+      if (!target) {
+        throw new BadRequestException('All commitment accruals already reversed');
+      }
+      const journal = await this.glPosting.reverseCommitmentAccrual(
+        companyId,
+        userId,
+        row,
+        target.id,
+      );
+      if (!journal) throw new BadRequestException('Failed to reverse commitment accrual');
+      return { reversedJournalId: target.id, reverseJournalId: journal.id };
+    }
+
+    const journal = await this.glPosting.reverseCommitmentAccrual(
+      companyId,
+      userId,
+      row,
+      last.id,
+    );
+    if (!journal) throw new BadRequestException('Failed to reverse commitment accrual');
+    return { reversedJournalId: last.id, reverseJournalId: journal.id };
   }
 
   private advanceNextRun(from: Date, frequency: string, dayOfMonth?: number | null) {

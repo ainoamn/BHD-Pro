@@ -219,11 +219,18 @@ export class InvoicesController {
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Reverse / undo a payment receipt' })
-  reversePayment(
+  async reversePayment(
     @CurrentUser() user: TokenPayload,
     @Param('id') id: string,
     @Param('paymentId') paymentId: string,
+    @Body() dto: ReverseAllPaymentsDto,
   ) {
+    await this.dualControl.assertApproved(
+      user.companyId,
+      user,
+      'PAYMENT_REVERSE',
+      dto?.approval,
+    );
     return this.invoicesService.reversePayment(user.companyId, user.sub, id, paymentId);
   }
 

@@ -463,8 +463,14 @@ class ApiClient {
     return this.post(`/invoices/${id}/unsend`);
   }
 
-  reverseInvoicePayment(invoiceId: string, paymentId: string) {
-    return this.delete(`/invoices/${invoiceId}/payments/${paymentId}`);
+  reverseInvoicePayment(
+    invoiceId: string,
+    paymentId: string,
+    approval?: DualApprovalPayload,
+  ) {
+    return this.delete(`/invoices/${invoiceId}/payments/${paymentId}`, {
+      data: approval ? { approval } : {},
+    });
   }
 
   reverseAllInvoicePayments(invoiceId: string, approval?: DualApprovalPayload) {
@@ -989,6 +995,10 @@ class ApiClient {
     return this.post('/bank-accounts/transfer', data);
   }
 
+  reverseBankTransfer(journalId: string, approval?: DualApprovalPayload) {
+    return this.post(`/bank-accounts/transfer/${journalId}/reverse`, { approval });
+  }
+
   suggestBankStatementMatches(bankAccountId: string, days?: number) {
     return this.get(`/bank-accounts/${bankAccountId}/suggest-matches`, {
       params: days ? { days } : {},
@@ -1014,6 +1024,9 @@ class ApiClient {
   }
   deletePayrollRun(id: string) {
     return this.delete(`/payroll/${id}`);
+  }
+  unpayPayrollRun(id: string, approval?: DualApprovalPayload) {
+    return this.post(`/payroll/${id}/unpay`, { approval });
   }
 
   // Reports
@@ -1143,6 +1156,9 @@ class ApiClient {
   }
   runDueCommitments() {
     return this.post('/commitments/run-due');
+  }
+  reverseLastCommitment(id: string) {
+    return this.post(`/commitments/${id}/reverse-last`);
   }
   deleteCommitment(id: string) {
     return this.delete(`/commitments/${id}`);

@@ -508,6 +508,19 @@ export class ErpService {
     };
   }
 
+  async reverseBankTransfer(companyId: string, userId: string, journalId: string) {
+    const journal = await this.glPosting.reverseBankTransfer(companyId, userId, journalId);
+    if (!journal) {
+      throw new BadRequestException('Bank transfer journal not found or already reversed');
+    }
+    return {
+      journalId: journal.id,
+      journalNumber: journal.number,
+      reversedOf: journalId,
+      reference: journal.reference,
+    };
+  }
+
   private async ensureBankAccount(companyId: string, id: string) {
     const row = await this.prisma.bankAccount.findFirst({ where: { id, companyId } });
     if (!row) throw new NotFoundException('Bank account not found');
@@ -826,15 +839,49 @@ export class ErpService {
         include: { lines: { include: { employee: true } }, bankAccount: true },
       });
       await this.glPosting.postPayrollPayment(companyId, userId, updated);
-      return this.prisma.payrollRun.findFirst({
+      const paid = await this.prisma.payrollRun.findFirst({
         where: { id },
         include: { lines: { include: { employee: true } }, bankAccount: true },
       });
+      if (paid && !paid.glPaymentJournalId && Number(paid.totalNet) > 0.0005) {
+        await this.prisma.payrollRun.update({
+          where: { id },
+          data: {
+            status: PayrollStatus.APPROVED,
+            paidAt: null,
+            paymentMethod: null,
+            bankAccountId: null,
+          },
+        });
+        throw new BadRequestException(
+          'Could not post payroll payment journal — check cash/bank COA (2150)',
+        );
+      }
+      return paid;
     }
 
     throw new BadRequestException(
       `Unsupported payroll status transition from ${run.status} to ${status}`,
     );
+  }
+
+  async unpayPayrollRun(companyId: string, userId: string, id: string) {
+    const run = await this.prisma.payrollRun.findFirst({ where: { id, companyId } });
+    if (!run) throw new NotFoundException('Payroll run not found');
+    if (run.status !== PayrollStatus.PAID) {
+      throw new BadRequestException('Only paid payroll can be unpaid');
+    }
+    await this.glPosting.reversePayrollPayment(companyId, userId, run);
+    return this.prisma.payrollRun.update({
+      where: { id },
+      data: {
+        status: PayrollStatus.APPROVED,
+        paidAt: null,
+        paymentMethod: null,
+        bankAccountId: null,
+      },
+      include: { lines: { include: { employee: true } }, bankAccount: true },
+    });
   }
 
   async deletePayrollRun(companyId: string, userId: string, id: string) {

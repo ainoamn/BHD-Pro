@@ -39,6 +39,8 @@ export default function BankAccountsPage() {
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [description, setDescription] = useState("");
   const [dualOpen, setDualOpen] = useState(false);
+  const [dualMode, setDualMode] = useState<"transfer" | "reverse">("transfer");
+  const [lastTransferJournalId, setLastTransferJournalId] = useState<string | null>(null);
 
   const { data: branches = [] } = useQuery({
     queryKey: ["branches"],
@@ -60,12 +62,32 @@ export default function BankAccountsPage() {
         description: description.trim() || undefined,
         approval,
       }),
-    onSuccess: () => {
+    onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ["bank-accounts"] });
+      const jid = (res.data as { journalId?: string })?.journalId;
+      if (jid) setLastTransferJournalId(jid);
       toast.success(t("transferSuccess"));
       setAmount(0);
       setDescription("");
       setDualOpen(false);
+      setDualMode("transfer");
+    },
+    onError: (err: { response?: { data?: { message?: string } } }) => {
+      toast.error(err.response?.data?.message || tCommon("error"));
+    },
+  });
+
+  const reverseMutation = useMutation({
+    mutationFn: (approval?: DualApprovalPayload) => {
+      if (!lastTransferJournalId) throw new Error("No transfer");
+      return api.reverseBankTransfer(lastTransferJournalId, approval);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["bank-accounts"] });
+      toast.success(t("transferReverseSuccess"));
+      setLastTransferJournalId(null);
+      setDualOpen(false);
+      setDualMode("transfer");
     },
     onError: (err: { response?: { data?: { message?: string } } }) => {
       toast.error(err.response?.data?.message || tCommon("error"));
@@ -131,19 +153,40 @@ export default function BankAccountsPage() {
               className="h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
             />
           </div>
-          <button
-            type="button"
-            disabled={!canTransfer}
-            onClick={() => setDualOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm disabled:opacity-50"
-          >
-            {transferMutation.isPending ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <ArrowLeftRight className="w-4 h-4" />
-            )}
-            {t("transferSubmit")}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={!canTransfer}
+              onClick={() => {
+                setDualMode("transfer");
+                setDualOpen(true);
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm disabled:opacity-50"
+            >
+              {transferMutation.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <ArrowLeftRight className="w-4 h-4" />
+              )}
+              {t("transferSubmit")}
+            </button>
+            {lastTransferJournalId ? (
+              <button
+                type="button"
+                disabled={reverseMutation.isPending}
+                onClick={() => {
+                  setDualMode("reverse");
+                  setDualOpen(true);
+                }}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-amber-600/80 text-white rounded-lg text-sm disabled:opacity-50"
+              >
+                {reverseMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : null}
+                {t("transferReverse")}
+              </button>
+            ) : null}
+          </div>
         </GlassCard>
       )}
 
@@ -190,12 +233,27 @@ export default function BankAccountsPage() {
         open={dualOpen}
         action="BANK_INTERNAL_TRANSFER"
         actionLabel={tDual("action.BANK_INTERNAL_TRANSFER")}
-        payload={{ fromBankAccountId: fromId, toBankAccountId: toId, amount }}
-        summary={`${formatMoney(amount, currency)}`}
+        payload={
+          dualMode === "reverse"
+            ? { journalId: lastTransferJournalId }
+            : { fromBankAccountId: fromId, toBankAccountId: toId, amount }
+        }
+        summary={
+          dualMode === "reverse"
+            ? lastTransferJournalId || undefined
+            : `${formatMoney(amount, currency)}`
+        }
         actorRole={user?.role}
-        busy={transferMutation.isPending}
-        onCancel={() => setDualOpen(false)}
+        busy={transferMutation.isPending || reverseMutation.isPending}
+        onCancel={() => {
+          setDualOpen(false);
+          setDualMode("transfer");
+        }}
         onConfirm={async (approval) => {
+          if (dualMode === "reverse") {
+            await reverseMutation.mutateAsync(approval);
+            return;
+          }
           await transferMutation.mutateAsync(approval);
         }}
       />

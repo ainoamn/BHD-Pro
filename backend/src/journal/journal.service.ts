@@ -239,6 +239,16 @@ export class JournalService {
         'Journal linked to a POS cash movement — reverse that movement instead',
       );
     }
+    if (journal.reference?.startsWith('BANK-XFER:')) {
+      throw new BadRequestException(
+        'Bank transfer journal — reverse via POST /bank-accounts/transfer/:journalId/reverse',
+      );
+    }
+    if (journal.reference?.startsWith('COMMIT:')) {
+      throw new BadRequestException(
+        'Commitment accrual journal — reverse via POST /commitments/:id/reverse-last',
+      );
+    }
 
     const accountIds = [...new Set(journal.lines.map((l) => l.accountId))];
     const accountRows = await this.prisma.account.findMany({

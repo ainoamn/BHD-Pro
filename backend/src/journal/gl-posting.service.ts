@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   AccountType,
@@ -903,6 +903,60 @@ export class GlPostingService {
     return journal;
   }
 
+  async reversePayrollPayment(
+    companyId: string,
+    userId: string,
+    run: { id: string; number: string; glPaymentJournalId?: string | null },
+  ) {
+    if (!run.glPaymentJournalId) return null;
+
+    const revRef = `REV-PAYROLL-PAY:${run.id}`;
+    const existing = await this.prisma.journal.findFirst({
+      where: { companyId, reference: revRef },
+    });
+    if (existing) {
+      await this.prisma.payrollRun.update({
+        where: { id: run.id },
+        data: { glPaymentJournalId: null },
+      });
+      return existing;
+    }
+
+    const original = await this.prisma.journal.findFirst({
+      where: { id: run.glPaymentJournalId, companyId },
+      include: { lines: true },
+    });
+    if (!original || !original.lines.length) return null;
+
+    const lines: JournalLineInput[] = original.lines.map((line) => ({
+      accountId: line.accountId,
+      description: `عكس صرف ${run.number}`,
+      debit: Number(line.credit),
+      credit: Number(line.debit),
+      ...(line.costCenterId ? { costCenterId: line.costCenterId } : {}),
+      ...(line.projectId ? { projectId: line.projectId } : {}),
+    }));
+
+    const journal = await this.createEntry(
+      companyId,
+      userId,
+      {
+        date: new Date(),
+        description: `عكس صرف رواتب ${run.number}`,
+        reference: revRef,
+      },
+      lines,
+    );
+
+    if (journal) {
+      await this.prisma.payrollRun.update({
+        where: { id: run.id },
+        data: { glPaymentJournalId: null },
+      });
+    }
+    return journal;
+  }
+
   async postClaimAccrual(
     companyId: string,
     userId: string,
@@ -1148,6 +1202,48 @@ export class GlPostingService {
     );
   }
 
+  /** Reverse the latest accrual journal for a commitment (by COMMIT:{id}:* reference). */
+  async reverseCommitmentAccrual(
+    companyId: string,
+    userId: string,
+    commitment: { id: string; name: string },
+    journalId: string,
+  ) {
+    const revRef = `REV-COMMIT:${journalId}`;
+    const existing = await this.prisma.journal.findFirst({
+      where: { companyId, reference: revRef },
+    });
+    if (existing) return existing;
+
+    const original = await this.prisma.journal.findFirst({
+      where: {
+        id: journalId,
+        companyId,
+        reference: { startsWith: `COMMIT:${commitment.id}:` },
+      },
+      include: { lines: true },
+    });
+    if (!original || !original.lines.length) return null;
+
+    const lines: JournalLineInput[] = original.lines.map((line) => ({
+      accountId: line.accountId,
+      description: `عكس التزام ${commitment.name}`,
+      debit: Number(line.credit),
+      credit: Number(line.debit),
+    }));
+
+    return this.createEntry(
+      companyId,
+      userId,
+      {
+        date: new Date(),
+        description: `عكس التزام دوري: ${commitment.name}`,
+        reference: revRef,
+      },
+      lines,
+    );
+  }
+
   /** Ensure POS cash drawer expense / deposit COA (5290 / 4290). */
   async ensurePosCashAccounts(companyId: string) {
     const defaults: Array<{
@@ -1360,6 +1456,43 @@ export class GlPostingService {
           credit: amount,
         },
       ],
+    );
+  }
+
+  async reverseBankTransfer(companyId: string, userId: string, journalId: string) {
+    const original = await this.prisma.journal.findFirst({
+      where: { id: journalId, companyId },
+      include: { lines: true },
+    });
+    if (!original) return null;
+    if (!original.reference?.startsWith('BANK-XFER:')) {
+      throw new BadRequestException('Journal is not a bank transfer');
+    }
+
+    const revRef = `REV-BANK-XFER:${journalId}`;
+    const existing = await this.prisma.journal.findFirst({
+      where: { companyId, reference: revRef },
+    });
+    if (existing) return existing;
+
+    if (!original.lines.length) return null;
+
+    const lines: JournalLineInput[] = original.lines.map((line) => ({
+      accountId: line.accountId,
+      description: `عكس ${original.description || 'تحويل بنكي'}`,
+      debit: Number(line.credit),
+      credit: Number(line.debit),
+    }));
+
+    return this.createEntry(
+      companyId,
+      userId,
+      {
+        date: new Date(),
+        description: `عكس ${original.description || 'تحويل بنكي'}`,
+        reference: revRef,
+      },
+      lines,
     );
   }
 }

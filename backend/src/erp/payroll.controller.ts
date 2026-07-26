@@ -1,9 +1,9 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { PayrollStatus, UserRole } from '@prisma/client';
 import { ErpService } from './erp.service';
-import { CreatePayrollDto, UpdatePayrollStatusDto } from './dto/erp.dto';
+import { CreatePayrollDto, UpdatePayrollStatusDto, ReverseBankTransferDto } from './dto/erp.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -48,6 +48,21 @@ export class PayrollController {
       paymentMethod: dto.paymentMethod,
     });
   }
+
+  @Post(':id/unpay')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
+  @Throttle({ default: { limit: 15, ttl: 60000 } })
+  @ApiOperation({ summary: 'Reverse payroll payment GL and return to approved' })
+  async unpay(
+    @CurrentUser() u: TokenPayload,
+    @Param('id') id: string,
+    @Body() dto: ReverseBankTransferDto,
+  ) {
+    await this.dualControl.assertApproved(u.companyId, u, 'PAYROLL_PAY', dto?.approval);
+    return this.erp.unpayPayrollRun(u.companyId, u.sub, id);
+  }
+
   @Delete(':id')
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)

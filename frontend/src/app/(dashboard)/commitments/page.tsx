@@ -179,7 +179,20 @@ export default function CommitmentsPage() {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.deleteCommitment(id),
     onSuccess: invalidate,
-    onError: () => toast.error(tCommon("error")),
+    onError: (err: { response?: { data?: { message?: string } } }) => {
+      toast.error(err.response?.data?.message || tCommon("error"));
+    },
+  });
+
+  const reverseMutation = useMutation({
+    mutationFn: (id: string) => api.reverseLastCommitment(id),
+    onSuccess: () => {
+      invalidate();
+      toast.success(t("reversed"));
+    },
+    onError: (err: { response?: { data?: { message?: string } } }) => {
+      toast.error(err.response?.data?.message || tCommon("error"));
+    },
   });
 
   const setField = <K extends keyof FormState>(key: K, value: FormState[K]) =>
@@ -397,6 +410,14 @@ export default function CommitmentsPage() {
                     className="px-2 py-1 rounded bg-slate-800 text-slate-300 text-xs"
                   >
                     {t("attachments")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => reverseMutation.mutate(row.id)}
+                    className="px-2 py-1 rounded bg-amber-600/20 text-amber-300 text-xs"
+                    title={t("reverseLast")}
+                  >
+                    {t("reverseLast")}
                   </button>
                   <button
                     type="button"

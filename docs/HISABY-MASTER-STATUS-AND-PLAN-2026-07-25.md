@@ -88,6 +88,7 @@
 - موجة AI: عكس استحقاق مطالبات/رواتب + تحرير فاتورة DRAFT فقط + مشتريات بعد إلغاء دفع → SENT + `/health/ready` — [`HISABY-WAVE-AI-GL-CLAIMS-PAYROLL-INVOICE-2026-07-26.md`](./HISABY-WAVE-AI-GL-CLAIMS-PAYROLL-INVOICE-2026-07-26.md)
 - موجة AJ: إلغاء فاتورة يعكس الدفعات + حذف قيد آمن + إلغاء مطعم يلغي فاتورة الدفع + صلاحيات جهات/مرفقات/تنبيهات + PartialType PO/مجدول — [`HISABY-WAVE-AJ-CANCEL-JOURNAL-ROLES-2026-07-26.md`](./HISABY-WAVE-AJ-CANCEL-JOURNAL-ROLES-2026-07-26.md)
 - موجة AK: عكس نقد POS + عكس صرف مطالبات + سلامة إهلاك أصول + إلغاء تسليم يعيد المخزون + صلاحيات checkout/share — [`HISABY-WAVE-AK-POS-CLAIM-ASSET-DELIVERY-2026-07-26.md`](./HISABY-WAVE-AK-POS-CLAIM-ASSET-DELIVERY-2026-07-26.md)
+- موجة AL: عكس صرف رواتب + عكس تحويل بنكي + عكس استحقاق التزامات + upgrade ADMIN + dual على عكس دفعة — [`HISABY-WAVE-AL-PAYROLL-BANK-COMMIT-2026-07-26.md`](./HISABY-WAVE-AL-PAYROLL-BANK-COMMIT-2026-07-26.md)
 
 ### 1.6 المنصة ولوحة الإدارة (محدث 26 يوليو مساءً)
 - اشتراكات، بوابات دفع، `/admin`، PWA، GeoIP، keep-warm

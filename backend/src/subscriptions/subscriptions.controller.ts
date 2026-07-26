@@ -1,8 +1,11 @@
 import { Controller, Get, Post, Body, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
+import { UserRole } from '@prisma/client';
 import { SubscriptionsService } from './subscriptions.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
 import { IsIn, IsString } from 'class-validator';
@@ -35,6 +38,8 @@ export class SubscriptionsController {
   }
 
   @Post('upgrade')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN)
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: 'Upgrade subscription plan' })
   upgrade(@CurrentUser() user: TokenPayload, @Body() dto: UpgradePlanDto) {
