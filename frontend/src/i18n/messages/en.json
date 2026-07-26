@@ -537,7 +537,21 @@
     "promoPlaceholder": "Enter offer code if you have one",
     "applyPromo": "Apply",
     "promoApplied": "Discount applied ({pct}%) — {price} OMR",
-    "promoInvalid": "Invalid or expired promo code"
+    "promoInvalid": "Invalid or expired promo code",
+    "featureLockedBadge": "Upgrade required",
+    "featureLockedTitle": "Using “{feature}” requires a plan upgrade",
+    "featureLockedBody": "Choose a plan below, complete payment via a gateway, and the feature unlocks automatically after the system confirms payment.",
+    "minPlanHint": "Lowest plan that includes this feature: {plan}",
+    "stepChoose": "Choose a plan",
+    "stepPay": "Complete payment",
+    "stepUnlock": "Feature unlocks after confirmation",
+    "featureUnlockedTitle": "This feature is on your plan",
+    "featureUnlockedBody": "You can open “{feature}” and start using it.",
+    "openFeature": "Open page",
+    "recommended": "Recommended",
+    "unlocksFeature": "Unlocks feature",
+    "upgradeToUnlock": "Upgrade to unlock",
+    "payConfirmHint": "Features unlock only after the system confirms payment — not before checkout completes."
   },
   "common": {
     "save": "Save",

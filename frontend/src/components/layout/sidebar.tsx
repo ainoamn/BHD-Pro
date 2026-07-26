@@ -46,6 +46,12 @@ import { useUIStore } from "@/store/ui";
 import { useAuthStore } from "@/store/auth";
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
+import { UpgradeBadge } from "@/components/billing/plan-upgrade-gate";
+import {
+  rememberUpgradeIntent,
+  subscriptionUpgradeHref,
+  type UpgradeFeatureKey,
+} from "@/lib/plan-upgrade";
 
 const navItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "dashboard" },
@@ -201,20 +207,25 @@ export function Sidebar() {
           </Link>
         ) : (
           <Link
-            href="/subscription"
-            onClick={closeMobile}
+            href={subscriptionUpgradeHref("pos", "/pos")}
+            onClick={() => {
+              rememberUpgradeIntent("pos", "/pos");
+              closeMobile();
+            }}
             className={cn(
               "flex items-center gap-3 px-3 py-2.5 rounded-lg bg-slate-100 dark:bg-slate-800/60 text-slate-500 border border-dashed border-slate-300 dark:border-slate-700 hover:border-amber-500/40 hover:text-amber-700 transition-all",
               sidebarCollapsed && "justify-center px-2"
             )}
             title="يتطلب ترقية الباقة"
           >
-            <Lock className="w-5 h-5 flex-shrink-0" />
-            {!sidebarCollapsed && (
-              <span className="text-sm font-bold flex-1">الكاشير / POS</span>
-            )}
-            {!sidebarCollapsed && (
-              <span className="text-[10px] font-bold text-amber-600">ترقية</span>
+            {sidebarCollapsed ? (
+              <UpgradeBadge iconOnly />
+            ) : (
+              <>
+                <Lock className="w-5 h-5 flex-shrink-0" />
+                <span className="text-sm font-bold flex-1">الكاشير / POS</span>
+                <UpgradeBadge />
+              </>
             )}
           </Link>
         )}
@@ -236,20 +247,25 @@ export function Sidebar() {
           </Link>
         ) : (
           <Link
-            href="/subscription"
-            onClick={closeMobile}
+            href={subscriptionUpgradeHref("resto", "/resto")}
+            onClick={() => {
+              rememberUpgradeIntent("resto", "/resto");
+              closeMobile();
+            }}
             className={cn(
               "flex items-center gap-3 px-3 py-2.5 rounded-lg bg-slate-100 dark:bg-slate-800/60 text-slate-500 border border-dashed border-slate-300 dark:border-slate-700 hover:border-amber-500/40 hover:text-amber-700 transition-all",
               sidebarCollapsed && "justify-center px-2"
             )}
             title="يتطلب الباقة المؤسسية"
           >
-            <Lock className="w-5 h-5 flex-shrink-0" />
-            {!sidebarCollapsed && (
-              <span className="text-sm font-bold flex-1">المطاعم</span>
-            )}
-            {!sidebarCollapsed && (
-              <span className="text-[10px] font-bold text-amber-600">ترقية</span>
+            {sidebarCollapsed ? (
+              <UpgradeBadge iconOnly />
+            ) : (
+              <>
+                <Lock className="w-5 h-5 flex-shrink-0" />
+                <span className="text-sm font-bold flex-1">المطاعم</span>
+                <UpgradeBadge />
+              </>
             )}
           </Link>
         )}
@@ -257,16 +273,45 @@ export function Sidebar() {
 
       <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
         <nav className="px-3 py-4 space-y-1">
-          {navItems
-            .filter((item) => {
-              if (item.href === "/ai-analytics") return features.aiAnalytics !== false;
-              if (item.href === "/branches" || item.href === "/projects")
-                return features.multiBranch !== false;
-              return true;
-            })
-            .map((item) => {
-            const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+          {navItems.map((item) => {
+            const lockedFeature: UpgradeFeatureKey | null =
+              item.href === "/ai-analytics" && features.aiAnalytics === false
+                ? "aiAnalytics"
+                : (item.href === "/branches" || item.href === "/projects") &&
+                    features.multiBranch === false
+                  ? "multiBranch"
+                  : null;
+            const isActive =
+              !lockedFeature &&
+              (pathname === item.href || pathname.startsWith(item.href + "/"));
             const Icon = item.icon;
+            if (lockedFeature) {
+              return (
+                <Link
+                  key={item.href}
+                  href={subscriptionUpgradeHref(lockedFeature, item.href)}
+                  onClick={() => {
+                    rememberUpgradeIntent(lockedFeature, item.href);
+                    closeMobile();
+                  }}
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 text-slate-400 border border-dashed border-transparent hover:border-amber-500/30 hover:bg-amber-500/5 hover:text-amber-700 dark:hover:text-amber-300",
+                    sidebarCollapsed && "justify-center px-2",
+                  )}
+                  title="يتطلب ترقية الباقة"
+                >
+                  {sidebarCollapsed ? (
+                    <UpgradeBadge iconOnly />
+                  ) : (
+                    <>
+                      <Lock className="w-5 h-5 flex-shrink-0" />
+                      <span className="text-sm font-medium flex-1">{t(item.label)}</span>
+                      <UpgradeBadge />
+                    </>
+                  )}
+                </Link>
+              );
+            }
             return (
               <Link
                 key={item.href}
@@ -313,14 +358,38 @@ export function Sidebar() {
               )}
             </Link>
           )}
-          {settingsItems
-            .filter((item) => {
-              if (item.href === "/api-keys") return features.apiKeys !== false;
-              return true;
-            })
-            .map((item) => {
-            const isActive = pathname === item.href;
+          {settingsItems.map((item) => {
+            const lockedFeature: UpgradeFeatureKey | null =
+              item.href === "/api-keys" && features.apiKeys === false ? "apiKeys" : null;
+            const isActive = !lockedFeature && pathname === item.href;
             const Icon = item.icon;
+            if (lockedFeature) {
+              return (
+                <Link
+                  key={item.href}
+                  href={subscriptionUpgradeHref(lockedFeature, item.href)}
+                  onClick={() => {
+                    rememberUpgradeIntent(lockedFeature, item.href);
+                    closeMobile();
+                  }}
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 text-slate-400 border border-dashed border-transparent hover:border-amber-500/30 hover:bg-amber-500/5",
+                    sidebarCollapsed && "justify-center px-2",
+                  )}
+                  title="يتطلب ترقية الباقة"
+                >
+                  {sidebarCollapsed ? (
+                    <UpgradeBadge iconOnly />
+                  ) : (
+                    <>
+                      <Lock className="w-5 h-5 flex-shrink-0" />
+                      <span className="text-sm font-medium flex-1">{t(item.label)}</span>
+                      <UpgradeBadge />
+                    </>
+                  )}
+                </Link>
+              );
+            }
             return (
               <Link
                 key={item.href}

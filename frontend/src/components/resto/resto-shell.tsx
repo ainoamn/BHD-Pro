@@ -221,11 +221,13 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
     return (
       <div className="min-h-screen bg-[#14110f] text-stone-100 flex items-center justify-center p-6" dir={locale === "en" ? "ltr" : "rtl"}>
         <PlanUpgradeGate
+          feature="resto"
+          from="/resto"
           title={locale === "en" ? "Restaurants require Enterprise" : "المطاعم ضمن الباقة المؤسسية"}
           description={
             locale === "en"
-              ? "Upgrade your plan to unlock floor, kitchen, and restaurant ops for your team."
-              : "رقِّ الباقة لتفعيل الصالة والمطبخ وتشغيل المطاعم لفريقك."
+              ? "Choose a plan, complete payment, and restaurants unlock after the system confirms payment."
+              : "اختر باقة وأتمم الدفع — تُفتح المطاعم بعد تأكيد النظام للدفع."
           }
           className="max-w-lg bg-[#1c1814] text-stone-100 border-amber-500/40"
         />

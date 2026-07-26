@@ -38,6 +38,7 @@ import {
   DualApprovalModal,
   type DualApprovalPayload,
 } from "@/components/security/dual-approval-modal";
+import { PlanUpgradeGate } from "@/components/billing/plan-upgrade-gate";
 
 const VOID_ALERT_KEY = "hisaby-pos-void-alert-day";
 const TRAINING_KEY = "hisaby-pos-training";
@@ -50,6 +51,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
   const { user, company, isAuthenticated, logout } = useAuthStore();
   const t = posCopy[locale === "en" ? "en" : "ar"];
   const [linked, setLinked] = useState<boolean | null>(null);
+  const [planOk, setPlanOk] = useState(true);
   const [shiftOpen, setShiftOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
@@ -305,9 +307,23 @@ export function PosShell({ children }: { children: React.ReactNode }) {
         }
       }
       try {
-        const res = await api.getPosLinkStatus();
-        if (!cancelled) setLinked(!!res.data.linked);
-      } catch {
+        const [linkRes, subRes] = await Promise.all([
+          api.getPosLinkStatus(),
+          api.getCurrentSubscription().catch(() => null),
+        ]);
+        if (!cancelled) {
+          setLinked(!!linkRes.data.linked);
+          const features = (subRes?.data as { features?: Record<string, boolean> })
+            ?.features;
+          setPlanOk(features?.pos !== false);
+        }
+      } catch (err: unknown) {
+        const code = (err as { response?: { data?: { code?: string } } })?.response
+          ?.data?.code;
+        if (code === "PLAN_FEATURE_REQUIRED") {
+          if (!cancelled) setPlanOk(false);
+          return;
+        }
         if (!cancelled) setLinked(false);
       }
       try {
@@ -358,6 +374,27 @@ export function PosShell({ children }: { children: React.ReactNode }) {
     return (
       <div className="min-h-screen bg-[#0b1220] flex items-center justify-center text-slate-400 text-sm">
         …
+      </div>
+    );
+  }
+
+  if (!planOk) {
+    return (
+      <div
+        className="min-h-screen bg-[#0b1220] text-slate-100 flex items-center justify-center p-6"
+        dir={locale === "en" ? "ltr" : "rtl"}
+      >
+        <PlanUpgradeGate
+          feature="pos"
+          from="/pos"
+          title={locale === "en" ? "POS requires a higher plan" : "الكاشير ضمن باقة أعلى"}
+          description={
+            locale === "en"
+              ? "Choose a plan, complete payment, and POS unlocks after the system confirms payment."
+              : "اختر باقة وأتمم الدفع — يُفتح الكاشير بعد تأكيد النظام للدفع."
+          }
+          className="max-w-lg bg-[#121a28] text-slate-100 border-amber-500/40"
+        />
       </div>
     );
   }

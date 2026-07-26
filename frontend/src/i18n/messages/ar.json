@@ -537,7 +537,21 @@
     "promoPlaceholder": "أدخل رمز العرض إن وُجد",
     "applyPromo": "تطبيق",
     "promoApplied": "تم تطبيق الخصم ({pct}%) — السعر {price} ر.ع",
-    "promoInvalid": "رمز الخصم غير صالح أو منتهٍ"
+    "promoInvalid": "رمز الخصم غير صالح أو منتهٍ",
+    "featureLockedBadge": "ترقية مطلوبة",
+    "featureLockedTitle": "لاستخدام «{feature}» يلزم ترقية الاشتراك",
+    "featureLockedBody": "اختر باقة مناسبة أدناه، أتمم الدفع عبر بوابة الدفع، وبعد تأكيد النظام للدفع تُفتح لك الخاصية تلقائياً.",
+    "minPlanHint": "أقل باقة تشمل هذه الميزة: {plan}",
+    "stepChoose": "اختر الباقة",
+    "stepPay": "أتمم الدفع",
+    "stepUnlock": "بعد التأكيد تُفتح الميزة",
+    "featureUnlockedTitle": "الميزة مفعّلة في باقتك",
+    "featureUnlockedBody": "يمكنك الآن فتح «{feature}» والبدء بالاستخدام.",
+    "openFeature": "فتح الصفحة",
+    "recommended": "موصى بها",
+    "unlocksFeature": "تفتح الميزة",
+    "upgradeToUnlock": "ترقية لفتح الميزة",
+    "payConfirmHint": "تُفعَّل الخصائص فقط بعد تأكيد الدفع من النظام (ليس قبل إتمام العملية)."
   },
   "common": {
     "save": "حفظ",
