@@ -25,36 +25,43 @@ export default function RestoQrPrintPage() {
   const [tables, setTables] = useState<QrTable[]>([]);
   const [companyName, setCompanyName] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    setLoadError(false);
+    try {
+      const [floor, tokens] = await Promise.all([
+        api.getRestoFloor(),
+        api.ensureRestoGuestTokens(),
+      ]);
+      setCompanyName(floor.data.companyName || "Hisaby");
+      const origin =
+        typeof window !== "undefined" ? window.location.origin : "";
+      const withQr = await Promise.all(
+        (tokens.data.tables || []).map(async (tb) => {
+          const url = `${origin}${tb.path}`;
+          const dataUrl = await QRCode.toDataURL(url, {
+            width: 280,
+            margin: 1,
+            color: { dark: "#14110f", light: "#ffffff" },
+          });
+          return { ...tb, dataUrl };
+        }),
+      );
+      setTables(withQr);
+    } catch {
+      setTables([]);
+      setLoadError(true);
+      toast.error(t.actionFail);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    void (async () => {
-      setLoading(true);
-      try {
-        const [floor, tokens] = await Promise.all([
-          api.getRestoFloor(),
-          api.ensureRestoGuestTokens(),
-        ]);
-        setCompanyName(floor.data.companyName || "Hisaby");
-        const origin =
-          typeof window !== "undefined" ? window.location.origin : "";
-        const withQr = await Promise.all(
-          (tokens.data.tables || []).map(async (tb) => {
-            const url = `${origin}${tb.path}`;
-            const dataUrl = await QRCode.toDataURL(url, {
-              width: 280,
-              margin: 1,
-              color: { dark: "#14110f", light: "#ffffff" },
-            });
-            return { ...tb, dataUrl };
-          }),
-        );
-        setTables(withQr);
-      } catch {
-        toast.error(t.actionFail);
-      } finally {
-        setLoading(false);
-      }
-    })();
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [t.actionFail]);
 
   return (
@@ -84,6 +91,21 @@ export default function RestoQrPrintPage() {
         <div className="flex justify-center py-20 text-stone-400 print:hidden">
           <Loader2 className="w-6 h-6 animate-spin" />
         </div>
+      ) : loadError ? (
+        <div className="text-center py-16 space-y-3 print:hidden">
+          <p className="text-sm text-rose-300">{t.loadFailed}</p>
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="rounded-xl bg-amber-500 text-[#14110f] px-4 py-2 text-sm font-bold"
+          >
+            {t.retry}
+          </button>
+        </div>
+      ) : tables.length === 0 ? (
+        <p className="text-center text-sm text-stone-400 py-16 print:hidden">
+          {locale === "en" ? "No tables with QR codes yet" : "لا طاولات بروابط QR بعد"}
+        </p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 print:grid-cols-2 print:gap-3">
           {tables.map((tb) => (

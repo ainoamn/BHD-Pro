@@ -605,6 +605,8 @@
   "notifications": {
     "title": "Notifications",
     "empty": "No notifications right now",
+    "loadFailed": "Could not load notifications",
+    "retry": "Retry",
     "markAllRead": "Mark all as read",
     "lowStockTitle": "Low stock",
     "lowStockMsg": "{count} products below minimum",

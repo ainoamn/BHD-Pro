@@ -20,30 +20,30 @@ export function IncentivesSettings() {
   const [redeemRate, setRedeemRate] = useState("0");
   const [receiptFooter, setReceiptFooter] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const load = async () => {
+    setLoading(true);
+    setLoadError(false);
+    try {
+      const res = await api.getPosIncentivesConfig();
+      setCashierEnabled(!!res.data.cashierEnabled);
+      setCashierPercent(String(res.data.cashierPercent ?? 0));
+      setCustomerEnabled(!!res.data.customerEnabled);
+      setPointsPerUnit(String(res.data.customerPointsPerUnit ?? 0));
+      setRedeemEnabled(!!res.data.redeemEnabled);
+      setRedeemRate(String(res.data.redeemPointsPerUnit ?? 0));
+      setReceiptFooter(String(res.data.receiptFooter ?? ""));
+    } catch {
+      setLoadError(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await api.getPosIncentivesConfig();
-        if (cancelled) return;
-        setCashierEnabled(!!res.data.cashierEnabled);
-        setCashierPercent(String(res.data.cashierPercent ?? 0));
-        setCustomerEnabled(!!res.data.customerEnabled);
-        setPointsPerUnit(String(res.data.customerPointsPerUnit ?? 0));
-        setRedeemEnabled(!!res.data.redeemEnabled);
-        setRedeemRate(String(res.data.redeemPointsPerUnit ?? 0));
-        setReceiptFooter(String(res.data.receiptFooter ?? ""));
-      } catch {
-        /* ignore */
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    void load();
   }, []);
 
   const save = async () => {
@@ -74,6 +74,21 @@ export function IncentivesSettings() {
     return (
       <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-400">
         …
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-4 text-center space-y-2">
+        <p className="text-sm text-rose-300">{t.loadFailed}</p>
+        <button
+          type="button"
+          onClick={() => void load()}
+          className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-bold text-slate-950"
+        >
+          {t.retry}
+        </button>
       </div>
     );
   }

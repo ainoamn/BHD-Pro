@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { FxRevaluationService } from './fx-revaluation.service';
 import { PostFxRevaluationDto } from './dto/post-fx-revaluation.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -21,6 +22,7 @@ export class FxRevaluationController {
   }
 
   @Post('post')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: 'Post FX revaluation journal for as-of date' })
   post(@CurrentUser() user: TokenPayload, @Body() dto: PostFxRevaluationDto) {
     return this.service.post(user.companyId, user.sub, dto);

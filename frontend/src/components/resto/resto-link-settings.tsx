@@ -51,6 +51,8 @@ export function RestoLinkSettings({
   const [busy, setBusy] = useState(false);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [warehouseId, setWarehouseId] = useState("");
+  const [bootLoading, setBootLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   const refresh = async () => {
     const [linkRes, whRes] = await Promise.all([
@@ -66,7 +68,11 @@ export function RestoLinkSettings({
   };
 
   useEffect(() => {
-    refresh().catch(() => undefined);
+    setBootLoading(true);
+    setLoadError(false);
+    refresh()
+      .catch(() => setLoadError(true))
+      .finally(() => setBootLoading(false));
   }, []);
 
   const toastApiError = (err: unknown) => {
@@ -189,6 +195,27 @@ export function RestoLinkSettings({
 
   return (
     <div className={cn("space-y-4", className)}>
+      {bootLoading ? (
+        <p className="text-sm text-stone-400 py-4">…</p>
+      ) : loadError ? (
+        <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 text-center space-y-2">
+          <p className="text-sm text-rose-300">{t.loadFailed}</p>
+          <button
+            type="button"
+            onClick={() => {
+              setBootLoading(true);
+              setLoadError(false);
+              refresh()
+                .catch(() => setLoadError(true))
+                .finally(() => setBootLoading(false));
+            }}
+            className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-bold text-[#14110f]"
+          >
+            {t.retry}
+          </button>
+        </div>
+      ) : (
+        <>
       {isAccounting && (
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="flex items-start gap-3 min-w-0">
@@ -317,6 +344,8 @@ export function RestoLinkSettings({
           </>
         ) : null}
       </div>
+        </>
+      )}
     </div>
   );
 }

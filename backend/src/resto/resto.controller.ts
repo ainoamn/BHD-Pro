@@ -13,6 +13,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { UserRole } from '@prisma/client';
 import { Observable } from 'rxjs';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -109,6 +110,7 @@ export class RestoController {
   }
 
   @Post('link/activate')
+  @Throttle({ default: { limit: 15, ttl: 60000 } })
   @ApiOperation({ summary: 'Activate restaurant link (SSO) + optional warehouse' })
   activate(
     @CurrentUser() user: TokenPayload,
@@ -128,6 +130,7 @@ export class RestoController {
   }
 
   @Post('link/deactivate')
+  @Throttle({ default: { limit: 15, ttl: 60000 } })
   @Roles(...RESTO_FLOOR_MGR)
   @ApiOperation({ summary: 'Deactivate restaurant link' })
   deactivate(@CurrentUser() user: TokenPayload) {
@@ -135,6 +138,7 @@ export class RestoController {
   }
 
   @Post('link/generate')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Generate restaurant integration key' })
   generate(
@@ -145,6 +149,7 @@ export class RestoController {
   }
 
   @Post('link')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Confirm restaurant link with key' })
   linkWithKey(@CurrentUser() user: TokenPayload, @Body() dto: LinkRestoDto) {

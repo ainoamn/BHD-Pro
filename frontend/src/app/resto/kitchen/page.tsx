@@ -387,6 +387,8 @@ export default function RestoKitchenPage() {
         <div className="flex justify-center py-20 text-stone-400">
           <Loader2 className="w-6 h-6 animate-spin" />
         </div>
+      ) : error && items.length === 0 ? (
+        null
       ) : visible.length === 0 ? (
         <p className="text-center text-sm text-stone-400 py-20">{t.kitchenEmpty}</p>
       ) : (

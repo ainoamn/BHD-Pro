@@ -136,6 +136,7 @@ export class PaymentsController {
   }
 
   @Post('invoices/:invoiceId/checkout')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create online payment checkout for sales invoice (company gateway)' })
@@ -159,6 +160,7 @@ export class PaymentsController {
   }
 
   @Post('public/invoice/:invoiceId/checkout')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Public checkout for invoice (uses company gateway)' })
   async publicInvoiceCheckout(
     @Param('invoiceId') invoiceId: string,

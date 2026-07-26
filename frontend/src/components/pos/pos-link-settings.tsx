@@ -42,6 +42,8 @@ export function PosLinkSettings({
     { id: string; code: string; name: string; nameEn?: string | null; sector?: string; isActive?: boolean }[]
   >([]);
   const [warehouseId, setWarehouseId] = useState("");
+  const [bootLoading, setBootLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   const refresh = async () => {
     const [linkRes, whRes] = await Promise.all([
@@ -57,7 +59,11 @@ export function PosLinkSettings({
   };
 
   useEffect(() => {
-    refresh().catch(() => undefined);
+    setBootLoading(true);
+    setLoadError(false);
+    refresh()
+      .catch(() => setLoadError(true))
+      .finally(() => setBootLoading(false));
   }, []);
 
   const toastApiError = (err: unknown) => {
@@ -171,6 +177,27 @@ export function PosLinkSettings({
 
   return (
     <div className={cn("space-y-4", className)}>
+      {bootLoading ? (
+        <p className="text-sm text-slate-400 py-4">…</p>
+      ) : loadError ? (
+        <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 text-center space-y-2">
+          <p className="text-sm text-rose-300">{t.loadFailed}</p>
+          <button
+            type="button"
+            onClick={() => {
+              setBootLoading(true);
+              setLoadError(false);
+              refresh()
+                .catch(() => setLoadError(true))
+                .finally(() => setBootLoading(false));
+            }}
+            className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-bold text-slate-950"
+          >
+            {t.retry}
+          </button>
+        </div>
+      ) : (
+        <>
       {isAccounting && (
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="flex items-start gap-3 min-w-0">
@@ -306,6 +333,8 @@ export function PosLinkSettings({
           <p className="text-xs text-slate-500">{t.adminOnlyKeys}</p>
         )}
       </div>
+        </>
+      )}
     </div>
   );
 }

@@ -605,6 +605,8 @@
   "notifications": {
     "title": "التنبيهات",
     "empty": "لا توجد تنبيهات حالياً",
+    "loadFailed": "تعذر تحميل التنبيهات",
+    "retry": "إعادة المحاولة",
     "markAllRead": "تعليم الكل كمقروء",
     "lowStockTitle": "مخزون منخفض",
     "lowStockMsg": "{count} منتج تحت الحد الأدنى",

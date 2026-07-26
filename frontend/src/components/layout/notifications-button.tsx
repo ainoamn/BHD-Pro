@@ -42,16 +42,23 @@ export function NotificationsButton() {
   const [hasAlerts, setHasAlerts] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
-  const { data: alerts = [], isLoading, isFetching } = useQuery({
+  const { data: alerts = [], isLoading, isFetching, isError, refetch } = useQuery({
     queryKey: ["topbar-alerts", company?.id],
     queryFn: async (): Promise<AlertItem[]> => {
       const items: AlertItem[] = [];
-      const [salesStats, purchaseStats, productStats, dash] = await Promise.all([
-        api.getInvoiceStats("SALES").catch(() => null),
-        api.getInvoiceStats("PURCHASE").catch(() => null),
-        api.getProductStats().catch(() => null),
-        api.getDashboardStats().catch(() => null),
+      const settled = await Promise.allSettled([
+        api.getInvoiceStats("SALES"),
+        api.getInvoiceStats("PURCHASE"),
+        api.getProductStats(),
+        api.getDashboardStats(),
       ]);
+      if (settled.every((r) => r.status === "rejected")) {
+        throw new Error("alerts_unavailable");
+      }
+      const salesStats = settled[0].status === "fulfilled" ? settled[0].value : null;
+      const purchaseStats = settled[1].status === "fulfilled" ? settled[1].value : null;
+      const productStats = settled[2].status === "fulfilled" ? settled[2].value : null;
+      const dash = settled[3].status === "fulfilled" ? settled[3].value : null;
 
       const salesData = (salesStats?.data ?? {}) as AlertStats;
       const purchaseData = (purchaseStats?.data ?? {}) as AlertStats;
@@ -258,6 +265,17 @@ export function NotificationsButton() {
             {(isLoading || isFetching) && alerts.length === 0 ? (
               <div className="flex justify-center py-10">
                 <Loader2 className="w-5 h-5 animate-spin text-emerald-400" />
+              </div>
+            ) : isError ? (
+              <div className="px-4 py-10 text-center space-y-2">
+                <p className="text-sm text-rose-500">{t("loadFailed")}</p>
+                <button
+                  type="button"
+                  onClick={() => void refetch()}
+                  className="text-xs font-semibold text-emerald-600 hover:underline"
+                >
+                  {t("retry")}
+                </button>
               </div>
             ) : visible.length === 0 ? (
               <div className="px-4 py-10 text-center">

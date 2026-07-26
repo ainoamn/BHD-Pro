@@ -154,6 +154,8 @@ export default function RestoExpoPage() {
         <div className="flex justify-center py-20 text-stone-400">
           <Loader2 className="w-6 h-6 animate-spin" />
         </div>
+      ) : error && items.length === 0 ? (
+        null
       ) : items.length === 0 ? (
         <p className="text-center text-sm text-stone-400 py-20">{t.expoEmpty}</p>
       ) : (

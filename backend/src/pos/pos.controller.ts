@@ -119,6 +119,7 @@ export class PosController {
   }
 
   @Patch('incentives/config')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Update POS incentives config (ADMIN)' })
   updateIncentivesConfig(
@@ -188,6 +189,7 @@ export class PosController {
   }
 
   @Post('link/activate')
+  @Throttle({ default: { limit: 15, ttl: 60000 } })
   @ApiOperation({ summary: 'Link POS to Accounting via shared login + warehouse' })
   activate(
     @CurrentUser() user: TokenPayload,
@@ -207,6 +209,7 @@ export class PosController {
   }
 
   @Post('link/deactivate')
+  @Throttle({ default: { limit: 15, ttl: 60000 } })
   @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({ summary: 'Unlink POS from Accounting (test systems separately)' })
   deactivate(@CurrentUser() user: TokenPayload) {
@@ -214,6 +217,7 @@ export class PosController {
   }
 
   @Post('link/generate')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Generate technical integration key (ADMIN, shown once)' })
   generate(
@@ -224,6 +228,7 @@ export class PosController {
   }
 
   @Post('link')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Confirm link with integration key (ADMIN, same company)' })
   linkWithKey(@CurrentUser() user: TokenPayload, @Body() dto: LinkPosDto) {
