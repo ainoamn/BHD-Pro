@@ -310,17 +310,25 @@ POST {API_PUBLIC_URL}/api/payments/webhooks/paypal
 | POST | `/payments/subscription/checkout` | checkout اشتراك |
 | GET | `/payments/public/invoice/:id` | معلومات دفع عامة |
 | POST | `/payments/public/invoice/:id/checkout` | checkout دفع فاتورة |
-| GET | `/subscriptions/plans` | خطط الاشتراك |
+| GET | `/subscriptions/plans` | خطط الاشتراك (يتطلب JWT) |
+| GET | `/public/plans` | خطط نشطة للصفحة الرئيسية (عام) |
 
 ---
 
 ## خطط الاشتراك
 
-| الخطة | شهري (ر.ع) | سنوي (ر.ع) | فواتير/شهر | مستخدمين |
-|-------|------------|------------|------------|----------|
-| Starter | 5 | 48 | 50 | 2 |
-| Professional | 15 | 144 | 500 | 10 |
-| Enterprise | 35 | 336 | ∞ | ∞ |
+الأسعار والحدود تُدار من `/admin/plans` (حية من قاعدة البيانات). القيم الافتراضية:
+
+| الخطة | شهري (ر.ع) | سنوي (ر.ع) | تخفيض سنوي | فواتير/شهر | مستخدمين |
+|-------|------------|------------|------------|------------|----------|
+| Starter | 5 | 48 | ~20% | 50 | 2 |
+| Professional | 15 | 144 | ~20% | 500 | 10 |
+| Enterprise | 35 | 336 | ~20% | ∞ | ∞ |
+
+- تغيير الشهري أو نسبة التخفيض السنوي يعيد حساب السنوي تلقائيًا.
+- الصفحة الرئيسية: تبديل شهري/سنوي عبر `GET /api/public/plans`.
+- توثيق لوحة المنصة والصلاحيات والتسعير: [`docs/HISABY-ADMIN-PLANS-USERS-PRICING-2026-07-26.md`](docs/HISABY-ADMIN-PLANS-USERS-PRICING-2026-07-26.md)
+- الحالة العامة للمنتج: [`docs/HISABY-MASTER-STATUS-AND-PLAN-2026-07-25.md`](docs/HISABY-MASTER-STATUS-AND-PLAN-2026-07-25.md)
 
 ---
 
