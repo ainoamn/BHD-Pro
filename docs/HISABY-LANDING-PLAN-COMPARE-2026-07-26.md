@@ -41,7 +41,7 @@
 
 | ملف | دور |
 |-----|-----|
-| `frontend/src/components/landing/landing-page.tsx` | زر المقارنة + جدول `buildPlanCompareRows` |
+| `frontend/src/components/landing/landing-page.tsx` | زر المقارنة + جدول `buildPlanCompareRows` (`Array.from` لـ Map) |
 | `frontend/src/lib/landing-copy.ts` | نصوص عربية/إنجليزية (`comparePlans`, `compareDiffsOnly`, …) |
 | `backend` `publicPlans()` | مصدر البيانات الحي (`highlights`, أسعار، حدود) — بدون تغيير لهذا الزر |
 
