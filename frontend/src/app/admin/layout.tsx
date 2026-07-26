@@ -34,7 +34,7 @@ const NAV = [
   { href: "/admin/gateways", key: "gateways" as const, perm: "gateways" as const, icon: Wallet },
 ];
 
-const ADMIN_ME_CACHE = "hisaby-admin-me-v1";
+const ADMIN_ME_CACHE = "hisaby-admin-me-v2";
 
 function canAccess(perms: string[], needed: string) {
   if (!perms.length || perms.includes("full")) return true;

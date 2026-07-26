@@ -17,7 +17,7 @@ const DEFAULT_PLATFORM_ADMINS = [
   'ammar89555200@gmail.com',
 ];
 
-/** Owner account that cannot be deleted or deactivated (permissions can still be restricted). */
+/** Owner account: always full access; cannot delete, deactivate, or restrict. */
 const PROTECTED_PLATFORM_ADMINS = ['admin@hisaby.pro'];
 
 export const PLATFORM_PERMISSIONS = [
@@ -43,6 +43,7 @@ const PATH_PERMISSIONS: { match: RegExp; perm: PlatformPermission }[] = [
   { match: /\/admin\/visits(\/|$)/, perm: 'visits' },
   { match: /\/admin\/sessions(\/|$)/, perm: 'visits' },
   { match: /\/admin\/payment-gateways(\/|$)/, perm: 'gateways' },
+  { match: /\/admin\/gateways(\/|$)/, perm: 'gateways' },
   { match: /\/admin\/overview(\/|$)/, perm: 'overview' },
   { match: /\/admin\/settings(\/|$)/, perm: 'overview' },
 ];
@@ -104,20 +105,25 @@ export class PlatformAdminGuard implements CanActivate {
     let permissions: PlatformPermission[] = [];
     let allowed = false;
 
-    const op = await this.prisma.platformOperator.findUnique({
-      where: { email },
-    });
-
-    if (op) {
-      if (op.isActive) {
-        allowed = true;
-        permissions = ((op.permissions as string[]) || []) as PlatformPermission[];
-        if (!permissions.length) permissions = ['full'];
-      }
-    } else if (isBootstrapAdminEmail(email)) {
-      // Seed/env operator without a row yet — full access until managed in DB
+    // Primary owner always has full active access (cannot be locked out via DB row)
+    if (isProtectedPlatformAdminEmail(email)) {
       allowed = true;
       permissions = ['full'];
+    } else {
+      const op = await this.prisma.platformOperator.findUnique({
+        where: { email },
+      });
+
+      if (op) {
+        if (op.isActive) {
+          allowed = true;
+          permissions = ((op.permissions as string[]) || []) as PlatformPermission[];
+          if (!permissions.length) permissions = ['full'];
+        }
+      } else if (isBootstrapAdminEmail(email)) {
+        allowed = true;
+        permissions = ['full'];
+      }
     }
 
     if (!allowed) {

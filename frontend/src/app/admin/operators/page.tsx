@@ -310,18 +310,26 @@ export default function AdminOperatorsPage() {
                 </div>
               </div>
               <p className="text-[11px] text-slate-500">
-                {en
-                  ? "Click chips to grant or revoke console sections."
-                  : "اضغط الشارات لمنح أو سحب أقسام لوحة التحكم."}
+                {op.isProtected
+                  ? en
+                    ? "Owner always has full console access."
+                    : "المالك يحتفظ بصلاحية كاملة دائماً."
+                  : en
+                    ? "Click chips to grant or revoke console sections."
+                    : "اضغط الشارات لمنح أو سحب أقسام لوحة التحكم."}
               </p>
               <div className="flex flex-wrap gap-2">
                 {PERMS.map((p) => {
-                  const active = (op.permissions || []).includes(p);
+                  const active = op.isProtected
+                    ? p === "full"
+                    : (op.permissions || []).includes(p);
                   return (
                     <button
                       key={p}
                       type="button"
+                      disabled={!!op.isProtected}
                       onClick={() => {
+                        if (op.isProtected) return;
                         let next: string[];
                         if (p === "full") next = ["full"];
                         else {
@@ -338,6 +346,7 @@ export default function AdminOperatorsPage() {
                         active
                           ? "bg-teal-700 text-white border-teal-700"
                           : "bg-white text-slate-500 border-slate-200 hover:border-teal-400",
+                        op.isProtected && "cursor-not-allowed",
                       )}
                     >
                       {permLabels[p]}

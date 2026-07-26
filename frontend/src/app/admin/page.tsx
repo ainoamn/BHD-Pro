@@ -42,13 +42,22 @@ export default function AdminHomePage() {
     api
       .getAdminOverview()
       .then((res) => setData(res.data as Overview))
-      .catch(() =>
-        setError(
-          en
-            ? "Could not load overview — API may be waking up. Retry shortly."
-            : "تعذر تحميل المؤشرات — قد يكون الخادم يستيقظ. أعد المحاولة بعد لحظات.",
-        ),
-      )
+      .catch((err: unknown) => {
+        const status = (err as { response?: { status?: number } })?.response?.status;
+        if (status === 403) {
+          setError(
+            en
+              ? "No permission for overview. If you are the owner, wait for API redeploy or clear site data and retry."
+              : "لا صلاحية لعرض المؤشرات. إن كنت المالك، انتظر إعادة نشر الـ API أو امسح بيانات الموقع وأعد المحاولة.",
+          );
+        } else {
+          setError(
+            en
+              ? "Could not load overview — API may be waking up. Retry shortly."
+              : "تعذر تحميل المؤشرات — قد يكون الخادم يستيقظ. أعد المحاولة بعد لحظات.",
+          );
+        }
+      })
       .finally(() => setLoading(false));
   };
 

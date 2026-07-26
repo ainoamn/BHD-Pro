@@ -30,6 +30,7 @@ export class AdminService implements OnModuleInit {
 
   async onModuleInit() {
     for (const email of getBootstrapAdminEmails()) {
+      const isOwner = isProtectedPlatformAdminEmail(email);
       await this.prisma.platformOperator.upsert({
         where: { email },
         create: {
@@ -39,7 +40,10 @@ export class AdminService implements OnModuleInit {
           isActive: true,
           createdBy: 'bootstrap',
         },
-        update: {},
+        // Never wipe custom perms on restart — except restore the primary owner
+        update: isOwner
+          ? { permissions: ['full'], isActive: true }
+          : {},
       });
     }
   }
@@ -47,6 +51,7 @@ export class AdminService implements OnModuleInit {
   async isPlatformAdmin(email?: string | null): Promise<boolean> {
     if (!email) return false;
     const normalized = email.toLowerCase();
+    if (isProtectedPlatformAdminEmail(normalized)) return true;
     const op = await this.prisma.platformOperator.findUnique({
       where: { email: normalized },
     });
@@ -61,10 +66,14 @@ export class AdminService implements OnModuleInit {
       where: { email: normalized },
     });
     let permissions: PlatformPermission[] = ['full'];
-    if (op?.permissions && Array.isArray(op.permissions) && (op.permissions as string[]).length) {
+    if (isProtectedPlatformAdminEmail(normalized)) {
+      permissions = ['full'];
+    } else if (
+      op?.permissions &&
+      Array.isArray(op.permissions) &&
+      (op.permissions as string[]).length
+    ) {
       permissions = op.permissions as PlatformPermission[];
-    } else if (!isBootstrapAdminEmail(normalized) && op) {
-      permissions = ((op.permissions as PlatformPermission[]) || ['full']);
     }
     return {
       isPlatformAdmin,
@@ -72,6 +81,7 @@ export class AdminService implements OnModuleInit {
       permissions: isPlatformAdmin ? permissions : [],
       operatorId: op?.id ?? null,
       isActive: op ? op.isActive : isPlatformAdmin,
+      isProtected: isProtectedPlatformAdminEmail(normalized),
     };
   }
 
@@ -125,13 +135,17 @@ export class AdminService implements OnModuleInit {
   ) {
     const existing = await this.prisma.platformOperator.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Operator not found');
-    if (
-      isProtectedPlatformAdminEmail(existing.email) &&
-      data.isActive === false
-    ) {
-      throw new BadRequestException(
-        'Cannot deactivate the primary platform owner account (admin@hisaby.pro)',
-      );
+    if (isProtectedPlatformAdminEmail(existing.email)) {
+      if (data.isActive === false) {
+        throw new BadRequestException(
+          'Cannot deactivate the primary platform owner account (admin@hisaby.pro)',
+        );
+      }
+      if (data.permissions !== undefined) {
+        throw new BadRequestException(
+          'Cannot restrict the primary platform owner — permissions stay full.',
+        );
+      }
     }
     return this.prisma.platformOperator.update({
       where: { id },
