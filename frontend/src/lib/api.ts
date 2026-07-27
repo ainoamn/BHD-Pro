@@ -13,6 +13,25 @@ export type DualApprovalPayload = {
   reason?: string;
 };
 
+export type PosPendingFulfillment = {
+  id: string;
+  number: string;
+  total: number | string;
+  createdAt?: string;
+  contact?: { id: string; name: string; phone?: string | null } | null;
+  warehouse?: {
+    id?: string;
+    code: string;
+    name: string;
+    nameEn?: string | null;
+  } | null;
+  items?: {
+    productId?: string | null;
+    description: string;
+    quantity: number | string;
+  }[];
+};
+
 export type RestoOrderPayload = {
   id: string;
   number: string;
@@ -1585,6 +1604,8 @@ class ApiClient {
         company,
         username: user.username || null,
         phone: user.phone || null,
+        defaultWarehouseId: user.defaultWarehouseId ?? null,
+        defaultWarehouse: user.defaultWarehouse ?? null,
       },
       company,
       accessToken || null,
@@ -2952,11 +2973,16 @@ class ApiClient {
   }
 
   listPosPendingFulfillments(take = 40) {
-    return this.get('/pos/fulfillments/pending', { params: { take } });
+    return this.get<PosPendingFulfillment[]>('/pos/fulfillments/pending', {
+      params: { take },
+    });
   }
 
   fulfillPosSale(id: string, allowNegativeStock = false) {
-    return this.post(`/pos/sales/${id}/fulfill`, { allowNegativeStock });
+    return this.post<{ id: string; number: string; posFulfillmentStatus: string }>(
+      `/pos/sales/${id}/fulfill`,
+      { allowNegativeStock },
+    );
   }
 
   getPosSaleByNumber(number: string) {

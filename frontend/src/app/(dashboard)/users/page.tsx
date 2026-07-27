@@ -88,12 +88,20 @@ export default function UsersPage() {
   });
 
   const createMutation = useMutation({
-    mutationFn: () =>
-      api.createUser({
+    mutationFn: () => {
+      if (form.role === "CASHIER" && !form.defaultWarehouseId) {
+        throw new Error(
+          en
+            ? "Assign a home warehouse for cashiers"
+            : "عيّن مستودع الموظف للكاشير",
+        );
+      }
+      return api.createUser({
         ...form,
         defaultWarehouseId: form.defaultWarehouseId || null,
         permissions: form.role === "ADMIN" ? undefined : createPerms,
-      }),
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
       toast.success(en ? "Invitation sent" : "تم إرسال دعوة المستخدم");
@@ -101,7 +109,11 @@ export default function UsersPage() {
       setForm({ name: "", email: "", role: "ACCOUNTANT", defaultWarehouseId: "" });
       setCreatePerms(defaultsForRole("ACCOUNTANT"));
     },
-    onError: (err: { response?: { data?: { message?: string } } }) => {
+    onError: (err: { message?: string; response?: { data?: { message?: string } } }) => {
+      if (err.message && !err.response) {
+        toast.error(err.message);
+        return;
+      }
       toast.error(apiErrorMessage(err, t("createError")));
     },
   });
@@ -284,27 +296,34 @@ export default function UsersPage() {
                     </td>
                     <td className="p-4">
                       {isAdmin ? (
-                        <select
-                          value={u.defaultWarehouseId || ""}
-                          onChange={(e) =>
-                            updateWarehouseMutation.mutate({
-                              id: u.id,
-                              defaultWarehouseId: e.target.value || null,
-                            })
-                          }
-                          disabled={updateWarehouseMutation.isPending}
-                          className="h-8 max-w-[11rem] px-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-xs focus:outline-none focus:border-emerald-500"
-                          title={en ? "POS home warehouse" : "مستودع الكاشير الافتراضي"}
-                        >
-                          <option value="">
-                            {en ? "Company default" : "افتراضي الشركة"}
-                          </option>
-                          {warehouses.map((w) => (
-                            <option key={w.id} value={w.id}>
-                              {w.code} — {w.name}
+                        <div className="space-y-1">
+                          <select
+                            value={u.defaultWarehouseId || ""}
+                            onChange={(e) =>
+                              updateWarehouseMutation.mutate({
+                                id: u.id,
+                                defaultWarehouseId: e.target.value || null,
+                              })
+                            }
+                            disabled={updateWarehouseMutation.isPending}
+                            className="h-8 max-w-[11rem] px-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-xs focus:outline-none focus:border-emerald-500"
+                            title={en ? "Home warehouse (POS)" : "مستودع الموظف"}
+                          >
+                            <option value="">
+                              {en ? "Company default" : "افتراضي الشركة"}
                             </option>
-                          ))}
-                        </select>
+                            {warehouses.map((w) => (
+                              <option key={w.id} value={w.id}>
+                                {w.code} — {w.name}
+                              </option>
+                            ))}
+                          </select>
+                          {u.role === "CASHIER" && !u.defaultWarehouseId ? (
+                            <p className="text-[10px] text-amber-300">
+                              {en ? "Required for cashiers" : "مطلوب للكاشير"}
+                            </p>
+                          ) : null}
+                        </div>
                       ) : (
                         <span className="text-xs text-slate-400">
                           {u.defaultWarehouse
@@ -443,7 +462,10 @@ export default function UsersPage() {
                 </div>
                 <div>
                   <label className="block text-sm text-slate-400 mb-1">
-                    {en ? "Home warehouse (POS)" : "مستودع الموظف (كاشير)"}
+                    {en ? "Home warehouse" : "مستودع الموظف"}
+                    {form.role === "CASHIER" ? (
+                      <span className="text-amber-300"> *</span>
+                    ) : null}
                   </label>
                   <select
                     value={form.defaultWarehouseId}
@@ -461,6 +483,15 @@ export default function UsersPage() {
                       </option>
                     ))}
                   </select>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    {form.role === "CASHIER"
+                      ? en
+                        ? "Required — locks the cashier to this POS warehouse."
+                        : "مطلوب — يُقفل الكاشير على هذا المستودع."
+                      : en
+                        ? "Optional — empty uses the company POS warehouse."
+                        : "اختياري — الفراغ يعني مستودع POS الافتراضي للشركة."}
+                  </p>
                 </div>
               </div>
               <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-200">
@@ -495,6 +526,7 @@ export default function UsersPage() {
                 disabled={
                   !form.name ||
                   !form.email ||
+                  (form.role === "CASHIER" && !form.defaultWarehouseId) ||
                   createMutation.isPending
                 }
                 className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 disabled:opacity-50"

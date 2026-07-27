@@ -91,7 +91,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, ModulePermissions> = {
     posContacts: 'edit',
     posBooks: 'edit',
     contacts: 'view',
-    inventory: 'view',
+    inventory: 'hidden',
     floor: 'view',
   },
   WAITER: {

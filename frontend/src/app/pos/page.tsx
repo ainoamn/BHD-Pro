@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
+import type { PosPendingFulfillment } from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
 import { useAuthStore } from "@/store/auth";
 import { posCopy } from "@/lib/pos-copy";
@@ -179,7 +180,7 @@ export default function PosCheckoutPage() {
   const [homeWarehouseId, setHomeWarehouseId] = useState<string | null>(null);
   const [remoteSellMode, setRemoteSellMode] = useState(false);
   const [pendingFulfillments, setPendingFulfillments] = useState<
-    { id: string; number: string; total: number | string; warehouse?: { code: string; name: string } | null }[]
+    PosPendingFulfillment[]
   >([]);
   const [fulfillBusyId, setFulfillBusyId] = useState<string | null>(null);
   const [recentSales, setRecentSales] = useState<RecentCashSale[]>([]);
@@ -941,16 +942,7 @@ export default function PosCheckoutPage() {
 
         try {
           const pend = await api.listPosPendingFulfillments(20);
-          setPendingFulfillments(
-            ((pend.data as typeof pendingFulfillments) || []).map((p) => ({
-              id: p.id,
-              number: p.number,
-              total: p.total,
-              warehouse: p.warehouse
-                ? { code: p.warehouse.code, name: p.warehouse.name }
-                : null,
-            })),
-          );
+          setPendingFulfillments(pend.data || []);
         } catch {
           setPendingFulfillments([]);
         }
@@ -978,6 +970,12 @@ export default function PosCheckoutPage() {
           await loadRecentSales();
           await loadOpsStrip();
           await loadCatalog(search, warehouseId || undefined);
+          try {
+            const pend = await api.listPosPendingFulfillments(20);
+            setPendingFulfillments(pend.data || []);
+          } catch {
+            /* keep previous */
+          }
         } else if (result.failed) {
           toast.error(t.syncFail);
         }
@@ -2546,16 +2544,7 @@ export default function PosCheckoutPage() {
       if (isDeferredSale) {
         try {
           const pend = await api.listPosPendingFulfillments(20);
-          setPendingFulfillments(
-            ((pend.data as typeof pendingFulfillments) || []).map((p) => ({
-              id: p.id,
-              number: p.number,
-              total: p.total,
-              warehouse: p.warehouse
-                ? { code: p.warehouse.code, name: p.warehouse.name }
-                : null,
-            })),
-          );
+          setPendingFulfillments(pend.data || []);
         } catch {
           /* keep previous list */
         }
@@ -2951,7 +2940,9 @@ export default function PosCheckoutPage() {
 
         {pendingFulfillments.length > 0 ? (
           <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 space-y-2">
-            <p className="text-xs font-bold text-amber-200">{t.fulfillPending}</p>
+            <p className="text-xs font-bold text-amber-200">
+              {t.fulfillPending} ({pendingFulfillments.length})
+            </p>
             <ul className="space-y-1.5">
               {pendingFulfillments.slice(0, 5).map((p) => (
                 <li
@@ -2971,7 +2962,10 @@ export default function PosCheckoutPage() {
                         .fulfillPosSale(p.id)
                         .then(() => {
                           toast.success(t.fulfillOk);
-                          setPendingFulfillments((prev) => prev.filter((x) => x.id !== p.id));
+                          setPendingFulfillments((prev) =>
+                            prev.filter((x) => x.id !== p.id),
+                          );
+                          void loadCatalog(search, warehouseId || undefined);
                         })
                         .catch(() => toast.error(t.fulfillFail))
                         .finally(() => setFulfillBusyId(null));
@@ -2983,6 +2977,14 @@ export default function PosCheckoutPage() {
                 </li>
               ))}
             </ul>
+            {pendingFulfillments.length > 5 ? (
+              <p className="text-[10px] text-amber-200/80">
+                {t.fulfillMore.replace(
+                  "{n}",
+                  String(pendingFulfillments.length - 5),
+                )}
+              </p>
+            ) : null}
           </div>
         ) : null}
 

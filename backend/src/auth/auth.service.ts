@@ -601,6 +601,8 @@ export class AuthService {
       phone: user.phone || null,
       role: user.role,
       company: this.enrichCompany(user.company),
+      defaultWarehouseId: user.defaultWarehouseId || null,
+      defaultWarehouse: user.defaultWarehouse || null,
     };
   }
 

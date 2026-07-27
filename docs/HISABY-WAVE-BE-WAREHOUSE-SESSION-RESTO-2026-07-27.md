@@ -18,3 +18,5 @@
 1. على Render: `npx prisma migrate deploy` (يشمل `20260727133000_user_home_warehouse_pos_fulfillment`).
 2. من **المستخدمون** عيّن مستودع الموظف لكل كاشير.
 3. لكاشير المطاعم: اجعل مستودعه المنزلي = مخزن المطعم.
+
+**متابعة:** [`HISABY-WAVE-BF-WAREHOUSE-UX-INVITE-2026-07-27.md`](./HISABY-WAVE-BF-WAREHOUSE-UX-INVITE-2026-07-27.md)

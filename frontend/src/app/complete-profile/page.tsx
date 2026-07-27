@@ -17,6 +17,8 @@ type InviteInfo = {
   phone?: string | null;
   role: string;
   company?: { name?: string | null } | null;
+  defaultWarehouseId?: string | null;
+  defaultWarehouse?: { id: string; code: string; name: string } | null;
 };
 
 function CompleteProfileForm() {
@@ -139,6 +141,15 @@ function CompleteProfileForm() {
           <Mail className="w-4 h-4 shrink-0" />
           <span className="truncate">{invite.email}</span>
         </div>
+
+        {invite.defaultWarehouse ? (
+          <div className="rounded-xl border border-sky-500/30 bg-sky-500/10 p-3 text-sm text-sky-800 dark:text-sky-100">
+            {en ? "Your POS warehouse: " : "مستودع الكاشير: "}
+            <span className="font-semibold">
+              {invite.defaultWarehouse.code} — {invite.defaultWarehouse.name}
+            </span>
+          </div>
+        ) : null}
 
         <div>
           <label className="block text-sm mb-1">{en ? "Full name" : "الاسم الكامل"}</label>
