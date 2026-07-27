@@ -421,13 +421,56 @@ export default function PosCheckoutPage() {
   const loadCatalog = useCallback(async (q?: string, whId?: string) => {
     const wh = whId || warehouseId || undefined;
     try {
+      const {
+        loadCatalogCacheMeta,
+        filterCachedCatalog,
+        isCatalogStale,
+        saveCatalogCache,
+        mergeCatalogDeltas,
+      } = await import("@/lib/pos-catalog-cache");
+      const meta = await loadCatalogCacheMeta(wh);
+
+      // Show last known catalog immediately (stale-while-revalidate)
+      if (meta.products.length) {
+        setCatalog(filterCachedCatalog(meta.products, q) as PosProduct[]);
+        setCatalogLoaded(true);
+        setCatalogStale(isCatalogStale(meta.savedAt));
+        setCatalogError(false);
+      }
+
+      // Fresh cache + no search → pull stock deltas only (not full catalog)
+      if (
+        !q?.trim() &&
+        meta.savedAt &&
+        !isCatalogStale(meta.savedAt) &&
+        typeof api.syncPosStock === "function"
+      ) {
+        try {
+          const deltaRes = await api.syncPosStock(wh, meta.savedAt);
+          const deltas = (deltaRes.data?.products as PosProduct[]) || [];
+          if (deltaRes.data?.full) {
+            await saveCatalogCache(deltas, wh);
+            setCatalog(deltas.slice(0, 80));
+          } else if (deltas.length) {
+            await mergeCatalogDeltas(deltas, wh);
+            const next = await loadCatalogCacheMeta(wh);
+            setCatalog(filterCachedCatalog(next.products, q) as PosProduct[]);
+          }
+          setCatalogStale(false);
+          setCatalogError(false);
+          setCatalogLoaded(true);
+          return;
+        } catch {
+          /* fall through to search */
+        }
+      }
+
       const res = await api.searchPosProducts(q, wh);
       const rows = (res.data as PosProduct[]) || [];
       setCatalog(rows);
       setCatalogStale(false);
       setCatalogError(false);
       if (!q?.trim() && rows.length) {
-        const { saveCatalogCache } = await import("@/lib/pos-catalog-cache");
         void saveCatalogCache(rows, wh);
       }
     } catch {
@@ -509,7 +552,7 @@ export default function PosCheckoutPage() {
   // Background stock delta sync while POS is open (multi-register safety)
   useEffect(() => {
     let cancelled = false;
-    const tick = async (silent: boolean) => {
+    const tick = async (_silent: boolean) => {
       if (typeof navigator !== "undefined" && navigator.onLine === false) return;
       if (typeof api.syncPosStock !== "function") return;
       try {
@@ -527,8 +570,18 @@ export default function PosCheckoutPage() {
           await mergeCatalogDeltas(deltas, wh);
         }
         setCatalogStale(isCatalogStale(meta.savedAt) && !deltas.length);
-        if (!silent && deltas.length) {
-          await loadCatalog(search, wh);
+        // Keep grid fresh from cache even on silent ticks (multi-register stock)
+        if (deltas.length || deltaRes.data?.full) {
+          const {
+            loadCatalogCacheMeta: loadMeta,
+            filterCachedCatalog,
+          } = await import("@/lib/pos-catalog-cache");
+          const next = await loadMeta(wh);
+          if (!cancelled && !search.trim() && next.products.length) {
+            setCatalog(filterCachedCatalog(next.products, search) as PosProduct[]);
+          } else if (!cancelled && search.trim()) {
+            await loadCatalog(search, wh);
+          }
         }
       } catch {
         /* ignore background failures */
@@ -589,20 +642,41 @@ export default function PosCheckoutPage() {
   const [receiptsSearch, setReceiptsSearch] = useState("");
 
   const loadRecentSales = useCallback(async (q?: string) => {
+    const wh = warehouseId || undefined;
     setReceiptsLoading(true);
     setReceiptsError(false);
+
+    // Instant hydrate from session cache (unfiltered list only)
+    if (!q?.trim()) {
+      try {
+        const { loadRecentSalesCache } = await import("@/lib/pos-recent-sales-cache");
+        const cached = loadRecentSalesCache(wh) as RecentCashSale[];
+        if (cached.length) {
+          setRecentSales(
+            cached.filter((inv) => String(inv.status || "").toUpperCase() !== "CANCELLED"),
+          );
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+
     try {
       const res = await api.listRecentPosSales({
         take: q?.trim() ? 40 : 20,
-        warehouseId: warehouseId || undefined,
+        warehouseId: wh,
         q: q?.trim() || undefined,
       });
       const rows = ((res.data as RecentCashSale[]) || []).filter(
         (inv) => String(inv.status || "").toUpperCase() !== "CANCELLED",
       );
       setRecentSales(rows);
+      if (!q?.trim()) {
+        const { saveRecentSalesCache } = await import("@/lib/pos-recent-sales-cache");
+        saveRecentSalesCache(rows, wh);
+      }
     } catch {
-      setRecentSales([]);
+      // Keep previous rows visible; only surface error for retry
       setReceiptsError(true);
     } finally {
       setReceiptsLoading(false);
@@ -3391,7 +3465,13 @@ export default function PosCheckoutPage() {
               {t.blindReturn}
             </button>
           </form>
-          {!recentSales.length && !receiptsError ? (
+          {!recentSales.length && !receiptsError && receiptsLoading ? (
+            <p className="text-[11px] text-slate-500 inline-flex items-center gap-1.5">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              …
+            </p>
+          ) : null}
+          {!recentSales.length && !receiptsError && !receiptsLoading ? (
             <p className="text-[11px] text-slate-500">{t.noRecentSales}</p>
           ) : null}
           {receiptsError ? (
@@ -5400,12 +5480,12 @@ export default function PosCheckoutPage() {
               />
             </div>
             <div className="overflow-y-auto p-3 space-y-2">
-              {receiptsLoading ? (
+              {receiptsLoading && !recentSales.length ? (
                 <p className="text-sm text-slate-400 inline-flex items-center gap-2 py-6 justify-center w-full">
                   <Loader2 className="w-4 h-4 animate-spin" />
                   …
                 </p>
-              ) : receiptsError ? (
+              ) : receiptsError && !recentSales.length ? (
                 <div className="text-center py-8 space-y-2">
                   <p className="text-sm text-rose-300">{t.loadFailed}</p>
                   <button
@@ -5421,7 +5501,14 @@ export default function PosCheckoutPage() {
                   {receiptsSearch.trim() ? t.receiptsSearchEmpty : t.noRecentSales}
                 </p>
               ) : (
-                recentSales.map((sale) => (
+                <>
+                  {receiptsLoading ? (
+                    <p className="text-[11px] text-slate-500 inline-flex items-center gap-1.5 px-1">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      …
+                    </p>
+                  ) : null}
+                  {recentSales.map((sale) => (
                   <div
                     key={sale.id}
                     className="rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 space-y-2"
@@ -5499,7 +5586,8 @@ export default function PosCheckoutPage() {
                       </button>
                     </div>
                   </div>
-                ))
+                ))}
+                </>
               )}
             </div>
           </div>

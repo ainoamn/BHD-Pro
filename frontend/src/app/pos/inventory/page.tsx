@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { Loader2, Package, Plus, Printer, RefreshCw, Eye, Pencil, X } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
@@ -105,6 +105,8 @@ export default function PosInventoryPage() {
   const { data: products = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["pos-inventory-products", scopeWarehouseId || "none"],
     enabled: scopeReady && !!scopeWarehouseId,
+    staleTime: 60_000,
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       const res = await api.syncPosCatalog(scopeWarehouseId!);
       const rows = ((res.data?.products as PosProductRow[]) || []).map((p) => ({
@@ -317,7 +319,7 @@ export default function PosInventoryPage() {
         className="w-full h-11 rounded-xl bg-[#0b1220] border border-white/10 px-3 text-sm"
       />
 
-      {!scopeReady || (scopeReady && scopeWarehouseId && isLoading) ? (
+      {!scopeReady || (scopeReady && scopeWarehouseId && isLoading && !products.length) ? (
         <div className="py-16 flex justify-center text-slate-400">
           <Loader2 className="w-6 h-6 animate-spin" />
         </div>

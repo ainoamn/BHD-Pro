@@ -118,6 +118,7 @@
 - موجة BM: مواءمة خارطة الإنتاج + دليل 2FA — [`HISABY-WAVE-BM-PRODUCTION-ROADMAP-ALIGN-2026-07-27.md`](./HISABY-WAVE-BM-PRODUCTION-ROADMAP-ALIGN-2026-07-27.md)
 - موجة BN: اختبارات سياسة 2FA/مستودع POS + smoke تسجيل/دعوة — [`HISABY-WAVE-BN-AUTH-POS-TESTS-2026-07-27.md`](./HISABY-WAVE-BN-AUTH-POS-TESTS-2026-07-27.md)
 - موجة BO: مهلة 2FA 7 أيام + قفل تعديلات + staging smoke — [`HISABY-WAVE-BO-2FA-GRACE-STAGING-2026-07-27.md`](./HISABY-WAVE-BO-2FA-GRACE-STAGING-2026-07-27.md)
+- موجة BP: كاش POS (IndexedDB + session) بدون وميض فارغ — [`HISABY-WAVE-BP-POS-CACHE-SWR-2026-07-27.md`](./HISABY-WAVE-BP-POS-CACHE-SWR-2026-07-27.md)
 - خارطة إنتاج (مواءمة خطة 4–6 أسابيع): [`PRODUCTION-ROADMAP-4-6-WEEKS.md`](./PRODUCTION-ROADMAP-4-6-WEEKS.md)
 
 ### 1.6 المنصة ولوحة الإدارة (محدث 26 يوليو مساءً)
