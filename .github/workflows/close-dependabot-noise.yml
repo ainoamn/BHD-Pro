@@ -1,0 +1,53 @@
+# Close open Dependabot PRs that flooded Vercel previews.
+# Safe after Dependabot was tightened to monthly minor/patch only.
+name: Close Dependabot noise
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/close-dependabot-noise.yml"
+
+permissions:
+  pull-requests: write
+  issues: write
+
+jobs:
+  close:
+    name: Close open Dependabot PRs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const prs = await github.paginate(github.rest.pulls.list, {
+              owner,
+              repo,
+              state: "open",
+              per_page: 100,
+            });
+            let closed = 0;
+            for (const pr of prs) {
+              const login = pr.user?.login || "";
+              if (login !== "dependabot[bot]") continue;
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: pr.number,
+                body:
+                  "Closing automatically: Dependabot is now limited to monthly minor/patch updates, " +
+                  "and Vercel skips `dependabot/*` preview builds. Please open a planned PR for major bumps.",
+              });
+              await github.rest.pulls.update({
+                owner,
+                repo,
+                pull_number: pr.number,
+                state: "closed",
+              });
+              closed += 1;
+              core.info(`Closed #${pr.number} ${pr.title}`);
+            }
+            core.info(`Closed ${closed} Dependabot PR(s)`);

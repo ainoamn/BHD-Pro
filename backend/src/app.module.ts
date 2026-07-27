@@ -7,6 +7,7 @@ import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis'
 import configuration from './config/configuration';
 import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
+import { StorageModule } from './storage/storage.module';
 import { AuthModule } from './auth/auth.module';
 import { ContactsModule } from './contacts/contacts.module';
 import { InvoicesModule } from './invoices/invoices.module';
@@ -50,6 +51,7 @@ import { DenyViewerMutationsGuard } from './common/guards/deny-viewer-mutations.
     ConfigModule.forRoot({ isGlobal: true, load: [configuration] }),
     ScheduleModule.forRoot(),
     RedisModule,
+    StorageModule,
     ThrottlerModule.forRootAsync({
       useFactory: () => {
         const redisUrl = (process.env.REDIS_URL || '').trim();

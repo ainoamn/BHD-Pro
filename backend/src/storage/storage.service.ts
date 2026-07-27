@@ -1,12 +1,24 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
+import {
+  DeleteObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
 import { randomUUID } from 'crypto';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 
+export type StorageDriver = 'local' | 's3' | 'dataurl';
+
 export type StoredObject = {
   storageKey: string;
   publicUrl?: string | null;
-  driver: 'local' | 's3' | 'dataurl';
+  driver: StorageDriver;
 };
 
 /**
@@ -20,8 +32,9 @@ export type StoredObject = {
 @Injectable()
 export class StorageService {
   private readonly logger = new Logger(StorageService.name);
+  private s3Client: S3Client | null = null;
 
-  driver(): 'local' | 's3' | 'dataurl' {
+  driver(): StorageDriver {
     const mode = (process.env.ATTACHMENT_STORAGE || 'dataurl').toLowerCase();
     if (mode === 's3' || mode === 'local' || mode === 'dataurl') return mode;
     return 'dataurl';
@@ -33,6 +46,14 @@ export class StorageService {
       process.env.S3_ACCESS_KEY_ID &&
       process.env.S3_SECRET_ACCESS_KEY
     );
+  }
+
+  /** Status for /health — never throws. */
+  status(): { driver: StorageDriver; s3Configured: boolean } {
+    return {
+      driver: this.driver(),
+      s3Configured: this.isS3Configured(),
+    };
   }
 
   async putFromDataUrl(
@@ -56,7 +77,8 @@ export class StorageService {
     const key = `attachments/${companyId}/${randomUUID()}-${safeName}`;
 
     if (driver === 'local') {
-      const root = process.env.ATTACHMENT_LOCAL_DIR || path.join(process.cwd(), 'uploads');
+      const root =
+        process.env.ATTACHMENT_LOCAL_DIR || path.join(process.cwd(), 'uploads');
       const full = path.join(root, key);
       await fs.mkdir(path.dirname(full), { recursive: true });
       await fs.writeFile(full, buf);
@@ -65,8 +87,9 @@ export class StorageService {
 
     if (driver === 's3') {
       if (!this.isS3Configured()) {
-        this.logger.warn('S3 requested but not configured — keeping data URL');
-        return { storageKey: dataUrlOrKey, driver: 'dataurl' };
+        throw new ServiceUnavailableException(
+          'ATTACHMENT_STORAGE=s3 but S3_BUCKET / S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY are not set',
+        );
       }
       await this.putS3(key, buf, mime);
       const base = (process.env.S3_PUBLIC_BASE_URL || '').replace(/\/$/, '');
@@ -80,33 +103,63 @@ export class StorageService {
     return { storageKey: dataUrlOrKey, driver: 'dataurl' };
   }
 
-  private async putS3(key: string, body: Buffer, contentType: string) {
-    // Dynamic import so local/dev without the package still boots on dataurl/local
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    let S3Client: any;
-    let PutObjectCommand: any;
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const mod = require('@aws-sdk/client-s3');
-      S3Client = mod.S3Client;
-      PutObjectCommand = mod.PutObjectCommand;
-    } catch {
-      throw new BadRequestException(
-        'Install @aws-sdk/client-s3 and set S3_* env to use S3 storage',
-      );
+  /** Best-effort delete of local/S3 objects. Data URLs are no-ops. */
+  async removeStored(storageKey: string): Promise<void> {
+    if (!storageKey) return;
+
+    if (storageKey.startsWith('local:')) {
+      const rel = storageKey.slice('local:'.length);
+      const root =
+        process.env.ATTACHMENT_LOCAL_DIR || path.join(process.cwd(), 'uploads');
+      const full = path.join(root, rel);
+      try {
+        await fs.unlink(full);
+      } catch (err) {
+        this.logger.warn(
+          `Local attachment delete skipped: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+      return;
     }
 
-    const client = new S3Client({
-      region: process.env.S3_REGION || 'us-east-1',
-      endpoint: process.env.S3_ENDPOINT || undefined,
-      forcePathStyle: !!process.env.S3_ENDPOINT,
-      credentials: {
-        accessKeyId: process.env.S3_ACCESS_KEY_ID!,
-        secretAccessKey: process.env.S3_SECRET_ACCESS_KEY!,
-      },
-    });
+    if (storageKey.startsWith('s3:')) {
+      if (!this.isS3Configured()) {
+        this.logger.warn('S3 attachment delete skipped — S3 not configured');
+        return;
+      }
+      const key = storageKey.slice('s3:'.length);
+      try {
+        await this.getS3().send(
+          new DeleteObjectCommand({
+            Bucket: process.env.S3_BUCKET!,
+            Key: key,
+          }),
+        );
+      } catch (err) {
+        this.logger.warn(
+          `S3 attachment delete failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+  }
 
-    await client.send(
+  private getS3(): S3Client {
+    if (!this.s3Client) {
+      this.s3Client = new S3Client({
+        region: process.env.S3_REGION || 'us-east-1',
+        endpoint: process.env.S3_ENDPOINT || undefined,
+        forcePathStyle: !!process.env.S3_ENDPOINT,
+        credentials: {
+          accessKeyId: process.env.S3_ACCESS_KEY_ID!,
+          secretAccessKey: process.env.S3_SECRET_ACCESS_KEY!,
+        },
+      });
+    }
+    return this.s3Client;
+  }
+
+  private async putS3(key: string, body: Buffer, contentType: string) {
+    await this.getS3().send(
       new PutObjectCommand({
         Bucket: process.env.S3_BUCKET!,
         Key: key,

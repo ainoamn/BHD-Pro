@@ -61,6 +61,7 @@ export class AttachmentsService {
     const row = await this.prisma.attachment.findFirst({ where: { id, companyId } });
     if (!row) throw new NotFoundException('Attachment not found');
     await this.prisma.attachment.delete({ where: { id } });
+    await this.storage.removeStored(row.storageKey);
     return { message: 'Deleted' };
   }
 

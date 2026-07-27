@@ -42,7 +42,7 @@ After the hardening commit, the app is **closer to production-ready** for a cont
 - ~~CI / Dependabot / optional Sentry SDK~~ — **done (Wave AZ):** `.github/workflows/ci.yml`, Dependabot, `@sentry/node` + `@sentry/browser` when DSN set
 - WAF / bot protection in front of login (Cloudflare) — see [`docs/PRODUCTION-HARDENING.md`](./docs/PRODUCTION-HARDENING.md)
 - ~~Wire Redis (`REDIS_URL`) for throttle storage + health ping~~ — **done (Wave BA):** optional; in-memory throttle when unset
-- Object storage (S3) for attachments instead of data URLs
+- ~~Object storage (S3) for attachments~~ — **done (Wave BB):** `ATTACHMENT_STORAGE=s3` + delete on remove; falls back to dataurl/local
 - Playwright login smoke in CI — **done (Wave BA):** `frontend/e2e/smoke.spec.ts`
 - Narrow API-key scopes below full ACCOUNTANT where possible
 - Penetration testing before open registration

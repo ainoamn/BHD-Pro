@@ -7,6 +7,7 @@ import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
 import { PrismaService } from './prisma/prisma.service';
 import { RedisService } from './redis/redis.service';
+import { StorageService } from './storage/storage.service';
 
 @ApiTags('Health')
 @SkipThrottle()
@@ -15,11 +16,13 @@ export class HealthController {
   constructor(
     private prisma: PrismaService,
     private redis: RedisService,
+    private storage: StorageService,
   ) {}
 
   @Get()
   @ApiOperation({ summary: 'Health check (liveness)' })
   check() {
+    const storage = this.storage.status();
     return {
       status: 'ok',
       service: 'bhd-pro-api',
@@ -28,6 +31,8 @@ export class HealthController {
       commit: process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || null,
       sentry: !!(process.env.SENTRY_DSN || '').trim(),
       redisConfigured: this.redis.isConfigured(),
+      attachmentStorage: storage.driver,
+      s3Configured: storage.s3Configured,
     };
   }
 
@@ -52,12 +57,24 @@ export class HealthController {
       });
     }
 
+    const storage = this.storage.status();
+    if (storage.driver === 's3' && !storage.s3Configured) {
+      throw new ServiceUnavailableException({
+        status: 'not_ready',
+        database: 'ok',
+        redis,
+        attachmentStorage: 's3_misconfigured',
+      });
+    }
+
     return {
       status: 'ready',
       database: 'ok',
       redis,
       sentry: !!(process.env.SENTRY_DSN || '').trim(),
       redisConfigured: this.redis.isConfigured(),
+      attachmentStorage: storage.driver,
+      s3Configured: storage.s3Configured,
       timestamp: new Date().toISOString(),
     };
   }

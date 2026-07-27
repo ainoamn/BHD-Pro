@@ -52,6 +52,7 @@
 **موجة AY (دعوات مستخدمين + صلاحيات موحّدة + تقارير مدير):** [`HISABY-WAVE-AY-USERS-PERMISSIONS-REPORTS-2026-07-27.md`](./HISABY-WAVE-AY-USERS-PERMISSIONS-REPORTS-2026-07-27.md)
 **موجة AZ (CI + Sentry اختياري + Dependabot + hardening إنتاج):** [`HISABY-WAVE-AZ-PROD-HARDENING-CI-SENTRY-2026-07-27.md`](./HISABY-WAVE-AZ-PROD-HARDENING-CI-SENTRY-2026-07-27.md)
 **موجة BA (Redis اختياري + Playwright smoke):** [`HISABY-WAVE-BA-REDIS-PLAYWRIGHT-2026-07-27.md`](./HISABY-WAVE-BA-REDIS-PLAYWRIGHT-2026-07-27.md)
+**موجة BB (S3 مرفقات + إغلاق Dependabot):** [`HISABY-WAVE-BB-S3-DEPENDABOT-CLOSE-2026-07-27.md`](./HISABY-WAVE-BB-S3-DEPENDABOT-CLOSE-2026-07-27.md)
 
 ---
 

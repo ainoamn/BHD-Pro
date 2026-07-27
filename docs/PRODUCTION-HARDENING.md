@@ -26,7 +26,7 @@
 | البند | ملاحظة |
 |-------|--------|
 | Redis | **موجّه (Wave BA):** throttle موزّع + `/health/ready` ping عند وجود `REDIS_URL` |
-| Object storage S3 | للمرفقات بدل data URLs |
+| Object storage S3 | **موجّه (Wave BB):** `ATTACHMENT_STORAGE=s3` + `@aws-sdk/client-s3` + حذف عند remove |
 | Playwright smoke | **موجّه (Wave BA):** `frontend/e2e/smoke.spec.ts` على `/login` في CI |
 | مراقبة Uptime | خارج Render free cold-start |
 
