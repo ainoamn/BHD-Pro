@@ -218,6 +218,8 @@ export function PosShiftsView({
   const [warehouseId, setWarehouseId] = useState("");
   const [warehouses, setWarehouses] = useState<{ id: string; name: string; code: string }[]>([]);
   const [warehousesError, setWarehousesError] = useState(false);
+  const [canSwitchWarehouse, setCanSwitchWarehouse] = useState(false);
+  const [homeWarehouseId, setHomeWarehouseId] = useState<string | null>(null);
   const [varianceLimit, setVarianceLimit] = useState(DEFAULT_VARIANCE_LIMIT);
   const [approvalOpen, setApprovalOpen] = useState(false);
   const [cashApprovalOpen, setCashApprovalOpen] = useState(false);
@@ -239,12 +241,48 @@ export function PosShiftsView({
   const loadWarehouses = useCallback(async () => {
     if (forcedWarehouseId) return;
     try {
-      const res = await api.getWarehouses();
-      const rows = ((res.data as { id: string; name: string; code: string; isActive?: boolean }[]) || []).filter(
-        (w) => w.isActive !== false,
-      );
+      const res = await api.getPosWarehouseContext();
+      const ctx = res.data;
+      const rows = (ctx.warehouses || []).map((w) => ({
+        id: w.id,
+        name: w.name,
+        code: w.code,
+      }));
       setWarehouses(rows);
+      setCanSwitchWarehouse(!!ctx.canSwitchFreely);
+      setHomeWarehouseId(ctx.homeWarehouseId);
       setWarehousesError(false);
+
+      if (ctx.canSwitchFreely) {
+        let saved = "";
+        try {
+          saved = localStorage.getItem(POS_WAREHOUSE_KEY) || "";
+        } catch {
+          /* ignore */
+        }
+        const pick =
+          (saved && rows.some((w) => w.id === saved) && saved) ||
+          ctx.homeWarehouseId ||
+          rows[0]?.id ||
+          "";
+        setWarehouseId(pick);
+        if (pick) {
+          try {
+            localStorage.setItem(POS_WAREHOUSE_KEY, pick);
+          } catch {
+            /* ignore */
+          }
+        }
+      } else {
+        const home = ctx.homeWarehouseId || "";
+        setWarehouseId(home);
+        try {
+          if (home) localStorage.setItem(POS_WAREHOUSE_KEY, home);
+          else localStorage.removeItem(POS_WAREHOUSE_KEY);
+        } catch {
+          /* ignore */
+        }
+      }
     } catch {
       setWarehouses([]);
       setWarehousesError(true);
@@ -255,11 +293,6 @@ export function PosShiftsView({
     if (forcedWarehouseId) {
       setWarehouseId(forcedWarehouseId);
       return;
-    }
-    try {
-      setWarehouseId(localStorage.getItem(POS_WAREHOUSE_KEY) || "");
-    } catch {
-      /* ignore */
     }
     void loadWarehouses();
     (async () => {
@@ -278,7 +311,6 @@ export function PosShiftsView({
       }
     })();
   }, [forcedWarehouseId, loadWarehouses]);
-
   useEffect(() => {
     if (!forcedWarehouseId) return;
     (async () => {
@@ -299,7 +331,7 @@ export function PosShiftsView({
   }, [forcedWarehouseId]);
 
   const onWarehouseChange = (id: string) => {
-    if (forcedWarehouseId) return;
+    if (forcedWarehouseId || !canSwitchWarehouse) return;
     setWarehouseId(id);
     try {
       if (id) localStorage.setItem(POS_WAREHOUSE_KEY, id);
@@ -674,23 +706,37 @@ export function PosShiftsView({
       ) : null}
 
       {!hideWarehousePicker && warehouses.length > 0 ? (
-        <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
-          <span className="text-xs text-slate-400 shrink-0">{t.warehouse}</span>
-          <select
-            value={warehouseId}
-            onChange={(e) => onWarehouseChange(e.target.value)}
-            className="flex-1 bg-transparent text-sm text-white focus:outline-none"
-          >
-            <option value="" className="bg-[#111827]">
-              {t.warehouseDefault}
-            </option>
-            {warehouses.map((w) => (
-              <option key={w.id} value={w.id} className="bg-[#111827]">
-                {w.code} — {w.name}
+        canSwitchWarehouse ? (
+          <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
+            <span className="text-xs text-slate-400 shrink-0">{t.warehouse}</span>
+            <select
+              value={warehouseId}
+              onChange={(e) => onWarehouseChange(e.target.value)}
+              className="flex-1 bg-transparent text-sm text-white focus:outline-none"
+            >
+              <option value="" className="bg-[#111827]">
+                {t.warehouseDefault}
               </option>
-            ))}
-          </select>
-        </label>
+              {warehouses.map((w) => (
+                <option key={w.id} value={w.id} className="bg-[#111827]">
+                  {w.code} — {w.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 space-y-1">
+            <p className="text-xs text-slate-400">{t.warehouseHome}</p>
+            <p className="text-sm font-semibold text-sky-100">
+              {homeWarehouseId
+                ? `${warehouses.find((w) => w.id === homeWarehouseId)?.code || ""} — ${
+                    warehouses.find((w) => w.id === homeWarehouseId)?.name || ""
+                  }`
+                : t.noHomeWarehouse}
+            </p>
+            <p className="text-[10px] text-slate-500">{t.warehouseHomeHint}</p>
+          </div>
+        )
       ) : null}
 
       {hideWarehousePicker && forcedWarehouseId ? (
