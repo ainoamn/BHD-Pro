@@ -2543,6 +2543,23 @@ export default function PosCheckoutPage() {
       loadRecentSales();
       loadOpsStrip();
       void refreshCustomerPurchases();
+      if (isDeferredSale) {
+        try {
+          const pend = await api.listPosPendingFulfillments(20);
+          setPendingFulfillments(
+            ((pend.data as typeof pendingFulfillments) || []).map((p) => ({
+              id: p.id,
+              number: p.number,
+              total: p.total,
+              warehouse: p.warehouse
+                ? { code: p.warehouse.code, name: p.warehouse.name }
+                : null,
+            })),
+          );
+        } catch {
+          /* keep previous list */
+        }
+      }
       focusScan();
     } catch (err: unknown) {
       const networkFail =

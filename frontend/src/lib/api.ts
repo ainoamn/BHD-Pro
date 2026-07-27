@@ -339,6 +339,8 @@ class ApiClient {
         username?: string | null;
         phone?: string | null;
         mustCompleteProfile?: boolean;
+        defaultWarehouseId?: string | null;
+        defaultWarehouse?: import('@/types').User['defaultWarehouse'];
       };
       // Keep any in-memory accessToken from a just-completed login.
       const existingToken = useAuthStore.getState().accessToken;
@@ -357,6 +359,8 @@ class ApiClient {
           twoFactorEnabled: !!data.twoFactorEnabled,
           twoFactorRequired: !!data.twoFactorRequired,
           mustCompleteProfile: !!data.mustCompleteProfile,
+          defaultWarehouseId: data.defaultWarehouseId ?? null,
+          defaultWarehouse: data.defaultWarehouse ?? null,
         },
         data.company,
         existingToken

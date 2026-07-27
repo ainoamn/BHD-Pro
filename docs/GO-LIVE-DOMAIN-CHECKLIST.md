@@ -56,7 +56,7 @@ Dashboard → خدمتك → **Environment** → احفظ ثم **Manual Deploy**
 | `REQUIRE_2FA_ROLES` | `ADMIN,MANAGER` (أو اترك الافتراضي) |
 | `COOKIE_SAME_SITE` | `none` إذا الواجهة والدومين مختلفان عن الـ API عبر كوكيز عبر المواقع؛ غالباً مع rewrite على Vercel يكفي `lax` — جرّب `lax` أولاً |
 
-### Migrations (مهم جداً بعد موجة الدعوات/التقارير)
+### Migrations (مهم جداً — بعد موجات الدعوات + المستودع الذكي BC)
 
 1. [ ] Render → خدمتك → **Shell**.
 2. [ ] نفّذ:
@@ -66,13 +66,17 @@ cd /opt/render/project/src/backend   # أو مجلد الـ backend حسب هي�
 npx prisma migrate deploy
 ```
 
-3. [ ] إن فشل المسار، من جذر المشروع حيث يوجد `schema.prisma`:
+3. [ ] تأكد أن الـ migration التالي طُبّق (Wave BC):  
+   `20260727133000_user_home_warehouse_pos_fulfillment`  
+   (أعمدة: `users.default_warehouse_id` · `invoices.pos_warehouse_id` · `invoices.pos_fulfillment_status`)
+4. [ ] إن فشل المسار، من جذر المشروع حيث يوجد `schema.prisma`:
 
 ```bash
 npx prisma migrate deploy
 ```
 
-4. [ ] أعد تشغيل الخدمة إن طلب Render ذلك.
+5. [ ] بعد النجاح: من الواجهة → **المستخدمون** عيّن «مستودع الموظف» لكل كاشير (ولكاشير المطاعم اجعله = مخزن المطعم).
+6. [ ] أعد تشغيل الخدمة إن طلب Render ذلك.
 
 ### تحقق فوري
 

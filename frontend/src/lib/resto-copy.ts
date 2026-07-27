@@ -281,6 +281,8 @@ export const restoCopy = {
     shiftsSub: "فتح/إغلاق الوردية، دخول وخروج نقد، وتقارير X/Z لمخزن المطعم",
     shiftsNeedWarehouse: "اربط مخزن المطاعم أولاً من الإعدادات لتفعيل الصندوق.",
     shiftsWarehouse: "مخزن المطعم",
+    shiftsHomeMismatch:
+      "مستودعك المنزلي يختلف عن مخزن المطعم — عيّنه ليطابق مخزن المطعم من صفحة المستخدمين لتجنب تعارض الصندوق.",
     needOpenShift: "افتح وردية الصندوق أولاً قبل الإغلاق النقدي",
     shiftStatusUnknown: "تعذر التحقق من وردية الصندوق",
     goToShifts: "فتح الورديات",
@@ -693,6 +695,8 @@ export const restoCopy = {
     shiftsSub: "Open/close shift, cash in/out, and X/Z for the resto warehouse",
     shiftsNeedWarehouse: "Link a restaurant warehouse in settings before using the drawer.",
     shiftsWarehouse: "Resto warehouse",
+    shiftsHomeMismatch:
+      "Your home warehouse differs from the restaurant warehouse — set it to match on Users to avoid shift conflicts.",
     needOpenShift: "Open a cash shift before paid close",
     shiftStatusUnknown: "Could not verify cash shift status",
     goToShifts: "Go to shifts",

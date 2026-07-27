@@ -16,24 +16,46 @@ export default function RestoShiftsPage() {
   const [loading, setLoading] = useState(true);
   const [missingWh, setMissingWh] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  const [homeMismatch, setHomeMismatch] = useState(false);
 
   const load = async () => {
     setLoading(true);
     setLoadError(false);
+    setHomeMismatch(false);
     try {
-      const res = await api.getRestoLinkStatus();
-      const id = res.data.warehouseId || null;
-      const wh = res.data.warehouse as
-        | { code?: string; name?: string }
+      const [restoRes, ctxRes] = await Promise.all([
+        api.getRestoLinkStatus(),
+        api.getPosWarehouseContext().catch(() => null),
+      ]);
+      const restoId = restoRes.data.warehouseId || null;
+      const restoWh = restoRes.data.warehouse as
+        | { id?: string; code?: string; name?: string }
         | null
         | undefined;
-      setWarehouseId(id);
+      const ctx = ctxRes?.data;
+      const canSwitch = !!ctx?.canSwitchFreely;
+      const homeId = ctx?.homeWarehouseId || null;
+      const homeWh = ctx?.homeWarehouse;
+
+      // Managers keep restaurant warehouse; cashiers open on home warehouse
+      // so API home-warehouse lock (Wave BD) does not reject the shift.
+      const effectiveId = canSwitch ? restoId : homeId || restoId;
+      const labelWh = canSwitch
+        ? restoWh
+        : homeWh ||
+          (homeId && ctx?.warehouses?.find((w) => w.id === homeId)) ||
+          restoWh;
+
+      setWarehouseId(effectiveId);
       setWarehouseLabel(
-        wh
-          ? `${wh.code || ""}${wh.name ? ` — ${wh.name}` : ""}`.trim()
+        labelWh
+          ? `${labelWh.code || ""}${labelWh.name ? ` — ${labelWh.name}` : ""}`.trim()
           : "",
       );
-      setMissingWh(!id);
+      setMissingWh(!effectiveId);
+      setHomeMismatch(
+        !canSwitch && !!homeId && !!restoId && homeId !== restoId,
+      );
     } catch {
       setWarehouseId(null);
       setMissingWh(false);
@@ -99,6 +121,11 @@ export default function RestoShiftsPage() {
         <p className="px-4 sm:px-6 pt-4 text-xs text-stone-500">
           {t.shiftsWarehouse}:{" "}
           <span className="text-stone-300 font-semibold">{warehouseLabel}</span>
+        </p>
+      ) : null}
+      {homeMismatch ? (
+        <p className="px-4 sm:px-6 text-xs text-amber-300/90">
+          {t.shiftsHomeMismatch}
         </p>
       ) : null}
       <PosShiftsView
