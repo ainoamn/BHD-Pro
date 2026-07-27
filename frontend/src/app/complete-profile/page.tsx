@@ -21,6 +21,22 @@ type InviteInfo = {
   defaultWarehouse?: { id: string; code: string; name: string } | null;
 };
 
+function localizeInviteError(raw: string | undefined, en: boolean, fallback: string) {
+  const msg = (raw || "").trim();
+  if (!msg) return fallback;
+  const lower = msg.toLowerCase();
+  if (
+    lower.includes("invalid invitation") ||
+    lower.includes("invitation expired") ||
+    lower.includes("unauthorized")
+  ) {
+    return en ? "Invalid or expired invitation" : "الدعوة غير صالحة أو منتهية";
+  }
+  // Prefer locale copy over raw Nest English for invite flows
+  if (/^[A-Za-z]/.test(msg) && !en) return fallback;
+  return msg;
+}
+
 function CompleteProfileForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -57,10 +73,15 @@ function CompleteProfileForm() {
           username: data.username || "",
         }));
       } catch (err) {
-        const message =
-          (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
-          (en ? "Invalid or expired invitation" : "الدعوة غير صالحة أو منتهية");
-        toast.error(message);
+        const raw =
+          (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+        toast.error(
+          localizeInviteError(
+            raw,
+            en,
+            en ? "Invalid or expired invitation" : "الدعوة غير صالحة أو منتهية",
+          ),
+        );
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -88,10 +109,15 @@ function CompleteProfileForm() {
       toast.success(en ? "Account activated" : "تم تفعيل الحساب");
       router.replace(homePathForUser(useAuthStore.getState().user));
     } catch (err) {
-      const message =
-        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
-        (en ? "Could not complete setup" : "تعذر إكمال التفعيل");
-      toast.error(message);
+      const raw =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      toast.error(
+        localizeInviteError(
+          raw,
+          en,
+          en ? "Could not complete setup" : "تعذر إكمال التفعيل",
+        ),
+      );
     } finally {
       setSaving(false);
     }

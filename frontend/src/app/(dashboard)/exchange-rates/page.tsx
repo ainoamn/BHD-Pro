@@ -59,16 +59,16 @@ export default function ExchangeRatesPage() {
     <div className="space-y-6">
       <GlassCard className="p-5 space-y-4">
         <div>
-          <h2 className="text-lg font-semibold text-white">{t("convertTitle")}</h2>
-          <p className="text-sm text-slate-400 mt-1">{t("convertHint")}</p>
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">{t("convertTitle")}</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{t("convertHint")}</p>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 items-end">
           <div>
-            <label className="text-xs text-slate-400">{t("from")}</label>
+            <label className="text-xs text-slate-500 dark:text-slate-400">{t("from")}</label>
             <select
               value={from}
               onChange={(e) => setFrom(e.target.value)}
-              className="mt-1 w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white"
+              className="mt-1 w-full h-10 px-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white"
             >
               {CURRENCIES.map((c) => (
                 <option key={c} value={c}>
@@ -78,11 +78,11 @@ export default function ExchangeRatesPage() {
             </select>
           </div>
           <div>
-            <label className="text-xs text-slate-400">{t("to")}</label>
+            <label className="text-xs text-slate-500 dark:text-slate-400">{t("to")}</label>
             <select
               value={to}
               onChange={(e) => setTo(e.target.value)}
-              className="mt-1 w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white"
+              className="mt-1 w-full h-10 px-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white"
             >
               {CURRENCIES.map((c) => (
                 <option key={c} value={c}>
@@ -92,20 +92,20 @@ export default function ExchangeRatesPage() {
             </select>
           </div>
           <div>
-            <label className="text-xs text-slate-400">{t("amount")}</label>
+            <label className="text-xs text-slate-500 dark:text-slate-400">{t("amount")}</label>
             <DecimalInput
               value={amount}
               onChange={setAmount}
-              className="mt-1 w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white"
+              className="mt-1 w-full h-10 px-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white"
             />
           </div>
           <div>
-            <label className="text-xs text-slate-400">{t("date")}</label>
+            <label className="text-xs text-slate-500 dark:text-slate-400">{t("date")}</label>
             <input
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="mt-1 w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white"
+              className="mt-1 w-full h-10 px-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white"
             />
           </div>
           <button

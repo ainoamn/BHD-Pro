@@ -157,6 +157,7 @@ export class PaymentsController {
   }
 
   @Get('public/invoice/:invoiceId')
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @ApiOperation({ summary: 'Public invoice pay info' })
   getPublicInvoicePayInfo(@Param('invoiceId') invoiceId: string) {
     return this.payments.getPublicInvoicePayInfo(invoiceId);
@@ -186,6 +187,7 @@ export class PaymentsController {
   }
 
   @Get('checkout/complete')
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @ApiOperation({ summary: 'Payment return URL — verifies and redirects to frontend' })
   async checkoutComplete(@Query() query: Record<string, string>, @Res() res: Response) {
     const result = await this.payments.completeCheckout(query);

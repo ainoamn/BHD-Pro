@@ -18,3 +18,5 @@
 
 - `/api/health` → `"emailConfigured": true|false`
 - إنشاء مستخدم بدون بريد مضبوط → تحذير + رابط منسوخ
+
+**متابعة:** [`HISABY-WAVE-BJ-LIGHT-HEALTH-PUBLIC-THROTTLE-2026-07-27.md`](./HISABY-WAVE-BJ-LIGHT-HEALTH-PUBLIC-THROTTLE-2026-07-27.md)

@@ -353,14 +353,14 @@ export default function UsersPage() {
               </thead>
               <tbody>
                 {users.map((u) => (
-                  <tr key={u.id} className="border-b border-slate-200 dark:border-slate-800/50 hover:bg-slate-800/30">
+                  <tr key={u.id} className="border-b border-slate-200 dark:border-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800/30">
                     <td className="p-4 text-slate-900 dark:text-white font-medium">
                       {u.name}
                       {u.id === currentUser?.id && (
                         <span className="text-xs text-emerald-400 mr-2">({t("you")})</span>
                       )}
                     </td>
-                    <td className="p-4 text-slate-300">{u.email}</td>
+                    <td className="p-4 text-slate-600 dark:text-slate-300">{u.email}</td>
                     <td className="p-4 text-slate-400 font-mono text-xs">{u.username || "—"}</td>
                     <td className="p-4">
                       <span
@@ -454,7 +454,7 @@ export default function UsersPage() {
                             <button
                               type="button"
                               onClick={() => openPerms(u)}
-                              className="inline-flex items-center gap-1 h-8 px-2 rounded-lg bg-teal-700/30 text-teal-200 text-xs font-bold hover:bg-teal-700/50"
+                              className="inline-flex items-center gap-1 h-8 px-2 rounded-lg bg-teal-600/15 text-teal-800 dark:bg-teal-700/30 dark:text-teal-200 text-xs font-bold hover:bg-teal-600/25 dark:hover:bg-teal-700/50"
                             >
                               <SlidersHorizontal className="w-3.5 h-3.5" />
                               {en ? "Access" : "صلاحيات"}
@@ -466,7 +466,7 @@ export default function UsersPage() {
                                 type="button"
                                 onClick={() => resendInviteMutation.mutate(u.id)}
                                 disabled={resendInviteMutation.isPending}
-                                className="inline-flex items-center gap-1 h-8 px-2 rounded-lg bg-sky-700/30 text-sky-200 text-xs font-bold hover:bg-sky-700/50"
+                                className="inline-flex items-center gap-1 h-8 px-2 rounded-lg bg-sky-600/15 text-sky-800 dark:bg-sky-700/30 dark:text-sky-200 text-xs font-bold hover:bg-sky-600/25 dark:hover:bg-sky-700/50"
                               >
                                 <MailCheck className="w-3.5 h-3.5" />
                                 {en ? "Resend" : "إعادة إرسال"}
@@ -477,7 +477,7 @@ export default function UsersPage() {
                                   toggleActiveMutation.mutate({ id: u.id, isActive: !u.isActive })
                                 }
                                 disabled={toggleActiveMutation.isPending}
-                                className="inline-flex items-center gap-1 h-8 px-2 rounded-lg bg-rose-700/20 text-rose-200 text-xs font-bold hover:bg-rose-700/40"
+                                className="inline-flex items-center gap-1 h-8 px-2 rounded-lg bg-rose-600/10 text-rose-800 dark:bg-rose-700/20 dark:text-rose-200 text-xs font-bold hover:bg-rose-600/20 dark:hover:bg-rose-700/40"
                               >
                                 <Power className="w-3.5 h-3.5" />
                                 {u.isActive ? (en ? "Disable" : "تعطيل") : (en ? "Activate" : "تفعيل")}
@@ -499,10 +499,10 @@ export default function UsersPage() {
         <div className="fixed inset-0 z-50 flex items-start justify-center pt-8 bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
           <div className="w-full max-w-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl mb-10">
             <div className="flex items-center justify-between p-5 border-b border-slate-200 dark:border-slate-800">
-              <h2 className="text-lg font-semibold text-white">{t("addUser")}</h2>
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-white">{t("addUser")}</h2>
               <button
                 onClick={() => setModalOpen(false)}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-400 hover:text-slate-900 dark:hover:text-white"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -597,7 +597,7 @@ export default function UsersPage() {
             <div className="flex justify-end gap-3 p-5 border-t border-slate-800">
               <button
                 onClick={() => setModalOpen(false)}
-                className="px-4 py-2 text-slate-400 hover:text-white"
+                className="px-4 py-2 text-slate-400 hover:text-slate-900 dark:hover:text-white"
               >
                 {tCommon("cancel")}
               </button>
@@ -626,7 +626,7 @@ export default function UsersPage() {
           <div className="w-full max-w-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl mb-10">
             <div className="flex items-center justify-between p-5 border-b border-slate-200 dark:border-slate-800">
               <div>
-                <h2 className="text-lg font-semibold text-white">
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
                   {en ? "Module access" : "صلاحيات الأقسام"}
                 </h2>
                 <p className="text-xs text-slate-400 mt-0.5">
@@ -635,7 +635,7 @@ export default function UsersPage() {
               </div>
               <button
                 onClick={() => setPermUser(null)}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-400 hover:text-slate-900 dark:hover:text-white"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -645,7 +645,7 @@ export default function UsersPage() {
                 <button
                   type="button"
                   onClick={() => setPermDraft(defaultsForRole(permUser.role))}
-                  className="text-[11px] font-bold px-2.5 py-1 rounded-lg border border-slate-700 text-teal-200 hover:bg-slate-800"
+                  className="text-[11px] font-bold px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-teal-800 dark:text-teal-200 hover:bg-slate-100 dark:hover:bg-slate-800"
                 >
                   {en ? "Reset to role defaults" : "إعادة لافتراضي الدور"}
                 </button>

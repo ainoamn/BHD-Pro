@@ -52,7 +52,7 @@ export function UserAccessTree({
 
   return (
     <div className="space-y-2">
-      <p className="text-[11px] text-slate-400 leading-relaxed">
+      <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
         {en
           ? "Defaults follow the selected role. Override any row: Hidden / View / Edit."
           : "القيم الافتراضية تتبع الدور المختار. عدّل أي صف: مخفي / عرض / تعديل."}
@@ -64,19 +64,19 @@ export function UserAccessTree({
         return (
           <div
             key={g.id}
-            className="rounded-xl border border-slate-700 bg-slate-950/40 overflow-hidden"
+            className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950/40 overflow-hidden"
           >
-            <div className="flex items-center gap-2 px-3 py-2 bg-slate-800/80 border-b border-slate-700">
+            <div className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700">
               <button
                 type="button"
                 onClick={() => setOpen((o) => ({ ...o, [g.id]: !expanded }))}
-                className="p-1 rounded-md hover:bg-slate-700"
+                className="p-1 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700"
                 aria-label="toggle"
               >
                 {expanded ? (
-                  <ChevronDown className="w-4 h-4 text-slate-300" />
+                  <ChevronDown className="w-4 h-4 text-slate-500 dark:text-slate-300" />
                 ) : (
-                  <ChevronLeft className="w-4 h-4 text-slate-300" />
+                  <ChevronLeft className="w-4 h-4 text-slate-500 dark:text-slate-300" />
                 )}
               </button>
               <label className="flex items-center gap-2 flex-1 cursor-pointer select-none min-w-0">
@@ -88,15 +88,15 @@ export function UserAccessTree({
                   }}
                   disabled={disabled}
                   onChange={(e) => toggleGroup(g.modules, e.target.checked)}
-                  className="rounded border-slate-600 text-teal-500 focus:ring-teal-600"
+                  className="rounded border-slate-400 dark:border-slate-600 text-teal-500 focus:ring-teal-600"
                 />
-                <span className="font-extrabold text-sm text-teal-200 truncate">
+                <span className="font-extrabold text-sm text-teal-800 dark:text-teal-200 truncate">
                   {en ? g.labelEn : g.labelAr}
                 </span>
               </label>
             </div>
             {expanded ? (
-              <ul className="divide-y divide-slate-800">
+              <ul className="divide-y divide-slate-200 dark:divide-slate-800">
                 {g.modules.map((key) => {
                   const level = value[key] || "hidden";
                   return (
@@ -107,7 +107,7 @@ export function UserAccessTree({
                         level === "hidden" ? "opacity-70" : "",
                       )}
                     >
-                      <span className="text-sm font-semibold text-slate-200">
+                      <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">
                         {MODULE_LABELS[key][en ? "en" : "ar"]}
                       </span>
                       <div className="flex gap-1">
@@ -125,7 +125,7 @@ export function UserAccessTree({
                                   : lvl === "view"
                                     ? "bg-sky-600 text-white border-sky-500"
                                     : "bg-slate-600 text-white border-slate-500"
-                                : "bg-transparent text-slate-400 border-slate-700 hover:border-slate-500",
+                                : "bg-transparent text-slate-500 dark:text-slate-400 border-slate-300 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-500",
                             )}
                           >
                             {levelLabel[lvl]}

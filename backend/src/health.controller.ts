@@ -9,6 +9,8 @@ import { PrismaService } from './prisma/prisma.service';
 import { RedisService } from './redis/redis.service';
 import { StorageService } from './storage/storage.service';
 import { EmailNotifyService } from './notifications/email-notify.service';
+import { WhatsappNotifyService } from './notifications/whatsapp-notify.service';
+import { SmsNotifyService } from './notifications/sms-notify.service';
 
 @ApiTags('Health')
 @SkipThrottle()
@@ -19,6 +21,8 @@ export class HealthController {
     private redis: RedisService,
     private storage: StorageService,
     private email: EmailNotifyService,
+    private whatsapp: WhatsappNotifyService,
+    private sms: SmsNotifyService,
   ) {}
 
   @Get()
@@ -37,6 +41,10 @@ export class HealthController {
       s3Configured: storage.s3Configured,
       emailConfigured: this.email.isConfigured(),
       emailMode: this.email.mode(),
+      whatsappConfigured: this.whatsapp.isConfigured(),
+      whatsappMode: this.whatsapp.mode(),
+      smsConfigured: this.sms.isConfigured(),
+      smsMode: this.sms.mode(),
     };
   }
 
@@ -81,6 +89,10 @@ export class HealthController {
       s3Configured: storage.s3Configured,
       emailConfigured: this.email.isConfigured(),
       emailMode: this.email.mode(),
+      whatsappConfigured: this.whatsapp.isConfigured(),
+      whatsappMode: this.whatsapp.mode(),
+      smsConfigured: this.sms.isConfigured(),
+      smsMode: this.sms.mode(),
       timestamp: new Date().toISOString(),
     };
   }

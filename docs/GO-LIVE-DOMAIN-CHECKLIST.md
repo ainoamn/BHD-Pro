@@ -152,7 +152,8 @@ Project `bhd-pro` → **Settings → Environment Variables** (Production):
 - [ ] `RESEND_API_KEY` + `EMAIL_FROM=Hisaby <noreply@hisaby.pro>`
 - [ ] أو SMTP.
 - [ ] تحقق: `/api/health` → `"emailConfigured": true` و`"emailMode":"resend"` (أو `smtp`).
-- [ ] واتساب: `WHATSAPP_TOKEN` + `WHATSAPP_PHONE_NUMBER_ID` عند الجاهزية.
+- [ ] واتساب: `WHATSAPP_TOKEN` + `WHATSAPP_PHONE_NUMBER_ID` عند الجاهزية → `/api/health` → `"whatsappConfigured": true`.
+- [ ] SMS (اختياري): إعداد Twilio → `/api/health` → `"smsConfigured": true`.
 - [ ] اختبر **دعوة مستخدم** من الإعدادات (موجة AY) وتصل رسالة الإكمال — إن فشل البريد يظهر تحذير ونسخ رابط.
 
 ### بوابات دفع

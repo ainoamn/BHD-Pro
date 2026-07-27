@@ -1,5 +1,6 @@
 import { Controller, Get, Header, Param, Query, Res } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { Response } from 'express';
 import { DocumentShareService, DocumentShareVariant } from './document-share.service';
 import { renderPublicDocumentHtml } from './public-document-html';
@@ -10,6 +11,7 @@ export class PublicDocumentsController {
   constructor(private documentShare: DocumentShareService) {}
 
   @Get('c/:code/view')
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @ApiOperation({
     summary: 'HTML invoice page for QR scan — shows document and opens print/save',
   })
@@ -28,6 +30,7 @@ export class PublicDocumentsController {
   }
 
   @Get('c/:code')
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @ApiOperation({ summary: 'View document by short public verify code' })
   getByCode(
     @Param('code') code: string,
@@ -37,6 +40,7 @@ export class PublicDocumentsController {
   }
 
   @Get(':token')
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @ApiOperation({ summary: 'View shared document (public JWT link)' })
   getSharedDocument(@Param('token') token: string) {
     return this.documentShare.resolvePublicDocument(token);
