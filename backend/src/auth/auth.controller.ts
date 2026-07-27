@@ -164,6 +164,7 @@ export class AuthController {
   }
 
   @Get('invite/:token')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @ApiOperation({ summary: 'Inspect a pending invite token' })
   getInvite(@Param('token') token: string) {
     return this.authService.getInvite(token);

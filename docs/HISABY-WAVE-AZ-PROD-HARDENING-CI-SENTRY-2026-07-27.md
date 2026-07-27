@@ -9,7 +9,7 @@
 | البند | الحالة |
 |-------|--------|
 | GitHub Actions CI | `.github/workflows/ci.yml` — build backend + typecheck frontend + audit |
-| Dependabot | `.github/dependabot.yml` — npm أسبوعي + GitHub Actions |
+| Dependabot | `.github/dependabot.yml` — npm **شهري** (minor/patch) + GitHub Actions |
 | Sentry | اختياري عبر `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` (بدون DSN = no-op) |
 | اختبارات دخان | `backend/test/module-permissions.spec.ts` |
 | توثيق WAF | [`PRODUCTION-HARDENING.md`](./PRODUCTION-HARDENING.md) |

@@ -79,8 +79,8 @@ export class UsersService {
 
   private inviteUrl(token: string) {
     const appUrl =
-      process.env.APP_URL ||
       process.env.FRONTEND_URL ||
+      process.env.APP_URL ||
       process.env.NEXT_PUBLIC_APP_URL ||
       'http://localhost:3000';
     return `${appUrl.replace(/\/$/, '')}/complete-profile?invite=${encodeURIComponent(token)}`;
@@ -186,18 +186,28 @@ export class UsersService {
       },
     });
     const inviteUrl = this.inviteUrl(inviteToken);
-    await this.sendInviteEmail({
-      to: user.email,
-      name: user.name,
-      companyName: company?.name || 'Hisaby',
-      inviteUrl,
-      username,
-    });
+    let emailSent = false;
+    let emailError: string | undefined;
+    try {
+      const mail = await this.sendInviteEmail({
+        to: user.email,
+        name: user.name,
+        companyName: company?.name || 'Hisaby',
+        inviteUrl,
+        username,
+      });
+      emailSent = !!mail?.ok;
+      emailError = mail?.error;
+    } catch (err) {
+      emailError = err instanceof Error ? err.message : 'email failed';
+    }
     return {
       ...user,
       inviteUrl,
       inviteStatus: 'pending',
       modulePermissions: resolveModulePermissions(user.role, user.permissions),
+      emailSent,
+      ...(emailError && !emailSent ? { emailError } : {}),
     };
   }
 
@@ -306,18 +316,28 @@ export class UsersService {
       },
     });
     const inviteUrl = this.inviteUrl(inviteToken);
-    await this.sendInviteEmail({
-      to: updated.email,
-      name: updated.name,
-      companyName: user.company.name,
-      inviteUrl,
-      username: updated.username || (await this.nextUsername(companyId)),
-    });
+    let emailSent = false;
+    let emailError: string | undefined;
+    try {
+      const mail = await this.sendInviteEmail({
+        to: updated.email,
+        name: updated.name,
+        companyName: user.company.name,
+        inviteUrl,
+        username: updated.username || (await this.nextUsername(companyId)),
+      });
+      emailSent = !!mail?.ok;
+      emailError = mail?.error;
+    } catch (err) {
+      emailError = err instanceof Error ? err.message : 'email failed';
+    }
     return {
       ...updated,
       inviteUrl,
       inviteStatus: 'pending',
       modulePermissions: resolveModulePermissions(updated.role, updated.permissions),
+      emailSent,
+      ...(emailError && !emailSent ? { emailError } : {}),
     };
   }
 }

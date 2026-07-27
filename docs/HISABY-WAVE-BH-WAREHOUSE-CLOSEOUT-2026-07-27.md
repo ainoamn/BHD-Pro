@@ -19,3 +19,5 @@
 ```bash
 cd backend && npx jest test/module-permissions.spec.ts
 ```
+
+**متابعة:** [`HISABY-WAVE-BI-INVITE-HEALTH-THROTTLE-2026-07-27.md`](./HISABY-WAVE-BI-INVITE-HEALTH-THROTTLE-2026-07-27.md)

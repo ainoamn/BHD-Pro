@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -25,6 +26,7 @@ export class ManagerReportsController {
   }
 
   @Post('subscriptions')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   save(
     @CurrentUser() user: TokenPayload,
     @Body() dto: SaveManagerReportSubscriptionsDto,
@@ -33,6 +35,7 @@ export class ManagerReportsController {
   }
 
   @Post('send-now')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   sendNow(@CurrentUser() user: TokenPayload, @Body() dto: SendManagerReportNowDto) {
     return this.service.sendNow(user.companyId, dto.userId);
   }

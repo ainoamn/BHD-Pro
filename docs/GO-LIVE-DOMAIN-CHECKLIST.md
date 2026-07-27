@@ -151,8 +151,9 @@ Project `bhd-pro` → **Settings → Environment Variables** (Production):
 ### إيميل / واتساب
 - [ ] `RESEND_API_KEY` + `EMAIL_FROM=Hisaby <noreply@hisaby.pro>`
 - [ ] أو SMTP.
+- [ ] تحقق: `/api/health` → `"emailConfigured": true` و`"emailMode":"resend"` (أو `smtp`).
 - [ ] واتساب: `WHATSAPP_TOKEN` + `WHATSAPP_PHONE_NUMBER_ID` عند الجاهزية.
-- [ ] اختبر **دعوة مستخدم** من الإعدادات (موجة AY) وتصل رسالة الإكمال.
+- [ ] اختبر **دعوة مستخدم** من الإعدادات (موجة AY) وتصل رسالة الإكمال — إن فشل البريد يظهر تحذير ونسخ رابط.
 
 ### بوابات دفع
 - [ ] ابدأ بوضع الاختبار (Thawani UAT / Stripe test).

@@ -102,9 +102,30 @@ export default function UsersPage() {
         permissions: form.role === "ADMIN" ? undefined : createPerms,
       });
     },
-    onSuccess: () => {
+    onSuccess: async (res) => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
-      toast.success(en ? "Invitation sent" : "تم إرسال دعوة المستخدم");
+      const data = (res?.data || res) as {
+        emailSent?: boolean;
+        inviteUrl?: string;
+        emailError?: string;
+      };
+      if (data.emailSent) {
+        toast.success(en ? "Invitation sent" : "تم إرسال دعوة المستخدم");
+      } else {
+        if (data.inviteUrl) {
+          try {
+            await navigator.clipboard.writeText(data.inviteUrl);
+          } catch {
+            /* ignore */
+          }
+        }
+        toast(
+          en
+            ? `User created — email not sent${data.inviteUrl ? "; invite link copied" : ""}${data.emailError ? ` (${data.emailError})` : ""}`
+            : `تم إنشاء المستخدم — لم يُرسل البريد${data.inviteUrl ? "؛ تم نسخ رابط الدعوة" : ""}${data.emailError ? ` (${data.emailError})` : ""}`,
+          { icon: "⚠️", duration: 6000 },
+        );
+      }
       setModalOpen(false);
       setForm({ name: "", email: "", role: "ACCOUNTANT", defaultWarehouseId: "" });
       setCreatePerms(defaultsForRole("ACCOUNTANT"));
@@ -199,9 +220,30 @@ export default function UsersPage() {
 
   const resendInviteMutation = useMutation({
     mutationFn: (id: string) => api.resendUserInvite(id),
-    onSuccess: () => {
+    onSuccess: async (res) => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
-      toast.success(en ? "Invite resent" : "تمت إعادة إرسال الدعوة");
+      const data = (res?.data || res) as {
+        emailSent?: boolean;
+        inviteUrl?: string;
+        emailError?: string;
+      };
+      if (data.emailSent) {
+        toast.success(en ? "Invite resent" : "تمت إعادة إرسال الدعوة");
+      } else {
+        if (data.inviteUrl) {
+          try {
+            await navigator.clipboard.writeText(data.inviteUrl);
+          } catch {
+            /* ignore */
+          }
+        }
+        toast(
+          en
+            ? `Invite refreshed — email not sent${data.inviteUrl ? "; link copied" : ""}`
+            : `تم تحديث الدعوة — لم يُرسل البريد${data.inviteUrl ? "؛ تم نسخ الرابط" : ""}`,
+          { icon: "⚠️", duration: 6000 },
+        );
+      }
     },
     onError: (err) => toast.error(apiErrorMessage(err, en ? "Could not resend" : "تعذر إعادة الإرسال")),
   });
@@ -295,7 +337,7 @@ export default function UsersPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-800 text-slate-400">
+                <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-400">
                   <th className="text-right p-4 font-medium">{t("name")}</th>
                   <th className="text-right p-4 font-medium">{t("email")}</th>
                   <th className="text-right p-4 font-medium">{en ? "Username" : "اسم المستخدم"}</th>
@@ -311,8 +353,8 @@ export default function UsersPage() {
               </thead>
               <tbody>
                 {users.map((u) => (
-                  <tr key={u.id} className="border-b border-slate-800/50 hover:bg-slate-800/30">
-                    <td className="p-4 text-white font-medium">
+                  <tr key={u.id} className="border-b border-slate-200 dark:border-slate-800/50 hover:bg-slate-800/30">
+                    <td className="p-4 text-slate-900 dark:text-white font-medium">
                       {u.name}
                       {u.id === currentUser?.id && (
                         <span className="text-xs text-emerald-400 mr-2">({t("you")})</span>
@@ -343,7 +385,7 @@ export default function UsersPage() {
                               })
                             }
                             disabled={updateWarehouseMutation.isPending}
-                            className="h-8 max-w-[11rem] px-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-xs focus:outline-none focus:border-emerald-500"
+                  className="h-8 max-w-[11rem] px-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white text-xs focus:outline-none focus:border-emerald-500"
                             title={en ? "Home warehouse (POS)" : "مستودع الموظف"}
                           >
                             <option value="">
@@ -397,7 +439,7 @@ export default function UsersPage() {
                                 })
                               }
                               disabled={updateRoleMutation.isPending}
-                              className="h-8 px-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-xs focus:outline-none focus:border-emerald-500"
+                              className="h-8 px-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white text-xs focus:outline-none focus:border-emerald-500"
                             >
                               {ROLES.map((r) => (
                                 <option key={r} value={r}>
@@ -455,8 +497,8 @@ export default function UsersPage() {
 
       {modalOpen && isAdmin && (
         <div className="fixed inset-0 z-50 flex items-start justify-center pt-8 bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl mb-10">
-            <div className="flex items-center justify-between p-5 border-b border-slate-800">
+          <div className="w-full max-w-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl mb-10">
+            <div className="flex items-center justify-between p-5 border-b border-slate-200 dark:border-slate-800">
               <h2 className="text-lg font-semibold text-white">{t("addUser")}</h2>
               <button
                 onClick={() => setModalOpen(false)}
@@ -472,7 +514,7 @@ export default function UsersPage() {
                   <input
                     value={form.name}
                     onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500"
+                    className="w-full h-10 px-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
                   />
                 </div>
                 <div>
@@ -481,7 +523,7 @@ export default function UsersPage() {
                     type="email"
                     value={form.email}
                     onChange={(e) => setForm({ ...form, email: e.target.value })}
-                    className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500"
+                    className="w-full h-10 px-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
                   />
                 </div>
                 <div>
@@ -489,7 +531,7 @@ export default function UsersPage() {
                   <select
                     value={form.role}
                     onChange={(e) => onCreateRoleChange(e.target.value)}
-                    className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500"
+                    className="w-full h-10 px-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
                   >
                     {ROLES.map((r) => (
                       <option key={r} value={r}>
@@ -510,7 +552,7 @@ export default function UsersPage() {
                     onChange={(e) =>
                       setForm({ ...form, defaultWarehouseId: e.target.value })
                     }
-                    className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500"
+                    className="w-full h-10 px-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
                   >
                     <option value="">
                       {en ? "Company default" : "افتراضي الشركة"}
@@ -581,8 +623,8 @@ export default function UsersPage() {
 
       {permUser && (
         <div className="fixed inset-0 z-50 flex items-start justify-center pt-8 bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl mb-10">
-            <div className="flex items-center justify-between p-5 border-b border-slate-800">
+          <div className="w-full max-w-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl mb-10">
+            <div className="flex items-center justify-between p-5 border-b border-slate-200 dark:border-slate-800">
               <div>
                 <h2 className="text-lg font-semibold text-white">
                   {en ? "Module access" : "صلاحيات الأقسام"}

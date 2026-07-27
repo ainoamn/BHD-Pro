@@ -111,6 +111,7 @@
 - موجة BF: عدّاد التسليم + إلزام مستودع الكاشير + دعوات + إخفاء مخزون ERP للكاشير — [`HISABY-WAVE-BF-WAREHOUSE-UX-INVITE-2026-07-27.md`](./HISABY-WAVE-BF-WAREHOUSE-UX-INVITE-2026-07-27.md)
 - موجة BG: فرض المستودع في API + اتساق تسجيل الدخول + إصلاح Retry/تسمية POS — [`HISABY-WAVE-BG-CASHIER-WAREHOUSE-ENFORCE-2026-07-27.md`](./HISABY-WAVE-BG-CASHIER-WAREHOUSE-ENFORCE-2026-07-27.md)
 - موجة BH: إغلاق بقايا المستودع (register + DTO + clamp + مخزون/ورديات) — [`HISABY-WAVE-BH-WAREHOUSE-CLOSEOUT-2026-07-27.md`](./HISABY-WAVE-BH-WAREHOUSE-CLOSEOUT-2026-07-27.md)
+- موجة BI: صدق دعوات البريد + health بريد + throttles + UX خفيف — [`HISABY-WAVE-BI-INVITE-HEALTH-THROTTLE-2026-07-27.md`](./HISABY-WAVE-BI-INVITE-HEALTH-THROTTLE-2026-07-27.md)
 
 ### 1.6 المنصة ولوحة الإدارة (محدث 26 يوليو مساءً)
 - اشتراكات، بوابات دفع، `/admin`، PWA، GeoIP، keep-warm

@@ -8,6 +8,7 @@ import { SkipThrottle } from '@nestjs/throttler';
 import { PrismaService } from './prisma/prisma.service';
 import { RedisService } from './redis/redis.service';
 import { StorageService } from './storage/storage.service';
+import { EmailNotifyService } from './notifications/email-notify.service';
 
 @ApiTags('Health')
 @SkipThrottle()
@@ -17,6 +18,7 @@ export class HealthController {
     private prisma: PrismaService,
     private redis: RedisService,
     private storage: StorageService,
+    private email: EmailNotifyService,
   ) {}
 
   @Get()
@@ -33,6 +35,8 @@ export class HealthController {
       redisConfigured: this.redis.isConfigured(),
       attachmentStorage: storage.driver,
       s3Configured: storage.s3Configured,
+      emailConfigured: this.email.isConfigured(),
+      emailMode: this.email.mode(),
     };
   }
 
@@ -75,6 +79,8 @@ export class HealthController {
       redisConfigured: this.redis.isConfigured(),
       attachmentStorage: storage.driver,
       s3Configured: storage.s3Configured,
+      emailConfigured: this.email.isConfigured(),
+      emailMode: this.email.mode(),
       timestamp: new Date().toISOString(),
     };
   }

@@ -303,11 +303,11 @@ export function PosLinkSettings({
                   className="inline-flex items-center gap-1 text-slate-300"
                   onClick={() => {
                     navigator.clipboard.writeText(generatedKey);
-                    toast.success("OK");
+                    toast.success(t.copied);
                   }}
                 >
                   <Copy className="w-3.5 h-3.5" />
-                  Copy
+                  {t.copy}
                 </button>
               </div>
             )}
