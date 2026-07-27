@@ -53,7 +53,7 @@ Dashboard → خدمتك → **Environment** → احفظ ثم **Manual Deploy**
 | `FRONTEND_URL` | `https://www.hisaby.pro` |
 | `API_PUBLIC_URL` | `https://hisaby-api.onrender.com` |
 | `PLATFORM_ADMIN_EMAILS` | بريدك التشغيلي فقط (مثال `admin@hisaby.pro`) |
-| `REQUIRE_2FA_ROLES` | `ADMIN,MANAGER` (أو اترك الافتراضي) |
+| `REQUIRE_2FA_ROLES` | `ADMIN,MANAGER` (افتراضي) أو أضف `ACCOUNTANT` للإلزام الأشمل: `ADMIN,MANAGER,ACCOUNTANT` |
 | `COOKIE_SAME_SITE` | `none` إذا الواجهة والدومين مختلفان عن الـ API عبر كوكيز عبر المواقع؛ غالباً مع rewrite على Vercel يكفي `lax` — جرّب `lax` أولاً |
 
 ### Migrations (مهم جداً — بعد موجات الدعوات + المستودع الذكي BC)

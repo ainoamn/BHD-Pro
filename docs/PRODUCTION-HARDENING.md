@@ -17,7 +17,9 @@
    - Workflow: `.github/workflows/ci.yml`
 4. **Dependabot** مفعّل ومراجعة أسبوعية لـ PRs
 5. **`NODE_ENV=production`** + أسرار قوية (`JWT_*`, `PAYMENT_SECRETS_KEY`)
-6. **2FA** للأدوار الإدارية (`REQUIRE_2FA_ROLES=ADMIN,MANAGER`)
+6. **2FA** للأدوار الإدارية (`REQUIRE_2FA_ROLES=ADMIN,MANAGER` — ويمكن `...,ACCOUNTANT`)  
+   دليل المستخدم: [`USER-GUIDE-2FA.md`](./USER-GUIDE-2FA.md)  
+   خارطة الإنتاج: [`PRODUCTION-ROADMAP-4-6-WEEKS.md`](./PRODUCTION-ROADMAP-4-6-WEEKS.md)
 7. **Migrations** مطبّقة: `npx prisma migrate deploy`
 8. **Penetration test** مختصر على auth / dual-control / webhooks قبل فتح التسجيل العام
 
