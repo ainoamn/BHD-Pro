@@ -51,6 +51,9 @@ export const restoCopy = {
     retry: "إعادة المحاولة",
     menuCount: "صنف",
     linkBanner: "المطاعم غير مربوطة أو بلا مخزن — اختر مخزن المطاعم من الإعدادات.",
+    unlinkedTitle: "المطاعم غير مربوطة",
+    alertsTitle: "التنبيهات",
+    alertsEmpty: "لا توجد تنبيهات حالياً",
     linkTitle: "ربط حسابي للمطاعم",
     linkDesc:
       "اربط المطاعم بمخزن/فرع خاص بالوجبات فقط — القائمة لا تجلب كل أصناف الشركة.",
@@ -458,6 +461,9 @@ export const restoCopy = {
     retry: "Retry",
     menuCount: "items",
     linkBanner: "Restaurants not linked or missing warehouse — pick a warehouse in Settings.",
+    unlinkedTitle: "Restaurants not linked",
+    alertsTitle: "Alerts",
+    alertsEmpty: "No alerts right now",
     linkTitle: "Link Hisaby Restaurants",
     linkDesc:
       "Bind restaurants to a meal-only warehouse/branch — the menu will not pull the full company catalog.",

@@ -7,8 +7,6 @@ import {
   Calculator,
   Clock3,
   CloudUpload,
-  Link2,
-  Link2Off,
   Loader2,
   LogOut,
   Menu,
@@ -36,6 +34,7 @@ import {
 } from "@/lib/pos-offline-queue";
 import { playPosAlertBeep } from "@/lib/pos-beep";
 import { PosCommissionChip } from "@/components/pos/pos-commission-chip";
+import { ShellAlertsBell } from "@/components/shared/shell-alerts-bell";
 import {
   DualApprovalModal,
   type DualApprovalPayload,
@@ -440,6 +439,36 @@ export function PosShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
+            <ShellAlertsBell
+              tone="pos"
+              hasAlert={linked === false || linkLoadError}
+              title={t.alertsTitle}
+              emptyLabel={t.alertsEmpty}
+              items={[
+                ...(linkLoadError
+                  ? [
+                      {
+                        id: "pos-link-error",
+                        title: t.loadFailed,
+                        message: t.retry,
+                        href: "/pos/settings",
+                        tone: "error" as const,
+                      },
+                    ]
+                  : []),
+                ...(linked === false
+                  ? [
+                      {
+                        id: "pos-unlinked",
+                        title: t.unlinkedTitle,
+                        message: t.unlinked,
+                        href: "/pos/settings",
+                        tone: "warning" as const,
+                      },
+                    ]
+                  : []),
+              ]}
+            />
             {pendingCount > 0 || quarantineCount > 0 ? (
               <button
                 type="button"
@@ -651,58 +680,6 @@ export function PosShell({ children }: { children: React.ReactNode }) {
           </div>
         ) : null}
 
-        {linkLoadError ? (
-          <div className="border-t border-rose-500/30 bg-rose-500/10 px-4 py-2 text-center text-xs text-rose-200 flex flex-wrap items-center justify-center gap-2">
-            <span>{t.loadFailed}</span>
-            <button
-              type="button"
-              onClick={() => {
-                setLinkLoadError(false);
-                void (async () => {
-                  try {
-                    const linkRes = await api.getPosLinkStatus();
-                    setLinked(!!linkRes.data.linked);
-                    setLinkLoadError(false);
-                  } catch {
-                    setLinked(null);
-                    setLinkLoadError(true);
-                  }
-                })();
-              }}
-              className="rounded-md bg-amber-500 px-2 py-0.5 text-[10px] font-bold text-slate-950"
-            >
-              {t.retry}
-            </button>
-          </div>
-        ) : null}
-        {linked === false && (
-          <div className="border-t border-amber-500/20 bg-amber-500/10 px-4 py-2 text-center text-xs text-amber-100 flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
-            <Link2Off className="w-3.5 h-3.5 shrink-0" />
-            <span>{t.unlinked}</span>
-            <Link href="/pos/inventory" className="font-bold underline underline-offset-2">
-              {t.inventory}
-            </Link>
-            <span>·</span>
-            <Link href="/pos/contacts" className="font-bold underline underline-offset-2">
-              {t.posContactsNav}
-            </Link>
-            <span>·</span>
-            <Link href="/pos/books" className="font-bold underline underline-offset-2">
-              {t.posBooksNav}
-            </Link>
-            <span>·</span>
-            <Link href="/pos/settings" className="font-bold underline underline-offset-2">
-              {t.settings}
-            </Link>
-          </div>
-        )}
-        {linked === true && (
-          <div className="border-t border-emerald-500/10 bg-emerald-500/5 px-4 py-1 text-center text-[11px] text-emerald-300/80 flex items-center justify-center gap-1.5">
-            <Link2 className="w-3 h-3" />
-            {t.linked}
-            {user?.email ? ` · ${user.email}` : ""}
-          </div>
-        )}
       </header>
       {queueOpen ? (
         <div

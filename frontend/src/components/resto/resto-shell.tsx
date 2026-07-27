@@ -10,8 +10,6 @@ import {
   CalendarDays,
   ChefHat,
   LayoutGrid,
-  Link2,
-  Link2Off,
   LogOut,
   Menu,
   Settings2,
@@ -36,6 +34,7 @@ import {
   type ModuleKey,
 } from "@/lib/module-permissions";
 import { PlanUpgradeGate } from "@/components/billing/plan-upgrade-gate";
+import { ShellAlertsBell } from "@/components/shared/shell-alerts-bell";
 
 export function RestoShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -268,7 +267,38 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
 
-          <div className="hidden lg:flex items-center gap-1 sm:gap-2 min-w-0">
+          <div className="flex items-center gap-1.5 shrink-0">
+            <ShellAlertsBell
+              tone="resto"
+              hasAlert={linked === false || linkLoadError}
+              title={t.alertsTitle}
+              emptyLabel={t.alertsEmpty}
+              items={[
+                ...(linkLoadError
+                  ? [
+                      {
+                        id: "resto-link-error",
+                        title: t.loadFailed,
+                        message: t.retry,
+                        href: "/resto/settings",
+                        tone: "error" as const,
+                      },
+                    ]
+                  : []),
+                ...(linked === false
+                  ? [
+                      {
+                        id: "resto-unlinked",
+                        title: t.unlinkedTitle,
+                        message: t.linkBanner,
+                        href: "/resto/settings",
+                        tone: "warning" as const,
+                      },
+                    ]
+                  : []),
+              ]}
+            />
+            <div className="hidden lg:flex items-center gap-1 sm:gap-2 min-w-0">
             <Link
               href="/dashboard"
               className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/15 px-2.5 py-1.5 text-xs font-bold text-emerald-300 hover:bg-emerald-500/25 shrink-0"
@@ -306,6 +336,7 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
             >
               <LogOut className="w-4 h-4" />
             </button>
+            </div>
           </div>
         </div>
 
@@ -425,46 +456,6 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
             {locale === "en"
               ? "This section is hidden for your account. Ask your company admin to grant access."
               : "هذا القسم مخفي عن حسابك. اطلب من مدير الشركة منحك صلاحية الوصول."}
-          </div>
-        ) : null}
-
-        {linkLoadError ? (
-          <div className="border-t border-rose-500/30 bg-rose-500/10 px-3 py-2 text-center text-xs text-rose-200 flex flex-wrap items-center justify-center gap-2">
-            <span>{t.loadFailed}</span>
-            <button
-              type="button"
-              onClick={() => {
-                setLinkLoadError(false);
-                void (async () => {
-                  try {
-                    const linkRes = await api.getRestoLinkStatus();
-                    setLinked(!!linkRes.data.linked);
-                    setLinkLoadError(false);
-                  } catch {
-                    setLinked(null);
-                    setLinkLoadError(true);
-                  }
-                })();
-              }}
-              className="rounded-md bg-amber-500 px-2 py-0.5 text-[10px] font-bold text-slate-950"
-            >
-              {t.retry}
-            </button>
-          </div>
-        ) : null}
-
-        {linked === false ? (
-          <div className="border-t border-amber-500/20 bg-amber-500/10 px-3 py-2 text-center text-xs text-amber-100 sm:text-sm">
-            <Link2Off className="inline w-3.5 h-3.5 me-1.5 align-text-bottom" />
-            {t.linkBanner}{" "}
-            <Link href="/resto/settings" className="font-bold underline underline-offset-2">
-              {t.settings}
-            </Link>
-          </div>
-        ) : linked === true ? (
-          <div className="border-t border-emerald-500/15 bg-emerald-500/5 px-3 py-1 text-center text-[11px] text-emerald-200/80">
-            <Link2 className="inline w-3 h-3 me-1 align-text-bottom" />
-            {t.linked}
           </div>
         ) : null}
       </header>

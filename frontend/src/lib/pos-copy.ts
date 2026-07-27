@@ -58,6 +58,9 @@ export const posCopy = {
     linked: "النظامان مربوطان",
     unlinked:
       "النظامان غير مربوطين — المخزون ودفتر العناوين سجلات الشركة تبقى؛ اربطهما للمحاسبة الكاملة",
+    unlinkedTitle: "الكاشير غير مربوط بالمحاسبة",
+    alertsTitle: "التنبيهات",
+    alertsEmpty: "لا توجد تنبيهات حالياً",
     activateLink: "ربط عبر تسجيل الدخول",
     warehouseLabel: "مخزن الكاشير",
     warehouseBindHint: "الكتالوج يعرض فقط أصناف هذا المخزن (قطاع التجزئة أو العام)",
@@ -610,6 +613,9 @@ export const posCopy = {
     linked: "Apps are linked",
     unlinked:
       "Apps are not linked — inventory & address book stay; link for full accounting",
+    unlinkedTitle: "POS is not linked to accounting",
+    alertsTitle: "Alerts",
+    alertsEmpty: "No alerts right now",
     activateLink: "Link via shared login",
     warehouseLabel: "POS warehouse",
     warehouseBindHint: "Catalog shows only products assigned or stocked in this warehouse",
