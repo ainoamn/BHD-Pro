@@ -39,4 +39,4 @@ npx prisma migrate deploy
 3. الكاشير يرى مستودعه فقط؛ لتلبية طلب من فرع آخر يفعّل «بيع من مستودع آخر (تسليم لاحقاً)».
 4. عند وصول البضاعة: زر **تم التسليم / خصم المخزون** من قائمة الانتظار في شاشة الكاشير.
 
-**متابعة:** [BD](./HISABY-WAVE-BD-WAREHOUSE-SHIFTS-INVENTORY-2026-07-27.md) · [BE](./HISABY-WAVE-BE-WAREHOUSE-SESSION-RESTO-2026-07-27.md) · [BF](./HISABY-WAVE-BF-WAREHOUSE-UX-INVITE-2026-07-27.md)
+**متابعة:** [BD](./HISABY-WAVE-BD-WAREHOUSE-SHIFTS-INVENTORY-2026-07-27.md) · [BE](./HISABY-WAVE-BE-WAREHOUSE-SESSION-RESTO-2026-07-27.md) · [BF](./HISABY-WAVE-BF-WAREHOUSE-UX-INVITE-2026-07-27.md) · [BG](./HISABY-WAVE-BG-CASHIER-WAREHOUSE-ENFORCE-2026-07-27.md)

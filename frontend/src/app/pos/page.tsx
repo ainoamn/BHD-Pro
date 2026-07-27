@@ -178,6 +178,7 @@ export default function PosCheckoutPage() {
   const [warehouseId, setWarehouseId] = useState("");
   const [canSwitchWarehouse, setCanSwitchWarehouse] = useState(false);
   const [homeWarehouseId, setHomeWarehouseId] = useState<string | null>(null);
+  const [homeWarehouseLabel, setHomeWarehouseLabel] = useState("");
   const [remoteSellMode, setRemoteSellMode] = useState(false);
   const [pendingFulfillments, setPendingFulfillments] = useState<
     PosPendingFulfillment[]
@@ -903,6 +904,11 @@ export default function PosCheckoutPage() {
         );
         setCanSwitchWarehouse(!!ctx.canSwitchFreely);
         setHomeWarehouseId(ctx.homeWarehouseId);
+        setHomeWarehouseLabel(
+          ctx.homeWarehouse
+            ? `${ctx.homeWarehouse.code} — ${ctx.homeWarehouse.name}`
+            : "",
+        );
         const contactRows = ((contactRes.data as Contact[]) || []).filter(
           (c) => c.isActive !== false,
         );
@@ -2830,11 +2836,34 @@ export default function PosCheckoutPage() {
                     );
                     setCanSwitchWarehouse(!!ctx.canSwitchFreely);
                     setHomeWarehouseId(ctx.homeWarehouseId);
+                    setHomeWarehouseLabel(
+                      ctx.homeWarehouse
+                        ? `${ctx.homeWarehouse.code} — ${ctx.homeWarehouse.name}`
+                        : "",
+                    );
                     setCustomers(
                       ((contactRes.data as Contact[]) || []).filter((c) => c.isActive !== false),
                     );
-                    const homeId = ctx.homeWarehouseId || ctx.warehouses[0]?.id || "";
-                    setWarehouseId(homeId);
+                    const homeId = ctx.homeWarehouseId || "";
+                    if (ctx.canSwitchFreely) {
+                      let saved = "";
+                      try {
+                        saved = localStorage.getItem(POS_WAREHOUSE_KEY) || "";
+                      } catch {
+                        /* ignore */
+                      }
+                      const pick =
+                        (saved &&
+                          (ctx.warehouses || []).some((w) => w.id === saved) &&
+                          saved) ||
+                        homeId ||
+                        ctx.warehouses[0]?.id ||
+                        "";
+                      setWarehouseId(pick);
+                    } else {
+                      setRemoteSellMode(false);
+                      setWarehouseId(homeId);
+                    }
                   } catch {
                     setBootError(true);
                   }
@@ -2877,11 +2906,12 @@ export default function PosCheckoutPage() {
                   <Warehouse className="w-4 h-4 text-sky-400/80 shrink-0" />
                   <span className="text-xs text-slate-400 shrink-0">{t.warehouseHome}</span>
                   <span className="flex-1 min-w-0 text-sm font-semibold text-sky-100 truncate">
-                    {homeWarehouseId
-                      ? `${warehouses.find((w) => w.id === homeWarehouseId)?.code || ""} — ${
-                          warehouses.find((w) => w.id === homeWarehouseId)?.name || ""
-                        }`
-                      : t.noHomeWarehouse}
+                    {homeWarehouseLabel ||
+                      (homeWarehouseId
+                        ? `${warehouses.find((w) => w.id === homeWarehouseId)?.code || ""} — ${
+                            warehouses.find((w) => w.id === homeWarehouseId)?.name || ""
+                          }`
+                        : t.noHomeWarehouse)}
                   </span>
                 </div>
                 <p className="text-[10px] text-slate-500 ps-6">{t.warehouseHomeHint}</p>

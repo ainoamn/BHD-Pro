@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto, UpdateUserDto } from './dto/user.dto';
@@ -145,6 +145,9 @@ export class UsersService {
       companyId,
       dto.defaultWarehouseId,
     );
+    if (dto.role === 'CASHIER' && !defaultWarehouseId) {
+      throw new BadRequestException('Cashiers require a home warehouse');
+    }
     const inviteToken = randomBytes(24).toString('hex');
     const username = await this.nextUsername(companyId);
     const inviteExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
@@ -212,6 +215,14 @@ export class UsersService {
         companyId,
         dto.defaultWarehouseId,
       );
+    }
+    const nextRole = dto.role ?? user.role;
+    const nextWarehouseId =
+      defaultWarehouseId !== undefined
+        ? defaultWarehouseId
+        : user.defaultWarehouseId;
+    if (nextRole === 'CASHIER' && !nextWarehouseId) {
+      throw new BadRequestException('Cashiers require a home warehouse');
     }
     const updated = await this.prisma.user.update({
       where: { id },

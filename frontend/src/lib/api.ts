@@ -236,7 +236,10 @@ class ApiClient {
     }
     const user = data.user!;
     const company = user.company as import('@/types').Company;
-    const { company: _c, ...userWithoutCompany } = user;
+    const { company: _c, ...userWithoutCompany } = user as typeof user & {
+      defaultWarehouseId?: string | null;
+      defaultWarehouse?: import('@/types').User['defaultWarehouse'];
+    };
     useAuthStore.getState().login(
       {
         ...userWithoutCompany,
@@ -245,6 +248,8 @@ class ApiClient {
         username: user.username || null,
         phone: user.phone || null,
         company,
+        defaultWarehouseId: userWithoutCompany.defaultWarehouseId ?? null,
+        defaultWarehouse: userWithoutCompany.defaultWarehouse ?? null,
       },
       company,
       data.accessToken || null
@@ -263,6 +268,8 @@ class ApiClient {
         company,
         username: user.username || null,
         phone: user.phone || null,
+        defaultWarehouseId: user.defaultWarehouseId ?? null,
+        defaultWarehouse: user.defaultWarehouse ?? null,
       },
       company,
       accessToken || null
@@ -314,13 +321,18 @@ class ApiClient {
     }
     const user = data.user!;
     const company = user.company as import('@/types').Company;
-    const { company: _c, ...userWithoutCompany } = user;
+    const { company: _c, ...userWithoutCompany } = user as typeof user & {
+      defaultWarehouseId?: string | null;
+      defaultWarehouse?: import('@/types').User['defaultWarehouse'];
+    };
     useAuthStore.getState().login(
       {
         ...userWithoutCompany,
         companyId: company?.id || user.companyId || '',
         role: user.role as import('@/types').User['role'],
         company,
+        defaultWarehouseId: userWithoutCompany.defaultWarehouseId ?? null,
+        defaultWarehouse: userWithoutCompany.defaultWarehouse ?? null,
       },
       company,
       data.accessToken || null

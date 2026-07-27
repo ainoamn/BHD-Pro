@@ -21,3 +21,5 @@ npx prisma migrate deploy
 ```
 
 Migration: `20260727133000_user_home_warehouse_pos_fulfillment`
+
+**متابعة:** [`HISABY-WAVE-BG-CASHIER-WAREHOUSE-ENFORCE-2026-07-27.md`](./HISABY-WAVE-BG-CASHIER-WAREHOUSE-ENFORCE-2026-07-27.md)

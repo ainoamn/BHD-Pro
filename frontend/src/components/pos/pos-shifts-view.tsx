@@ -220,6 +220,7 @@ export function PosShiftsView({
   const [warehousesError, setWarehousesError] = useState(false);
   const [canSwitchWarehouse, setCanSwitchWarehouse] = useState(false);
   const [homeWarehouseId, setHomeWarehouseId] = useState<string | null>(null);
+  const [homeWarehouseLabel, setHomeWarehouseLabel] = useState("");
   const [varianceLimit, setVarianceLimit] = useState(DEFAULT_VARIANCE_LIMIT);
   const [approvalOpen, setApprovalOpen] = useState(false);
   const [cashApprovalOpen, setCashApprovalOpen] = useState(false);
@@ -251,6 +252,11 @@ export function PosShiftsView({
       setWarehouses(rows);
       setCanSwitchWarehouse(!!ctx.canSwitchFreely);
       setHomeWarehouseId(ctx.homeWarehouseId);
+      setHomeWarehouseLabel(
+        ctx.homeWarehouse
+          ? `${ctx.homeWarehouse.code} — ${ctx.homeWarehouse.name}`
+          : "",
+      );
       setWarehousesError(false);
 
       if (ctx.canSwitchFreely) {
@@ -728,11 +734,12 @@ export function PosShiftsView({
           <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 space-y-1">
             <p className="text-xs text-slate-400">{t.warehouseHome}</p>
             <p className="text-sm font-semibold text-sky-100">
-              {homeWarehouseId
-                ? `${warehouses.find((w) => w.id === homeWarehouseId)?.code || ""} — ${
-                    warehouses.find((w) => w.id === homeWarehouseId)?.name || ""
-                  }`
-                : t.noHomeWarehouse}
+              {homeWarehouseLabel ||
+                (homeWarehouseId
+                  ? `${warehouses.find((w) => w.id === homeWarehouseId)?.code || ""} — ${
+                      warehouses.find((w) => w.id === homeWarehouseId)?.name || ""
+                    }`
+                  : t.noHomeWarehouse)}
             </p>
             <p className="text-[10px] text-slate-500">{t.warehouseHomeHint}</p>
           </div>

@@ -122,25 +122,61 @@ export default function UsersPage() {
     mutationFn: ({
       id,
       defaultWarehouseId,
+      role,
     }: {
       id: string;
       defaultWarehouseId: string | null;
-    }) => api.updateUser(id, { defaultWarehouseId }),
+      role?: string;
+    }) => {
+      if (role === "CASHIER" && !defaultWarehouseId) {
+        throw new Error(
+          en
+            ? "Cashiers require a home warehouse"
+            : "الكاشير يحتاج مستودع موظف",
+        );
+      }
+      return api.updateUser(id, { defaultWarehouseId });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
       toast.success(en ? "Warehouse saved" : "تم حفظ مستودع الموظف");
     },
-    onError: (err) =>
-      toast.error(apiErrorMessage(err, en ? "Could not save" : "تعذر الحفظ")),
+    onError: (err: { message?: string; response?: { data?: { message?: string } } }) => {
+      if (err.message && !err.response) {
+        toast.error(err.message);
+        return;
+      }
+      toast.error(apiErrorMessage(err, en ? "Could not save" : "تعذر الحفظ"));
+    },
   });
   const updateRoleMutation = useMutation({
-    mutationFn: ({ id, role }: { id: string; role: string }) =>
-      api.updateUser(id, { role, permissions: defaultsForRole(role) }),
+    mutationFn: ({
+      id,
+      role,
+      defaultWarehouseId,
+    }: {
+      id: string;
+      role: string;
+      defaultWarehouseId?: string | null;
+    }) => {
+      if (role === "CASHIER" && !defaultWarehouseId) {
+        throw new Error(
+          en
+            ? "Assign a home warehouse before setting role to Cashier"
+            : "عيّن مستودع الموظف قبل تحويل الدور إلى كاشير",
+        );
+      }
+      return api.updateUser(id, { role, permissions: defaultsForRole(role) });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
       toast.success(t("updated"));
     },
-    onError: (err: { response?: { data?: { message?: string } } }) => {
+    onError: (err: { message?: string; response?: { data?: { message?: string } } }) => {
+      if (err.message && !err.response) {
+        toast.error(err.message);
+        return;
+      }
       toast.error(apiErrorMessage(err, t("createError")));
     },
   });
@@ -302,6 +338,7 @@ export default function UsersPage() {
                             onChange={(e) =>
                               updateWarehouseMutation.mutate({
                                 id: u.id,
+                                role: u.role,
                                 defaultWarehouseId: e.target.value || null,
                               })
                             }
@@ -356,6 +393,7 @@ export default function UsersPage() {
                                 updateRoleMutation.mutate({
                                   id: u.id,
                                   role: e.target.value,
+                                  defaultWarehouseId: u.defaultWarehouseId,
                                 })
                               }
                               disabled={updateRoleMutation.isPending}
