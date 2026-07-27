@@ -254,6 +254,7 @@ export function RestoLinkSettings({
             <span className="ms-2 font-mono text-xs opacity-70">({prefix}…)</span>
           ) : null}
         </p>
+        <p className="text-xs opacity-70 mt-2 leading-relaxed">{t.sharedAccessNote}</p>
         {linked && !warehouseId ? (
           <p className="text-xs text-amber-200 mt-1">{t.needsWarehouse}</p>
         ) : null}

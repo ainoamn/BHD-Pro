@@ -3,7 +3,6 @@ import {
   IsEmail,
   IsNotEmpty,
   IsEnum,
-  MinLength,
   IsOptional,
   IsObject,
   IsBoolean,
@@ -19,10 +18,6 @@ export class CreateUserDto {
   @IsEmail()
   email: string;
 
-  @IsString()
-  @MinLength(8)
-  password: string;
-
   @IsEnum(UserRole)
   role: UserRole;
 
@@ -32,7 +27,7 @@ export class CreateUserDto {
 }
 
 export class UpdateUserDto extends PartialType(
-  OmitType(CreateUserDto, ['email', 'password'] as const),
+  OmitType(CreateUserDto, ['email'] as const),
 ) {
   @IsOptional()
   @IsBoolean()
@@ -41,4 +36,10 @@ export class UpdateUserDto extends PartialType(
   @IsOptional()
   @IsObject()
   permissions?: Record<string, 'hidden' | 'view' | 'edit'> | null;
+}
+
+export class ResendInviteDto {
+  @IsOptional()
+  @IsEmail()
+  email?: string;
 }

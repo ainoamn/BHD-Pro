@@ -9,6 +9,7 @@ import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { useAuthStore } from "@/store/auth";
+import { homePathForUser } from "@/lib/user-home";
 
 function safeNextPath(raw: string | null): string {
   if (!raw) return "/dashboard";
@@ -84,7 +85,9 @@ function LoginForm() {
           return;
         }
 
-        router.replace(nextPath);
+        router.replace(
+          nextPath !== "/dashboard" ? nextPath : homePathForUser(useAuthStore.getState().user)
+        );
       } catch {
         if (!cancelled && myProbe === probeGen.current) setReady(true);
       }
@@ -100,7 +103,7 @@ function LoginForm() {
     // Invalidate any in-flight session probe from this page.
     probeGen.current += 1;
     toast.success(t("login"));
-    router.replace(nextPath);
+    router.replace(nextPath !== "/dashboard" ? nextPath : homePathForUser(useAuthStore.getState().user));
   };
 
   const switchAccount = async () => {

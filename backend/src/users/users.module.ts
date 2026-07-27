@@ -3,9 +3,10 @@ import { UsersService } from './users.service';
 import { UsersController } from './users.controller';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { ModulePermissionGuard } from '../common/guards/module-permission.guard';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [SubscriptionsModule],
+  imports: [SubscriptionsModule, NotificationsModule],
   controllers: [UsersController],
   providers: [UsersService, ModulePermissionGuard],
 })

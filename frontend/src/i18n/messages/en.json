@@ -159,6 +159,7 @@
     "employeeClaims": "Employee Claims",
     "commitments": "Recurring commitments",
     "managementAlerts": "Management alerts",
+    "managerDigests": "Manager digests",
     "addressBook": "Address Book",
     "journal": "Journal Entries",
     "inventory": "Inventory",
@@ -1056,6 +1057,9 @@
     "role_ACCOUNTANT": "Accountant",
     "role_MANAGER": "Manager",
     "role_CASHIER": "Cashier",
+    "role_WAITER": "Waiter",
+    "role_KITCHEN": "Kitchen",
+    "role_RESTO_MANAGER": "Restaurant manager",
     "role_VIEWER": "Viewer"
   },
   "erp": {

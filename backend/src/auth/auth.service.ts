@@ -15,6 +15,7 @@ import { resolveModulePermissions } from '../common/module-permissions';
 import { generateSecret, generateURI, verifySync } from 'otplib';
 import * as QRCode from 'qrcode';
 import { AuditService } from '../audit/audit.service';
+import { CompleteInviteDto } from './dto/invite.dto';
 
 @Injectable()
 export class AuthService {
@@ -298,6 +299,8 @@ export class AuthService {
         id: user.id,
         name: user.name,
         email: user.email,
+        username: user.username || null,
+        phone: user.phone || null,
         role: user.role,
         avatar: user.avatar || null,
         companyId: user.companyId,
@@ -538,6 +541,70 @@ export class AuthService {
     return { message: 'Logged out successfully' };
   }
 
+  async getInvite(token: string) {
+    const user = await this.prisma.user.findFirst({
+      where: { inviteToken: token, isActive: true },
+      include: { company: true },
+    });
+    if (!user || !user.mustCompleteProfile) {
+      throw new UnauthorizedException('Invalid invitation');
+    }
+    if (user.inviteExpiresAt && user.inviteExpiresAt < new Date()) {
+      throw new UnauthorizedException('Invitation expired');
+    }
+    return {
+      name: user.name,
+      email: user.email,
+      username: user.username || null,
+      phone: user.phone || null,
+      role: user.role,
+      company: this.enrichCompany(user.company),
+    };
+  }
+
+  async completeInvite(dto: CompleteInviteDto) {
+    const user = await this.prisma.user.findFirst({
+      where: { inviteToken: dto.token, isActive: true },
+      include: { company: true },
+    });
+    if (!user || !user.mustCompleteProfile) {
+      throw new UnauthorizedException('Invalid invitation');
+    }
+    if (user.inviteExpiresAt && user.inviteExpiresAt < new Date()) {
+      throw new UnauthorizedException('Invitation expired');
+    }
+    const username = dto.username?.trim().toLowerCase() || user.username || null;
+    if (username) {
+      const exists = await this.prisma.user.findFirst({
+        where: { username, id: { not: user.id } },
+        select: { id: true },
+      });
+      if (exists) throw new BadRequestException('Username already exists');
+    }
+    const hashed = await bcrypt.hash(dto.password, 12);
+    const updated = await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashed,
+        name: dto.name?.trim() || user.name,
+        phone: dto.phone?.trim() || user.phone,
+        username,
+        inviteAcceptedAt: new Date(),
+        inviteToken: null,
+        inviteExpiresAt: null,
+        mustCompleteProfile: false,
+      },
+      include: { company: true },
+    });
+    await this.auditAuth({
+      companyId: updated.companyId,
+      userId: updated.id,
+      action: 'INVITE_ACCEPT',
+      email: updated.email,
+    });
+    return this.issueSession(updated, {});
+  }
+
   async getProfile(userId: string) {
     if (userId.startsWith('api-key:')) {
       throw new UnauthorizedException('API keys cannot use /auth/me');
@@ -555,6 +622,8 @@ export class AuthService {
       id: safe.id,
       name: safe.name,
       email: safe.email,
+      username: safe.username || null,
+      phone: safe.phone || null,
       role: safe.role,
       avatar: safe.avatar || null,
       companyId: safe.companyId,

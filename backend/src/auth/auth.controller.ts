@@ -9,12 +9,14 @@ import {
   HttpCode,
   HttpStatus,
   UnauthorizedException,
+  Param,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
+import { CompleteInviteDto } from './dto/invite.dto';
 import { RegisterDto } from './dto/register.dto';
 import { GoogleAuthDto } from './dto/google-auth.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
@@ -158,6 +160,28 @@ export class AuthController {
   async logout(@Req() req: Request & { user: { sub: string } }, @Res({ passthrough: true }) res: Response) {
     const result = await this.authService.logout(req.user.sub);
     clearAuthCookies(res);
+    return result;
+  }
+
+  @Get('invite/:token')
+  @ApiOperation({ summary: 'Inspect a pending invite token' })
+  getInvite(@Param('token') token: string) {
+    return this.authService.getInvite(token);
+  }
+
+  @Post('invite/complete')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Complete invited account profile and sign in' })
+  async completeInvite(
+    @Body() dto: CompleteInviteDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.completeInvite(dto);
+    setAuthCookies(res, {
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
+    });
     return result;
   }
 

@@ -205,6 +205,13 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
       active: pathname?.startsWith("/resto/reports"),
     },
     {
+      href: "/resto/contacts",
+      label: locale === "en" ? "Contacts" : "دفتر العناوين",
+      icon: Users,
+      module: "restoContacts" as ModuleKey,
+      active: pathname?.startsWith("/resto/contacts"),
+    },
+    {
       href: "/resto/shifts",
       label: t.shifts,
       icon: Wallet,

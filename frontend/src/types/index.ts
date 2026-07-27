@@ -2,6 +2,8 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  username?: string | null;
+  phone?: string | null;
   role: 'ADMIN' | 'ACCOUNTANT' | 'VIEWER' | 'MANAGER' | 'CASHIER' | 'WAITER' | 'KITCHEN' | 'RESTO_MANAGER';
   avatar?: string;
   companyId: string;
@@ -10,6 +12,7 @@ export interface User {
   modulePermissions?: Record<string, 'hidden' | 'view' | 'edit'>;
   twoFactorEnabled?: boolean;
   twoFactorRequired?: boolean;
+  mustCompleteProfile?: boolean;
 }
 
 export interface Company {

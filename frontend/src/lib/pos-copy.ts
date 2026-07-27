@@ -131,7 +131,7 @@ export const posCopy = {
     posInventorySub:
       "منتجات الشركة المشتركة — تظهر في الكاشير والمحاسبة عند الربط، وتبقى عند الفصل",
     sharedRecordsNote:
-      "نفس سجلات الشركة: عند الربط تُعرض معاً، وعند الفصل تبقى بدون حذف.",
+      "الربط يوحّد الوصول إلى نفس المخزون ودفتر العناوين — لا ينسخ السجلات. الفصل يخفي الوصول فقط والسجلات تبقى.",
     posContactsTitle: "دفتر العناوين",
     posContactsNav: "العناوين",
     posContactsSub: "عملاء الكاشير — نفس السجلات المشتركة مع المحاسبة عند الربط",
@@ -692,7 +692,7 @@ export const posCopy = {
     posInventorySub:
       "Shared company products — visible in POS and Accounting when linked, kept when unlinked",
     sharedRecordsNote:
-      "Same company records: merged when linked, kept (not deleted) when unlinked.",
+      "Linking unifies access to the same inventory and contacts — it does not copy records. Unlinking only removes access; data stays.",
     posContactsTitle: "Address book",
     posContactsNav: "Contacts",
     posContactsSub: "POS customers — same shared records as Accounting when linked",

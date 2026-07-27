@@ -44,6 +44,7 @@ import {
   Globe,
   Moon,
   Sun,
+  Mail,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUIStore } from "@/store/ui";
@@ -64,6 +65,7 @@ import {
   moduleCodeByHref,
   type PlanModuleGrant,
 } from "@/lib/plan-access-catalog";
+import { canAccessModule, type ModuleKey } from "@/lib/module-permissions";
 
 const navItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "dashboard" },
@@ -82,6 +84,7 @@ const navItems = [
   { href: "/employee-claims", icon: Wallet, label: "employeeClaims" },
   { href: "/commitments", icon: RefreshCcw, label: "commitments" },
   { href: "/management-alerts", icon: ShieldAlert, label: "managementAlerts" },
+  { href: "/manager-digests", icon: Mail, label: "managerDigests" },
   { href: "/inventory", icon: Package, label: "inventory" },
   { href: "/delivery-notes", icon: Truck, label: "deliveryNotes" },
   { href: "/stock-counts", icon: ClipboardList, label: "stockCounts" },
@@ -105,6 +108,44 @@ const settingsItems = [
   { href: "/users", icon: Shield, label: "users" },
 ];
 
+const DASHBOARD_MODULE_BY_HREF: Record<string, ModuleKey> = {
+  "/dashboard": "dashboard",
+  "/sales": "sales",
+  "/purchases": "purchases",
+  "/accounting": "accounting",
+  "/reports": "reports",
+  "/chart-of-accounts": "chartOfAccounts",
+  "/journal": "journal",
+  "/bank-accounts": "bankAccounts",
+  "/cost-centers": "costCenters",
+  "/branches": "branches",
+  "/projects": "projects",
+  "/assets": "assets",
+  "/employees": "employees",
+  "/employee-claims": "employeeClaims",
+  "/commitments": "commitments",
+  "/management-alerts": "managementAlerts",
+  "/manager-digests": "managementAlerts",
+  "/inventory": "inventory",
+  "/delivery-notes": "deliveryNotes",
+  "/stock-counts": "stockCounts",
+  "/warehouses": "warehouses",
+  "/contacts": "contacts",
+  "/vat": "vat",
+  "/integrations": "integrations",
+  "/ai-analytics": "aiAnalytics",
+  "/settings": "settings",
+  "/period-locks": "settings",
+  "/tax-rates": "settings",
+  "/api-keys": "settings",
+  "/document-templates": "settings",
+  "/custom-fields": "settings",
+  "/exchange-rates": "settings",
+  "/fx-revaluation": "settings",
+  "/subscription": "settings",
+  "/users": "users",
+};
+
 export function Sidebar() {
   const t = useTranslations("nav");
   const tApp = useTranslations("app");
@@ -117,6 +158,7 @@ export function Sidebar() {
   const { locale, setLocale } = useLocaleStore();
   const { resolvedTheme, setTheme } = useTheme();
   const isDark = resolvedTheme !== "light";
+  const modulePermissions = user?.modulePermissions;
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [openAlerts, setOpenAlerts] = useState(0);
   const [features, setFeatures] = useState<Record<string, boolean>>({
@@ -338,6 +380,10 @@ export function Sidebar() {
       <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
         <nav className="px-3 py-4 space-y-1">
           {navItems.map((item) => {
+            const neededModule = DASHBOARD_MODULE_BY_HREF[item.href];
+            if (neededModule && !canAccessModule(modulePermissions, neededModule, "view")) {
+              return null;
+            }
             const locked = lockForHref(item.href);
             const isActive =
               !locked &&
@@ -427,6 +473,10 @@ export function Sidebar() {
             </Link>
           )}
           {settingsItems.map((item) => {
+            const neededModule = DASHBOARD_MODULE_BY_HREF[item.href];
+            if (neededModule && !canAccessModule(modulePermissions, neededModule, "view")) {
+              return null;
+            }
             const locked = lockForHref(item.href);
             const isActive = !locked && pathname === item.href;
             const Icon = item.icon;

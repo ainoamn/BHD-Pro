@@ -10,6 +10,7 @@ import { useAuthStore } from "@/store/auth";
 import { useLocaleStore } from "@/store/locale";
 import { posCopy } from "@/lib/pos-copy";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
+import { homePathForUser } from "@/lib/user-home";
 
 export default function PosLoginPage() {
   const router = useRouter();
@@ -28,7 +29,7 @@ export default function PosLoginPage() {
       if (!isAuthenticated) await api.restoreSession();
       if (cancelled) return;
       if (useAuthStore.getState().isAuthenticated) {
-        router.replace("/pos");
+        router.replace(homePathForUser(useAuthStore.getState().user));
         return;
       }
       setReady(true);
@@ -40,7 +41,7 @@ export default function PosLoginPage() {
 
   const finish = async () => {
     toast.success(t.signIn);
-    router.replace("/pos");
+    router.replace(homePathForUser(useAuthStore.getState().user));
   };
 
   const onSubmit = async (e: FormEvent) => {

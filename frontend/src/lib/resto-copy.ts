@@ -57,6 +57,8 @@ export const restoCopy = {
     linkTitle: "ربط حسابي للمطاعم",
     linkDesc:
       "اربط المطاعم بمخزن/فرع خاص بالوجبات فقط — القائمة لا تجلب كل أصناف الشركة.",
+    sharedAccessNote:
+      "الربط يوحّد الوصول لدفتر العناوين والمخزون المشترك مع المحاسبة والكاشير — بدون نسخ سجلات. الفصل يخفي الوصول فقط.",
     linked: "مربوط",
     notLinked: "غير مربوط",
     activateLink: "تفعيل الربط الآن",
@@ -467,6 +469,8 @@ export const restoCopy = {
     linkTitle: "Link Hisaby Restaurants",
     linkDesc:
       "Bind restaurants to a meal-only warehouse/branch — the menu will not pull the full company catalog.",
+    sharedAccessNote:
+      "Linking unifies access to the shared company contacts and inventory with Accounting and POS — no record copying. Unlinking only removes access.",
     linked: "Linked",
     notLinked: "Not linked",
     activateLink: "Activate link now",

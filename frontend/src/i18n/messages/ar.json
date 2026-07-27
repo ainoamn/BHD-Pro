@@ -159,6 +159,7 @@
     "employeeClaims": "مطالبات الموظفين",
     "commitments": "الالتزامات الدورية",
     "managementAlerts": "تنبيهات الإدارة",
+    "managerDigests": "تقارير المدير الدورية",
     "addressBook": "دفتر العناوين",
     "journal": "القيود اليومية",
     "inventory": "المخزون",
@@ -1056,6 +1057,9 @@
     "role_ACCOUNTANT": "محاسب",
     "role_MANAGER": "مشرف",
     "role_CASHIER": "كاشير",
+    "role_WAITER": "نادل",
+    "role_KITCHEN": "مطبخ",
+    "role_RESTO_MANAGER": "مدير مطعم",
     "role_VIEWER": "مشاهد"
   },
   "erp": {

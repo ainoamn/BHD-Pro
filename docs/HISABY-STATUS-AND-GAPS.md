@@ -49,6 +49,7 @@
 **موجة AV (منع تحويل أمر شراء مكرر + صدق أخطاء):** [`HISABY-WAVE-AV-PO-CONVERT-HONESTY-2026-07-27.md`](./HISABY-WAVE-AV-PO-CONVERT-HONESTY-2026-07-27.md)
 **موجة AW (تقارير Roles + Dual مطالبات/كتب + صدق حذف/بنك):** [`HISABY-WAVE-AW-REPORTS-DUAL-HONESTY-2026-07-27.md`](./HISABY-WAVE-AW-REPORTS-DUAL-HONESTY-2026-07-27.md)
 **موجة AX (تنقل موبايل + استقرار لوحة التحكم):** [`HISABY-WAVE-AX-MOBILE-NAV-DASHBOARD-2026-07-27.md`](./HISABY-WAVE-AX-MOBILE-NAV-DASHBOARD-2026-07-27.md)
+**موجة AY (دعوات مستخدمين + صلاحيات موحّدة + تقارير مدير):** [`HISABY-WAVE-AY-USERS-PERMISSIONS-REPORTS-2026-07-27.md`](./HISABY-WAVE-AY-USERS-PERMISSIONS-REPORTS-2026-07-27.md)
 
 ---
 

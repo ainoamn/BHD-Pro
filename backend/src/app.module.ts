@@ -39,6 +39,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { CommitmentsModule } from './commitments/commitments.module';
 import { AttachmentsModule } from './attachments/attachments.module';
 import { ManagementAlertsModule } from './management-alerts/management-alerts.module';
+import { ManagerReportsModule } from './manager-reports/manager-reports.module';
 import { HealthController } from './health.controller';
 import { DenyViewerMutationsGuard } from './common/guards/deny-viewer-mutations.guard';
 
@@ -88,6 +89,7 @@ import { DenyViewerMutationsGuard } from './common/guards/deny-viewer-mutations.
     CommitmentsModule,
     AttachmentsModule,
     ManagementAlertsModule,
+    ManagerReportsModule,
   ],
   controllers: [HealthController],
   providers: [

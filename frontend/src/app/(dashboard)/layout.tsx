@@ -9,9 +9,14 @@ import { useUIStore } from "@/store/ui";
 import { useAuthStore } from "@/store/auth";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import api from "@/lib/api";
 import { Company } from "@/types";
+import {
+  canAccessModule,
+  moduleForDashboardPath,
+} from "@/lib/module-permissions";
+import { homePathForUser } from "@/lib/user-home";
 
 export default function DashboardLayout({
   children,
@@ -19,8 +24,9 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const { sidebarCollapsed, sidebarOpen, setSidebarOpen } = useUIStore();
-  const { isAuthenticated, isLoading, setCompany } = useAuthStore();
+  const { isAuthenticated, isLoading, setCompany, user } = useAuthStore();
   const router = useRouter();
+  const pathname = usePathname();
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
@@ -84,6 +90,16 @@ export default function DashboardLayout({
       router.replace("/login");
     }
   }, [hydrated, isAuthenticated, isLoading, router]);
+
+  useEffect(() => {
+    if (!hydrated || !isAuthenticated || !user) return;
+    if (user.role === "ADMIN") return;
+    const module = moduleForDashboardPath(pathname);
+    if (!module) return;
+    if (!canAccessModule(user.modulePermissions, module, "view")) {
+      router.replace(homePathForUser(user));
+    }
+  }, [hydrated, isAuthenticated, user, pathname, router]);
 
   if (!hydrated || isLoading) {
     return (

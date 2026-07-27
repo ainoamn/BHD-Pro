@@ -200,7 +200,16 @@ class ApiClient {
     const data = response.data as {
       requires2fa?: boolean;
       tempToken?: string;
-      user?: { company?: unknown; companyId?: string; id: string; name: string; email: string; role: string };
+      user?: {
+        company?: unknown;
+        companyId?: string;
+        id: string;
+        name: string;
+        email: string;
+        username?: string | null;
+        phone?: string | null;
+        role: string;
+      };
       accessToken?: string;
     };
     if (data.requires2fa) {
@@ -214,6 +223,8 @@ class ApiClient {
         ...userWithoutCompany,
         companyId: company?.id || user.companyId || '',
         role: user.role as import('@/types').User['role'],
+        username: user.username || null,
+        phone: user.phone || null,
         company,
       },
       company,
@@ -231,6 +242,8 @@ class ApiClient {
         ...user,
         companyId: company?.id || user.companyId,
         company,
+        username: user.username || null,
+        phone: user.phone || null,
       },
       company,
       accessToken || null
@@ -323,6 +336,9 @@ class ApiClient {
         modulePermissions?: Record<string, 'hidden' | 'view' | 'edit'>;
         twoFactorEnabled?: boolean;
         twoFactorRequired?: boolean;
+        username?: string | null;
+        phone?: string | null;
+        mustCompleteProfile?: boolean;
       };
       // Keep any in-memory accessToken from a just-completed login.
       const existingToken = useAuthStore.getState().accessToken;
@@ -334,10 +350,13 @@ class ApiClient {
           role: data.role as never,
           companyId: data.companyId,
           company: data.company,
+          username: data.username || null,
+          phone: data.phone || null,
           permissions: data.permissions,
           modulePermissions: data.modulePermissions,
           twoFactorEnabled: !!data.twoFactorEnabled,
           twoFactorRequired: !!data.twoFactorRequired,
+          mustCompleteProfile: !!data.mustCompleteProfile,
         },
         data.company,
         existingToken
@@ -1529,12 +1548,56 @@ class ApiClient {
     return this.post('/users', data);
   }
 
+  resendUserInvite(id: string) {
+    return this.post(`/users/${id}/resend-invite`, {});
+  }
+
   updateUser(id: string, data: unknown) {
     return this.put(`/users/${id}`, data);
   }
 
   deleteUser(id: string) {
     return this.delete(`/users/${id}`);
+  }
+
+  getInvite(token: string) {
+    return this.get(`/auth/invite/${token}`);
+  }
+
+  async completeInvite(data: {
+    token: string;
+    password: string;
+    name?: string;
+    phone?: string;
+    username?: string;
+  }) {
+    const response = await this.client.post('/auth/invite/complete', data);
+    const { user, accessToken } = response.data;
+    const company = user.company as import('@/types').Company;
+    useAuthStore.getState().login(
+      {
+        ...user,
+        companyId: company?.id || user.companyId,
+        company,
+        username: user.username || null,
+        phone: user.phone || null,
+      },
+      company,
+      accessToken || null,
+    );
+    return response.data;
+  }
+
+  getManagerReportSubscriptions() {
+    return this.get('/manager-reports/subscriptions');
+  }
+
+  saveManagerReportSubscriptions(data: unknown) {
+    return this.post('/manager-reports/subscriptions', data);
+  }
+
+  sendManagerReportNow(data?: { userId?: string }) {
+    return this.post('/manager-reports/send-now', data || {});
   }
 
   // VAT / OTA

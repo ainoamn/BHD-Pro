@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Shield, X, Loader2, SlidersHorizontal } from "lucide-react";
+import { Plus, Shield, X, Loader2, SlidersHorizontal, MailCheck, Power } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { cn, apiErrorMessage } from "@/lib/utils";
@@ -21,10 +21,15 @@ interface TeamUser {
   id: string;
   name: string;
   email: string;
+  username?: string | null;
+  phone?: string | null;
   role: string;
   isActive: boolean;
   lastLoginAt?: string;
   createdAt: string;
+  inviteStatus?: string;
+  inviteExpiresAt?: string | null;
+  mustCompleteProfile?: boolean;
   permissions?: Record<string, AccessLevel> | null;
   modulePermissions?: ModulePermissions;
 }
@@ -55,7 +60,6 @@ export default function UsersPage() {
   const [form, setForm] = useState({
     name: "",
     email: "",
-    password: "",
     role: "ACCOUNTANT",
   });
   const [createPerms, setCreatePerms] = useState<ModulePermissions>(
@@ -78,9 +82,9 @@ export default function UsersPage() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
-      toast.success(t("created"));
+      toast.success(en ? "Invitation sent" : "تم إرسال دعوة المستخدم");
       setModalOpen(false);
-      setForm({ name: "", email: "", password: "", role: "ACCOUNTANT" });
+      setForm({ name: "", email: "", role: "ACCOUNTANT" });
       setCreatePerms(defaultsForRole("ACCOUNTANT"));
     },
     onError: (err: { response?: { data?: { message?: string } } }) => {
@@ -116,8 +120,27 @@ export default function UsersPage() {
     onError: (err) => toast.error(apiErrorMessage(err, en ? "Could not save" : "تعذر الحفظ")),
   });
 
+  const resendInviteMutation = useMutation({
+    mutationFn: (id: string) => api.resendUserInvite(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      toast.success(en ? "Invite resent" : "تمت إعادة إرسال الدعوة");
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, en ? "Could not resend" : "تعذر إعادة الإرسال")),
+  });
+
+  const toggleActiveMutation = useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
+      api.updateUser(id, { isActive }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      toast.success(t("updated"));
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, t("createError"))),
+  });
+
   const openCreate = () => {
-    setForm({ name: "", email: "", password: "", role: "ACCOUNTANT" });
+    setForm({ name: "", email: "", role: "ACCOUNTANT" });
     setCreatePerms(defaultsForRole("ACCOUNTANT"));
     setModalOpen(true);
   };
@@ -146,6 +169,14 @@ export default function UsersPage() {
       VIEWER: "bg-slate-500/10 text-slate-400",
     };
     return map[role] || "bg-slate-500/10 text-slate-400";
+  };
+
+  const statusLabel = (u: TeamUser) => {
+    if (!u.isActive) return en ? "Inactive" : "معطل";
+    if (u.mustCompleteProfile || u.inviteStatus === "pending") {
+      return en ? "Pending invite" : "دعوة معلقة";
+    }
+    return t("active");
   };
 
   return (
@@ -190,6 +221,7 @@ export default function UsersPage() {
                 <tr className="border-b border-slate-800 text-slate-400">
                   <th className="text-right p-4 font-medium">{t("name")}</th>
                   <th className="text-right p-4 font-medium">{t("email")}</th>
+                  <th className="text-right p-4 font-medium">{en ? "Username" : "اسم المستخدم"}</th>
                   <th className="text-right p-4 font-medium">{t("role")}</th>
                   <th className="text-right p-4 font-medium">{t("status")}</th>
                   {isAdmin && (
@@ -207,6 +239,7 @@ export default function UsersPage() {
                       )}
                     </td>
                     <td className="p-4 text-slate-300">{u.email}</td>
+                    <td className="p-4 text-slate-400 font-mono text-xs">{u.username || "—"}</td>
                     <td className="p-4">
                       <span
                         className={cn(
@@ -221,12 +254,14 @@ export default function UsersPage() {
                       <span
                         className={cn(
                           "px-2 py-1 rounded-full text-xs font-medium",
-                          u.isActive
+                          u.isActive && !(u.mustCompleteProfile || u.inviteStatus === "pending")
                             ? "bg-emerald-500/10 text-emerald-400"
+                            : u.mustCompleteProfile || u.inviteStatus === "pending"
+                              ? "bg-amber-500/10 text-amber-300"
                             : "bg-slate-500/10 text-slate-400",
                         )}
                       >
-                        {u.isActive ? t("active") : t("inactive")}
+                        {statusLabel(u)}
                       </span>
                     </td>
                     {isAdmin && (
@@ -262,6 +297,30 @@ export default function UsersPage() {
                               <SlidersHorizontal className="w-3.5 h-3.5" />
                               {en ? "Access" : "صلاحيات"}
                             </button>
+                          )}
+                          {u.id !== currentUser?.id && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => resendInviteMutation.mutate(u.id)}
+                                disabled={resendInviteMutation.isPending}
+                                className="inline-flex items-center gap-1 h-8 px-2 rounded-lg bg-sky-700/30 text-sky-200 text-xs font-bold hover:bg-sky-700/50"
+                              >
+                                <MailCheck className="w-3.5 h-3.5" />
+                                {en ? "Resend" : "إعادة إرسال"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  toggleActiveMutation.mutate({ id: u.id, isActive: !u.isActive })
+                                }
+                                disabled={toggleActiveMutation.isPending}
+                                className="inline-flex items-center gap-1 h-8 px-2 rounded-lg bg-rose-700/20 text-rose-200 text-xs font-bold hover:bg-rose-700/40"
+                              >
+                                <Power className="w-3.5 h-3.5" />
+                                {u.isActive ? (en ? "Disable" : "تعطيل") : (en ? "Activate" : "تفعيل")}
+                              </button>
+                            </>
                           )}
                         </div>
                       </td>
@@ -306,16 +365,6 @@ export default function UsersPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-slate-400 mb-1">{t("password")}</label>
-                  <input
-                    type="password"
-                    value={form.password}
-                    onChange={(e) => setForm({ ...form, password: e.target.value })}
-                    minLength={8}
-                    className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
-                <div>
                   <label className="block text-sm text-slate-400 mb-1">{t("role")}</label>
                   <select
                     value={form.role}
@@ -329,6 +378,11 @@ export default function UsersPage() {
                     ))}
                   </select>
                 </div>
+              </div>
+              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-200">
+                {en
+                  ? "An invitation email will be sent. The employee sets the password, phone, and username from the email link."
+                  : "سيُرسل النظام دعوة إلى البريد، ومن خلالها يحدد الموظف كلمة المرور والهاتف واسم المستخدم."}
               </div>
 
               {form.role === "ADMIN" ? (
@@ -357,7 +411,6 @@ export default function UsersPage() {
                 disabled={
                   !form.name ||
                   !form.email ||
-                  form.password.length < 8 ||
                   createMutation.isPending
                 }
                 className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 disabled:opacity-50"
@@ -365,7 +418,7 @@ export default function UsersPage() {
                 {createMutation.isPending && (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 )}
-                {t("addUser")}
+                {en ? "Create invite" : "إنشاء الدعوة"}
               </button>
             </div>
           </div>

@@ -10,6 +10,7 @@ import { useAuthStore } from "@/store/auth";
 import { useLocaleStore } from "@/store/locale";
 import { restoCopy } from "@/lib/resto-copy";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
+import { homePathForUser } from "@/lib/user-home";
 
 export default function RestoLoginPage() {
   const router = useRouter();
@@ -28,7 +29,7 @@ export default function RestoLoginPage() {
       if (!isAuthenticated) await api.restoreSession();
       if (cancelled) return;
       if (useAuthStore.getState().isAuthenticated) {
-        router.replace("/resto");
+        router.replace(homePathForUser(useAuthStore.getState().user));
         return;
       }
       setReady(true);
@@ -40,7 +41,7 @@ export default function RestoLoginPage() {
 
   const finish = async () => {
     toast.success(t.signIn);
-    router.replace("/resto");
+    router.replace(homePathForUser(useAuthStore.getState().user));
   };
 
   const onSubmit = async (e: FormEvent) => {

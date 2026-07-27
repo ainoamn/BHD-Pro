@@ -2,7 +2,7 @@ import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards } from '@nes
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { UsersService } from './users.service';
-import { CreateUserDto, UpdateUserDto } from './dto/user.dto';
+import { CreateUserDto, ResendInviteDto, UpdateUserDto } from './dto/user.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -46,6 +46,17 @@ export class UsersController {
     @Body() dto: UpdateUserDto,
   ) {
     return this.usersService.update(user.companyId, id, dto, user.sub);
+  }
+
+  @Post(':id/resend-invite')
+  @Roles('ADMIN')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  resendInvite(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+    @Body() _dto?: ResendInviteDto,
+  ) {
+    return this.usersService.resendInvite(user.companyId, id);
   }
 
   @Delete(':id')

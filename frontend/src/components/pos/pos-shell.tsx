@@ -23,6 +23,7 @@ import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 import { useLocaleStore } from "@/store/locale";
 import { posCopy } from "@/lib/pos-copy";
+import { canAccessModule, moduleForPosPath, type ModuleKey } from "@/lib/module-permissions";
 import { flushPendingPosSales, pendingAllCount, quarantinedAllCount, discardAllQuarantined } from "@/lib/pos-offline-sync";
 import {
   listPendingOps,
@@ -50,6 +51,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
   const locale = useLocaleStore((s) => s.locale);
   const setLocale = useLocaleStore((s) => s.setLocale);
   const { user, company, isAuthenticated, logout } = useAuthStore();
+  const perms = user?.modulePermissions;
   const t = posCopy[locale === "en" ? "en" : "ar"];
   const [linked, setLinked] = useState<boolean | null>(null);
   const [linkLoadError, setLinkLoadError] = useState(false);
@@ -74,6 +76,11 @@ export function PosShell({ children }: { children: React.ReactNode }) {
   const isCustomerDisplay = pathname?.startsWith("/pos/display");
   const bareShell = isLogin || isCustomerDisplay;
   const canSeeApprovals = user?.role === "ADMIN" || user?.role === "MANAGER";
+  const canModule = useCallback(
+    (module: ModuleKey, needed: "view" | "edit" = "view") =>
+      user?.role === "ADMIN" || canAccessModule(perms, module, needed),
+    [perms, user?.role],
+  );
 
   const refreshPending = useCallback(async () => {
     try {
@@ -417,6 +424,10 @@ export function PosShell({ children }: { children: React.ReactNode }) {
     );
   }
 
+  const currentModule = moduleForPosPath(pathname);
+  const blockedByPerm =
+    !!currentModule && !isCustomerDisplay && !canModule(currentModule, "view");
+
   return (
     <div className="min-h-screen bg-[#0b1220] text-slate-100" dir={locale === "en" ? "ltr" : "rtl"}>
       <header className="sticky top-0 z-40 border-b border-white/10 bg-[#0b1220]/90 backdrop-blur-xl">
@@ -507,6 +518,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
               >
                 {locale === "en" ? "ع" : "EN"}
               </button>
+              {canModule("posInventory", "view") ? (
               <Link
                 href="/pos/inventory"
                 className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-300 hover:bg-white/5 shrink-0"
@@ -514,6 +526,8 @@ export function PosShell({ children }: { children: React.ReactNode }) {
                 <Package className="w-4 h-4" />
                 <span>{t.inventory}</span>
               </Link>
+              ) : null}
+              {canModule("posContacts", "view") ? (
               <Link
                 href="/pos/contacts"
                 className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-300 hover:bg-white/5 shrink-0"
@@ -521,6 +535,8 @@ export function PosShell({ children }: { children: React.ReactNode }) {
                 <Users className="w-4 h-4" />
                 <span>{t.posContactsNav}</span>
               </Link>
+              ) : null}
+              {canModule("posBooks", "view") ? (
               <Link
                 href="/pos/books"
                 className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-300 hover:bg-white/5 shrink-0"
@@ -528,6 +544,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
                 <Wallet className="w-4 h-4" />
                 <span>{t.posBooksNav}</span>
               </Link>
+              ) : null}
               <button
                 type="button"
                 onClick={toggleTraining}
@@ -539,6 +556,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
               >
                 {trainingMode ? t.trainingOnShort : t.trainingMode}
               </button>
+              {canModule("posShifts", "view") ? (
               <Link
                 href="/pos/shifts"
                 className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold hover:bg-sky-500/10 shrink-0 ${
@@ -548,7 +566,8 @@ export function PosShell({ children }: { children: React.ReactNode }) {
                 <Clock3 className="w-4 h-4" />
                 <span>{shiftOpen ? t.shiftOpen : t.shifts}</span>
               </Link>
-              {canSeeApprovals ? (
+              ) : null}
+              {canSeeApprovals && canModule("posShifts", "view") ? (
                 <Link
                   href="/pos/approvals"
                   className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-amber-200/90 hover:bg-amber-500/10 shrink-0"
@@ -574,6 +593,14 @@ export function PosShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         </div>
+
+        {blockedByPerm ? (
+          <div className="border-t border-rose-500/30 bg-rose-500/10 px-4 py-2 text-center text-xs text-rose-200">
+            {locale === "en"
+              ? "This POS area is hidden for your account. Ask your company admin for access."
+              : "هذا القسم في الكاشير مخفي عن حسابك. اطلب من مدير الشركة منحك الصلاحية."}
+          </div>
+        ) : null}
 
         {menuOpen ? (
           <div className="lg:hidden fixed inset-0 z-50">
@@ -621,10 +648,18 @@ export function PosShell({ children }: { children: React.ReactNode }) {
                 </p>
                 {[
                   { href: "/pos", label: locale === "en" ? "Sell" : "البيع" },
-                  { href: "/pos/inventory", label: t.inventory, icon: Package },
-                  { href: "/pos/contacts", label: t.posContactsNav, icon: Users },
-                  { href: "/pos/books", label: t.posBooksNav, icon: Wallet },
-                  { href: "/pos/shifts", label: shiftOpen ? t.shiftOpen : t.shifts, icon: Clock3 },
+                  ...(canModule("posInventory", "view")
+                    ? [{ href: "/pos/inventory", label: t.inventory, icon: Package }]
+                    : []),
+                  ...(canModule("posContacts", "view")
+                    ? [{ href: "/pos/contacts", label: t.posContactsNav, icon: Users }]
+                    : []),
+                  ...(canModule("posBooks", "view")
+                    ? [{ href: "/pos/books", label: t.posBooksNav, icon: Wallet }]
+                    : []),
+                  ...(canModule("posShifts", "view")
+                    ? [{ href: "/pos/shifts", label: shiftOpen ? t.shiftOpen : t.shifts, icon: Clock3 }]
+                    : []),
                   ...(canSeeApprovals
                     ? [{ href: "/pos/approvals", label: t.approvals, icon: ShieldCheck }]
                     : []),
