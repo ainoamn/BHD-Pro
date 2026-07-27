@@ -27,6 +27,12 @@
 
 ```
 REQUIRE_2FA_ROLES=ADMIN,MANAGER,ACCOUNTANT
+REQUIRE_2FA_GRACE_DAYS=7
+REQUIRE_2FA_GRACE_FROM=2026-07-27T00:00:00.000Z
+REQUIRE_2FA_HARD_AFTER_GRACE=1
 ```
 
-أو اترك الافتراضي `ADMIN,MANAGER`. القيمة `off` تعطّل سياسة البيئة (غير مُستحسن للإنتاج).
+- عيّن `REQUIRE_2FA_GRACE_FROM` عند توسيع الأدوار لبدء عدّاد المهلة للجميع.
+- بدون `GRACE_FROM` يبقى التنبيه فقط (بدون انتهاء مهلة أو قفل).
+- `REQUIRE_2FA_HARD_AFTER_GRACE=1` يمنع التعديلات بعد انتهاء المهلة حتى تفعيل 2FA.
+- أو اترك الافتراضي `ADMIN,MANAGER`. القيمة `off` لـ `REQUIRE_2FA_ROLES` تعطّل سياسة البيئة (غير مُستحسن للإنتاج).

@@ -18,7 +18,10 @@ import { AuditService } from '../audit/audit.service';
 import { CompleteInviteDto } from './dto/invite.dto';
 import {
   companyRequires2faForAdmins,
+  computeTwoFactorGrace,
   envRequires2faForRole,
+  parseRequire2faGraceDays,
+  resolveTwoFactorGraceStart,
 } from './two-factor-policy';
 
 @Injectable()
@@ -161,11 +164,23 @@ export class AuthService {
   async get2faStatus(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { twoFactorEnabled: true, role: true, companyId: true },
+      select: {
+        twoFactorEnabled: true,
+        role: true,
+        companyId: true,
+        createdAt: true,
+      },
     });
     if (!user) throw new UnauthorizedException();
     const required = await this.isTwoFactorRequired(user);
-    return { enabled: !!user.twoFactorEnabled, required };
+    const grace = this.resolveTwoFactorGrace(required, !!user.twoFactorEnabled, user.createdAt);
+    return {
+      enabled: !!user.twoFactorEnabled,
+      required,
+      pastGrace: grace.pastGrace,
+      deadline: grace.deadline,
+      daysLeft: grace.daysLeft,
+    };
   }
 
   /**
@@ -189,6 +204,24 @@ export class AuthService {
       select: { securityConfig: true },
     });
     return companyRequires2faForAdmins(user.role, company?.securityConfig);
+  }
+
+  /** Wave BO — grace clock from REQUIRE_2FA_GRACE_FROM or user.createdAt. */
+  resolveTwoFactorGrace(
+    required: boolean,
+    enabled: boolean,
+    userCreatedAt: Date,
+  ) {
+    const graceDays = parseRequire2faGraceDays(
+      this.config.get<string>('REQUIRE_2FA_GRACE_DAYS') ||
+        process.env.REQUIRE_2FA_GRACE_DAYS,
+    );
+    const graceStart = resolveTwoFactorGraceStart(
+      this.config.get<string>('REQUIRE_2FA_GRACE_FROM') ||
+        process.env.REQUIRE_2FA_GRACE_FROM,
+      userCreatedAt,
+    );
+    return computeTwoFactorGrace(required, enabled, graceDays, graceStart);
   }
 
   async setup2fa(userId: string) {
@@ -284,6 +317,15 @@ export class AuthService {
       },
     });
 
+    const twoFactorRequired = await this.isTwoFactorRequired(user);
+    const grace = this.resolveTwoFactorGrace(
+      twoFactorRequired,
+      !!user.twoFactorEnabled,
+      user.createdAt instanceof Date
+        ? user.createdAt
+        : new Date(user.createdAt || Date.now()),
+    );
+
     return {
       requires2fa: false as const,
       user: {
@@ -300,6 +342,11 @@ export class AuthService {
         modulePermissions: resolveModulePermissions(user.role, user.permissions),
         defaultWarehouseId: user.defaultWarehouseId || null,
         defaultWarehouse: user.defaultWarehouse || null,
+        twoFactorEnabled: !!user.twoFactorEnabled,
+        twoFactorRequired,
+        twoFactorPastGrace: grace.pastGrace,
+        twoFactorDeadline: grace.deadline,
+        twoFactorDaysLeft: grace.daysLeft,
       },
       ...tokens,
     };
@@ -645,6 +692,11 @@ export class AuthService {
     }
     const { password: _, ...safe } = user;
     const twoFactorRequired = await this.isTwoFactorRequired(safe);
+    const grace = this.resolveTwoFactorGrace(
+      twoFactorRequired,
+      !!safe.twoFactorEnabled,
+      safe.createdAt,
+    );
     return {
       id: safe.id,
       name: safe.name,
@@ -657,6 +709,9 @@ export class AuthService {
       company: this.enrichCompany(safe.company),
       twoFactorEnabled: !!safe.twoFactorEnabled,
       twoFactorRequired,
+      twoFactorPastGrace: grace.pastGrace,
+      twoFactorDeadline: grace.deadline,
+      twoFactorDaysLeft: grace.daysLeft,
       permissions: safe.permissions || null,
       modulePermissions: resolveModulePermissions(safe.role, safe.permissions),
       defaultWarehouseId: safe.defaultWarehouseId || null,

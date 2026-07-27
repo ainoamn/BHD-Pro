@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
 import configuration from './config/configuration';
@@ -45,6 +45,7 @@ import { ManagementAlertsModule } from './management-alerts/management-alerts.mo
 import { ManagerReportsModule } from './manager-reports/manager-reports.module';
 import { HealthController } from './health.controller';
 import { DenyViewerMutationsGuard } from './common/guards/deny-viewer-mutations.guard';
+import { Past2faGraceInterceptor } from './common/interceptors/past-2fa-grace.interceptor';
 
 @Module({
   imports: [
@@ -117,6 +118,10 @@ import { DenyViewerMutationsGuard } from './common/guards/deny-viewer-mutations.
     {
       provide: APP_GUARD,
       useClass: DenyViewerMutationsGuard,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: Past2faGraceInterceptor,
     },
   ],
 })

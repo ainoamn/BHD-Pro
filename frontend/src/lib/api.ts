@@ -376,6 +376,9 @@ class ApiClient {
         modulePermissions?: Record<string, 'hidden' | 'view' | 'edit'>;
         twoFactorEnabled?: boolean;
         twoFactorRequired?: boolean;
+        twoFactorPastGrace?: boolean;
+        twoFactorDeadline?: string | null;
+        twoFactorDaysLeft?: number | null;
         username?: string | null;
         phone?: string | null;
         mustCompleteProfile?: boolean;
@@ -398,6 +401,10 @@ class ApiClient {
           modulePermissions: data.modulePermissions,
           twoFactorEnabled: !!data.twoFactorEnabled,
           twoFactorRequired: !!data.twoFactorRequired,
+          twoFactorPastGrace: !!data.twoFactorPastGrace,
+          twoFactorDeadline: data.twoFactorDeadline ?? null,
+          twoFactorDaysLeft:
+            typeof data.twoFactorDaysLeft === 'number' ? data.twoFactorDaysLeft : null,
           mustCompleteProfile: !!data.mustCompleteProfile,
           defaultWarehouseId: data.defaultWarehouseId ?? null,
           defaultWarehouse: data.defaultWarehouse ?? null,

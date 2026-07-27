@@ -11,6 +11,7 @@ import { map } from 'rxjs/operators';
  * JWT Bearer auth, or API key pre-authenticated by middleware (x-api-key / Bearer qk_...).
  * Also blocks VIEWER role from mutating methods (complements DenyViewerMutationsGuard,
  * which only sees req.user when set before controller JwtAuthGuard).
+ * Wave BO: post-grace 2FA lock lives in Past2faGraceInterceptor (runs after JWT).
  */
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {

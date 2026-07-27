@@ -12,6 +12,10 @@ export interface User {
   modulePermissions?: Record<string, 'hidden' | 'view' | 'edit'>;
   twoFactorEnabled?: boolean;
   twoFactorRequired?: boolean;
+  /** True when grace window ended and 2FA still off */
+  twoFactorPastGrace?: boolean;
+  twoFactorDeadline?: string | null;
+  twoFactorDaysLeft?: number | null;
   mustCompleteProfile?: boolean;
   /** Home POS warehouse — cashiers auto-lock here */
   defaultWarehouseId?: string | null;

@@ -34,7 +34,7 @@
 | 1.3 Swagger إنتاج | **منجز** — لا يُفعّل إن `NODE_ENV=production` |
 | 1.3 `CORS_ALLOW_VERCEL_PREVIEWS` | **آمن افتراضياً** — يعمل فقط إن =`1`/`true` |
 | 1.4 2FA ADMIN/MANAGER | **منجز** — `REQUIRE_2FA_ROLES` افتراضي |
-| 1.4 إضافة ACCOUNTANT + مهلة 7 أيام | **جزئي** — وسّع المتغير؛ المهلة/إيميل جماعي تحتاج تشغيل/كود لاحق |
+| 1.4 إضافة ACCOUNTANT + مهلة 7 أيام | **منجز بالكود (Wave BO)** — وسّع `REQUIRE_2FA_ROLES`؛ عيّن `REQUIRE_2FA_GRACE_FROM` عند التوسيع؛ إيميل جماعي يدوي |
 
 ---
 
@@ -45,7 +45,7 @@
 | `ci.yml` build/typecheck/audit/smoke | **منجز** (Waves AZ/BA) |
 | Dependabot | **منجز** (شهري) |
 | Jest تغطية 70% + Playwright كامل | **ناقص** — smoke login موجود؛ التوسع موجات لاحقة |
-| deploy-staging / deploy-prod workflows | **غير موجود** — النشر حالياً push→Vercel/Render |
+| deploy-staging / deploy-prod workflows | **جزئي** — النشر push→Vercel/Render؛ `staging-smoke.yml` يدوي ضد URL |
 
 ---
 
@@ -99,5 +99,5 @@
 ## الخطوة التالية المقترحة
 
 1. **أنت اليوم:** Cloudflare §1.1 + تدوير أسرار + لصق Sentry DSN.  
-2. **الكود (Wave BN — منجز):** اختبارات سياسة 2FA + أدوار مستودع POS + smoke `/register` و `/complete-profile` — [`HISABY-WAVE-BN-AUTH-POS-TESTS-2026-07-27.md`](./HISABY-WAVE-BN-AUTH-POS-TESTS-2026-07-27.md).  
-3. لاحقاً: Staging workflow · مهلة 2FA إن طُلبت · كاش Redis للمنتجات · أرشفة docs.
+2. **الكود (Wave BO — منجز):** مهلة 2FA + قفل تعديلات + staging smoke — [`HISABY-WAVE-BO-2FA-GRACE-STAGING-2026-07-27.md`](./HISABY-WAVE-BO-2FA-GRACE-STAGING-2026-07-27.md).  
+3. لاحقاً: كاش Redis للمنتجات · أرشفة docs.
