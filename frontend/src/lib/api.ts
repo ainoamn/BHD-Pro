@@ -296,11 +296,20 @@ class ApiClient {
   async register(data: { name: string; email: string; password: string; companyName: string; plan?: string }) {
     const response = await this.client.post('/auth/register', data);
     const { user, accessToken } = response.data;
-    const company = user.company;
+    const company = user.company as import('@/types').Company;
     useAuthStore.getState().login(
-      { ...user, companyId: company?.id || user.companyId },
+      {
+        ...user,
+        companyId: company?.id || user.companyId,
+        company,
+        username: user.username || null,
+        phone: user.phone || null,
+        defaultWarehouseId: user.defaultWarehouseId ?? null,
+        defaultWarehouse: user.defaultWarehouse ?? null,
+        modulePermissions: user.modulePermissions,
+      },
       company,
-      accessToken || null
+      accessToken || null,
     );
     return response.data;
   }

@@ -308,6 +308,11 @@ export function resolveModulePermissions(
     if (v === "hidden" || v === "view" || v === "edit") next[key] = v;
   }
   if (role === "ADMIN") return { ...ALL_EDIT };
+  if (role === "CASHIER") {
+    next.inventory = "hidden";
+    next.warehouses = "hidden";
+    next.stockCounts = "hidden";
+  }
   return next;
 }
 

@@ -206,6 +206,12 @@ export function resolveModulePermissions(
   if (role === UserRole.ADMIN || role === 'ADMIN') {
     return { ...ALL_EDIT };
   }
+  // Cashiers must not inherit legacy ERP inventory access from stored overrides
+  if (role === UserRole.CASHIER || role === 'CASHIER') {
+    next.inventory = 'hidden';
+    next.warehouses = 'hidden';
+    next.stockCounts = 'hidden';
+  }
   return next;
 }
 

@@ -130,6 +130,7 @@ export default function RestoShiftsPage() {
       ) : null}
       <PosShiftsView
         forcedWarehouseId={warehouseId}
+        forcedWarehouseLabel={warehouseLabel || undefined}
         hideWarehousePicker
         titleOverride={t.shiftsTitle}
       />

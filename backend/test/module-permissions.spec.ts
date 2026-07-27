@@ -16,6 +16,17 @@ describe('module-permissions', () => {
     expect(canAccessModule(perms, 'posSales', 'edit')).toBe(true);
     expect(canAccessModule(perms, 'dashboard', 'view')).toBe(false);
     expect(canAccessModule(perms, 'users', 'view')).toBe(false);
+    expect(canAccessModule(perms, 'inventory', 'view')).toBe(false);
+  });
+
+  it('forces CASHIER ERP inventory hidden even if stored override says edit', () => {
+    const perms = resolveModulePermissions('CASHIER', {
+      inventory: 'edit',
+      warehouses: 'view',
+      stockCounts: 'edit',
+    });
+    expect(canAccessModule(perms, 'inventory', 'view')).toBe(false);
+    expect(canAccessModule(perms, 'posInventory', 'view')).toBe(true);
   });
 
   it('allows ACCOUNTANT accounting modules and hides kitchen', () => {

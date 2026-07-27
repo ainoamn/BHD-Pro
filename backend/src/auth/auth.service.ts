@@ -354,28 +354,15 @@ export class AuthService {
         role: 'ADMIN',
         companyId: company.id,
       },
-    });
-
-    const tokens = await this.generateTokens({ ...user, company });
-
-    await this.prisma.session.create({
-      data: {
-        userId: user.id,
-        token: hashToken(tokens.refreshToken),
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      include: {
+        company: true,
+        defaultWarehouse: {
+          select: { id: true, code: true, name: true, nameEn: true },
+        },
       },
     });
 
-    return {
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        company: this.enrichCompany(company),
-      },
-      ...tokens,
-    };
+    return this.issueSession(user, {});
   }
 
   async loginWithGoogle(idToken: string, companyName?: string) {

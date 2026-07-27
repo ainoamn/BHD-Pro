@@ -6,6 +6,8 @@ import {
   IsOptional,
   IsObject,
   IsBoolean,
+  IsUUID,
+  ValidateIf,
 } from 'class-validator';
 import { PartialType, OmitType } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
@@ -26,8 +28,8 @@ export class CreateUserDto {
   permissions?: Record<string, 'hidden' | 'view' | 'edit'>;
 
   /** Home warehouse for POS (auto-selected for cashiers) */
-  @IsOptional()
-  @IsString()
+  @ValidateIf((_, v) => v != null && v !== '')
+  @IsUUID()
   defaultWarehouseId?: string | null;
 }
 
@@ -42,8 +44,8 @@ export class UpdateUserDto extends PartialType(
   @IsObject()
   permissions?: Record<string, 'hidden' | 'view' | 'edit'> | null;
 
-  @IsOptional()
-  @IsString()
+  @ValidateIf((_, v) => v != null && v !== '')
+  @IsUUID()
   defaultWarehouseId?: string | null;
 }
 

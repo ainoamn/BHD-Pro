@@ -194,12 +194,14 @@ function isDualControlRequired(err: {
 export type PosShiftsViewProps = {
   /** Lock shift ops to this warehouse (resto kitchen stock, etc.) */
   forcedWarehouseId?: string | null;
+  forcedWarehouseLabel?: string;
   hideWarehousePicker?: boolean;
   titleOverride?: string;
 };
 
 export function PosShiftsView({
   forcedWarehouseId,
+  forcedWarehouseLabel,
   hideWarehousePicker,
   titleOverride,
 }: PosShiftsViewProps = {}) {
@@ -748,7 +750,11 @@ export function PosShiftsView({
 
       {hideWarehousePicker && forcedWarehouseId ? (
         <p className="text-xs text-stone-400 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
-          {t.warehouse}: <span className="text-stone-200 font-mono">{forcedWarehouseId.slice(0, 8)}…</span>
+          {t.warehouse}:{" "}
+          <span className="text-stone-200 font-semibold">
+            {forcedWarehouseLabel ||
+              `${forcedWarehouseId.slice(0, 8)}…`}
+          </span>
         </p>
       ) : null}
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Package, Plus, Printer, RefreshCw, Eye, Pencil, X } from "lucide-react";
@@ -57,61 +57,71 @@ export default function PosInventoryPage() {
   const [scopeWarehouseId, setScopeWarehouseId] = useState<string | null>(null);
   const [scopeWarehouseLabel, setScopeWarehouseLabel] = useState("");
   const [canSwitchWarehouse, setCanSwitchWarehouse] = useState(false);
+  const [scopeReady, setScopeReady] = useState(false);
+  const [scopeError, setScopeError] = useState(false);
   const [warehouses, setWarehouses] = useState<
     { id: string; code: string; name: string }[]
   >([]);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await api.getPosWarehouseContext();
-        if (cancelled) return;
-        const ctx = res.data;
-        setCanSwitchWarehouse(!!ctx.canSwitchFreely);
-        setWarehouses(
-          (ctx.warehouses || []).map((w) => ({
-            id: w.id,
-            code: w.code,
-            name: w.name,
-          })),
-        );
-        const home = ctx.homeWarehouseId || ctx.warehouses[0]?.id || null;
-        setScopeWarehouseId(home);
-        const labelWh =
-          ctx.homeWarehouse ||
-          ctx.warehouses.find((w) => w.id === home) ||
-          null;
-        setScopeWarehouseLabel(
-          labelWh ? `${labelWh.code} — ${labelWh.name}` : "",
-        );
-      } catch {
-        /* keep unscoped */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+  const loadWarehouseScope = useCallback(async () => {
+    setScopeError(false);
+    try {
+      const res = await api.getPosWarehouseContext();
+      const ctx = res.data;
+      setCanSwitchWarehouse(!!ctx.canSwitchFreely);
+      setWarehouses(
+        (ctx.warehouses || []).map((w) => ({
+          id: w.id,
+          code: w.code,
+          name: w.name,
+        })),
+      );
+      const home = ctx.canSwitchFreely
+        ? ctx.homeWarehouseId || ctx.warehouses[0]?.id || null
+        : ctx.homeWarehouseId || null;
+      setScopeWarehouseId(home);
+      const labelWh =
+        ctx.homeWarehouse ||
+        ctx.warehouses.find((w) => w.id === home) ||
+        null;
+      setScopeWarehouseLabel(
+        labelWh ? `${labelWh.code} — ${labelWh.name}` : "",
+      );
+      setScopeReady(true);
+      return home;
+    } catch {
+      setScopeError(true);
+      setScopeReady(true);
+      setScopeWarehouseId(null);
+      setScopeWarehouseLabel("");
+      return null;
+    }
   }, []);
 
+  useEffect(() => {
+    void loadWarehouseScope();
+  }, [loadWarehouseScope]);
+
   const { data: products = [], isLoading, isError, refetch } = useQuery({
-    queryKey: ["pos-inventory-products", scopeWarehouseId || "all"],
+    queryKey: ["pos-inventory-products", scopeWarehouseId || "none"],
+    enabled: scopeReady && !!scopeWarehouseId,
     queryFn: async () => {
-      if (scopeWarehouseId && typeof api.syncPosCatalog === "function") {
-        const res = await api.syncPosCatalog(scopeWarehouseId);
-        const rows = ((res.data?.products as PosProductRow[]) || []).map((p) => ({
-          ...p,
-          category: (p as { category?: string }).category || "—",
-          unit: (p as { unit?: string }).unit || "pcs",
-          costPrice: (p as { costPrice?: number | string }).costPrice ?? 0,
-          minQuantity: (p as { minQuantity?: number | string }).minQuantity,
-        }));
-        return rows;
-      }
-      const res = await api.getProducts();
-      return (res.data as PosProductRow[]) || [];
+      const res = await api.syncPosCatalog(scopeWarehouseId!);
+      const rows = ((res.data?.products as PosProductRow[]) || []).map((p) => ({
+        ...p,
+        category: (p as { category?: string }).category || "—",
+        unit: (p as { unit?: string }).unit || "pcs",
+        costPrice: (p as { costPrice?: number | string }).costPrice ?? 0,
+        minQuantity: (p as { minQuantity?: number | string }).minQuantity,
+      }));
+      return rows;
     },
   });
+
+  const retryAll = async () => {
+    const home = await loadWarehouseScope();
+    if (home) await refetch();
+  };
 
   const categories = useMemo(() => {
     const set = new Set(products.map((p) => p.category).filter(Boolean));
@@ -307,16 +317,29 @@ export default function PosInventoryPage() {
         className="w-full h-11 rounded-xl bg-[#0b1220] border border-white/10 px-3 text-sm"
       />
 
-      {isLoading ? (
+      {!scopeReady || (scopeReady && scopeWarehouseId && isLoading) ? (
         <div className="py-16 flex justify-center text-slate-400">
           <Loader2 className="w-6 h-6 animate-spin" />
+        </div>
+      ) : scopeError || !scopeWarehouseId ? (
+        <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-6 py-12 text-center space-y-3">
+          <p className="text-sm text-rose-300">
+            {scopeError ? t.loadFailed : t.noHomeWarehouse}
+          </p>
+          <button
+            type="button"
+            onClick={() => void retryAll()}
+            className="rounded-xl bg-amber-500 text-slate-950 px-4 py-2 text-sm font-bold"
+          >
+            {t.retry}
+          </button>
         </div>
       ) : isError ? (
         <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-6 py-12 text-center space-y-3">
           <p className="text-sm text-rose-300">{t.loadFailed}</p>
           <button
             type="button"
-            onClick={() => void refetch()}
+            onClick={() => void retryAll()}
             className="rounded-xl bg-amber-500 text-slate-950 px-4 py-2 text-sm font-bold"
           >
             {t.retry}

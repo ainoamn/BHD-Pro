@@ -69,7 +69,7 @@ npx prisma migrate deploy
 3. [ ] تأكد أن الـ migration التالي طُبّق (Wave BC):  
    `20260727133000_user_home_warehouse_pos_fulfillment`  
    (أعمدة: `users.default_warehouse_id` · `invoices.pos_warehouse_id` · `invoices.pos_fulfillment_status`)  
-   وثائق: [BC](./HISABY-WAVE-BC-SMART-WAREHOUSE-2026-07-27.md) · [BD](./HISABY-WAVE-BD-WAREHOUSE-SHIFTS-INVENTORY-2026-07-27.md) · [BE](./HISABY-WAVE-BE-WAREHOUSE-SESSION-RESTO-2026-07-27.md) · [BF](./HISABY-WAVE-BF-WAREHOUSE-UX-INVITE-2026-07-27.md) · [BG](./HISABY-WAVE-BG-CASHIER-WAREHOUSE-ENFORCE-2026-07-27.md)
+   وثائق: [BC](./HISABY-WAVE-BC-SMART-WAREHOUSE-2026-07-27.md) · [BD](./HISABY-WAVE-BD-WAREHOUSE-SHIFTS-INVENTORY-2026-07-27.md) · [BE](./HISABY-WAVE-BE-WAREHOUSE-SESSION-RESTO-2026-07-27.md) · [BF](./HISABY-WAVE-BF-WAREHOUSE-UX-INVITE-2026-07-27.md) · [BG](./HISABY-WAVE-BG-CASHIER-WAREHOUSE-ENFORCE-2026-07-27.md) · [BH](./HISABY-WAVE-BH-WAREHOUSE-CLOSEOUT-2026-07-27.md)
 4. [ ] إن فشل المسار، من جذر المشروع حيث يوجد `schema.prisma`:
 
 ```bash
@@ -176,6 +176,7 @@ Project `bhd-pro` → **Settings → Environment Variables** (Production):
 | 5d | كاشير: `/inventory` ERP مخفي؛ `/pos/inventory` يعمل | |
 | 5e | دعوة كاشير: صفحة الإكمال تعرض مستودعه | |
 | 5f | كاشير مطاعم بمستودع منزل ≠ مخزن المطعم → تنبيه على `/resto/shifts` | |
+| 5g | `/resto/shifts` يعرض اسم المستودع (لا UUID)؛ `/pos/inventory` Retry يحافظ على نطاق المستودع | |
 | 6 | فتح `/resto` (إن الباقة تسمح) | |
 | 7 | دعوة مستخدم بالإيميل (إن الإيميل مضبوط) أو إنشاء مستخدم | |
 | 8 | `/admin` يعمل لبريد المنصة فقط | |

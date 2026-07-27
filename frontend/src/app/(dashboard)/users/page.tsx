@@ -608,6 +608,13 @@ export default function UsersPage() {
                   {en ? "Reset to role defaults" : "إعادة لافتراضي الدور"}
                 </button>
               </div>
+              {permUser.role === "CASHIER" && permDraft.inventory !== "hidden" ? (
+                <p className="mb-3 text-[11px] text-amber-200 bg-amber-500/10 border border-amber-500/30 rounded-xl px-3 py-2">
+                  {en
+                    ? "Cashiers should use POS inventory — reset to role defaults to hide ERP /inventory."
+                    : "الكاشير يستخدم مخزون الكاشير فقط — أعد لافتراضي الدور لإخفاء مخزون ERP."}
+                </p>
+              ) : null}
               <UserAccessTree en={en} value={permDraft} onChange={setPermDraft} />
             </div>
             <div className="flex justify-end gap-3 p-5 border-t border-slate-800">
