@@ -25,9 +25,9 @@
 
 | البند | ملاحظة |
 |-------|--------|
-| Redis | موجود في `docker-compose`؛ اضبط `REDIS_URL` ثم اربط الكاش/الجلسات لاحقاً |
+| Redis | **موجّه (Wave BA):** throttle موزّع + `/health/ready` ping عند وجود `REDIS_URL` |
 | Object storage S3 | للمرفقات بدل data URLs |
-| Playwright smoke | مسار login → dashboard على staging |
+| Playwright smoke | **موجّه (Wave BA):** `frontend/e2e/smoke.spec.ts` على `/login` في CI |
 | مراقبة Uptime | خارج Render free cold-start |
 
 ## يمكن تأجيله (Could)

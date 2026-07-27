@@ -4,12 +4,18 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { SkipThrottle } from '@nestjs/throttler';
 import { PrismaService } from './prisma/prisma.service';
+import { RedisService } from './redis/redis.service';
 
 @ApiTags('Health')
+@SkipThrottle()
 @Controller('health')
 export class HealthController {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private redis: RedisService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Health check (liveness)' })
@@ -21,27 +27,38 @@ export class HealthController {
       // Render injects this; used to confirm /admin fixes are live
       commit: process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || null,
       sentry: !!(process.env.SENTRY_DSN || '').trim(),
-      redisConfigured: !!(process.env.REDIS_URL || '').trim(),
+      redisConfigured: this.redis.isConfigured(),
     };
   }
 
   @Get('ready')
-  @ApiOperation({ summary: 'Readiness — database ping' })
+  @ApiOperation({ summary: 'Readiness — database (+ Redis when configured)' })
   async ready() {
     try {
       await this.prisma.$queryRaw`SELECT 1`;
-      return {
-        status: 'ready',
-        database: 'ok',
-        sentry: !!(process.env.SENTRY_DSN || '').trim(),
-        redisConfigured: !!(process.env.REDIS_URL || '').trim(),
-        timestamp: new Date().toISOString(),
-      };
     } catch {
       throw new ServiceUnavailableException({
         status: 'not_ready',
         database: 'error',
       });
     }
+
+    const redis = await this.redis.ping();
+    if (redis === 'error') {
+      throw new ServiceUnavailableException({
+        status: 'not_ready',
+        database: 'ok',
+        redis: 'error',
+      });
+    }
+
+    return {
+      status: 'ready',
+      database: 'ok',
+      redis,
+      sentry: !!(process.env.SENTRY_DSN || '').trim(),
+      redisConfigured: this.redis.isConfigured(),
+      timestamp: new Date().toISOString(),
+    };
   }
 }

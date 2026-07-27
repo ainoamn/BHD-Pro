@@ -3,8 +3,10 @@ import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
 import configuration from './config/configuration';
 import { PrismaModule } from './prisma/prisma.module';
+import { RedisModule } from './redis/redis.module';
 import { AuthModule } from './auth/auth.module';
 import { ContactsModule } from './contacts/contacts.module';
 import { InvoicesModule } from './invoices/invoices.module';
@@ -47,13 +49,26 @@ import { DenyViewerMutationsGuard } from './common/guards/deny-viewer-mutations.
   imports: [
     ConfigModule.forRoot({ isGlobal: true, load: [configuration] }),
     ScheduleModule.forRoot(),
-    ThrottlerModule.forRoot([
-      {
-        name: 'default',
-        ttl: 60_000,
-        limit: 120,
+    RedisModule,
+    ThrottlerModule.forRootAsync({
+      useFactory: () => {
+        const redisUrl = (process.env.REDIS_URL || '').trim();
+        const throttlers = [
+          {
+            name: 'default',
+            ttl: 60_000,
+            limit: 120,
+          },
+        ];
+        if (redisUrl) {
+          return {
+            throttlers,
+            storage: new ThrottlerStorageRedisService(redisUrl),
+          };
+        }
+        return { throttlers };
       },
-    ]),
+    }),
     PrismaModule,
     AuthModule,
     DashboardModule,
