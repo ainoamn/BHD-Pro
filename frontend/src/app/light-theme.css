@@ -1,6 +1,7 @@
 /**
  * Bright light-mode overrides for pages still using dark-first Tailwind classes.
  * Only active when html has class "light" (next-themes).
+ * Covers accounting slate skins + POS/restaurant hardcoded night palettes.
  */
 
 html.light .bg-slate-950 {
@@ -39,6 +40,11 @@ html.light .text-white {
   color: #0f172a;
 }
 
+html.light .text-slate-100,
+html.light .text-slate-200 {
+  color: #0f172a;
+}
+
 html.light .text-slate-300 {
   color: #334155;
 }
@@ -49,7 +55,21 @@ html.light .text-slate-500 {
 }
 
 html.light .text-slate-600 {
-  color: #94a3b8;
+  color: #475569;
+}
+
+html.light .text-stone-100,
+html.light .text-stone-200 {
+  color: #1c1917;
+}
+
+html.light .text-stone-300 {
+  color: #44403c;
+}
+
+html.light .text-stone-400,
+html.light .text-stone-500 {
+  color: #78716c;
 }
 
 html.light .hover\:text-white:hover {
@@ -73,15 +93,121 @@ html.light .placeholder\:text-slate-500::placeholder {
   color: #94a3b8;
 }
 
-/* Preserve white text on emerald / gradient actions */
+/* ─── POS night palette → day ─── */
+html.light .bg-\[\#070b14\],
+html.light .bg-\[\#0b1220\],
+html.light .bg-\[\#0b1220\]\/90,
+html.light .bg-\[\#0b1220\]\/95 {
+  background-color: #f1f5f9 !important;
+}
+
+html.light .bg-\[\#0f172a\],
+html.light .bg-\[\#111827\],
+html.light .bg-\[\#121a28\],
+html.light .bg-\[\#121a2b\] {
+  background-color: #ffffff !important;
+}
+
+/* ─── Restaurant night palette → day ─── */
+html.light .bg-\[\#14110f\],
+html.light .bg-\[\#14110f\]\/92 {
+  background-color: #faf7f2 !important;
+}
+
+html.light .bg-\[\#1a1614\],
+html.light .bg-\[\#1a1614\]\/80,
+html.light .bg-\[\#1c1814\] {
+  background-color: #ffffff !important;
+}
+
+/* Frosted / translucent dark panels */
+html.light .bg-black\/20,
+html.light .bg-black\/30,
+html.light .bg-black\/35,
+html.light .bg-black\/40,
+html.light .bg-black\/60 {
+  background-color: rgba(15, 23, 42, 0.08) !important;
+}
+
+html.light .bg-white\/5,
+html.light .bg-white\/\[0\.03\],
+html.light .hover\:bg-white\/5:hover,
+html.light .hover\:bg-white\/10:hover {
+  background-color: rgba(15, 23, 42, 0.04) !important;
+}
+
+html.light .border-white\/5,
+html.light .border-white\/10 {
+  border-color: #e2e8f0 !important;
+}
+
+html.light .border-e.border-white\/10,
+html.light .border-b.border-white\/10,
+html.light .border-t.border-white\/10 {
+  border-color: #e2e8f0 !important;
+}
+
+html.light .divide-white\/10 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #e2e8f0 !important;
+}
+
+html.light .ring-white\/10 {
+  --tw-ring-color: #e2e8f0;
+}
+
+/* Soften tinted chip text for daylight readability */
+html.light .text-sky-100,
+html.light .text-sky-200,
+html.light .text-sky-200\/90 {
+  color: #0369a1 !important;
+}
+
+html.light .text-amber-100,
+html.light .text-amber-100\/90,
+html.light .text-amber-200,
+html.light .text-amber-200\/90 {
+  color: #b45309 !important;
+}
+
+html.light .text-emerald-100,
+html.light .text-emerald-200,
+html.light .text-emerald-300 {
+  color: #047857 !important;
+}
+
+html.light .text-violet-100 {
+  color: #6d28d9 !important;
+}
+
+html.light .text-rose-200 {
+  color: #be123c !important;
+}
+
+/* Preserve white text on solid / gradient action buttons */
 html.light .bg-gradient-to-r,
 html.light .bg-gradient-to-br,
 html.light [class*="from-emerald"],
 html.light [class*="bg-emerald-6"],
 html.light [class*="bg-emerald-5"],
 html.light [class*="bg-rose-6"],
-html.light [class*="bg-rose-5"] {
+html.light [class*="bg-rose-5"],
+html.light [class*="bg-sky-5"],
+html.light [class*="bg-sky-4"],
+html.light .bg-sky-500,
+html.light .bg-amber-500,
+html.light .bg-amber-500\/90,
+html.light .bg-violet-500,
+html.light .bg-rose-500,
+html.light .bg-rose-500\/90 {
   color: #ffffff !important;
+}
+
+/* Amber / sky CTAs that intentionally use dark ink stay dark */
+html.light .text-\[\#14110f\],
+html.light .text-\[\#0b1220\],
+html.light .text-\[\#0b1a12\],
+html.light .text-slate-950 {
+  color: #0f172a !important;
 }
 
 html.light .bg-gradient-to-r *,
@@ -112,4 +238,9 @@ html.light .text-sky-400 {
 
 html.light tbody tr:hover {
   background-color: #f8fafc;
+}
+
+/* Shadow under sticky POS cart footer — lighter in day mode */
+html.light .shadow-\[0_-8px_24px_rgba\(0\,0\,0\,0\.35\)\] {
+  box-shadow: 0 -8px 24px rgba(15, 23, 42, 0.08) !important;
 }

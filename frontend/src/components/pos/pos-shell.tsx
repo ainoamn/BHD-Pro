@@ -36,6 +36,7 @@ import {
 import { playPosAlertBeep } from "@/lib/pos-beep";
 import { PosCommissionChip } from "@/components/pos/pos-commission-chip";
 import { ShellAlertsBell } from "@/components/shared/shell-alerts-bell";
+import { ShellThemeToggle } from "@/components/shared/shell-theme-toggle";
 import {
   DualApprovalModal,
   type DualApprovalPayload,
@@ -388,8 +389,11 @@ export function PosShell({ children }: { children: React.ReactNode }) {
   };
 
   if (bareShell) {
-    return (
-      <div className="min-h-screen bg-[#0b1220] text-slate-100" dir={locale === "en" ? "ltr" : "rtl"}>
+      return (
+      <div className="min-h-screen bg-[#0b1220] text-slate-100 relative" dir={locale === "en" ? "ltr" : "rtl"}>
+        <div className="absolute top-3 end-3 z-50">
+          <ShellThemeToggle tone="pos" />
+        </div>
         {children}
       </div>
     );
@@ -450,6 +454,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
+            <ShellThemeToggle tone="pos" />
             <ShellAlertsBell
               tone="pos"
               hasAlert={linked === false || linkLoadError}

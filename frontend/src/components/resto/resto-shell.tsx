@@ -35,6 +35,7 @@ import {
 } from "@/lib/module-permissions";
 import { PlanUpgradeGate } from "@/components/billing/plan-upgrade-gate";
 import { ShellAlertsBell } from "@/components/shared/shell-alerts-bell";
+import { ShellThemeToggle } from "@/components/shared/shell-theme-toggle";
 
 export function RestoShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -111,7 +112,10 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
 
   if (isLogin) {
     return (
-      <div className="min-h-screen bg-[#14110f] text-stone-100" dir={locale === "en" ? "ltr" : "rtl"}>
+      <div className="min-h-screen bg-[#14110f] text-stone-100 relative" dir={locale === "en" ? "ltr" : "rtl"}>
+        <div className="absolute top-3 end-3 z-50">
+          <ShellThemeToggle tone="resto" />
+        </div>
         {children}
       </div>
     );
@@ -275,6 +279,7 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
+            <ShellThemeToggle tone="resto" />
             <ShellAlertsBell
               tone="resto"
               hasAlert={linked === false || linkLoadError}
