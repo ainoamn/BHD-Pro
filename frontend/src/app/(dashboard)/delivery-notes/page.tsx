@@ -227,7 +227,7 @@ export default function DeliveryNotesPage() {
               <GlassCard key={row.id} className="p-4 space-y-3">
                 <div className="flex justify-between gap-2">
                   <div>
-                    <p className="text-white font-semibold">{row.number}</p>
+                    <p className="text-slate-900 dark:text-white font-semibold">{row.number}</p>
                     <p className="text-sm text-slate-400">{row.contact.name}</p>
                   </div>
                   <span className={cn("text-xs px-2 py-1 rounded h-fit", statusClass(row.status))}>
@@ -253,7 +253,7 @@ export default function DeliveryNotesPage() {
                       </button>
                       <button
                         onClick={() => setPendingAction({ id: row.id, mode: "cancel" })}
-                        className="text-xs px-2 py-1 rounded bg-slate-800 text-slate-300"
+                        className="text-xs px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300"
                       >
                         {t("cancel")}
                       </button>
@@ -274,7 +274,7 @@ export default function DeliveryNotesPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-slate-700/50 text-slate-400">
+                  <tr className="border-b border-slate-200 dark:border-slate-700/50 text-slate-400">
                     <th className="text-right px-4 py-3">{t("number")}</th>
                     <th className="text-right px-4 py-3">{t("contact")}</th>
                     <th className="text-right px-4 py-3">{t("date")}</th>
@@ -285,10 +285,10 @@ export default function DeliveryNotesPage() {
                 </thead>
                 <tbody>
                   {rows.map((row) => (
-                    <tr key={row.id} className="border-b border-slate-800/50 hover:bg-slate-800/30">
-                      <td className="px-4 py-3 text-white font-medium">{row.number}</td>
-                      <td className="px-4 py-3 text-slate-300">{row.contact.name}</td>
-                      <td className="px-4 py-3 text-slate-300">{formatDate(row.date)}</td>
+                    <tr key={row.id} className="border-b border-slate-200 dark:border-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800/30">
+                      <td className="px-4 py-3 text-slate-900 dark:text-white font-medium">{row.number}</td>
+                      <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{row.contact.name}</td>
+                      <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{formatDate(row.date)}</td>
                       <td className="px-4 py-3 text-slate-400">{row.items.length}</td>
                       <td className="px-4 py-3">
                         <span className={cn("text-xs px-2 py-1 rounded", statusClass(row.status))}>
@@ -311,7 +311,7 @@ export default function DeliveryNotesPage() {
                               </button>
                               <button
                                 onClick={() => setPendingAction({ id: row.id, mode: "cancel" })}
-                                className="text-xs px-2 py-1 rounded bg-slate-800 text-slate-300"
+                                className="text-xs px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300"
                               >
                                 {t("cancel")}
                               </button>
@@ -336,10 +336,10 @@ export default function DeliveryNotesPage() {
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-5 border-b border-slate-800">
-              <h2 className="text-lg font-semibold text-white">{t("new")}</h2>
-              <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-white">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-5 border-b border-slate-200 dark:border-slate-800">
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-white">{t("new")}</h2>
+              <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-slate-900 dark:hover:text-white">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -350,7 +350,7 @@ export default function DeliveryNotesPage() {
                   <select
                     value={contactId}
                     onChange={(e) => setContactId(e.target.value)}
-                    className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm"
+                    className="mt-1 w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-900 dark:text-white text-sm"
                   >
                     <option value="">{t("selectContact")}</option>
                     {contacts.map((c) => (
@@ -364,7 +364,7 @@ export default function DeliveryNotesPage() {
                     type="date"
                     value={date}
                     onChange={(e) => setDate(e.target.value)}
-                    className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm"
+                    className="mt-1 w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-900 dark:text-white text-sm"
                   />
                 </div>
                 <div className="md:col-span-2">
@@ -372,7 +372,7 @@ export default function DeliveryNotesPage() {
                   <select
                     value={warehouseId}
                     onChange={(e) => setWarehouseId(e.target.value)}
-                    className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm"
+                    className="mt-1 w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-900 dark:text-white text-sm"
                   >
                     <option value="">—</option>
                     {warehouses.map((w) => (
@@ -419,7 +419,7 @@ export default function DeliveryNotesPage() {
                           }
                           setLines(next);
                         }}
-                        className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2 py-2 text-white text-sm"
+                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-2 text-slate-900 dark:text-white text-sm"
                       >
                         <option value="">{t("selectProduct")}</option>
                         {activeProducts.map((p) => (
@@ -439,7 +439,7 @@ export default function DeliveryNotesPage() {
                           next[idx].description = e.target.value;
                           setLines(next);
                         }}
-                        className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2 py-2 text-white text-sm"
+                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-2 text-slate-900 dark:text-white text-sm"
                       />
                       </div>
                       <div className="col-span-8 sm:col-span-2">
@@ -452,7 +452,7 @@ export default function DeliveryNotesPage() {
                           next[idx].quantity = v;
                           setLines(next);
                         }}
-                        className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2 py-2 text-white text-sm"
+                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-2 text-slate-900 dark:text-white text-sm"
                       />
                       </div>
                       {lines.length > 1 && (
@@ -476,11 +476,11 @@ export default function DeliveryNotesPage() {
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   rows={2}
-                  className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm"
+                  className="mt-1 w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-900 dark:text-white text-sm"
                 />
               </div>
             </div>
-            <div className="p-5 border-t border-slate-800 flex justify-end gap-3">
+            <div className="p-5 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-3">
               <button onClick={() => setOpen(false)} className="px-4 py-2 text-sm text-slate-400">
                 {tCommon("cancel")}
               </button>

@@ -45,11 +45,11 @@ export function DashboardStats({ data, currency = "OMR" }: DashboardStatsProps) 
 
         return (
           <div key={stat.key} className="relative group">
-            <div className="bg-slate-900/60 border border-slate-800/50 rounded-xl p-5 hover:border-slate-700/50 transition-all duration-300 hover:shadow-lg hover:shadow-emerald-500/5">
+            <div className="bg-white/95 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/50 rounded-xl p-5 hover:border-slate-300 dark:hover:border-slate-700/50 transition-all duration-300 hover:shadow-lg hover:shadow-emerald-500/5">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
-                  <p className="text-sm text-slate-400">{t(stat.key)}</p>
-                  <p className="text-2xl font-bold text-white mt-2">
+                  <p className="text-sm text-slate-500 dark:text-slate-400">{t(stat.key)}</p>
+                  <p className="text-2xl font-bold text-slate-900 dark:text-white mt-2">
                     {stat.isCount ? value.toLocaleString() : formatMoney(value, currency)}
                   </p>
                   <p className="text-xs text-slate-500 mt-2">{t("thisMonth")}</p>

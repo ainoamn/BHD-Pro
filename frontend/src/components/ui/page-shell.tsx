@@ -2,6 +2,7 @@
 
 import { ReactNode } from "react";
 import { LucideIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 interface PageHeaderProps {
   title: string;
@@ -54,10 +55,11 @@ export function QueryError({
   message?: string;
   onRetry?: () => void;
 }) {
+  const t = useTranslations("common");
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
       <p className="text-sm text-slate-500 dark:text-slate-400">
-        {message || "تعذر تحميل البيانات"}
+        {message || t("loadFailed")}
       </p>
       {onRetry ? (
         <button
@@ -65,7 +67,7 @@ export function QueryError({
           onClick={onRetry}
           className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500"
         >
-          إعادة المحاولة
+          {t("retry")}
         </button>
       ) : null}
     </div>

@@ -19,3 +19,5 @@
 
 - `/fx-revaluation` · `/period-locks` · `/stock-counts` في الوضع الفاتح
 - خطأ Forbidden بالعربية عبر toast
+
+**متابعة:** [`HISABY-WAVE-BL-DASHBOARD-DELIVERY-LIGHT-2026-07-27.md`](./HISABY-WAVE-BL-DASHBOARD-DELIVERY-LIGHT-2026-07-27.md)

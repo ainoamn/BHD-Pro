@@ -63,11 +63,11 @@ export function QuickActions({
   const t = useTranslations("dashboard");
 
   return (
-    <div className="bg-slate-900/60 border border-slate-800/50 rounded-xl p-5">
+    <div className="bg-white/95 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/50 rounded-xl p-5">
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-4">
         <div>
-          <h2 className="text-lg font-semibold text-white mb-1">{t("quickActions")}</h2>
-          <p className="text-sm text-slate-400">{t("quickActionsHint")}</p>
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">{t("quickActions")}</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400">{t("quickActionsHint")}</p>
         </div>
         <div className="flex gap-4 text-sm shrink-0">
           <div>
@@ -94,13 +94,13 @@ export function QuickActions({
             <Link
               key={action.key}
               href={action.href}
-              className="group flex flex-col items-center gap-3 p-4 rounded-xl border border-slate-800 hover:border-slate-600 bg-slate-800/30 hover:bg-slate-800/60 transition-all text-center h-full"
+              className="group flex flex-col items-center gap-3 p-4 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-600 bg-slate-50 dark:bg-slate-800/30 hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-all text-center h-full"
             >
               <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${action.iconBg}`}>
                 <Icon className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-sm font-medium text-white group-hover:text-emerald-300 transition-colors">
+                <p className="text-sm font-medium text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-300 transition-colors">
                   {t(action.key)}
                 </p>
                 <p className="text-xs text-slate-500 mt-0.5 hidden sm:block">
@@ -115,13 +115,13 @@ export function QuickActions({
           <button
             type="button"
             onClick={onCollect}
-            className="group flex flex-col items-center gap-3 p-4 rounded-xl border border-emerald-800/50 hover:border-emerald-600 bg-emerald-900/20 hover:bg-emerald-900/40 transition-all text-center h-full w-full"
+            className="group flex flex-col items-center gap-3 p-4 rounded-xl border border-emerald-200 dark:border-emerald-800/50 hover:border-emerald-500 dark:hover:border-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-all text-center h-full w-full"
           >
             <div className="w-11 h-11 rounded-xl flex items-center justify-center bg-emerald-500/10 text-emerald-400">
               <Receipt className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-sm font-medium text-white group-hover:text-emerald-300 transition-colors">
+              <p className="text-sm font-medium text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-300 transition-colors">
                 {t("recordReceipt")}
               </p>
               <p className="text-xs text-slate-500 mt-0.5 hidden sm:block">
@@ -132,13 +132,13 @@ export function QuickActions({
         ) : (
           <Link
             href="/accounting?tab=sales&action=collect&type=SALES"
-            className="group flex flex-col items-center gap-3 p-4 rounded-xl border border-emerald-800/50 hover:border-emerald-600 bg-emerald-900/20 hover:bg-emerald-900/40 transition-all text-center h-full"
+            className="group flex flex-col items-center gap-3 p-4 rounded-xl border border-emerald-200 dark:border-emerald-800/50 hover:border-emerald-500 dark:hover:border-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-all text-center h-full"
           >
             <div className="w-11 h-11 rounded-xl flex items-center justify-center bg-emerald-500/10 text-emerald-400">
               <Receipt className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-sm font-medium text-white group-hover:text-emerald-300 transition-colors">
+              <p className="text-sm font-medium text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-300 transition-colors">
                 {t("recordReceipt")}
               </p>
               <p className="text-xs text-slate-500 mt-0.5 hidden sm:block">

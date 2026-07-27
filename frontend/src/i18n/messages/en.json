@@ -609,6 +609,7 @@
     "deactivated": "Deactivated",
     "error": "An error occurred",
     "retry": "Retry",
+    "loadFailed": "Could not load data",
     "confirmDelete": "Are you sure you want to delete?",
     "darkMode": "Dark mode",
     "lightMode": "Light mode"

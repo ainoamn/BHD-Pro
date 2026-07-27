@@ -286,7 +286,7 @@ export default function StockCountsPage() {
 
       {createOpen && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 p-0 sm:p-4">
-          <div className="w-full sm:max-w-md bg-slate-900 rounded-t-2xl sm:rounded-xl border border-slate-700 p-5 space-y-4 max-h-[90vh] overflow-y-auto">
+          <div className="w-full sm:max-w-md bg-white dark:bg-slate-900 rounded-t-2xl sm:rounded-xl border border-slate-200 dark:border-slate-700 p-5 space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center">
               <h3 className="text-lg font-semibold text-slate-900 dark:text-white">{t("new")}</h3>
               <button onClick={() => setCreateOpen(false)} className="text-slate-400 hover:text-slate-900 dark:hover:text-white">
@@ -341,7 +341,7 @@ export default function StockCountsPage() {
 
       {detailId && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 p-0 sm:p-4">
-          <div className="w-full sm:max-w-3xl bg-slate-900 rounded-t-2xl sm:rounded-xl border border-slate-700 p-5 space-y-4 max-h-[92vh] overflow-y-auto">
+          <div className="w-full sm:max-w-3xl bg-white dark:bg-slate-900 rounded-t-2xl sm:rounded-xl border border-slate-200 dark:border-slate-700 p-5 space-y-4 max-h-[92vh] overflow-y-auto">
             <div className="flex justify-between items-start gap-3">
               <div>
                 <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
