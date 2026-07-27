@@ -166,14 +166,14 @@ export default function FxRevaluationPage() {
                 setAsOf(e.target.value);
                 setSelected(new Set());
               }}
-              className="mt-1 block h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white"
+              className="mt-1 block h-10 px-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white"
             />
           </div>
           <button
             type="button"
             onClick={() => refetch()}
             disabled={isFetching}
-            className="flex items-center gap-2 h-10 px-4 bg-slate-800 border border-slate-700 rounded-lg text-slate-200 hover:bg-slate-700 disabled:opacity-50"
+            className="flex items-center gap-2 h-10 px-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50"
           >
             {isFetching ? (
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -240,7 +240,7 @@ export default function FxRevaluationPage() {
             </GlassCard>
             <GlassCard className="p-4">
               <p className="text-xs text-slate-400">{t("net")}</p>
-              <p className="text-lg font-semibold text-white mt-1">
+              <p className="text-lg font-semibold text-slate-900 dark:text-white mt-1">
                 {formatMoney(data?.totals.net || 0, baseCurrency)}
               </p>
             </GlassCard>
@@ -248,7 +248,7 @@ export default function FxRevaluationPage() {
 
           <div className="hidden md:block glass rounded-xl overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="bg-slate-800/50 text-slate-400 text-left">
+              <thead className="bg-slate-100 dark:bg-slate-800/50 text-slate-400 text-left">
                 <tr>
                   <th className="px-3 py-3">
                     <input type="checkbox" checked={allSelected} onChange={toggleAll} />
@@ -263,9 +263,9 @@ export default function FxRevaluationPage() {
                   <th className="px-3 py-3 text-end">{t("pnlImpact")}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800">
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
                 {items.map((row) => (
-                  <tr key={row.invoiceId} className="hover:bg-slate-800/30">
+                  <tr key={row.invoiceId} className="hover:bg-slate-100 dark:hover:bg-slate-800/30">
                     <td className="px-3 py-3">
                       <input
                         type="checkbox"
@@ -273,19 +273,19 @@ export default function FxRevaluationPage() {
                         onChange={() => toggleOne(row.invoiceId)}
                       />
                     </td>
-                    <td className="px-3 py-3 text-white font-medium">{row.number}</td>
-                    <td className="px-3 py-3 text-slate-300">
+                    <td className="px-3 py-3 text-slate-900 dark:text-white font-medium">{row.number}</td>
+                    <td className="px-3 py-3 text-slate-600 dark:text-slate-300">
                       {row.type === "SALES" ? t("ar") : t("ap")}
                     </td>
-                    <td className="px-3 py-3 text-slate-300">{row.currency}</td>
-                    <td className="px-3 py-3 text-end text-slate-300">
+                    <td className="px-3 py-3 text-slate-600 dark:text-slate-300">{row.currency}</td>
+                    <td className="px-3 py-3 text-end text-slate-600 dark:text-slate-300">
                       {formatMoney(row.foreignRemaining, row.currency)}
                     </td>
-                    <td className="px-3 py-3 text-end text-slate-300">
+                    <td className="px-3 py-3 text-end text-slate-600 dark:text-slate-300">
                       {formatMoney(row.bookedBaseRemaining, baseCurrency)}
                     </td>
-                    <td className="px-3 py-3 text-end text-slate-300">{row.rateAsOf}</td>
-                    <td className="px-3 py-3 text-end text-slate-300">
+                    <td className="px-3 py-3 text-end text-slate-600 dark:text-slate-300">{row.rateAsOf}</td>
+                    <td className="px-3 py-3 text-end text-slate-600 dark:text-slate-300">
                       {formatMoney(row.revaluedBase, baseCurrency)}
                     </td>
                     <td
@@ -305,7 +305,7 @@ export default function FxRevaluationPage() {
             {items.map((row) => (
               <GlassCard key={row.invoiceId} className="p-4 space-y-2">
                 <div className="flex justify-between items-start gap-2">
-                  <label className="flex items-center gap-2 text-white font-medium">
+                  <label className="flex items-center gap-2 text-slate-900 dark:text-white font-medium">
                     <input
                       type="checkbox"
                       checked={selected.has(row.invoiceId)}

@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2, Mail, Lock, Phone, User as UserIcon, AtSign } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
+import { apiErrorMessage } from "@/lib/utils";
 import { useLocaleStore } from "@/store/locale";
 import { useAuthStore } from "@/store/auth";
 import { homePathForUser } from "@/lib/user-home";
@@ -20,22 +21,6 @@ type InviteInfo = {
   defaultWarehouseId?: string | null;
   defaultWarehouse?: { id: string; code: string; name: string } | null;
 };
-
-function localizeInviteError(raw: string | undefined, en: boolean, fallback: string) {
-  const msg = (raw || "").trim();
-  if (!msg) return fallback;
-  const lower = msg.toLowerCase();
-  if (
-    lower.includes("invalid invitation") ||
-    lower.includes("invitation expired") ||
-    lower.includes("unauthorized")
-  ) {
-    return en ? "Invalid or expired invitation" : "الدعوة غير صالحة أو منتهية";
-  }
-  // Prefer locale copy over raw Nest English for invite flows
-  if (/^[A-Za-z]/.test(msg) && !en) return fallback;
-  return msg;
-}
 
 function CompleteProfileForm() {
   const router = useRouter();
@@ -73,12 +58,9 @@ function CompleteProfileForm() {
           username: data.username || "",
         }));
       } catch (err) {
-        const raw =
-          (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
         toast.error(
-          localizeInviteError(
-            raw,
-            en,
+          apiErrorMessage(
+            err,
             en ? "Invalid or expired invitation" : "الدعوة غير صالحة أو منتهية",
           ),
         );
@@ -109,14 +91,8 @@ function CompleteProfileForm() {
       toast.success(en ? "Account activated" : "تم تفعيل الحساب");
       router.replace(homePathForUser(useAuthStore.getState().user));
     } catch (err) {
-      const raw =
-        (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       toast.error(
-        localizeInviteError(
-          raw,
-          en,
-          en ? "Could not complete setup" : "تعذر إكمال التفعيل",
-        ),
+        apiErrorMessage(err, en ? "Could not complete setup" : "تعذر إكمال التفعيل"),
       );
     } finally {
       setSaving(false);

@@ -14,7 +14,7 @@ jobs:
         run: |
           URL="${{ secrets.API_HEALTH_URL }}"
           if [ -z "$URL" ]; then
-            URL="https://bhd-pro.onrender.com/api/health"
+            URL="https://hisaby-api.onrender.com/api/health"
           fi
           echo "Pinging $URL"
           curl -fsS --retry 2 --retry-delay 3 --max-time 30 "$URL"

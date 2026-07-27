@@ -107,9 +107,39 @@ export function apiErrorMessage(err: unknown, fallback = "Error"): string {
   const data = (err as { response?: { data?: { message?: string | string[] } } })?.response
     ?.data;
   const msg = data?.message;
-  if (Array.isArray(msg)) return msg.filter(Boolean).join(" — ") || fallback;
-  if (typeof msg === "string" && msg.trim()) return msg;
-  return fallback;
+  const raw = Array.isArray(msg)
+    ? msg.filter(Boolean).join(" — ")
+    : typeof msg === "string"
+      ? msg.trim()
+      : "";
+  if (!raw) return fallback;
+
+  const lang =
+    typeof document !== "undefined"
+      ? (document.documentElement.lang || "ar").toLowerCase()
+      : "ar";
+  const ar = lang.startsWith("ar");
+  if (!ar) return raw;
+
+  const lower = raw.toLowerCase();
+  if (
+    lower.includes("invalid invitation") ||
+    lower.includes("invitation expired")
+  ) {
+    return "الدعوة غير صالحة أو منتهية";
+  }
+  if (lower.includes("forbidden") || lower.includes("unauthorized")) {
+    return "غير مصرح";
+  }
+  if (lower.includes("too many requests") || lower.includes("throttl")) {
+    return "محاولات كثيرة — حاول لاحقاً";
+  }
+  if (lower.includes("cashiers require a home warehouse")) {
+    return "الكاشير يحتاج مستودع موظف";
+  }
+  // Prefer locale fallback over raw Nest English
+  if (/^[A-Za-z]/.test(raw) && fallback && fallback !== "Error") return fallback;
+  return raw;
 }
 
 export function debounce<T extends (...args: any[]) => any>(

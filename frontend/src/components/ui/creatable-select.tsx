@@ -111,7 +111,7 @@ export function CreatableSelect({
               else if (filtered[0]) pick(filtered[0]);
             }
           }}
-          className="w-full h-10 pe-9 ps-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500 disabled:opacity-50"
+          className="w-full h-10 pe-9 ps-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500 disabled:opacity-50"
         />
         <button
           type="button"
@@ -127,7 +127,7 @@ export function CreatableSelect({
             setOpen(true);
             inputRef.current?.focus();
           }}
-          className="absolute inset-y-0 end-0 w-9 inline-flex items-center justify-center text-slate-400 hover:text-white disabled:opacity-50"
+          className="absolute inset-y-0 end-0 w-9 inline-flex items-center justify-center text-slate-400 hover:text-slate-900 dark:hover:text-white disabled:opacity-50"
         >
           <ChevronDown className={cn("w-4 h-4 transition-transform", open && "rotate-180")} />
         </button>
@@ -137,7 +137,7 @@ export function CreatableSelect({
         <ul
           id={listId}
           role="listbox"
-          className="absolute z-50 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-slate-700 bg-slate-900 py-1 shadow-xl"
+          className="absolute z-50 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 py-1 shadow-xl"
         >
           {filtered.map((opt) => {
             const selected = opt.toLowerCase() === value.trim().toLowerCase();
@@ -150,8 +150,8 @@ export function CreatableSelect({
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => pick(opt)}
                   className={cn(
-                    "flex w-full items-center gap-2 px-3 py-2 text-start text-sm text-slate-200 hover:bg-slate-800",
-                    selected && "bg-emerald-500/10 text-emerald-200",
+                    "flex w-full items-center gap-2 px-3 py-2 text-start text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800",
+                    selected && "bg-emerald-500/10 text-emerald-700 dark:text-emerald-200",
                   )}
                 >
                   <Check className={cn("h-3.5 w-3.5 shrink-0", selected ? "opacity-100" : "opacity-0")} />
@@ -168,7 +168,7 @@ export function CreatableSelect({
                 role="option"
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => pick(query)}
-                className="flex w-full items-center gap-2 px-3 py-2 text-start text-sm text-emerald-300 hover:bg-emerald-500/10 border-t border-slate-800"
+                className="flex w-full items-center gap-2 px-3 py-2 text-start text-sm text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 border-t border-slate-200 dark:border-slate-800"
               >
                 <Plus className="h-3.5 w-3.5 shrink-0" />
                 <span className="truncate">{addLabel(query.trim())}</span>

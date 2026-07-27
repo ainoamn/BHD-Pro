@@ -17,3 +17,5 @@
 
 - `/api/health` → حقول واتساب/SMS ظاهرة
 - `/users` و`/exchange-rates` مقروءة في الوضع الفاتح
+
+**متابعة:** [`HISABY-WAVE-BK-LIGHT-ERP-API-ERROR-2026-07-27.md`](./HISABY-WAVE-BK-LIGHT-ERP-API-ERROR-2026-07-27.md)
