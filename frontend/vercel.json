@@ -1,0 +1,3 @@
+{
+  "ignoreCommand": "node -e \"const r=process.env.VERCEL_GIT_COMMIT_REF||''; process.exit(/^dependabot\\//.test(r)?0:1)\""
+}
