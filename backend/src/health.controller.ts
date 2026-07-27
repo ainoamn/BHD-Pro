@@ -20,6 +20,8 @@ export class HealthController {
       timestamp: new Date().toISOString(),
       // Render injects this; used to confirm /admin fixes are live
       commit: process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || null,
+      sentry: !!(process.env.SENTRY_DSN || '').trim(),
+      redisConfigured: !!(process.env.REDIS_URL || '').trim(),
     };
   }
 
@@ -31,6 +33,8 @@ export class HealthController {
       return {
         status: 'ready',
         database: 'ok',
+        sentry: !!(process.env.SENTRY_DSN || '').trim(),
+        redisConfigured: !!(process.env.REDIS_URL || '').trim(),
         timestamp: new Date().toISOString(),
       };
     } catch {

@@ -2,8 +2,39 @@
 
 /**
  * Lightweight browser error beacon → POST /public/client-errors
- * Optional: set NEXT_PUBLIC_SENTRY_DSN later for full Sentry SDK.
+ * When NEXT_PUBLIC_SENTRY_DSN is set, also forwards to Sentry Browser SDK.
  */
+
+let sentryReady: Promise<boolean> | null = null;
+
+async function ensureSentry(): Promise<boolean> {
+  if (typeof window === "undefined") return false;
+  const dsn = (process.env.NEXT_PUBLIC_SENTRY_DSN || "").trim();
+  if (!dsn) return false;
+  if (!sentryReady) {
+    sentryReady = (async () => {
+      try {
+        const Sentry = await import("@sentry/browser");
+        Sentry.init({
+          dsn,
+          environment:
+            process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT ||
+            process.env.NODE_ENV ||
+            "development",
+          tracesSampleRate: Number(
+            process.env.NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE || 0.1,
+          ),
+          enabled: process.env.NEXT_PUBLIC_SENTRY_ENABLED !== "false",
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    })();
+  }
+  return sentryReady;
+}
+
 export function reportClientError(payload: {
   message: string;
   stack?: string;
@@ -21,22 +52,41 @@ export function reportClientError(payload: {
     if (navigator.sendBeacon) {
       const blob = new Blob([body], { type: "application/json" });
       navigator.sendBeacon("/backend-api/public/client-errors", blob);
-      return;
+    } else {
+      void fetch("/backend-api/public/client-errors", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body,
+        credentials: "omit",
+        keepalive: true,
+      });
     }
-    void fetch("/backend-api/public/client-errors", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body,
-      credentials: "omit",
-      keepalive: true,
-    });
   } catch {
     /* never break the app for reporting */
   }
+
+  void (async () => {
+    try {
+      const ok = await ensureSentry();
+      if (!ok) return;
+      const Sentry = await import("@sentry/browser");
+      Sentry.captureMessage(payload.message, {
+        level: "error",
+        extra: {
+          stack: payload.stack,
+          url: payload.url || window.location.href,
+          source: payload.source || "browser",
+        },
+      });
+    } catch {
+      /* ignore */
+    }
+  })();
 }
 
 export function installClientErrorReporting() {
   if (typeof window === "undefined") return () => undefined;
+  void ensureSentry();
   const onError = (event: ErrorEvent) => {
     reportClientError({
       message: event.message || "window.error",

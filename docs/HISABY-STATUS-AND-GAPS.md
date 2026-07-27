@@ -50,6 +50,7 @@
 **موجة AW (تقارير Roles + Dual مطالبات/كتب + صدق حذف/بنك):** [`HISABY-WAVE-AW-REPORTS-DUAL-HONESTY-2026-07-27.md`](./HISABY-WAVE-AW-REPORTS-DUAL-HONESTY-2026-07-27.md)
 **موجة AX (تنقل موبايل + استقرار لوحة التحكم):** [`HISABY-WAVE-AX-MOBILE-NAV-DASHBOARD-2026-07-27.md`](./HISABY-WAVE-AX-MOBILE-NAV-DASHBOARD-2026-07-27.md)
 **موجة AY (دعوات مستخدمين + صلاحيات موحّدة + تقارير مدير):** [`HISABY-WAVE-AY-USERS-PERMISSIONS-REPORTS-2026-07-27.md`](./HISABY-WAVE-AY-USERS-PERMISSIONS-REPORTS-2026-07-27.md)
+**موجة AZ (CI + Sentry اختياري + Dependabot + hardening إنتاج):** [`HISABY-WAVE-AZ-PROD-HARDENING-CI-SENTRY-2026-07-27.md`](./HISABY-WAVE-AZ-PROD-HARDENING-CI-SENTRY-2026-07-27.md)
 
 ---
 
@@ -87,8 +88,9 @@
 | البند | الأولوية |
 |-------|----------|
 | OTA live (اعتماد جهة) | عالية |
-| WAF / حماية بوتات | عالية إنتاج |
-| Sentry كامل (DSN) | متوسطة |
+| WAF / حماية بوتات (Cloudflare) | عالية إنتاج — دليل في `PRODUCTION-HARDENING.md` |
+| Sentry DSN مفعّل على Render/Vercel | متوسطة — SDK جاهز (Wave AZ) |
+| Redis كاش/جلسات | متوسطة |
 | Capacitor أصلي | متوسطة |
 | SoftPOS جهاز طرفي | متوسطة |
 | طباعة BLE موثوقة | منخفضة–متوسطة |

@@ -24,6 +24,7 @@
     "@radix-ui/react-tabs": "^1.1.0",
     "@radix-ui/react-tooltip": "^1.1.2",
     "@react-oauth/google": "^0.13.5",
+    "@sentry/browser": "^8.55.2",
     "@tailwindcss/forms": "^0.5.7",
     "@tanstack/react-query": "^5.51.11",
     "@tanstack/react-query-devtools": "^5.51.11",

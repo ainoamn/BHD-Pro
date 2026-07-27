@@ -102,6 +102,7 @@
 - موجة AW: RolesGuard تقارير + Dual رفض مطالبة/مصروف كتب + عملة جلسة + صدق تعطيل/بنك — [`HISABY-WAVE-AW-REPORTS-DUAL-HONESTY-2026-07-27.md`](./HISABY-WAVE-AW-REPORTS-DUAL-HONESTY-2026-07-27.md)
 - موجة AX: قائمة موبايل موحّدة (محاسبة/كاشير/مطاعم/أدمن) + إصلاح وميض لوحة التحكم — [`HISABY-WAVE-AX-MOBILE-NAV-DASHBOARD-2026-07-27.md`](./HISABY-WAVE-AX-MOBILE-NAV-DASHBOARD-2026-07-27.md)
 - موجة AY: دعوات مستخدمين + صلاحيات موحّدة عبر الأنظمة + تقارير مدير دورية — [`HISABY-WAVE-AY-USERS-PERMISSIONS-REPORTS-2026-07-27.md`](./HISABY-WAVE-AY-USERS-PERMISSIONS-REPORTS-2026-07-27.md)
+- موجة AZ: CI + Dependabot + Sentry اختياري + دليل hardening إنتاج — [`HISABY-WAVE-AZ-PROD-HARDENING-CI-SENTRY-2026-07-27.md`](./HISABY-WAVE-AZ-PROD-HARDENING-CI-SENTRY-2026-07-27.md)
 
 ### 1.6 المنصة ولوحة الإدارة (محدث 26 يوليو مساءً)
 - اشتراكات، بوابات دفع، `/admin`، PWA، GeoIP، keep-warm

@@ -7,9 +7,11 @@ import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 import { PrismaService } from './prisma/prisma.service';
 import { assertProductionSecrets } from './common/crypto/secrets.crypto';
+import { initSentry } from './observability/sentry';
 
 async function bootstrap() {
   assertProductionSecrets();
+  await initSentry();
 
   const app = await NestFactory.create(AppModule, { rawBody: true });
 

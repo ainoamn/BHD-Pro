@@ -39,11 +39,22 @@ After the hardening commit, the app is **closer to production-ready** for a cont
 ## Remaining (recommended next)
 
 - ~~Enforce 2FA for ADMIN/MANAGER~~ — **done (Wave H partial):** `REQUIRE_2FA_ROLES` (default `ADMIN,MANAGER`) + company `require2faForAdmins`; banner + disable blocked; set `REQUIRE_2FA_ROLES=off` to disable env policy
-- WAF / bot protection in front of login (Cloudflare)
-- Full Sentry DSN wiring (optional env) for error monitoring — lightweight `POST /public/client-errors` beacon shipped in Wave I; full `@sentry/*` SDK still optional
-- Dependency audit (`npm audit`) and lock Next.js / Nest to patched releases
+- ~~CI / Dependabot / optional Sentry SDK~~ — **done (Wave AZ):** `.github/workflows/ci.yml`, Dependabot, `@sentry/node` + `@sentry/browser` when DSN set
+- WAF / bot protection in front of login (Cloudflare) — see [`docs/PRODUCTION-HARDENING.md`](./docs/PRODUCTION-HARDENING.md)
+- Wire Redis (`REDIS_URL`) for cache/sessions beyond docker-compose stub
 - Object storage (S3) for attachments instead of data URLs
 - Narrow API-key scopes below full ACCOUNTANT where possible
+- Penetration testing before open registration
+
+## Hardening — 27 Jul 2026 (Wave AZ)
+
+| Area | Change |
+|------|--------|
+| CI | GitHub Actions build + typecheck + audit on `main` |
+| Dependabot | Weekly npm + Actions updates |
+| Sentry | Optional DSN bootstrap (API + browser beacon) |
+| Tests | Backend smoke tests for module permissions |
+| Docs | `docs/PRODUCTION-HARDENING.md` WAF/Sentry checklist |
 
 ## Hardening — 26 Jul 2026 (Wave H partial)
 
