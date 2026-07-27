@@ -3,13 +3,14 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Package, Plus, RefreshCw, X } from "lucide-react";
+import { Loader2, Package, Plus, Printer, RefreshCw, Eye, Pencil, X } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 import { useLocaleStore } from "@/store/locale";
 import { posCopy } from "@/lib/pos-copy";
 import { formatMoney } from "@/lib/utils";
+import { printProductLabel } from "@/lib/product-label";
 import { CreatableSelect } from "@/components/ui/creatable-select";
 import { DecimalInput } from "@/components/ui/decimal-input";
 
@@ -44,10 +45,12 @@ const emptyForm = () => ({
 export default function PosInventoryPage() {
   const locale = useLocaleStore((s) => s.locale);
   const t = posCopy[locale === "en" ? "en" : "ar"];
-  const currency = useAuthStore((s) => s.company?.currency) || "OMR";
+  const company = useAuthStore((s) => s.company);
+  const currency = company?.currency || "OMR";
   const queryClient = useQueryClient();
   const [q, setQ] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
+  const [detailProduct, setDetailProduct] = useState<PosProductRow | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm());
   const [codesLoading, setCodesLoading] = useState(false);
@@ -123,6 +126,27 @@ export default function PosInventoryPage() {
     setModalOpen(true);
   };
 
+  const openProductLabel = (product: PosProductRow) => {
+    const code = (product.barcode || product.sku || "").trim();
+    if (!code) {
+      toast.error(t.labelNoBarcode);
+      return;
+    }
+    window.setTimeout(() => {
+      printProductLabel({
+        name: product.name,
+        sku: product.sku,
+        barcode: code,
+        salePrice: Number(product.salePrice),
+        currency,
+        companyName: company?.name,
+        vatNumber: company?.vatNumber || undefined,
+        phone: company?.phone || undefined,
+        logoUrl: company?.logo || "/brand/hisaby-mark.png",
+      });
+    }, 0);
+  };
+
   const saveMutation = useMutation({
     mutationFn: async () => {
       const payload = {
@@ -146,10 +170,14 @@ export default function PosInventoryPage() {
       }
       return api.createProduct(payload);
     },
-    onSuccess: () => {
+    onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ["pos-inventory-products"] });
       toast.success(t.productSaved);
       setModalOpen(false);
+      const created = !editingId ? (res?.data as PosProductRow | undefined) : null;
+      if (created?.id) {
+        window.setTimeout(() => openProductLabel(created), 0);
+      }
     },
     onError: () => toast.error(t.productSaveFail),
   });
@@ -251,14 +279,33 @@ export default function PosInventoryPage() {
                   <td className="p-3 text-end tabular-nums text-emerald-300">
                     {formatMoney(Number(p.salePrice), currency)}
                   </td>
-                  <td className="p-3 text-end">
-                    <button
-                      type="button"
-                      onClick={() => openEdit(p)}
-                      className="text-xs text-sky-300 hover:underline"
-                    >
-                      {t.edit}
-                    </button>
+                  <td className="p-3">
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        type="button"
+                        title={t.productDetails}
+                        onClick={() => setDetailProduct(p)}
+                        className="p-2 rounded-lg hover:bg-white/10 text-slate-300"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        title={t.printLabel}
+                        onClick={() => openProductLabel(p)}
+                        className="p-2 rounded-lg hover:bg-white/10 text-sky-300"
+                      >
+                        <Printer className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openEdit(p)}
+                        className="p-2 rounded-lg hover:bg-white/10 text-sky-300"
+                        title={t.edit}
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -266,6 +313,111 @@ export default function PosInventoryPage() {
           </table>
         </div>
       )}
+
+      {detailProduct ? (
+        <div className="fixed inset-0 z-50 flex items-start justify-center pt-10 bg-black/60 p-4 overflow-y-auto">
+          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0f172a] shadow-2xl">
+            <div className="flex items-center justify-between p-4 border-b border-white/10">
+              <h2 className="font-bold">{t.productDetails}</h2>
+              <button
+                type="button"
+                onClick={() => setDetailProduct(null)}
+                className="text-slate-400"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 space-y-3 text-sm">
+              <div>
+                <p className="text-xs text-slate-500">{t.productName}</p>
+                <p className="font-semibold text-white">{detailProduct.name}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xs text-slate-500">{t.sku}</p>
+                  <p className="font-mono text-slate-200">{detailProduct.sku || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500">{t.barcode}</p>
+                  <p className="font-mono text-slate-200">{detailProduct.barcode || "—"}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xs text-slate-500">{t.category}</p>
+                  <p className="text-slate-200">{detailProduct.category || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500">{t.unit}</p>
+                  <p className="text-slate-200">{detailProduct.unit || "—"}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xs text-slate-500">{t.stock}</p>
+                  <p className="text-slate-200 tabular-nums">
+                    {Number(detailProduct.quantity)} {detailProduct.unit}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500">{t.minQty}</p>
+                  <p className="text-slate-200 tabular-nums">{Number(detailProduct.minQuantity ?? 0)}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xs text-slate-500">{t.costPrice}</p>
+                  <p className="text-slate-200 tabular-nums">
+                    {formatMoney(Number(detailProduct.costPrice), currency)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500">{t.salePrice}</p>
+                  <p className="text-emerald-300 tabular-nums font-semibold">
+                    {formatMoney(Number(detailProduct.salePrice), currency)}
+                  </p>
+                </div>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500">{t.soldByWeightLabel}</p>
+                <p className="text-slate-200">
+                  {detailProduct.soldByWeight ? t.yes : t.no}
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap justify-end gap-2 p-4 border-t border-white/10">
+              <button
+                type="button"
+                onClick={() => setDetailProduct(null)}
+                className="px-3 py-2 text-slate-400"
+              >
+                {t.cancel}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  openProductLabel(detailProduct);
+                }}
+                className="h-10 px-4 rounded-xl border border-sky-500/30 text-sky-300 text-sm font-semibold inline-flex items-center gap-2 hover:bg-sky-500/10"
+              >
+                <Printer className="w-4 h-4" />
+                {t.printLabel}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const p = detailProduct;
+                  setDetailProduct(null);
+                  openEdit(p);
+                }}
+                className="h-10 px-4 rounded-xl bg-emerald-500 text-white text-sm font-bold"
+              >
+                {t.edit}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-start justify-center pt-10 bg-black/60 p-4 overflow-y-auto">
