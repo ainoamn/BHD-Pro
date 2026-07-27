@@ -643,7 +643,7 @@ export class PosController {
   @Roles(...POS_STAFF)
   @ApiOperation({ summary: 'Open a POS cash-drawer shift for a warehouse' })
   openShift(@CurrentUser() user: TokenPayload, @Body() dto: OpenPosShiftDto) {
-    return this.pos.openShift(user.companyId, user.sub, dto);
+    return this.pos.openShift(user.companyId, user, dto);
   }
 
   @Post('shifts/close')

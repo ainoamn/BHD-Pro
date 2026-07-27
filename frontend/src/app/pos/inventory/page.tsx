@@ -54,10 +54,60 @@ export default function PosInventoryPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm());
   const [codesLoading, setCodesLoading] = useState(false);
+  const [scopeWarehouseId, setScopeWarehouseId] = useState<string | null>(null);
+  const [scopeWarehouseLabel, setScopeWarehouseLabel] = useState("");
+  const [canSwitchWarehouse, setCanSwitchWarehouse] = useState(false);
+  const [warehouses, setWarehouses] = useState<
+    { id: string; code: string; name: string }[]
+  >([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.getPosWarehouseContext();
+        if (cancelled) return;
+        const ctx = res.data;
+        setCanSwitchWarehouse(!!ctx.canSwitchFreely);
+        setWarehouses(
+          (ctx.warehouses || []).map((w) => ({
+            id: w.id,
+            code: w.code,
+            name: w.name,
+          })),
+        );
+        const home = ctx.homeWarehouseId || ctx.warehouses[0]?.id || null;
+        setScopeWarehouseId(home);
+        const labelWh =
+          ctx.homeWarehouse ||
+          ctx.warehouses.find((w) => w.id === home) ||
+          null;
+        setScopeWarehouseLabel(
+          labelWh ? `${labelWh.code} — ${labelWh.name}` : "",
+        );
+      } catch {
+        /* keep unscoped */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const { data: products = [], isLoading, isError, refetch } = useQuery({
-    queryKey: ["pos-inventory-products"],
+    queryKey: ["pos-inventory-products", scopeWarehouseId || "all"],
     queryFn: async () => {
+      if (scopeWarehouseId && typeof api.syncPosCatalog === "function") {
+        const res = await api.syncPosCatalog(scopeWarehouseId);
+        const rows = ((res.data?.products as PosProductRow[]) || []).map((p) => ({
+          ...p,
+          category: (p as { category?: string }).category || "—",
+          unit: (p as { unit?: string }).unit || "pcs",
+          costPrice: (p as { costPrice?: number | string }).costPrice ?? 0,
+          minQuantity: (p as { minQuantity?: number | string }).minQuantity,
+        }));
+        return rows;
+      }
       const res = await api.getProducts();
       return (res.data as PosProductRow[]) || [];
     },
@@ -160,6 +210,7 @@ export default function PosInventoryPage() {
         costPrice: Number(form.costPrice) || 0,
         salePrice: Number(form.salePrice) || 0,
         soldByWeight: form.soldByWeight === true,
+        warehouseId: scopeWarehouseId || undefined,
       };
       if (editingId) {
         return api.updateProduct(editingId, {
@@ -205,8 +256,33 @@ export default function PosInventoryPage() {
           </h1>
           <p className="text-sm text-slate-400 mt-1">{t.posInventorySub}</p>
           <p className="text-xs text-emerald-300/80 mt-1">{t.sharedRecordsNote}</p>
+          {scopeWarehouseLabel ? (
+            <p className="text-xs text-sky-300/90 mt-1">
+              {canSwitchWarehouse ? t.warehouseDefault : t.warehouseHome}:{" "}
+              <span className="font-semibold text-sky-100">{scopeWarehouseLabel}</span>
+            </p>
+          ) : null}
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          {canSwitchWarehouse && warehouses.length > 0 ? (
+            <select
+              value={scopeWarehouseId || ""}
+              onChange={(e) => {
+                const id = e.target.value || null;
+                setScopeWarehouseId(id);
+                const w = warehouses.find((x) => x.id === id);
+                setScopeWarehouseLabel(w ? `${w.code} — ${w.name}` : "");
+              }}
+              className="h-10 px-3 rounded-xl bg-[#0b1220] border border-white/10 text-sm text-white"
+              aria-label={t.warehouse}
+            >
+              {warehouses.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.code} — {w.name}
+                </option>
+              ))}
+            </select>
+          ) : null}
           <Link
             href="/pos"
             className="h-10 px-3 rounded-xl border border-white/10 text-sm text-slate-300 hover:bg-white/5 inline-flex items-center"

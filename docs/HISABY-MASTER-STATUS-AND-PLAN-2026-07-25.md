@@ -105,6 +105,8 @@
 - موجة AZ: CI + Dependabot + Sentry اختياري + دليل hardening إنتاج — [`HISABY-WAVE-AZ-PROD-HARDENING-CI-SENTRY-2026-07-27.md`](./HISABY-WAVE-AZ-PROD-HARDENING-CI-SENTRY-2026-07-27.md)
 - موجة BA: Redis اختياري للـ throttle + Playwright login smoke في CI — [`HISABY-WAVE-BA-REDIS-PLAYWRIGHT-2026-07-27.md`](./HISABY-WAVE-BA-REDIS-PLAYWRIGHT-2026-07-27.md)
 - موجة BB: S3 مرفقات رسمي + حذف ملفات + إغلاق PRs Dependabot المزعجة — [`HISABY-WAVE-BB-S3-DEPENDABOT-CLOSE-2026-07-27.md`](./HISABY-WAVE-BB-S3-DEPENDABOT-CLOSE-2026-07-27.md)
+- موجة BC: مستودع منزلي للكاشير + بيع مؤجّل التسليم من مستودع آخر — [`HISABY-WAVE-BC-SMART-WAREHOUSE-2026-07-27.md`](./HISABY-WAVE-BC-SMART-WAREHOUSE-2026-07-27.md)
+- موجة BD: توحيد الورديات/المخزون مع مستودع الموظف + فرض المستودع على فتح الوردية
 
 ### 1.6 المنصة ولوحة الإدارة (محدث 26 يوليو مساءً)
 - اشتراكات، بوابات دفع، `/admin`، PWA، GeoIP، keep-warm

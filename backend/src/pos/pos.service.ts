@@ -2290,7 +2290,14 @@ export class PosService {
     actor: TokenPayload,
     dto: CreatePosCashMovementDto,
   ) {
-    const shift = await this.findOpenShift(companyId, dto.warehouseId || null);
+    const resolved = await this.resolveSaleWarehouse(companyId, actor, {
+      warehouseId: dto.warehouseId,
+      deferredFulfillment: false,
+    });
+    const shiftWh = this.canSwitchWarehouseFreely(actor.role)
+      ? dto.warehouseId || null
+      : resolved.homeWarehouseId;
+    const shift = await this.findOpenShift(companyId, shiftWh);
     if (!shift) throw new BadRequestException('No open shift');
     const amount = Number(dto.amount);
     if (!(amount > 0)) {
@@ -2686,8 +2693,12 @@ export class PosService {
     return map;
   }
 
-  async openShift(companyId: string, userId: string, dto: OpenPosShiftDto) {
-    const warehouseId = dto.warehouseId || null;
+  async openShift(companyId: string, actor: TokenPayload, dto: OpenPosShiftDto) {
+    const resolved = await this.resolveSaleWarehouse(companyId, actor, {
+      warehouseId: dto.warehouseId,
+      deferredFulfillment: false,
+    });
+    const warehouseId = resolved.warehouseId || null;
     const existing = await this.findOpenShift(companyId, warehouseId);
     if (existing) {
       throw new BadRequestException(
@@ -2708,7 +2719,7 @@ export class PosService {
     const shift = await this.prisma.posShift.create({
       data: {
         companyId,
-        openedById: userId,
+        openedById: actor.sub,
         warehouseId,
         openingFloat,
         notes: dto.notes?.trim() || null,
@@ -2727,9 +2738,15 @@ export class PosService {
     actor: TokenPayload,
     dto: ClosePosShiftDto & { warehouseId?: string },
   ) {
-    const shift = await this.findOpenShift(companyId, dto.warehouseId || null);
+    const resolved = await this.resolveSaleWarehouse(companyId, actor, {
+      warehouseId: dto.warehouseId,
+      deferredFulfillment: false,
+    });
+    const shiftWarehouseId = this.canSwitchWarehouseFreely(actor.role)
+      ? dto.warehouseId || null
+      : resolved.homeWarehouseId;
+    const shift = await this.findOpenShift(companyId, shiftWarehouseId);
     if (!shift) throw new BadRequestException('No open shift to close');
-
     const closedAt = new Date();
     const closingCash = Number(dto.closingCash);
     const notes = dto.notes?.trim()

@@ -54,6 +54,7 @@
 **موجة BA (Redis اختياري + Playwright smoke):** [`HISABY-WAVE-BA-REDIS-PLAYWRIGHT-2026-07-27.md`](./HISABY-WAVE-BA-REDIS-PLAYWRIGHT-2026-07-27.md)
 **موجة BB (S3 مرفقات + إغلاق Dependabot):** [`HISABY-WAVE-BB-S3-DEPENDABOT-CLOSE-2026-07-27.md`](./HISABY-WAVE-BB-S3-DEPENDABOT-CLOSE-2026-07-27.md)
 **موجة BC (مستودع موظف ذكي + تسليم مؤجّل):** [`HISABY-WAVE-BC-SMART-WAREHOUSE-2026-07-27.md`](./HISABY-WAVE-BC-SMART-WAREHOUSE-2026-07-27.md)
+**موجة BD:** توحيد الورديات/مخزون الكاشير مع مستودع الموظف + فرض المستودع عند فتح/إغلاق الوردية
 
 ---
 
