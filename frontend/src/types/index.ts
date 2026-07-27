@@ -13,6 +13,14 @@ export interface User {
   twoFactorEnabled?: boolean;
   twoFactorRequired?: boolean;
   mustCompleteProfile?: boolean;
+  /** Home POS warehouse — cashiers auto-lock here */
+  defaultWarehouseId?: string | null;
+  defaultWarehouse?: {
+    id: string;
+    code: string;
+    name: string;
+    nameEn?: string | null;
+  } | null;
 }
 
 export interface Company {

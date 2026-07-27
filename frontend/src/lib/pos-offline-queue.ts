@@ -13,6 +13,7 @@ export type PendingPosSale = {
     items: { productId: string; quantity: number; unitPrice?: number; discount?: number }[];
     paymentMethod?: string;
     warehouseId?: string;
+    deferredFulfillment?: boolean;
     contactId?: string;
     tipAmount?: number;
     notes?: string;

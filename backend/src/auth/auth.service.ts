@@ -44,7 +44,12 @@ export class AuthService {
     const normalizedEmail = email.trim().toLowerCase();
     const user = await this.prisma.user.findUnique({
       where: { email: normalizedEmail },
-      include: { company: true },
+      include: {
+        company: true,
+        defaultWarehouse: {
+          select: { id: true, code: true, name: true, nameEn: true },
+        },
+      },
     });
 
     if (!user || !user.isActive) {
@@ -123,7 +128,12 @@ export class AuthService {
 
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
-      include: { company: true },
+      include: {
+        company: true,
+        defaultWarehouse: {
+          select: { id: true, code: true, name: true, nameEn: true },
+        },
+      },
     });
     if (!user || !user.isActive || !user.twoFactorEnabled || !user.twoFactorSecret) {
       throw new UnauthorizedException('Invalid credentials');
@@ -307,6 +317,8 @@ export class AuthService {
         company: this.enrichCompany(user.company),
         permissions: user.permissions || null,
         modulePermissions: resolveModulePermissions(user.role, user.permissions),
+        defaultWarehouseId: user.defaultWarehouseId || null,
+        defaultWarehouse: user.defaultWarehouse || null,
       },
       ...tokens,
     };
@@ -390,7 +402,12 @@ export class AuthService {
       where: {
         OR: [{ googleId }, { email }],
       },
-      include: { company: true },
+      include: {
+        company: true,
+        defaultWarehouse: {
+          select: { id: true, code: true, name: true, nameEn: true },
+        },
+      },
     });
 
     if (user) {
@@ -422,7 +439,12 @@ export class AuthService {
             lockedUntil: null,
             lastLoginAt: new Date(),
           },
-          include: { company: true },
+          include: {
+        company: true,
+        defaultWarehouse: {
+          select: { id: true, code: true, name: true, nameEn: true },
+        },
+      },
         });
       } else {
         await this.prisma.user.update({
@@ -431,7 +453,12 @@ export class AuthService {
         });
         user = await this.prisma.user.findUnique({
           where: { id: user.id },
-          include: { company: true },
+          include: {
+        company: true,
+        defaultWarehouse: {
+          select: { id: true, code: true, name: true, nameEn: true },
+        },
+      },
         });
       }
 
@@ -479,7 +506,12 @@ export class AuthService {
         companyId: company.id,
         lastLoginAt: new Date(),
       },
-      include: { company: true },
+      include: {
+        company: true,
+        defaultWarehouse: {
+          select: { id: true, code: true, name: true, nameEn: true },
+        },
+      },
     });
 
     const { password: _, twoFactorSecret: __, ...safe } = user;
@@ -506,7 +538,12 @@ export class AuthService {
 
       const user = await this.prisma.user.findUnique({
         where: { id: payload.sub },
-        include: { company: true },
+        include: {
+        company: true,
+        defaultWarehouse: {
+          select: { id: true, code: true, name: true, nameEn: true },
+        },
+      },
       });
 
       if (!user || !user.isActive || !user.company?.isActive) {
@@ -544,7 +581,12 @@ export class AuthService {
   async getInvite(token: string) {
     const user = await this.prisma.user.findFirst({
       where: { inviteToken: token, isActive: true },
-      include: { company: true },
+      include: {
+        company: true,
+        defaultWarehouse: {
+          select: { id: true, code: true, name: true, nameEn: true },
+        },
+      },
     });
     if (!user || !user.mustCompleteProfile) {
       throw new UnauthorizedException('Invalid invitation');
@@ -565,7 +607,12 @@ export class AuthService {
   async completeInvite(dto: CompleteInviteDto) {
     const user = await this.prisma.user.findFirst({
       where: { inviteToken: dto.token, isActive: true },
-      include: { company: true },
+      include: {
+        company: true,
+        defaultWarehouse: {
+          select: { id: true, code: true, name: true, nameEn: true },
+        },
+      },
     });
     if (!user || !user.mustCompleteProfile) {
       throw new UnauthorizedException('Invalid invitation');
@@ -594,7 +641,12 @@ export class AuthService {
         inviteExpiresAt: null,
         mustCompleteProfile: false,
       },
-      include: { company: true },
+      include: {
+        company: true,
+        defaultWarehouse: {
+          select: { id: true, code: true, name: true, nameEn: true },
+        },
+      },
     });
     await this.auditAuth({
       companyId: updated.companyId,
@@ -611,7 +663,12 @@ export class AuthService {
     }
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: { company: true },
+      include: {
+        company: true,
+        defaultWarehouse: {
+          select: { id: true, code: true, name: true, nameEn: true },
+        },
+      },
     });
     if (!user || !user.isActive) {
       throw new UnauthorizedException();
@@ -632,6 +689,8 @@ export class AuthService {
       twoFactorRequired,
       permissions: safe.permissions || null,
       modulePermissions: resolveModulePermissions(safe.role, safe.permissions),
+      defaultWarehouseId: safe.defaultWarehouseId || null,
+      defaultWarehouse: safe.defaultWarehouse || null,
     };
   }
 

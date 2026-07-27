@@ -119,6 +119,14 @@ export class CreatePosSaleDto {
   @IsUUID()
   warehouseId?: string;
 
+  /**
+   * Sell from a non-home warehouse without deducting stock now.
+   * Stock is fulfilled later (delivery). Required for cashiers when warehouse ≠ home.
+   */
+  @IsOptional()
+  @IsBoolean()
+  deferredFulfillment?: boolean;
+
   @IsOptional()
   @IsUUID()
   contactId?: string;

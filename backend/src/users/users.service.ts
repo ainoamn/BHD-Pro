@@ -48,6 +48,10 @@ export class UsersService {
         mustCompleteProfile: true,
         inviteExpiresAt: true,
         inviteAcceptedAt: true,
+        defaultWarehouseId: true,
+        defaultWarehouse: {
+          select: { id: true, code: true, name: true, nameEn: true },
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -118,12 +122,29 @@ export class UsersService {
     });
   }
 
+  private async assertWarehouseInCompany(
+    companyId: string,
+    warehouseId: string | null | undefined,
+  ) {
+    if (warehouseId == null || warehouseId === '') return null;
+    const wh = await this.prisma.warehouse.findFirst({
+      where: { id: warehouseId, companyId, isActive: true },
+      select: { id: true },
+    });
+    if (!wh) throw new NotFoundException('Warehouse not found');
+    return wh.id;
+  }
+
   async create(companyId: string, dto: CreateUserDto) {
     await this.subscriptions.assertCanCreateUser(companyId);
     const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (existing) throw new ConflictException('Email already exists');
 
     const permissions = this.sanitizePermissions(dto.permissions);
+    const defaultWarehouseId = await this.assertWarehouseInCompany(
+      companyId,
+      dto.defaultWarehouseId,
+    );
     const inviteToken = randomBytes(24).toString('hex');
     const username = await this.nextUsername(companyId);
     const inviteExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
@@ -142,6 +163,7 @@ export class UsersService {
         inviteExpiresAt,
         mustCompleteProfile: true,
         isActive: true,
+        ...(defaultWarehouseId ? { defaultWarehouseId } : {}),
         ...(permissions !== undefined ? { permissions } : {}),
       },
       select: {
@@ -154,6 +176,10 @@ export class UsersService {
         permissions: true,
         inviteExpiresAt: true,
         mustCompleteProfile: true,
+        defaultWarehouseId: true,
+        defaultWarehouse: {
+          select: { id: true, code: true, name: true, nameEn: true },
+        },
       },
     });
     const inviteUrl = this.inviteUrl(inviteToken);
@@ -180,6 +206,13 @@ export class UsersService {
     }
 
     const permissions = this.sanitizePermissions(dto.permissions);
+    let defaultWarehouseId: string | null | undefined = undefined;
+    if (dto.defaultWarehouseId !== undefined) {
+      defaultWarehouseId = await this.assertWarehouseInCompany(
+        companyId,
+        dto.defaultWarehouseId,
+      );
+    }
     const updated = await this.prisma.user.update({
       where: { id },
       data: {
@@ -187,6 +220,7 @@ export class UsersService {
         ...(dto.role !== undefined && { role: dto.role }),
         ...(dto.isActive !== undefined && { isActive: dto.isActive }),
         ...(permissions !== undefined && { permissions }),
+        ...(defaultWarehouseId !== undefined && { defaultWarehouseId }),
       },
       select: {
         id: true,
@@ -200,6 +234,10 @@ export class UsersService {
         inviteExpiresAt: true,
         inviteAcceptedAt: true,
         mustCompleteProfile: true,
+        defaultWarehouseId: true,
+        defaultWarehouse: {
+          select: { id: true, code: true, name: true, nameEn: true },
+        },
       },
     });
     return {

@@ -24,6 +24,11 @@ export class CreateUserDto {
   @IsOptional()
   @IsObject()
   permissions?: Record<string, 'hidden' | 'view' | 'edit'>;
+
+  /** Home warehouse for POS (auto-selected for cashiers) */
+  @IsOptional()
+  @IsString()
+  defaultWarehouseId?: string | null;
 }
 
 export class UpdateUserDto extends PartialType(
@@ -36,6 +41,10 @@ export class UpdateUserDto extends PartialType(
   @IsOptional()
   @IsObject()
   permissions?: Record<string, 'hidden' | 'view' | 'edit'> | null;
+
+  @IsOptional()
+  @IsString()
+  defaultWarehouseId?: string | null;
 }
 
 export class ResendInviteDto {

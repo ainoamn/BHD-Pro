@@ -151,18 +151,116 @@ export class PosService {
     companyId: string,
     overrideWarehouseId?: string,
   ): Promise<string | null> {
-    const company = await this.prisma.company.findUnique({
-      where: { id: companyId },
-      select: { posWarehouseId: true },
-    });
-    if (company?.posWarehouseId) {
-      return company.posWarehouseId;
-    }
     if (overrideWarehouseId) {
       await this.assertCompanyWarehouse(companyId, overrideWarehouseId);
       return overrideWarehouseId;
     }
-    return null;
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { posWarehouseId: true },
+    });
+    return company?.posWarehouseId || null;
+  }
+
+  private canSwitchWarehouseFreely(role: string): boolean {
+    const r = String(role || '').toUpperCase();
+    return r === 'ADMIN' || r === 'MANAGER' || r === 'RESTO_MANAGER';
+  }
+
+  async resolveActorHomeWarehouse(companyId: string, userId: string) {
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, companyId },
+      select: {
+        defaultWarehouseId: true,
+        defaultWarehouse: {
+          select: { id: true, code: true, name: true, nameEn: true, sector: true },
+        },
+      },
+    });
+    if (user?.defaultWarehouseId) {
+      return {
+        id: user.defaultWarehouseId as string,
+        warehouse: user.defaultWarehouse,
+      };
+    }
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: {
+        posWarehouseId: true,
+        posWarehouse: {
+          select: { id: true, code: true, name: true, nameEn: true, sector: true },
+        },
+      },
+    });
+    return {
+      id: company?.posWarehouseId || null,
+      warehouse: company?.posWarehouse || null,
+    };
+  }
+
+  /**
+   * Managers pick any warehouse freely.
+   * Cashiers stay on home warehouse unless deferred remote sale is requested.
+   */
+  async resolveSaleWarehouse(
+    companyId: string,
+    actor: TokenPayload,
+    dto: { warehouseId?: string; deferredFulfillment?: boolean },
+  ): Promise<{ warehouseId: string | null; deferred: boolean; homeWarehouseId: string | null }> {
+    const home = await this.resolveActorHomeWarehouse(companyId, actor.sub);
+    const free = this.canSwitchWarehouseFreely(actor.role);
+    const requested = dto.warehouseId?.trim() || null;
+
+    if (free) {
+      if (requested) await this.assertCompanyWarehouse(companyId, requested);
+      return {
+        warehouseId: requested || home.id,
+        deferred: !!dto.deferredFulfillment && !!requested && requested !== home.id,
+        homeWarehouseId: home.id,
+      };
+    }
+
+    if (!requested || requested === home.id) {
+      return {
+        warehouseId: home.id,
+        deferred: false,
+        homeWarehouseId: home.id,
+      };
+    }
+
+    await this.assertCompanyWarehouse(companyId, requested);
+    if (!dto.deferredFulfillment) {
+      throw new BadRequestException(
+        'Selling from another warehouse requires deferred fulfillment (deliver later)',
+      );
+    }
+    return {
+      warehouseId: requested,
+      deferred: true,
+      homeWarehouseId: home.id,
+    };
+  }
+
+  async getPosWarehouseContext(companyId: string, actor: TokenPayload) {
+    const home = await this.resolveActorHomeWarehouse(companyId, actor.sub);
+    const warehouses = await this.prisma.warehouse.findMany({
+      where: { companyId, isActive: true, sector: { in: ['RETAIL', 'GENERAL'] } },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        nameEn: true,
+        sector: true,
+        branchId: true,
+      },
+      orderBy: { code: 'asc' },
+    });
+    return {
+      canSwitchFreely: this.canSwitchWarehouseFreely(actor.role),
+      homeWarehouseId: home.id,
+      homeWarehouse: home.warehouse,
+      warehouses,
+    };
   }
 
   /** Same-login SSO: mark Accounting ↔ POS as linked for this company */
@@ -910,6 +1008,13 @@ export class PosService {
     await this.subscriptions.assertCanCreateInvoice(companyId);
     const userId = actor.sub;
 
+    const saleWh = await this.resolveSaleWarehouse(companyId, actor, {
+      warehouseId: dto.warehouseId,
+      deferredFulfillment: dto.deferredFulfillment,
+    });
+    const effectiveWarehouseId = saleWh.warehouseId || undefined;
+    const deferredFulfillment = saleWh.deferred;
+
     const clientSaleId = dto.clientSaleId?.trim();
     if (clientSaleId) {
       const existing = await this.prisma.invoice.findFirst({
@@ -1167,7 +1272,7 @@ export class PosService {
       }
     }
 
-    const openShift = await this.findOpenShift(companyId, dto.warehouseId || null);
+    const openShift = await this.findOpenShift(companyId, effectiveWarehouseId || null);
     if ((await this.dualControl.isRequireOpenShift(companyId)) && !openShift) {
       throw new BadRequestException(
         'An open shift is required before completing a sale. Open a shift from /pos/shifts first.',
@@ -1187,23 +1292,25 @@ export class PosService {
         loyaltyPointsDebited = true;
       }
 
-      for (const item of lineItems) {
-        if (!item.productId) continue;
-        const result = await this.reserveStockOut(
-          companyId,
-          item.productId,
-          item.quantity,
-          dto.warehouseId,
-          reserveRef,
-          'POS sale (reserved)',
-          allowNegativeStock,
-        );
-        if (result.reserved) {
-          reserved.push({
-            productId: result.productId,
-            qty: result.qty!,
-            warehouseId: result.warehouseId!,
-          });
+      if (!deferredFulfillment) {
+        for (const item of lineItems) {
+          if (!item.productId) continue;
+          const result = await this.reserveStockOut(
+            companyId,
+            item.productId,
+            item.quantity,
+            effectiveWarehouseId,
+            reserveRef,
+            'POS sale (reserved)',
+            allowNegativeStock,
+          );
+          if (result.reserved) {
+            reserved.push({
+              productId: result.productId,
+              qty: result.qty!,
+              warehouseId: result.warehouseId!,
+            });
+          }
         }
       }
 
@@ -1215,9 +1322,12 @@ export class PosService {
       const withOverride = allowNegativeStock
         ? `[STOCK_OVERRIDE] ${baseNotes}`
         : baseNotes;
-      const withClient = clientSaleId
-        ? `${withOverride} [CLIENT_SALE:${clientSaleId}]`
+      const withDeferred = deferredFulfillment
+        ? `[POS_DEFERRED_FULFILL] ${withOverride}`
         : withOverride;
+      const withClient = clientSaleId
+        ? `${withDeferred} [CLIENT_SALE:${clientSaleId}]`
+        : withDeferred;
       const notes =
         useStoreCredit || storeCreditPortion > 0
           ? `[STORE_CREDIT] ${withClient}`
@@ -1245,6 +1355,18 @@ export class PosService {
         })),
       });
       invoiceCreated = true;
+
+      try {
+        await this.prisma.invoice.update({
+          where: { id: invoice.id },
+          data: {
+            posWarehouseId: effectiveWarehouseId || null,
+            posFulfillmentStatus: deferredFulfillment ? 'PENDING' : null,
+          },
+        });
+      } catch {
+        /* columns may be pending migrate — non-fatal for sale */
+      }
 
       if (partnerCheckout) {
         await this.prisma.invoice.update({
@@ -1462,7 +1584,18 @@ export class PosService {
         invoice.number,
       );
 
-      return invoice;
+      const fresh = await this.prisma.invoice.findUnique({
+        where: { id: invoice.id },
+        include: {
+          contact: true,
+          items: true,
+          payments: true,
+          posWarehouse: {
+            select: { id: true, code: true, name: true, nameEn: true },
+          },
+        },
+      });
+      return fresh || invoice;
     } catch (err) {
       if (loyaltyPointsDebited && !invoiceCreated) {
         try {
@@ -1488,6 +1621,121 @@ export class PosService {
           } catch {
             /* best effort */
           }
+        }
+      }
+      throw err;
+    }
+  }
+
+  async listDeferredFulfillments(companyId: string, take = 40) {
+    const rows = await this.prisma.invoice.findMany({
+      where: {
+        companyId,
+        posFulfillmentStatus: 'PENDING',
+        isCash: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(Math.max(take, 1), 100),
+      include: {
+        contact: { select: { id: true, name: true, phone: true } },
+        items: {
+          select: {
+            productId: true,
+            description: true,
+            quantity: true,
+          },
+        },
+        posWarehouse: {
+          select: { id: true, code: true, name: true, nameEn: true },
+        },
+      },
+    });
+    return rows.map((inv) => ({
+      id: inv.id,
+      number: inv.number,
+      total: inv.total,
+      createdAt: inv.createdAt,
+      contact: inv.contact,
+      warehouse: inv.posWarehouse,
+      items: inv.items,
+    }));
+  }
+
+  async fulfillDeferredSale(
+    companyId: string,
+    actor: TokenPayload,
+    invoiceId: string,
+    allowNegativeStock = false,
+  ) {
+    const invoice = await this.prisma.invoice.findFirst({
+      where: { id: invoiceId, companyId, posFulfillmentStatus: 'PENDING' },
+      include: { items: true },
+    });
+    if (!invoice) {
+      throw new NotFoundException('Deferred POS sale not found');
+    }
+    if (!invoice.posWarehouseId) {
+      throw new BadRequestException('Sale has no source warehouse');
+    }
+
+    const reserveRef = `POS-FULFILL-${invoice.number}`;
+    const reserved: { productId: string; qty: number; warehouseId: string }[] =
+      [];
+    try {
+      for (const item of invoice.items) {
+        if (!item.productId) continue;
+        const result = await this.reserveStockOut(
+          companyId,
+          item.productId,
+          Number(item.quantity),
+          invoice.posWarehouseId,
+          reserveRef,
+          `POS deferred fulfill ${invoice.number}`,
+          allowNegativeStock,
+        );
+        if (result.reserved) {
+          reserved.push({
+            productId: result.productId,
+            qty: result.qty!,
+            warehouseId: result.warehouseId!,
+          });
+        }
+      }
+      await this.prisma.stockMovement.updateMany({
+        where: {
+          reference: reserveRef,
+          productId: { in: reserved.map((r) => r.productId) },
+        },
+        data: {
+          reference: invoice.number,
+          notes: 'POS deferred fulfillment',
+        },
+      });
+      const updated = await this.prisma.invoice.update({
+        where: { id: invoice.id },
+        data: { posFulfillmentStatus: 'DONE' },
+        include: {
+          contact: true,
+          items: true,
+          payments: true,
+          posWarehouse: {
+            select: { id: true, code: true, name: true, nameEn: true },
+          },
+        },
+      });
+      return { ok: true, invoice: updated, fulfilledBy: actor.sub };
+    } catch (err) {
+      for (const row of reserved.reverse()) {
+        try {
+          await this.releaseStockIn(
+            companyId,
+            row.productId,
+            row.qty,
+            row.warehouseId,
+            `${reserveRef}-ROLLBACK`,
+          );
+        } catch {
+          /* best effort */
         }
       }
       throw err;

@@ -2915,6 +2915,7 @@ class ApiClient {
     taxRate?: number;
     notes?: string;
     warehouseId?: string;
+    deferredFulfillment?: boolean;
     contactId?: string;
     clientSaleId?: string;
     parkedDraftId?: string;
@@ -2923,6 +2924,35 @@ class ApiClient {
     allowNegativeStock?: boolean;
   }) {
     return this.post('/pos/sales', data);
+  }
+
+  getPosWarehouseContext() {
+    return this.get<{
+      canSwitchFreely: boolean;
+      homeWarehouseId: string | null;
+      homeWarehouse: {
+        id: string;
+        code: string;
+        name: string;
+        nameEn?: string | null;
+      } | null;
+      warehouses: {
+        id: string;
+        code: string;
+        name: string;
+        nameEn?: string | null;
+        sector?: string;
+        branchId?: string | null;
+      }[];
+    }>('/pos/warehouse-context');
+  }
+
+  listPosPendingFulfillments(take = 40) {
+    return this.get('/pos/fulfillments/pending', { params: { take } });
+  }
+
+  fulfillPosSale(id: string, allowNegativeStock = false) {
+    return this.post(`/pos/sales/${id}/fulfill`, { allowNegativeStock });
   }
 
   getPosSaleByNumber(number: string) {

@@ -32,6 +32,8 @@ interface TeamUser {
   mustCompleteProfile?: boolean;
   permissions?: Record<string, AccessLevel> | null;
   modulePermissions?: ModulePermissions;
+  defaultWarehouseId?: string | null;
+  defaultWarehouse?: { id: string; code: string; name: string } | null;
 }
 
 const ROLES = [
@@ -61,10 +63,21 @@ export default function UsersPage() {
     name: "",
     email: "",
     role: "ACCOUNTANT",
+    defaultWarehouseId: "",
   });
   const [createPerms, setCreatePerms] = useState<ModulePermissions>(
     defaultsForRole("ACCOUNTANT"),
   );
+
+  const { data: warehouses = [] } = useQuery({
+    queryKey: ["warehouses"],
+    queryFn: async () => {
+      const res = await api.getWarehouses();
+      return ((res.data as { id: string; code: string; name: string; isActive?: boolean }[]) || []).filter(
+        (w) => w.isActive !== false,
+      );
+    },
+  });
 
   const { data: users = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["users"],
@@ -78,13 +91,14 @@ export default function UsersPage() {
     mutationFn: () =>
       api.createUser({
         ...form,
+        defaultWarehouseId: form.defaultWarehouseId || null,
         permissions: form.role === "ADMIN" ? undefined : createPerms,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
       toast.success(en ? "Invitation sent" : "تم إرسال دعوة المستخدم");
       setModalOpen(false);
-      setForm({ name: "", email: "", role: "ACCOUNTANT" });
+      setForm({ name: "", email: "", role: "ACCOUNTANT", defaultWarehouseId: "" });
       setCreatePerms(defaultsForRole("ACCOUNTANT"));
     },
     onError: (err: { response?: { data?: { message?: string } } }) => {
@@ -92,6 +106,21 @@ export default function UsersPage() {
     },
   });
 
+  const updateWarehouseMutation = useMutation({
+    mutationFn: ({
+      id,
+      defaultWarehouseId,
+    }: {
+      id: string;
+      defaultWarehouseId: string | null;
+    }) => api.updateUser(id, { defaultWarehouseId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      toast.success(en ? "Warehouse saved" : "تم حفظ مستودع الموظف");
+    },
+    onError: (err) =>
+      toast.error(apiErrorMessage(err, en ? "Could not save" : "تعذر الحفظ")),
+  });
   const updateRoleMutation = useMutation({
     mutationFn: ({ id, role }: { id: string; role: string }) =>
       api.updateUser(id, { role, permissions: defaultsForRole(role) }),
@@ -140,7 +169,7 @@ export default function UsersPage() {
   });
 
   const openCreate = () => {
-    setForm({ name: "", email: "", role: "ACCOUNTANT" });
+    setForm({ name: "", email: "", role: "ACCOUNTANT", defaultWarehouseId: "" });
     setCreatePerms(defaultsForRole("ACCOUNTANT"));
     setModalOpen(true);
   };
@@ -223,6 +252,9 @@ export default function UsersPage() {
                   <th className="text-right p-4 font-medium">{t("email")}</th>
                   <th className="text-right p-4 font-medium">{en ? "Username" : "اسم المستخدم"}</th>
                   <th className="text-right p-4 font-medium">{t("role")}</th>
+                  <th className="text-right p-4 font-medium">
+                    {en ? "Home warehouse" : "مستودع الموظف"}
+                  </th>
                   <th className="text-right p-4 font-medium">{t("status")}</th>
                   {isAdmin && (
                     <th className="text-right p-4 font-medium">{tCommon("actions")}</th>
@@ -249,6 +281,37 @@ export default function UsersPage() {
                       >
                         {t(`role_${u.role}`)}
                       </span>
+                    </td>
+                    <td className="p-4">
+                      {isAdmin ? (
+                        <select
+                          value={u.defaultWarehouseId || ""}
+                          onChange={(e) =>
+                            updateWarehouseMutation.mutate({
+                              id: u.id,
+                              defaultWarehouseId: e.target.value || null,
+                            })
+                          }
+                          disabled={updateWarehouseMutation.isPending}
+                          className="h-8 max-w-[11rem] px-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-xs focus:outline-none focus:border-emerald-500"
+                          title={en ? "POS home warehouse" : "مستودع الكاشير الافتراضي"}
+                        >
+                          <option value="">
+                            {en ? "Company default" : "افتراضي الشركة"}
+                          </option>
+                          {warehouses.map((w) => (
+                            <option key={w.id} value={w.id}>
+                              {w.code} — {w.name}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="text-xs text-slate-400">
+                          {u.defaultWarehouse
+                            ? `${u.defaultWarehouse.code} — ${u.defaultWarehouse.name}`
+                            : "—"}
+                        </span>
+                      )}
                     </td>
                     <td className="p-4">
                       <span
@@ -374,6 +437,27 @@ export default function UsersPage() {
                     {ROLES.map((r) => (
                       <option key={r} value={r}>
                         {t(`role_${r}`)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-slate-400 mb-1">
+                    {en ? "Home warehouse (POS)" : "مستودع الموظف (كاشير)"}
+                  </label>
+                  <select
+                    value={form.defaultWarehouseId}
+                    onChange={(e) =>
+                      setForm({ ...form, defaultWarehouseId: e.target.value })
+                    }
+                    className="w-full h-10 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500"
+                  >
+                    <option value="">
+                      {en ? "Company default" : "افتراضي الشركة"}
+                    </option>
+                    {warehouses.map((w) => (
+                      <option key={w.id} value={w.id}>
+                        {w.code} — {w.name}
                       </option>
                     ))}
                   </select>

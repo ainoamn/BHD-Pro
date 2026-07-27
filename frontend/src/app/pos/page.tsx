@@ -175,6 +175,13 @@ export default function PosCheckoutPage() {
   const [lastInvoice, setLastInvoice] = useState<ReceiptSnapshot | null>(null);
   const [warehouses, setWarehouses] = useState<PosWarehouse[]>([]);
   const [warehouseId, setWarehouseId] = useState("");
+  const [canSwitchWarehouse, setCanSwitchWarehouse] = useState(false);
+  const [homeWarehouseId, setHomeWarehouseId] = useState<string | null>(null);
+  const [remoteSellMode, setRemoteSellMode] = useState(false);
+  const [pendingFulfillments, setPendingFulfillments] = useState<
+    { id: string; number: string; total: number | string; warehouse?: { code: string; name: string } | null }[]
+  >([]);
+  const [fulfillBusyId, setFulfillBusyId] = useState<string | null>(null);
   const [recentSales, setRecentSales] = useState<RecentCashSale[]>([]);
   const [parkedCarts, setParkedCarts] = useState<ParkedCart[]>([]);
   const [parkLoadError, setParkLoadError] = useState(false);
@@ -856,13 +863,6 @@ export default function PosCheckoutPage() {
   useEffect(() => {
     loadRecentSales();
     focusScan();
-    let saved = "";
-    try {
-      saved = localStorage.getItem(POS_WAREHOUSE_KEY) || "";
-      if (saved) setWarehouseId(saved);
-    } catch {
-      /* ignore */
-    }
     if (companyId) {
       void loadParkedCarts();
       void api
@@ -885,31 +885,74 @@ export default function PosCheckoutPage() {
         setWebSerialOk(false);
       }
       try {
-        const [whRes, contactRes] = await Promise.all([
-          api.getWarehouses(),
+        const [ctxRes, contactRes] = await Promise.all([
+          api.getPosWarehouseContext(),
           api.getContacts("CUSTOMER"),
         ]);
         setBootError(false);
-        const rows = ((whRes.data as PosWarehouse[]) || []).filter((w) => w.isActive !== false);
-        setWarehouses(rows);
+        const ctx = ctxRes.data;
+        setWarehouses(
+          (ctx.warehouses || []).map((w) => ({
+            id: w.id,
+            code: w.code,
+            name: w.name,
+            nameEn: w.nameEn,
+            isActive: true,
+          })),
+        );
+        setCanSwitchWarehouse(!!ctx.canSwitchFreely);
+        setHomeWarehouseId(ctx.homeWarehouseId);
         const contactRows = ((contactRes.data as Contact[]) || []).filter(
           (c) => c.isActive !== false,
         );
         setCustomers(contactRows);
-        if (!saved && rows.length > 0) {
-          setWarehouseId(rows[0].id);
+
+        const homeId = ctx.homeWarehouseId || "";
+        if (ctx.canSwitchFreely) {
+          let saved = "";
           try {
-            localStorage.setItem(POS_WAREHOUSE_KEY, rows[0].id);
+            saved = localStorage.getItem(POS_WAREHOUSE_KEY) || "";
           } catch {
             /* ignore */
           }
-        } else if (saved && rows.length > 0 && !rows.some((w) => w.id === saved)) {
-          setWarehouseId(rows[0].id);
+          const pick =
+            (saved && ctx.warehouses.some((w) => w.id === saved) && saved) ||
+            homeId ||
+            ctx.warehouses[0]?.id ||
+            "";
+          setWarehouseId(pick);
+          if (pick) {
+            try {
+              localStorage.setItem(POS_WAREHOUSE_KEY, pick);
+            } catch {
+              /* ignore */
+            }
+          }
+        } else {
+          setRemoteSellMode(false);
+          setWarehouseId(homeId);
           try {
-            localStorage.setItem(POS_WAREHOUSE_KEY, rows[0].id);
+            if (homeId) localStorage.setItem(POS_WAREHOUSE_KEY, homeId);
+            else localStorage.removeItem(POS_WAREHOUSE_KEY);
           } catch {
             /* ignore */
           }
+        }
+
+        try {
+          const pend = await api.listPosPendingFulfillments(20);
+          setPendingFulfillments(
+            ((pend.data as typeof pendingFulfillments) || []).map((p) => ({
+              id: p.id,
+              number: p.number,
+              total: p.total,
+              warehouse: p.warehouse
+                ? { code: p.warehouse.code, name: p.warehouse.name }
+                : null,
+            })),
+          );
+        } catch {
+          setPendingFulfillments([]);
         }
       } catch {
         setBootError(true);
@@ -1292,15 +1335,21 @@ export default function PosCheckoutPage() {
   }, [cart.length, t.clearConfirm, t.stock, t.priceCheckOn, t.priceCheckOff, focusScan, shortcutsOpen, parkEdit, loadRecentSales]);
 
   const onWarehouseChange = (id: string) => {
+    if (!canSwitchWarehouse && !remoteSellMode) return;
     setWarehouseId(id);
     try {
-      if (id) localStorage.setItem(POS_WAREHOUSE_KEY, id);
-      else localStorage.removeItem(POS_WAREHOUSE_KEY);
+      if (canSwitchWarehouse) {
+        if (id) localStorage.setItem(POS_WAREHOUSE_KEY, id);
+        else localStorage.removeItem(POS_WAREHOUSE_KEY);
+      }
     } catch {
       /* ignore */
     }
     focusScan();
   };
+
+  const isDeferredSale =
+    remoteSellMode && !!warehouseId && !!homeWarehouseId && warehouseId !== homeWarehouseId;
 
   const addProduct = useCallback(
     (p: PosProduct, qty = 1): { added: boolean; lowStock: boolean } => {
@@ -2343,6 +2392,7 @@ export default function PosCheckoutPage() {
         redeemPointsToSend > 0.0005 ? redeemPointsToSend : undefined,
       notes: saleNotes,
       warehouseId: warehouseId || undefined,
+      deferredFulfillment: isDeferredSale || undefined,
       contactId: contactId || undefined,
       parkedDraftId: recalledDraftId || undefined,
       approval,
@@ -2379,6 +2429,7 @@ export default function PosCheckoutPage() {
             tipAmount: payload.tipAmount,
             notes: saleNotes,
             warehouseId: warehouseId || undefined,
+            deferredFulfillment: isDeferredSale || undefined,
             contactId: contactId || undefined,
             clientSaleId,
           },
@@ -2390,7 +2441,9 @@ export default function PosCheckoutPage() {
             warehouseLabel: warehouseLabel || undefined,
           },
         });
-        void adjustCachedStock(payload.items, warehouseId || undefined);
+        if (!isDeferredSale) {
+          void adjustCachedStock(payload.items, warehouseId || undefined);
+        }
         setLastInvoice({
           number: localNumber,
           total,
@@ -2515,6 +2568,7 @@ export default function PosCheckoutPage() {
               tipAmount: payload.tipAmount,
               notes: saleNotes,
               warehouseId: warehouseId || undefined,
+              deferredFulfillment: isDeferredSale || undefined,
               contactId: contactId || undefined,
               clientSaleId,
             },
@@ -2526,7 +2580,9 @@ export default function PosCheckoutPage() {
               warehouseLabel: warehouseLabel || undefined,
             },
           });
-          void adjustCachedStock(payload.items, warehouseId || undefined);
+          if (!isDeferredSale) {
+            void adjustCachedStock(payload.items, warehouseId || undefined);
+          }
           setLastInvoice({
             number: localNumber,
             total,
@@ -2752,16 +2808,27 @@ export default function PosCheckoutPage() {
                 setBootError(false);
                 void (async () => {
                   try {
-                    const [whRes, contactRes] = await Promise.all([
-                      api.getWarehouses(),
+                    const [ctxRes, contactRes] = await Promise.all([
+                      api.getPosWarehouseContext(),
                       api.getContacts("CUSTOMER"),
                     ]);
+                    const ctx = ctxRes.data;
                     setWarehouses(
-                      ((whRes.data as PosWarehouse[]) || []).filter((w) => w.isActive !== false),
+                      (ctx.warehouses || []).map((w) => ({
+                        id: w.id,
+                        code: w.code,
+                        name: w.name,
+                        nameEn: w.nameEn,
+                        isActive: true,
+                      })),
                     );
+                    setCanSwitchWarehouse(!!ctx.canSwitchFreely);
+                    setHomeWarehouseId(ctx.homeWarehouseId);
                     setCustomers(
                       ((contactRes.data as Contact[]) || []).filter((c) => c.isActive !== false),
                     );
+                    const homeId = ctx.homeWarehouseId || ctx.warehouses[0]?.id || "";
+                    setWarehouseId(homeId);
                   } catch {
                     setBootError(true);
                   }
@@ -2774,27 +2841,131 @@ export default function PosCheckoutPage() {
           </div>
         ) : null}
         {warehouses.length > 0 ? (
-          <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 space-y-1">
-            <label className="flex items-center gap-2">
-              <Warehouse className="w-4 h-4 text-sky-400/80 shrink-0" />
-              <span className="text-xs text-slate-400 shrink-0">{t.warehouseDefault}</span>
-              <select
-                value={warehouseId}
-                onChange={(e) => onWarehouseChange(e.target.value)}
-                className="flex-1 min-w-0 bg-transparent text-sm text-white focus:outline-none"
-                aria-label={t.warehouse}
-              >
-                <option value="" className="bg-[#111827] text-white" disabled>
-                  {t.warehouseAll}
-                </option>
-                {warehouses.map((w) => (
-                  <option key={w.id} value={w.id} className="bg-[#111827] text-white">
-                    {w.code} — {w.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <p className="text-[10px] text-slate-500 ps-6">{t.warehouseHint}</p>
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 space-y-2">
+            {canSwitchWarehouse ? (
+              <>
+                <label className="flex items-center gap-2">
+                  <Warehouse className="w-4 h-4 text-sky-400/80 shrink-0" />
+                  <span className="text-xs text-slate-400 shrink-0">{t.warehouseDefault}</span>
+                  <select
+                    value={warehouseId}
+                    onChange={(e) => onWarehouseChange(e.target.value)}
+                    className="flex-1 min-w-0 bg-transparent text-sm text-white focus:outline-none"
+                    aria-label={t.warehouse}
+                  >
+                    <option value="" className="bg-[#111827] text-white" disabled>
+                      {t.warehouseAll}
+                    </option>
+                    {warehouses.map((w) => (
+                      <option key={w.id} value={w.id} className="bg-[#111827] text-white">
+                        {w.code} — {w.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <p className="text-[10px] text-slate-500 ps-6">{t.warehouseHint}</p>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center gap-2">
+                  <Warehouse className="w-4 h-4 text-sky-400/80 shrink-0" />
+                  <span className="text-xs text-slate-400 shrink-0">{t.warehouseHome}</span>
+                  <span className="flex-1 min-w-0 text-sm font-semibold text-sky-100 truncate">
+                    {homeWarehouseId
+                      ? `${warehouses.find((w) => w.id === homeWarehouseId)?.code || ""} — ${
+                          warehouses.find((w) => w.id === homeWarehouseId)?.name || ""
+                        }`
+                      : t.noHomeWarehouse}
+                  </span>
+                </div>
+                <p className="text-[10px] text-slate-500 ps-6">{t.warehouseHomeHint}</p>
+                {warehouses.length > 1 && homeWarehouseId ? (
+                  <label className="flex items-start gap-2 ps-6 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5"
+                      checked={remoteSellMode}
+                      onChange={(e) => {
+                        const on = e.target.checked;
+                        setRemoteSellMode(on);
+                        if (!on) {
+                          setWarehouseId(homeWarehouseId);
+                        } else {
+                          const other = warehouses.find((w) => w.id !== homeWarehouseId);
+                          if (other) setWarehouseId(other.id);
+                        }
+                      }}
+                    />
+                    <span className="text-xs text-amber-200">
+                      {t.warehouseRemoteSell}
+                      <span className="block text-[10px] text-slate-500 mt-0.5">
+                        {t.warehouseRemoteHint}
+                      </span>
+                    </span>
+                  </label>
+                ) : null}
+                {remoteSellMode ? (
+                  <label className="flex items-center gap-2 ps-6">
+                    <select
+                      value={warehouseId}
+                      onChange={(e) => onWarehouseChange(e.target.value)}
+                      className="flex-1 min-w-0 rounded-lg bg-black/30 border border-white/10 px-2 py-1.5 text-sm"
+                      aria-label={t.warehouse}
+                    >
+                      {warehouses
+                        .filter((w) => w.id !== homeWarehouseId)
+                        .map((w) => (
+                          <option key={w.id} value={w.id} className="bg-[#111827] text-white">
+                            {w.code} — {w.name}
+                          </option>
+                        ))}
+                    </select>
+                    {isDeferredSale ? (
+                      <span className="shrink-0 text-[10px] font-bold text-amber-300 bg-amber-500/15 px-2 py-1 rounded-md">
+                        {t.warehouseDeferredBadge}
+                      </span>
+                    ) : null}
+                  </label>
+                ) : null}
+              </>
+            )}
+          </div>
+        ) : null}
+
+        {pendingFulfillments.length > 0 ? (
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 space-y-2">
+            <p className="text-xs font-bold text-amber-200">{t.fulfillPending}</p>
+            <ul className="space-y-1.5">
+              {pendingFulfillments.slice(0, 5).map((p) => (
+                <li
+                  key={p.id}
+                  className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-200"
+                >
+                  <span>
+                    {p.number}
+                    {p.warehouse ? ` · ${p.warehouse.code}` : ""}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={fulfillBusyId === p.id}
+                    onClick={() => {
+                      setFulfillBusyId(p.id);
+                      void api
+                        .fulfillPosSale(p.id)
+                        .then(() => {
+                          toast.success(t.fulfillOk);
+                          setPendingFulfillments((prev) => prev.filter((x) => x.id !== p.id));
+                        })
+                        .catch(() => toast.error(t.fulfillFail))
+                        .finally(() => setFulfillBusyId(null));
+                    }}
+                    className="rounded-lg bg-amber-500 px-2.5 py-1 text-[11px] font-bold text-slate-950 disabled:opacity-50"
+                  >
+                    {t.fulfillNow}
+                  </button>
+                </li>
+              ))}
+            </ul>
           </div>
         ) : null}
 

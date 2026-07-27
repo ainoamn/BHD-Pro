@@ -184,10 +184,15 @@ model User {
   restoOrdersTipAssignee RestoOrder[] @relation("RestoOrderTipAssignee")
   restoServerSections RestoServerSection[] @relation("RestoServerSectionUser")
 
+  /// Home warehouse for POS cashiers — auto-selected; managers may switch freely
+  defaultWarehouseId String? @map("default_warehouse_id")
+  defaultWarehouse   Warehouse? @relation("UserDefaultWarehouse", fields: [defaultWarehouseId], references: [id], onDelete: SetNull)
+
   @@index([companyId])
   @@index([email])
   @@index([username])
   @@index([role])
+  @@index([defaultWarehouseId])
   @@map("users")
 }
 
@@ -786,6 +791,12 @@ model Invoice {
   posShiftId  String?   @map("pos_shift_id")
   posShift    PosShift? @relation(fields: [posShiftId], references: [id], onDelete: SetNull)
 
+  /// Warehouse used for this POS sale (home or remote)
+  posWarehouseId String? @map("pos_warehouse_id")
+  posWarehouse   Warehouse? @relation("InvoicePosWarehouse", fields: [posWarehouseId], references: [id], onDelete: SetNull)
+  /// null = stock deducted at sale; PENDING = remote sale awaiting later fulfillment; DONE = fulfilled
+  posFulfillmentStatus String? @map("pos_fulfillment_status")
+
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
@@ -805,6 +816,8 @@ model Invoice {
   @@index([vatUuid])
   @@index([isCash])
   @@index([posShiftId])
+  @@index([posWarehouseId])
+  @@index([posFulfillmentStatus])
   @@map("invoices")
 }
 
@@ -1057,6 +1070,8 @@ model Warehouse {
   posShifts PosShift[]
   companiesPosDefault   Company[] @relation("CompanyPosWarehouse")
   companiesRestoDefault Company[] @relation("CompanyRestoWarehouse")
+  usersDefault          User[]    @relation("UserDefaultWarehouse")
+  invoicesPos           Invoice[] @relation("InvoicePosWarehouse")
 
   @@unique([companyId, code])
   @@index([companyId, sector])

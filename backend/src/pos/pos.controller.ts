@@ -381,6 +381,46 @@ export class PosController {
     return this.pos.createSale(user.companyId, user, dto);
   }
 
+  @Get('warehouse-context')
+  @Roles(...POS_STAFF)
+  @ApiOperation({
+    summary: 'Home warehouse + whether cashier may switch freely',
+  })
+  warehouseContext(@CurrentUser() user: TokenPayload) {
+    return this.pos.getPosWarehouseContext(user.companyId, user);
+  }
+
+  @Get('fulfillments/pending')
+  @Roles('ADMIN', 'MANAGER', 'RESTO_MANAGER', 'CASHIER')
+  @ApiOperation({ summary: 'POS sales awaiting later warehouse fulfillment' })
+  pendingFulfillments(
+    @CurrentUser() user: TokenPayload,
+    @Query('take') take?: string,
+  ) {
+    const n = take ? parseInt(take, 10) : 40;
+    return this.pos.listDeferredFulfillments(
+      user.companyId,
+      Number.isFinite(n) ? n : 40,
+    );
+  }
+
+  @Post('sales/:id/fulfill')
+  @Roles('ADMIN', 'MANAGER', 'RESTO_MANAGER', 'CASHIER')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  @ApiOperation({ summary: 'Deduct stock for a deferred POS sale' })
+  fulfillSale(
+    @CurrentUser() user: TokenPayload,
+    @Param('id') id: string,
+    @Body() body?: { allowNegativeStock?: boolean },
+  ) {
+    return this.pos.fulfillDeferredSale(
+      user.companyId,
+      user,
+      id,
+      !!body?.allowNegativeStock,
+    );
+  }
+
   @Get('sales/by-number')
   @Roles(...POS_STAFF)
   @ApiOperation({ summary: 'Find Hisaby POS cash sale by invoice/receipt number' })
