@@ -1,39 +1,25 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { Search, Moon, Sun, Building2, Globe, LogOut, Menu, Store, UtensilsCrossed } from "lucide-react";
+import { Search, Moon, Sun, Building2, Globe, Menu } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useUIStore } from "@/store/ui";
 import { useAuthStore } from "@/store/auth";
 import { useLocaleStore } from "@/store/locale";
-import api from "@/lib/api";
 import { NotificationsButton } from "@/components/layout/notifications-button";
 
 export function Topbar() {
   const t = useTranslations("common");
-  const tAuth = useTranslations("auth");
   const { resolvedTheme, setTheme } = useTheme();
   const { setCommandPaletteOpen, toggleSidebar } = useUIStore();
-  const { company, logout } = useAuthStore();
+  const { company } = useAuthStore();
   const { locale, setLocale } = useLocaleStore();
-  const router = useRouter();
   const [searchFocused, setSearchFocused] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
 
   const isDark = resolvedTheme !== "light";
-
-  const handleLogout = async () => {
-    try {
-      await api.logout();
-    } catch {
-      logout();
-    }
-    router.push("/login");
-  };
 
   return (
     <header className="sticky top-0 z-40 h-14 sm:h-16 bg-white/90 dark:bg-slate-900/80 backdrop-blur-xl border-b border-slate-200 dark:border-slate-800/50 flex items-center justify-between px-3 sm:px-6 gap-2">
@@ -41,11 +27,16 @@ export function Topbar() {
         <button
           type="button"
           onClick={toggleSidebar}
-          className="lg:hidden w-9 h-9 flex items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 text-slate-600 dark:text-slate-300 shrink-0"
+          className="lg:hidden w-10 h-10 flex items-center justify-center rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 shrink-0"
           aria-label="Menu"
         >
           <Menu className="w-5 h-5" />
         </button>
+        <div className="lg:hidden min-w-0">
+          <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
+            {company?.name || "حسابي"}
+          </p>
+        </div>
         <div
           className={cn(
             "relative hidden sm:flex items-center transition-all duration-300 min-w-0",
@@ -68,7 +59,8 @@ export function Topbar() {
         </div>
       </div>
 
-      <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+      {/* Desktop chrome — mobile uses sidebar menu only */}
+      <div className="hidden lg:flex items-center gap-3 shrink-0">
         <div className="relative">
           <button
             type="button"
@@ -100,7 +92,7 @@ export function Topbar() {
                   setLangOpen(false);
                 }}
                 className={cn(
-                  "w-full px-4 py-2 text-sm text-left hover:bg-slate-800",
+                  "w-full px-4 py-2 text-sm text-left hover:bg-slate-100 dark:hover:bg-slate-800",
                   locale === "en" && "text-emerald-400 bg-emerald-500/10"
                 )}
               >
@@ -122,37 +114,16 @@ export function Topbar() {
 
         <NotificationsButton />
 
-        <Link
-          href="/pos"
-          title={locale === "en" ? "Switch to POS" : "التبديل إلى الكاشير"}
-          className="inline-flex items-center gap-1.5 h-9 px-2.5 sm:px-3 rounded-lg bg-sky-500/10 border border-sky-500/20 text-sky-700 dark:text-sky-300 hover:bg-sky-500/20 text-xs font-bold transition-all shrink-0"
-        >
-          <Store className="w-4 h-4" />
-          <span>{locale === "en" ? "POS" : "الكاشير"}</span>
-        </Link>
-
-        <Link
-          href="/resto"
-          title={locale === "en" ? "Switch to Restaurants" : "التبديل إلى المطاعم"}
-          className="inline-flex items-center gap-1.5 h-9 px-2.5 sm:px-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 hover:bg-amber-500/20 text-xs font-bold transition-all shrink-0"
-        >
-          <UtensilsCrossed className="w-4 h-4" />
-          <span>{locale === "en" ? "Restaurants" : "المطاعم"}</span>
-        </Link>
-
-        <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 rounded-lg max-w-[140px] lg:max-w-none">
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 rounded-lg max-w-[200px]">
           <Building2 className="w-4 h-4 text-emerald-500 dark:text-emerald-400 shrink-0" />
-          <span className="text-sm text-slate-900 dark:text-white font-medium truncate">{company?.name || "—"}</span>
+          <span className="text-sm text-slate-900 dark:text-white font-medium truncate">
+            {company?.name || "—"}
+          </span>
         </div>
+      </div>
 
-        <button
-          type="button"
-          onClick={handleLogout}
-          title={tAuth("logout")}
-          className="w-9 h-9 flex items-center justify-center rounded-lg bg-slate-800/50 border border-slate-700/50 text-slate-400 hover:text-rose-400 hover:bg-slate-700/50 transition-all"
-        >
-          <LogOut className="w-4 h-4" />
-        </button>
+      <div className="lg:hidden shrink-0">
+        <NotificationsButton />
       </div>
     </header>
   );

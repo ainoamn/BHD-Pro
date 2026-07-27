@@ -13,6 +13,7 @@ import {
   Link2,
   Link2Off,
   LogOut,
+  Menu,
   Settings2,
   ShoppingBag,
   Soup,
@@ -22,6 +23,7 @@ import {
   UtensilsCrossed,
   BellRing,
   Wallet,
+  X,
 } from "lucide-react";
 import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
@@ -46,6 +48,7 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
   const [linkLoadError, setLinkLoadError] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [planOk, setPlanOk] = useState(true);
+  const [menuOpen, setMenuOpen] = useState(false);
   const isLogin = pathname?.startsWith("/resto/login");
   const perms = user?.modulePermissions;
   const isAdmin = user?.role === "ADMIN";
@@ -243,34 +246,42 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-[#14110f] text-stone-100" dir={locale === "en" ? "ltr" : "rtl"}>
       <header className="sticky top-0 z-40 border-b border-amber-500/15 bg-[#14110f]/92 backdrop-blur-xl">
-        {/* App switcher row — one button per product */}
         <div className="mx-auto flex h-14 max-w-[1600px] items-center justify-between gap-2 px-3 sm:px-4">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <button
+              type="button"
+              onClick={() => setMenuOpen(true)}
+              className="lg:hidden w-10 h-10 flex items-center justify-center rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-100 shrink-0"
+              aria-label="Menu"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/brand/hisaby-mark.png"
               alt=""
               className="h-8 w-8 sm:h-9 sm:w-9 rounded-lg object-cover shrink-0"
             />
-            <div className="min-w-0 hidden sm:block">
+            <div className="min-w-0">
               <p className="font-bold leading-tight truncate text-sm sm:text-base">{t.brand}</p>
-              <p className="text-[11px] text-stone-500 truncate">{company?.name || t.tagline}</p>
+              <p className="text-[11px] text-stone-500 truncate hidden sm:block">{company?.name || t.tagline}</p>
             </div>
           </div>
-          <div className="flex items-center gap-1 sm:gap-2 min-w-0">
+
+          <div className="hidden lg:flex items-center gap-1 sm:gap-2 min-w-0">
             <Link
               href="/dashboard"
               className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/15 px-2.5 py-1.5 text-xs font-bold text-emerald-300 hover:bg-emerald-500/25 shrink-0"
             >
               <Calculator className="w-4 h-4" />
-              <span className="hidden sm:inline">{t.toAccounting}</span>
+              <span>{t.toAccounting}</span>
             </Link>
             <Link
               href="/pos"
               className="inline-flex items-center gap-1.5 rounded-lg bg-sky-500/15 px-2.5 py-1.5 text-xs font-bold text-sky-300 hover:bg-sky-500/25 shrink-0"
             >
               <Store className="w-4 h-4" />
-              <span className="hidden sm:inline">{t.toPos}</span>
+              <span>{t.toPos}</span>
             </Link>
             <Link
               href="/resto"
@@ -298,8 +309,7 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-        {/* Internal resto sections */}
-        <nav className="border-t border-white/5 bg-black/20">
+        <nav className="hidden lg:block border-t border-white/5 bg-black/20">
           <div className="mx-auto flex max-w-[1600px] gap-1 overflow-x-auto px-3 py-1.5 sm:px-4 scrollbar-none">
             {sections.map((item) => {
               const Icon = item.icon;
@@ -326,6 +336,89 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
             })}
           </div>
         </nav>
+
+        {menuOpen ? (
+          <div className="lg:hidden fixed inset-0 z-50">
+            <button
+              type="button"
+              className="absolute inset-0 bg-black/60"
+              aria-label="Close"
+              onClick={() => setMenuOpen(false)}
+            />
+            <div className="absolute inset-y-0 start-0 w-[min(20rem,88vw)] bg-[#1c1814] border-e border-amber-500/20 shadow-2xl flex flex-col">
+              <div className="flex items-center justify-between px-4 py-4 border-b border-white/10">
+                <div>
+                  <p className="font-bold">{t.brand}</p>
+                  <p className="text-[11px] text-stone-500 truncate">{company?.name}</p>
+                </div>
+                <button type="button" onClick={() => setMenuOpen(false)} className="p-2 rounded-lg hover:bg-white/5">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <nav className="flex-1 overflow-y-auto p-3 space-y-1">
+                <p className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-stone-500">
+                  {locale === "en" ? "Systems" : "الأنظمة"}
+                </p>
+                <Link
+                  href="/dashboard"
+                  onClick={() => setMenuOpen(false)}
+                  className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold bg-emerald-500/10 text-emerald-200"
+                >
+                  <Calculator className="w-4 h-4" />
+                  {t.toAccounting}
+                </Link>
+                <Link
+                  href="/pos"
+                  onClick={() => setMenuOpen(false)}
+                  className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold bg-sky-500/10 text-sky-200"
+                >
+                  <Store className="w-4 h-4" />
+                  {t.toPos}
+                </Link>
+                <p className="px-2 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wide text-stone-500">
+                  {locale === "en" ? "Restaurants" : "المطاعم"}
+                </p>
+                {sections.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setMenuOpen(false)}
+                      className={cn(
+                        "flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium",
+                        item.active ? "bg-amber-500/20 text-amber-100" : "text-stone-200 hover:bg-white/5",
+                      )}
+                    >
+                      <Icon className="w-4 h-4 text-stone-400" />
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </nav>
+              <div className="p-3 border-t border-white/10 space-y-2">
+                <button
+                  type="button"
+                  onClick={() => setLocale(locale === "en" ? "ar" : "en")}
+                  className="w-full rounded-xl px-3 py-2.5 text-sm font-semibold text-stone-300 bg-white/5"
+                >
+                  {locale === "en" ? "العربية" : "English"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    void handleLogout();
+                  }}
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold text-rose-300 bg-rose-500/10"
+                >
+                  <LogOut className="w-4 h-4" />
+                  {t.logout}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {blockedByPerm ? (
           <div className="border-t border-rose-500/20 bg-rose-500/10 px-3 py-3 text-center text-xs text-rose-100 sm:text-sm">

@@ -48,6 +48,7 @@
 **موجة AU (Dual إلغاء مطعم + unsend + تحويل عرض):** [`HISABY-WAVE-AU-RESTO-CANCEL-UNSEND-2026-07-27.md`](./HISABY-WAVE-AU-RESTO-CANCEL-UNSEND-2026-07-27.md)
 **موجة AV (منع تحويل أمر شراء مكرر + صدق أخطاء):** [`HISABY-WAVE-AV-PO-CONVERT-HONESTY-2026-07-27.md`](./HISABY-WAVE-AV-PO-CONVERT-HONESTY-2026-07-27.md)
 **موجة AW (تقارير Roles + Dual مطالبات/كتب + صدق حذف/بنك):** [`HISABY-WAVE-AW-REPORTS-DUAL-HONESTY-2026-07-27.md`](./HISABY-WAVE-AW-REPORTS-DUAL-HONESTY-2026-07-27.md)
+**موجة AX (تنقل موبايل + استقرار لوحة التحكم):** [`HISABY-WAVE-AX-MOBILE-NAV-DASHBOARD-2026-07-27.md`](./HISABY-WAVE-AX-MOBILE-NAV-DASHBOARD-2026-07-27.md)
 
 ---
 

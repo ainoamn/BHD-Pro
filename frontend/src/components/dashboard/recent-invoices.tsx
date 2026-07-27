@@ -1,7 +1,6 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { motion } from "framer-motion";
 import { ArrowLeft, CheckCircle, Clock, AlertCircle } from "lucide-react";
 import { cn, formatMoney, formatDate } from "@/lib/utils";
 import Link from "next/link";
@@ -52,12 +51,7 @@ export function RecentInvoices({ invoices, currency = "OMR" }: RecentInvoicesPro
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.4, duration: 0.5 }}
-      className="bg-slate-900/60 border border-slate-800/50 rounded-xl p-6"
-    >
+    <div className="bg-slate-900/60 border border-slate-800/50 rounded-xl p-4 sm:p-6 min-w-0">
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-lg font-semibold text-white">{t("recentInvoices")}</h3>
         <Link
@@ -100,6 +94,6 @@ export function RecentInvoices({ invoices, currency = "OMR" }: RecentInvoicesPro
           })}
         </div>
       )}
-    </motion.div>
+    </div>
   );
 }

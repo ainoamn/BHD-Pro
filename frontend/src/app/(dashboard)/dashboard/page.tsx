@@ -84,7 +84,11 @@ export default function DashboardPage() {
     },
   });
 
-  const { data: modules } = useQuery({
+  const {
+    data: modules,
+    isLoading: modulesLoading,
+    isFetched: modulesFetched,
+  } = useQuery({
     queryKey: ["subscription-modules"],
     queryFn: async () => {
       const res = await api.getCurrentSubscription();
@@ -115,34 +119,37 @@ export default function DashboardPage() {
     enabled: collectOpen,
   });
 
+  /** Wait for modules + stats so LockedHint cards don't flash/scatter for 10–20s. */
+  const bootLoading = isLoading || modulesLoading || !modulesFetched;
+
   return (
     <div className="space-y-5 sm:space-y-6">
       <PageHeader title={t("title")} subtitle={t("subtitle")} />
 
-      {grant("onboarding") && data?.onboarding ? (
-        <OnboardingChecklist data={data.onboarding} />
-      ) : null}
-
-      {grant("appsPanel") ? <HisabyAppsPanel /> : null}
-
-      {grant("quickActions") && data ? (
-        <QuickActions
-          todayReceived={data.todayReceived ?? 0}
-          todayExpenses={data.todayExpenses ?? 0}
-          pendingCollection={data.pendingCollectionCount ?? 0}
-          currency={currency}
-          onCollect={
-            grant("collectPayment") ? () => setCollectOpen(true) : () => undefined
-          }
-        />
-      ) : null}
-
-      {isLoading ? (
+      {bootLoading ? (
         <LoadingSpinner />
       ) : isError || !data ? (
         <QueryError onRetry={() => refetch()} />
       ) : (
         <>
+          {grant("onboarding") && data.onboarding ? (
+            <OnboardingChecklist data={data.onboarding} />
+          ) : null}
+
+          {grant("appsPanel") ? <HisabyAppsPanel /> : null}
+
+          {grant("quickActions") ? (
+            <QuickActions
+              todayReceived={data.todayReceived ?? 0}
+              todayExpenses={data.todayExpenses ?? 0}
+              pendingCollection={data.pendingCollectionCount ?? 0}
+              currency={currency}
+              onCollect={
+                grant("collectPayment") ? () => setCollectOpen(true) : () => undefined
+              }
+            />
+          ) : null}
+
           {grant("smartKpis") ? (
             <SmartKpis
               data={{
@@ -181,7 +188,7 @@ export default function DashboardPage() {
           ) : null}
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
-            <div className="lg:col-span-2 min-w-0">
+            <div className="lg:col-span-2 min-w-0 overflow-hidden">
               {grant("cashFlow") ? (
                 <RevenueChart data={data.cashFlow} />
               ) : (

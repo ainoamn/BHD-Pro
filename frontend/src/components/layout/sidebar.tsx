@@ -40,10 +40,17 @@ import {
   Brain,
   Store,
   UtensilsCrossed,
+  LogOut,
+  Globe,
+  Moon,
+  Sun,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUIStore } from "@/store/ui";
 import { useAuthStore } from "@/store/auth";
+import { useLocaleStore } from "@/store/locale";
+import { useTheme } from "next-themes";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
 import { UpgradeBadge } from "@/components/billing/plan-upgrade-gate";
@@ -101,9 +108,15 @@ const settingsItems = [
 export function Sidebar() {
   const t = useTranslations("nav");
   const tApp = useTranslations("app");
+  const tAuth = useTranslations("auth");
+  const tCommon = useTranslations("common");
   const pathname = usePathname();
+  const router = useRouter();
   const { sidebarCollapsed, sidebarOpen, toggleSidebarCollapse, setSidebarOpen } = useUIStore();
-  const { user } = useAuthStore();
+  const { user, logout } = useAuthStore();
+  const { locale, setLocale } = useLocaleStore();
+  const { resolvedTheme, setTheme } = useTheme();
+  const isDark = resolvedTheme !== "light";
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [openAlerts, setOpenAlerts] = useState(0);
   const [features, setFeatures] = useState<Record<string, boolean>>({
@@ -117,6 +130,16 @@ export function Sidebar() {
   const [modules, setModules] = useState<Record<string, PlanModuleGrant> | null>(
     null,
   );
+
+  const handleLogout = async () => {
+    setSidebarOpen(false);
+    try {
+      await api.logout();
+    } catch {
+      logout();
+    }
+    router.push("/login");
+  };
 
   const isModuleOpen = (code: string, legacyFallback?: boolean) => {
     const grant = modules?.[code];
@@ -467,7 +490,7 @@ export function Sidebar() {
         </nav>
       </div>
 
-      <div className="shrink-0 p-4 border-t border-slate-200 dark:border-slate-800/50">
+      <div className="shrink-0 p-4 border-t border-slate-200 dark:border-slate-800/50 space-y-3">
         <div className="flex items-center gap-3">
           {user?.avatar ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -490,6 +513,38 @@ export function Sidebar() {
             </div>
           )}
         </div>
+
+        {!sidebarCollapsed && (
+          <div className="flex flex-wrap gap-2 lg:hidden">
+            <button
+              type="button"
+              onClick={() => setLocale(locale === "en" ? "ar" : "en")}
+              className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300"
+            >
+              <Globe className="w-3.5 h-3.5" />
+              {locale === "en" ? "ع" : "EN"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setTheme(isDark ? "light" : "dark")}
+              className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300"
+            >
+              {isDark ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+              {isDark ? tCommon("lightMode") : tCommon("darkMode")}
+            </button>
+          </div>
+        )}
+
+        {!sidebarCollapsed && (
+          <button
+            type="button"
+            onClick={() => void handleLogout()}
+            className="w-full inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold text-rose-600 dark:text-rose-300 bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/20"
+          >
+            <LogOut className="w-4 h-4" />
+            {tAuth("logout")}
+          </button>
+        )}
       </div>
 
       <button

@@ -11,12 +11,14 @@ import {
   Link2Off,
   Loader2,
   LogOut,
+  Menu,
   Package,
   Settings2,
   ShieldCheck,
   Users,
   UtensilsCrossed,
   Wallet,
+  X,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
@@ -68,6 +70,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
   const [locked, setLocked] = useState(false);
   const [unlockOpen, setUnlockOpen] = useState(false);
   const [trainingMode, setTrainingMode] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const isLogin = pathname?.startsWith("/pos/login");
   const isCustomerDisplay = pathname?.startsWith("/pos/display");
   const bareShell = isLogin || isCustomerDisplay;
@@ -420,57 +423,54 @@ export function PosShell({ children }: { children: React.ReactNode }) {
       <header className="sticky top-0 z-40 border-b border-white/10 bg-[#0b1220]/90 backdrop-blur-xl">
         <div className="mx-auto flex h-14 max-w-[1600px] items-center justify-between gap-2 px-3 sm:px-4">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/brand/hisaby-mark.png" alt="" className="h-8 w-8 sm:h-9 sm:w-9 rounded-lg object-cover shrink-0" />
-            <div className="min-w-0 hidden sm:block">
-              <p className="font-bold leading-tight truncate text-sm sm:text-base">{t.brand}</p>
-              <p className="text-[11px] text-slate-500 truncate">{company?.name || t.tagline}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-1 sm:gap-2 min-w-0">
             <button
               type="button"
-              onClick={goAccounting}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/15 px-2.5 py-1.5 text-xs font-bold text-emerald-300 hover:bg-emerald-500/25 shrink-0"
-              title={linked === true ? t.toAccounting : t.posBooksTitle}
+              onClick={() => setMenuOpen(true)}
+              className="lg:hidden w-10 h-10 flex items-center justify-center rounded-xl bg-sky-500/15 border border-sky-500/30 text-sky-200 shrink-0"
+              aria-label="Menu"
             >
-              {linked === true ? <Calculator className="w-4 h-4" /> : <Wallet className="w-4 h-4" />}
-              <span>{linked === true ? t.toAccounting : t.posBooksNav}</span>
+              <Menu className="w-5 h-5" />
             </button>
-            <Link
-              href="/resto"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500/15 px-2.5 py-1.5 text-xs font-bold text-amber-200 hover:bg-amber-500/25 shrink-0"
-              title={locale === "en" ? "Restaurants" : "المطاعم"}
-            >
-              <UtensilsCrossed className="w-4 h-4" />
-              <span className="hidden sm:inline">{locale === "en" ? "Restaurants" : "المطاعم"}</span>
-            </Link>
-            <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto max-w-[46vw] sm:max-w-none scrollbar-none">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/brand/hisaby-mark.png" alt="" className="h-8 w-8 sm:h-9 sm:w-9 rounded-lg object-cover shrink-0" />
+            <div className="min-w-0">
+              <p className="font-bold leading-tight truncate text-sm sm:text-base">{t.brand}</p>
+              <p className="text-[11px] text-slate-500 truncate hidden sm:block">{company?.name || t.tagline}</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            {pendingCount > 0 || quarantineCount > 0 ? (
+              <button
+                type="button"
+                onClick={openQueue}
+                title={t.pendingOffline}
+                className="inline-flex items-center gap-1 rounded-lg bg-amber-500/15 px-2 py-1.5 text-xs font-semibold text-amber-200"
+              >
+                <CloudUpload className="w-4 h-4" />
+                <span className="tabular-nums">{pendingCount + quarantineCount}</span>
+              </button>
+            ) : null}
+
+            {/* Desktop nav strip */}
+            <div className="hidden lg:flex items-center gap-2">
+              <button
+                type="button"
+                onClick={goAccounting}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/15 px-2.5 py-1.5 text-xs font-bold text-emerald-300 hover:bg-emerald-500/25 shrink-0"
+                title={linked === true ? t.toAccounting : t.posBooksTitle}
+              >
+                {linked === true ? <Calculator className="w-4 h-4" /> : <Wallet className="w-4 h-4" />}
+                <span>{linked === true ? t.toAccounting : t.posBooksNav}</span>
+              </button>
+              <Link
+                href="/resto"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500/15 px-2.5 py-1.5 text-xs font-bold text-amber-200 hover:bg-amber-500/25 shrink-0"
+              >
+                <UtensilsCrossed className="w-4 h-4" />
+                <span>{locale === "en" ? "Restaurants" : "المطاعم"}</span>
+              </Link>
               <PosCommissionChip />
-              {pendingCount > 0 || quarantineCount > 0 ? (
-                <button
-                  type="button"
-                  onClick={openQueue}
-                  title={t.pendingOffline}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500/15 px-2.5 py-1.5 text-xs font-semibold text-amber-200 hover:bg-amber-500/25 shrink-0"
-                >
-                  <CloudUpload className="w-4 h-4" />
-                  <span className="tabular-nums">{pendingCount + quarantineCount}</span>
-                  <span className="hidden sm:inline">{t.offlineQueueTitle}</span>
-                </button>
-              ) : null}
-              {quarantineCount > 0 ? (
-                <button
-                  type="button"
-                  onClick={openQueue}
-                  title={t.quarantineHint}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-rose-500/15 px-2.5 py-1.5 text-xs font-semibold text-rose-200 hover:bg-rose-500/25 shrink-0"
-                >
-                  <span className="tabular-nums">{quarantineCount}</span>
-                  <span className="hidden sm:inline">{t.quarantineBadge}</span>
-                  <span className="sm:hidden">{t.quarantineBadge}</span>
-                </button>
-              ) : null}
               <button
                 type="button"
                 onClick={() => setLocale(locale === "en" ? "ar" : "en")}
@@ -481,26 +481,23 @@ export function PosShell({ children }: { children: React.ReactNode }) {
               <Link
                 href="/pos/inventory"
                 className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-300 hover:bg-white/5 shrink-0"
-                title={t.inventory}
               >
                 <Package className="w-4 h-4" />
-                <span className="hidden sm:inline">{t.inventory}</span>
+                <span>{t.inventory}</span>
               </Link>
               <Link
                 href="/pos/contacts"
                 className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-300 hover:bg-white/5 shrink-0"
-                title={t.posContactsTitle}
               >
                 <Users className="w-4 h-4" />
-                <span className="hidden lg:inline">{t.posContactsNav}</span>
+                <span>{t.posContactsNav}</span>
               </Link>
               <Link
                 href="/pos/books"
                 className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-300 hover:bg-white/5 shrink-0"
-                title={t.posBooksTitle}
               >
                 <Wallet className="w-4 h-4" />
-                <span className="hidden sm:inline">{t.posBooksNav}</span>
+                <span>{t.posBooksNav}</span>
               </Link>
               <button
                 type="button"
@@ -510,33 +507,25 @@ export function PosShell({ children }: { children: React.ReactNode }) {
                     ? "bg-violet-500/25 text-violet-100 border border-violet-400/40"
                     : "text-slate-300 hover:bg-white/5"
                 }`}
-                title={t.trainingMode}
               >
-                <span className="hidden sm:inline">
-                  {trainingMode ? t.trainingOnShort : t.trainingMode}
-                </span>
-                <span className="sm:hidden">TRN</span>
+                {trainingMode ? t.trainingOnShort : t.trainingMode}
               </button>
               <Link
                 href="/pos/shifts"
                 className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold hover:bg-sky-500/10 shrink-0 ${
                   shiftOpen ? "text-emerald-300" : "text-sky-200/90"
                 }`}
-                title={t.shifts}
               >
                 <Clock3 className="w-4 h-4" />
-                <span className="hidden sm:inline">
-                  {shiftOpen ? t.shiftOpen : t.shifts}
-                </span>
+                <span>{shiftOpen ? t.shiftOpen : t.shifts}</span>
               </Link>
               {canSeeApprovals ? (
                 <Link
                   href="/pos/approvals"
                   className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-amber-200/90 hover:bg-amber-500/10 shrink-0"
-                  title={t.approvals}
                 >
                   <ShieldCheck className="w-4 h-4" />
-                  <span className="hidden sm:inline">{t.approvals}</span>
+                  <span>{t.approvals}</span>
                 </Link>
               ) : null}
               <Link
@@ -544,7 +533,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
                 className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-300 hover:bg-white/5 shrink-0"
               >
                 <Settings2 className="w-4 h-4" />
-                <span className="hidden sm:inline">{t.settings}</span>
+                <span>{t.settings}</span>
               </Link>
               <button
                 type="button"
@@ -556,6 +545,112 @@ export function PosShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         </div>
+
+        {menuOpen ? (
+          <div className="lg:hidden fixed inset-0 z-50">
+            <button
+              type="button"
+              className="absolute inset-0 bg-black/60"
+              aria-label="Close"
+              onClick={() => setMenuOpen(false)}
+            />
+            <div className="absolute inset-y-0 start-0 w-[min(20rem,88vw)] bg-[#121a28] border-e border-white/10 shadow-2xl flex flex-col">
+              <div className="flex items-center justify-between px-4 py-4 border-b border-white/10">
+                <div>
+                  <p className="font-bold">{t.brand}</p>
+                  <p className="text-[11px] text-slate-500 truncate">{company?.name}</p>
+                </div>
+                <button type="button" onClick={() => setMenuOpen(false)} className="p-2 rounded-lg hover:bg-white/5">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <nav className="flex-1 overflow-y-auto p-3 space-y-1">
+                <p className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                  {locale === "en" ? "Systems" : "الأنظمة"}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    goAccounting();
+                  }}
+                  className="w-full flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold bg-emerald-500/10 text-emerald-200"
+                >
+                  <Calculator className="w-4 h-4" />
+                  {linked === true ? t.toAccounting : t.posBooksNav}
+                </button>
+                <Link
+                  href="/resto"
+                  onClick={() => setMenuOpen(false)}
+                  className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold bg-amber-500/10 text-amber-200"
+                >
+                  <UtensilsCrossed className="w-4 h-4" />
+                  {locale === "en" ? "Restaurants" : "المطاعم"}
+                </Link>
+                <p className="px-2 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                  {locale === "en" ? "POS" : "الكاشير"}
+                </p>
+                {[
+                  { href: "/pos", label: locale === "en" ? "Sell" : "البيع" },
+                  { href: "/pos/inventory", label: t.inventory, icon: Package },
+                  { href: "/pos/contacts", label: t.posContactsNav, icon: Users },
+                  { href: "/pos/books", label: t.posBooksNav, icon: Wallet },
+                  { href: "/pos/shifts", label: shiftOpen ? t.shiftOpen : t.shifts, icon: Clock3 },
+                  ...(canSeeApprovals
+                    ? [{ href: "/pos/approvals", label: t.approvals, icon: ShieldCheck }]
+                    : []),
+                  { href: "/pos/settings", label: t.settings, icon: Settings2 },
+                ].map((item) => {
+                  const Icon = "icon" in item && item.icon ? item.icon : null;
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setMenuOpen(false)}
+                      className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-slate-200 hover:bg-white/5"
+                    >
+                      {Icon ? <Icon className="w-4 h-4 text-slate-400" /> : null}
+                      {item.label}
+                    </Link>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={() => {
+                    toggleTraining();
+                    setMenuOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium ${
+                    trainingMode ? "bg-violet-500/20 text-violet-100" : "text-slate-200 hover:bg-white/5"
+                  }`}
+                >
+                  {trainingMode ? t.trainingOnShort : t.trainingMode}
+                </button>
+              </nav>
+              <div className="p-3 border-t border-white/10 space-y-2">
+                <button
+                  type="button"
+                  onClick={() => setLocale(locale === "en" ? "ar" : "en")}
+                  className="w-full rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-300 bg-white/5"
+                >
+                  {locale === "en" ? "العربية" : "English"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    void handleLogout();
+                  }}
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold text-rose-300 bg-rose-500/10"
+                >
+                  <LogOut className="w-4 h-4" />
+                  {locale === "en" ? "Log out" : "تسجيل الخروج"}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         {linkLoadError ? (
           <div className="border-t border-rose-500/30 bg-rose-500/10 px-4 py-2 text-center text-xs text-rose-200 flex flex-wrap items-center justify-center gap-2">
             <span>{t.loadFailed}</span>

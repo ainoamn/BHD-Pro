@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   AreaChart,
@@ -10,7 +11,6 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { motion } from "framer-motion";
 import { formatDate } from "@/lib/utils";
 
 export interface CashFlowPoint {
@@ -25,6 +25,12 @@ interface RevenueChartProps {
 
 export function RevenueChart({ data }: RevenueChartProps) {
   const t = useTranslations("dashboard");
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    const id = window.requestAnimationFrame(() => setReady(true));
+    return () => window.cancelAnimationFrame(id);
+  }, []);
 
   const chartData = data.map((point) => ({
     ...point,
@@ -32,23 +38,18 @@ export function RevenueChart({ data }: RevenueChartProps) {
   }));
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.3, duration: 0.5 }}
-      className="bg-slate-900/60 border border-slate-800/50 rounded-xl p-6"
-    >
+    <div className="bg-slate-900/60 border border-slate-800/50 rounded-xl p-4 sm:p-6 min-w-0">
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-lg font-semibold text-white">{t("cashFlow")}</h3>
       </div>
 
-      <div className="h-72">
+      <div className="h-72 w-full min-w-0">
         {chartData.length === 0 ? (
           <div className="flex items-center justify-center h-full text-slate-500 text-sm">
             {t("noChartData")}
           </div>
-        ) : (
-          <ResponsiveContainer width="100%" height="100%">
+        ) : ready ? (
+          <ResponsiveContainer width="100%" height="100%" minWidth={0}>
             <AreaChart data={chartData}>
               <defs>
                 <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
@@ -94,8 +95,10 @@ export function RevenueChart({ data }: RevenueChartProps) {
               />
             </AreaChart>
           </ResponsiveContainer>
+        ) : (
+          <div className="h-full w-full rounded-lg bg-slate-800/40 animate-pulse" />
         )}
       </div>
-    </motion.div>
+    </div>
   );
 }
