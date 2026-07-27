@@ -32,8 +32,9 @@ export function ShellThemeToggle({ tone = "pos" }: { tone?: Tone }) {
 
   const btnClass =
     tone === "resto"
-      ? "w-9 h-9 flex items-center justify-center rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-100 hover:bg-amber-500/20 shrink-0"
-      : "w-9 h-9 flex items-center justify-center rounded-xl border border-sky-500/30 bg-sky-500/10 text-sky-100 hover:bg-sky-500/20 shrink-0";
+      ? "w-9 h-9 flex items-center justify-center rounded-xl border border-amber-500/40 bg-amber-500/25 text-amber-800 hover:bg-amber-500/35 shrink-0 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100 dark:hover:bg-amber-500/20"
+      : "w-9 h-9 flex items-center justify-center rounded-xl border border-sky-500/40 bg-sky-500/25 text-sky-800 hover:bg-sky-500/35 shrink-0 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-100 dark:hover:bg-sky-500/20";
+
 
   return (
     <button
