@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2, Mail, Lock, Phone, User as UserIcon, AtSign } from "lucide-react";
@@ -19,7 +19,7 @@ type InviteInfo = {
   company?: { name?: string | null } | null;
 };
 
-export default function CompleteProfilePage() {
+function CompleteProfileForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const locale = useLocaleStore((s) => s.locale);
@@ -220,5 +220,19 @@ export default function CompleteProfilePage() {
         </button>
       </form>
     </div>
+  );
+}
+
+export default function CompleteProfilePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-app flex items-center justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
+        </div>
+      }
+    >
+      <CompleteProfileForm />
+    </Suspense>
   );
 }
