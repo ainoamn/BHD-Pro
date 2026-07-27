@@ -22,6 +22,7 @@ import { PeriodsService } from '../periods/periods.service';
 import { DualControlService } from '../dual-control/dual-control.service';
 import { DualApprovalDto } from '../dual-control/dto/approval.dto';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
+import { canSwitchWarehouseFreely as warehouseRoleCanSwitchFreely } from './warehouse-role';
 import {
   CreatePosSaleDto,
   CreatePosDraftDto,
@@ -163,8 +164,7 @@ export class PosService {
   }
 
   private canSwitchWarehouseFreely(role: string): boolean {
-    const r = String(role || '').toUpperCase();
-    return r === 'ADMIN' || r === 'MANAGER' || r === 'RESTO_MANAGER';
+    return warehouseRoleCanSwitchFreely(role);
   }
 
   async resolveActorHomeWarehouse(companyId: string, userId: string) {

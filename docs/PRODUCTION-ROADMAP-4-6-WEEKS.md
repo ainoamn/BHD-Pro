@@ -99,5 +99,5 @@
 ## الخطوة التالية المقترحة
 
 1. **أنت اليوم:** Cloudflare §1.1 + تدوير أسرار + لصق Sentry DSN.  
-2. **الكود التالي (Wave BM+):** توسيع اختبارات Auth/POS أو دليل 2FA للمستخدم + خيار مهلة 2FA إن طلبت.  
-3. لاحقاً: Staging workflow · كاش Redis للمنتجات · أرشفة docs.
+2. **الكود (Wave BN — منجز):** اختبارات سياسة 2FA + أدوار مستودع POS + smoke `/register` و `/complete-profile` — [`HISABY-WAVE-BN-AUTH-POS-TESTS-2026-07-27.md`](./HISABY-WAVE-BN-AUTH-POS-TESTS-2026-07-27.md).  
+3. لاحقاً: Staging workflow · مهلة 2FA إن طُلبت · كاش Redis للمنتجات · أرشفة docs.

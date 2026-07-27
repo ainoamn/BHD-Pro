@@ -115,6 +115,8 @@
 - موجة BJ: وضع فاتح + health واتساب/SMS + throttles عامة — [`HISABY-WAVE-BJ-LIGHT-HEALTH-PUBLIC-THROTTLE-2026-07-27.md`](./HISABY-WAVE-BJ-LIGHT-HEALTH-PUBLIC-THROTTLE-2026-07-27.md)
 - موجة BK: وضع فاتح ERP + صدق أخطاء API + keep-warm — [`HISABY-WAVE-BK-LIGHT-ERP-API-ERROR-2026-07-27.md`](./HISABY-WAVE-BK-LIGHT-ERP-API-ERROR-2026-07-27.md)
 - موجة BL: لوحة التحكم + إيصالات تسليم + QueryError i18n + CI — [`HISABY-WAVE-BL-DASHBOARD-DELIVERY-LIGHT-2026-07-27.md`](./HISABY-WAVE-BL-DASHBOARD-DELIVERY-LIGHT-2026-07-27.md)
+- موجة BM: مواءمة خارطة الإنتاج + دليل 2FA — [`HISABY-WAVE-BM-PRODUCTION-ROADMAP-ALIGN-2026-07-27.md`](./HISABY-WAVE-BM-PRODUCTION-ROADMAP-ALIGN-2026-07-27.md)
+- موجة BN: اختبارات سياسة 2FA/مستودع POS + smoke تسجيل/دعوة — [`HISABY-WAVE-BN-AUTH-POS-TESTS-2026-07-27.md`](./HISABY-WAVE-BN-AUTH-POS-TESTS-2026-07-27.md)
 - خارطة إنتاج (مواءمة خطة 4–6 أسابيع): [`PRODUCTION-ROADMAP-4-6-WEEKS.md`](./PRODUCTION-ROADMAP-4-6-WEEKS.md)
 
 ### 1.6 المنصة ولوحة الإدارة (محدث 26 يوليو مساءً)

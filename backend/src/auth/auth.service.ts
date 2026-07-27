@@ -16,6 +16,10 @@ import { generateSecret, generateURI, verifySync } from 'otplib';
 import * as QRCode from 'qrcode';
 import { AuditService } from '../audit/audit.service';
 import { CompleteInviteDto } from './dto/invite.dto';
+import {
+  companyRequires2faForAdmins,
+  envRequires2faForRole,
+} from './two-factor-policy';
 
 @Injectable()
 export class AuthService {
@@ -174,40 +178,17 @@ export class AuthService {
     role: string;
     companyId: string;
   }): Promise<boolean> {
-    const role = String(user.role || '').toUpperCase();
-    const envRaw = (
+    const envRaw =
       this.config.get<string>('REQUIRE_2FA_ROLES') ||
       process.env.REQUIRE_2FA_ROLES ||
-      'ADMIN,MANAGER'
-    ).trim();
-    const envOff =
-      !envRaw ||
-      envRaw.toLowerCase() === 'off' ||
-      envRaw.toLowerCase() === 'none' ||
-      envRaw === '-';
-    if (!envOff) {
-      const roles = envRaw
-        .split(',')
-        .map((r) => r.trim().toUpperCase())
-        .filter(Boolean);
-      if (roles.includes(role)) return true;
-    }
+      'ADMIN,MANAGER';
+    if (envRequires2faForRole(user.role, envRaw)) return true;
 
     const company = await this.prisma.company.findUnique({
       where: { id: user.companyId },
       select: { securityConfig: true },
     });
-    const raw = company?.securityConfig;
-    if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-      const cfg = raw as { require2faForAdmins?: boolean };
-      if (
-        cfg.require2faForAdmins === true &&
-        (role === 'ADMIN' || role === 'MANAGER')
-      ) {
-        return true;
-      }
-    }
-    return false;
+    return companyRequires2faForAdmins(user.role, company?.securityConfig);
   }
 
   async setup2fa(userId: string) {
