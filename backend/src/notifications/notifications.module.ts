@@ -6,12 +6,13 @@ import { SmsNotifyService } from './sms-notify.service';
 import { RestoGuestNotifyService } from './resto-guest-notify.service';
 import { PublicDisputeController } from './public-dispute.controller';
 import { MessagingController } from './messaging.controller';
+import { DisputesController } from './disputes.controller';
 import { StorageModule } from '../storage/storage.module';
 import { RedisModule } from '../redis/redis.module';
 
 @Module({
   imports: [StorageModule, RedisModule],
-  controllers: [PublicDisputeController, MessagingController],
+  controllers: [PublicDisputeController, MessagingController, DisputesController],
   providers: [
     WhatsappNotifyService,
     CustomerNotifyService,

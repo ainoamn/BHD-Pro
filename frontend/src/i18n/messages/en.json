@@ -161,6 +161,7 @@
     "employeeClaims": "Employee Claims",
     "commitments": "Recurring commitments",
     "managementAlerts": "Management alerts",
+    "customerDisputes": "Customer disputes",
     "managerDigests": "Manager digests",
     "addressBook": "Address Book",
     "journal": "Journal Entries",
@@ -1779,6 +1780,24 @@
       "LOW": "Low"
     },
     "openInvoice": "Open invoice"
+  },
+  "customerDisputes": {
+    "title": "Customer disputes",
+    "subtitle": "Reports from the public receipt verify link — owner and manager",
+    "empty": "No disputes in this filter",
+    "emptyHint": "When a customer reports via the verify code, the dispute appears here",
+    "forbidden": "This page is for owner and manager only",
+    "invoice": "Invoice",
+    "anonymous": "Anonymous reporter",
+    "status_OPEN": "Open",
+    "status_REVIEWED": "In review",
+    "status_RESOLVED": "Resolved",
+    "status_DISMISSED": "Dismissed",
+    "status_ALL": "All",
+    "mark_OPEN": "Reopen",
+    "mark_REVIEWED": "Mark in review",
+    "mark_RESOLVED": "Resolve",
+    "mark_DISMISSED": "Dismiss"
   },
   "attachments": {
     "title": "Attachments",

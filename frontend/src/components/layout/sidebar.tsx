@@ -45,6 +45,7 @@ import {
   Moon,
   Sun,
   Mail,
+  Flag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUIStore } from "@/store/ui";
@@ -86,6 +87,7 @@ const navItems = [
   { href: "/employee-claims", icon: Wallet, label: "employeeClaims" },
   { href: "/commitments", icon: RefreshCcw, label: "commitments" },
   { href: "/management-alerts", icon: ShieldAlert, label: "managementAlerts" },
+  { href: "/disputes", icon: Flag, label: "customerDisputes" },
   { href: "/manager-digests", icon: Mail, label: "managerDigests" },
   { href: "/inventory", icon: Package, label: "inventory" },
   { href: "/delivery-notes", icon: Truck, label: "deliveryNotes" },
@@ -127,6 +129,7 @@ const DASHBOARD_MODULE_BY_HREF: Record<string, ModuleKey> = {
   "/employee-claims": "employeeClaims",
   "/commitments": "commitments",
   "/management-alerts": "managementAlerts",
+  "/disputes": "managementAlerts",
   "/manager-digests": "managementAlerts",
   "/inventory": "inventory",
   "/delivery-notes": "deliveryNotes",

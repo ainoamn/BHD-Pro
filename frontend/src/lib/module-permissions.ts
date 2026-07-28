@@ -464,6 +464,7 @@ export const DASHBOARD_SECTION_MODULE: Record<string, ModuleKey> = {
   "/employee-claims": "employeeClaims",
   "/commitments": "commitments",
   "/management-alerts": "managementAlerts",
+  "/disputes": "managementAlerts",
   "/manager-digests": "managementAlerts",
   "/inventory": "inventory",
   "/delivery-notes": "deliveryNotes",

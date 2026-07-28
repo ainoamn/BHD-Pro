@@ -161,6 +161,7 @@
     "employeeClaims": "مطالبات الموظفين",
     "commitments": "الالتزامات الدورية",
     "managementAlerts": "تنبيهات الإدارة",
+    "customerDisputes": "بلاغات العملاء",
     "managerDigests": "تقارير المدير الدورية",
     "addressBook": "دفتر العناوين",
     "journal": "القيود اليومية",
@@ -1779,6 +1780,24 @@
       "LOW": "منخفض"
     },
     "openInvoice": "فتح الفاتورة"
+  },
+  "customerDisputes": {
+    "title": "بلاغات العملاء",
+    "subtitle": "بلاغات من رابط التحقق العام على الإيصال — للمالك والمدير",
+    "empty": "لا بلاغات في هذا التصفية",
+    "emptyHint": "عندما يبلّغ عميل عبر رمز التحقق يظهر البلاغ هنا",
+    "forbidden": "هذه الصفحة متاحة للمالك والمدير فقط",
+    "invoice": "فاتورة",
+    "anonymous": "مبلّغ مجهول",
+    "status_OPEN": "مفتوح",
+    "status_REVIEWED": "قيد المراجعة",
+    "status_RESOLVED": "محلول",
+    "status_DISMISSED": "مرفوض",
+    "status_ALL": "الكل",
+    "mark_OPEN": "إعادة فتح",
+    "mark_REVIEWED": "وضع قيد المراجعة",
+    "mark_RESOLVED": "حلّ",
+    "mark_DISMISSED": "رفض"
   },
   "attachments": {
     "title": "المرفقات",

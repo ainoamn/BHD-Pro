@@ -465,4 +465,74 @@ export class CustomerNotifyService {
       companyNotify,
     };
   }
+
+  async listDisputes(companyId: string, status?: string) {
+    const where: { companyId: string; status?: string } = { companyId };
+    if (status && status !== 'ALL') {
+      where.status = status;
+    }
+    const rows = await this.prisma.customerDispute.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+      include: {
+        invoice: {
+          select: {
+            id: true,
+            number: true,
+            total: true,
+            status: true,
+            date: true,
+          },
+        },
+      },
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      status: r.status,
+      reason: r.reason,
+      reporterName: r.reporterName,
+      reporterPhone: r.reporterPhone,
+      publicCode: r.publicCode,
+      createdAt: r.createdAt,
+      invoice: r.invoice,
+    }));
+  }
+
+  async updateDisputeStatus(
+    companyId: string,
+    id: string,
+    status: 'OPEN' | 'REVIEWED' | 'RESOLVED' | 'DISMISSED',
+  ) {
+    const row = await this.prisma.customerDispute.findFirst({
+      where: { id, companyId },
+      select: { id: true },
+    });
+    if (!row) throw new NotFoundException('Dispute not found');
+    const updated = await this.prisma.customerDispute.update({
+      where: { id },
+      data: { status },
+      include: {
+        invoice: {
+          select: {
+            id: true,
+            number: true,
+            total: true,
+            status: true,
+            date: true,
+          },
+        },
+      },
+    });
+    return {
+      id: updated.id,
+      status: updated.status,
+      reason: updated.reason,
+      reporterName: updated.reporterName,
+      reporterPhone: updated.reporterPhone,
+      publicCode: updated.publicCode,
+      createdAt: updated.createdAt,
+      invoice: updated.invoice,
+    };
+  }
 }

@@ -33,8 +33,8 @@ function notifyCopy(status: CompanyNotify["status"]) {
       };
     case "skipped":
       return {
-        ar: "البلاغ محفوظ — لم يُضبط واتساب للتاجر بعد؛ سيظهر في لوحة البلاغات.",
-        en: "Report saved — merchant WhatsApp is not configured; it will appear in their dispute inbox.",
+        ar: "البلاغ محفوظ — سيظهر للتاجر في لوحة بلاغات العملاء (/disputes).",
+        en: "Report saved — it will appear in the merchant’s Customer disputes inbox (/disputes).",
       };
     default:
       return {

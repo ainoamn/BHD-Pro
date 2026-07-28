@@ -1277,6 +1277,13 @@ class ApiClient {
     return this.patch(`/management-alerts/${id}`, { status });
   }
 
+  getCustomerDisputes(status?: string) {
+    return this.get('/disputes', { params: status ? { status } : {} });
+  }
+  updateCustomerDisputeStatus(id: string, status: string) {
+    return this.patch(`/disputes/${id}/status`, { status });
+  }
+
   getDocumentTemplates(type?: string) {
     return this.get('/document-templates', { params: type ? { type } : {} });
   }
