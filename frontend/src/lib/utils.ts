@@ -188,6 +188,9 @@ export function apiErrorMessage(err: unknown, fallback = "Error"): string {
   if (lower.includes("parked cart not found")) {
     return "السلة المعلّقة غير موجودة";
   }
+  if (lower.includes("customer loyalty is not enabled")) {
+    return "ولاء العملاء غير مفعّل";
+  }
   // Honesty: surface Nest message rather than a generic fail when unmapped
   return raw;
 }

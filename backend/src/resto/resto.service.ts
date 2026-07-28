@@ -937,6 +937,10 @@ export class RestoService {
 
   async publicAttachLoyalty(token: string, dto: PublicGuestLoyaltyDto) {
     const table = await this.loadTableByGuestToken(token);
+    const cfg = await this.incentives.getConfig(table.companyId);
+    if (!cfg.customerEnabled) {
+      throw new BadRequestException('Customer loyalty is not enabled');
+    }
     let order = await this.prisma.restoOrder.findFirst({
       where: {
         companyId: table.companyId,
@@ -959,6 +963,9 @@ export class RestoService {
       dto.phone,
       dto.name,
     );
+    if (!pointsInfo.customerEnabled) {
+      throw new BadRequestException('Customer loyalty is not enabled');
+    }
     await this.prisma.restoOrder.update({
       where: { id: order.id },
       data: {

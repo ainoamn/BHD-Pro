@@ -395,22 +395,45 @@ export default function GuestOrderPage() {
         const msg = Array.isArray(body.message) ? body.message[0] : body.message;
         throw new Error(msg || "loyalty");
       }
-      setOkMsg(
-        locale === "en"
-          ? "Loyalty linked — points will accrue on payment."
-          : "تم ربط الولاء — تُحتسب النقاط عند الدفع.",
-      );
+      const data = (await res.json().catch(() => ({}))) as {
+        customerEnabled?: boolean;
+      };
+      if (data.customerEnabled === false) {
+        setOkMsg(
+          locale === "en"
+            ? "Phone saved, but customer loyalty points are not active for this venue."
+            : "حُفظ الرقم، لكن نقاط ولاء العملاء غير مفعّلة لهذا المطعم.",
+        );
+      } else {
+        setOkMsg(
+          locale === "en"
+            ? "Loyalty linked — points will accrue on payment."
+            : "تم ربط الولاء — تُحتسب النقاط عند الدفع.",
+        );
+      }
       setLoyaltyPhone("");
       setLoyaltyName("");
       await load();
     } catch (e) {
-      setError(
-        e instanceof Error
+      const raw =
+        e instanceof Error && e.message && e.message !== "loyalty"
           ? e.message
-          : locale === "en"
-            ? "Could not link loyalty."
-            : "تعذر ربط الولاء.",
-      );
+          : "";
+      const lower = raw.toLowerCase();
+      if (lower.includes("customer loyalty is not enabled")) {
+        setError(
+          locale === "en"
+            ? "Customer loyalty is not enabled at this venue."
+            : "ولاء العملاء غير مفعّل في هذا المطعم.",
+        );
+      } else {
+        setError(
+          raw ||
+            (locale === "en"
+              ? "Could not link loyalty."
+              : "تعذر ربط الولاء."),
+        );
+      }
     } finally {
       setLoyaltyBusy(false);
     }

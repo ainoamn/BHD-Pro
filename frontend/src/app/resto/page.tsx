@@ -760,8 +760,9 @@ export default function RestoFloorPage() {
       setOrder(res.data);
       setLoyaltyPhone("");
       setLoyaltyName("");
-    } catch {
-      setError(t.actionFail);
+      toast.success(t.loyaltyAttached);
+    } catch (err) {
+      setError(apiErrorMessage(err, t.actionFail));
     } finally {
       setLoyaltyBusy(false);
     }
@@ -775,8 +776,8 @@ export default function RestoFloorPage() {
       const res = await api.attachRestoLoyalty(order.id, { contactId: null });
       setOrder(res.data);
       setLoyaltyRedeem("");
-    } catch {
-      setError(t.actionFail);
+    } catch (err) {
+      setError(apiErrorMessage(err, t.actionFail));
     } finally {
       setLoyaltyBusy(false);
     }
