@@ -24,7 +24,9 @@ type MessagingStatus = {
     mode: string;
     receiptTemplate?: string | null;
     guestTemplate?: string | null;
+    otpTemplate?: string | null;
   };
+  apps?: { alwaysLinked?: boolean; note?: string };
   email: { configured: boolean; mode: string };
   sms?: { configured: boolean; mode: string };
   storage: { driver: string; s3Ready: boolean };
@@ -109,9 +111,16 @@ export default function IntegrationsPage() {
         warn:
           status.whatsapp.configured && !status.whatsapp.receiptTemplate
             ? t("whatsappTemplateMissing")
-            : status.whatsapp.receiptTemplate
-              ? `${t("whatsappTemplate")}: ${status.whatsapp.receiptTemplate}`
-              : null,
+            : [
+                status.whatsapp.receiptTemplate
+                  ? `${t("whatsappTemplate")}: ${status.whatsapp.receiptTemplate}`
+                  : null,
+                status.whatsapp.otpTemplate
+                  ? `OTP: ${status.whatsapp.otpTemplate}`
+                  : null,
+              ]
+                .filter(Boolean)
+                .join(" · ") || null,
       },
       {
         key: "email",
@@ -206,6 +215,13 @@ export default function IntegrationsPage() {
           ))}
         </div>
       )}
+
+      {status?.apps?.alwaysLinked ? (
+        <p className="text-sm text-slate-400">
+          {status.apps.note ||
+            "Accounting, POS, and Restaurants share one company — modules gated by plan."}
+        </p>
+      ) : null}
 
       {readmeOpen && (
         <GlassCard className="p-6 space-y-5">

@@ -7,6 +7,7 @@ import { OAuth2Client } from 'google-auth-library';
 import { PrismaService } from '../prisma/prisma.service';
 import { AccountCategory, AccountType } from '@prisma/client';
 import { ensureDefaultCostCentersAndProjects } from '../erp/default-analytics.seed';
+import { ensureCompanyAppsLinked } from '../common/company-apps-link';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { TokenPayload } from './interfaces/token-payload.interface';
@@ -316,6 +317,11 @@ export class AuthService {
         userAgent: meta.userAgent,
       },
     });
+
+    // Keep Accounting / POS / Resto unified — never block login on this
+    if (user.companyId) {
+      void ensureCompanyAppsLinked(this.prisma, user.companyId).catch(() => undefined);
+    }
 
     const twoFactorRequired = await this.isTwoFactorRequired(user);
     const grace = this.resolveTwoFactorGrace(

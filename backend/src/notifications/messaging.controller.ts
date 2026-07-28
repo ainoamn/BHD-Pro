@@ -54,6 +54,12 @@ export class MessagingController {
         mode: this.whatsapp.mode(),
         receiptTemplate: this.whatsapp.receiptTemplateName(),
         guestTemplate: this.whatsapp.guestTemplateName(),
+        otpTemplate: this.whatsapp.otpTemplateName(),
+      },
+      apps: {
+        alwaysLinked: true,
+        note:
+          'Accounting, POS, and Restaurants share one company — module visibility is plan/subscription gated.',
       },
       email: {
         configured: this.email.isConfigured(),
@@ -104,6 +110,8 @@ export class MessagingController {
             'لإيصالات أول تواصل مع العميل: أنشئ قالب Utility في WhatsApp Manager (5 متغيرات) واضبط WHATSAPP_RECEIPT_TEMPLATE — بدون قالب Meta ترفض الرسالة خارج نافذة 24 ساعة.',
             'المحاسبة: عند وضع الفاتورة SENT/PAID يُرسل نفس قالب الإيصال للعميل تلقائياً.',
             'المطاعم: إشعارات الطاولة/الحجز تستخدم نفس القالب أو WHATSAPP_GUEST_TEMPLATE.',
+            'OTP للموافقات: اختياري WHATSAPP_OTP_TEMPLATE (متغير {{1}} = الرمز) — وإلا نص حر داخل نافذة 24 ساعة.',
+            'الأنظمة الثلاثة مربوطة دائماً بنفس الشركة — لا مفاتيح ربط؛ التحكم لاحقاً عبر الباقة.',
             'دليل كامل: docs/MESSAGING-WHATSAPP-EMAIL-GUIDE.md',
           ],
         },

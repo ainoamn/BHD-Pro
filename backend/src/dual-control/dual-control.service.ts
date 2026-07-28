@@ -1009,8 +1009,9 @@ export class DualControlService {
       },
     });
 
-    const body = `Hisaby dual-control OTP: ${code}\nAction: ${action}\nValid 10 minutes.\nDo not share this code.`;
-    const results = await Promise.all(targets.map((to) => this.whatsapp.sendText(to, body)));
+    const results = await Promise.all(
+      targets.map((to) => this.whatsapp.sendOtp(to, code, action)),
+    );
     const anyOk = results.some((r) => r.ok);
     if (!anyOk) {
       throw new BadRequestException(results[0]?.error || 'Failed to send WhatsApp OTP');

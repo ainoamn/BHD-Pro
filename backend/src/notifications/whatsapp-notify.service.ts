@@ -402,13 +402,36 @@ export class WhatsappNotifyService {
     };
   }
 
+  /** Approved Authentication/Utility template for OTP ({{1}} = code). */
+  otpTemplateName(): string | null {
+    const name = (process.env.WHATSAPP_OTP_TEMPLATE || '').trim();
+    return name || null;
+  }
+
+  otpTemplateLang(): string {
+    return (process.env.WHATSAPP_OTP_TEMPLATE_LANG || 'en').trim() || 'en';
+  }
+
   /** Send a 6-digit OTP message (dual-control / verification flows). */
   async sendOtp(
     toE164: string,
     code: string,
     purpose = 'verification',
-  ): Promise<{ ok: boolean; error?: string }> {
+  ): Promise<{ ok: boolean; error?: string; via?: 'template' | 'text' }> {
+    const template = this.otpTemplateName();
+    if (template) {
+      const result = await this.sendTemplate(
+        toE164,
+        template,
+        [String(code)],
+        this.otpTemplateLang(),
+      );
+      if (result.ok) return { ...result, via: 'template' };
+      this.logger.warn(`OTP template failed, trying session text: ${result.error}`);
+    }
+
     const body = `Hisaby OTP: ${code}\nPurpose: ${purpose}\nValid 10 minutes.\nDo not share this code.`;
-    return this.sendText(toE164, body);
+    const text = await this.sendText(toE164, body);
+    return { ...text, via: 'text' };
   }
 }

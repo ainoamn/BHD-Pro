@@ -99,5 +99,6 @@
 ## الخطوة التالية المقترحة
 
 1. **أنت اليوم:** Cloudflare §1.1 + تدوير أسرار + لصق Sentry DSN.  
-2. **الكود (Wave BO — منجز):** مهلة 2FA + قفل تعديلات + staging smoke — [`HISABY-WAVE-BO-2FA-GRACE-STAGING-2026-07-27.md`](./HISABY-WAVE-BO-2FA-GRACE-STAGING-2026-07-27.md).  
-3. لاحقاً: كاش Redis للمنتجات · أرشفة docs.
+2. **الكود (Wave BR — منجز):** OTP واتساب اختياري + ربط دائم عند الدخول — [`HISABY-WAVE-BR-OTP-ALWAYS-LINK-LOGIN-2026-07-28.md`](./HISABY-WAVE-BR-OTP-ALWAYS-LINK-LOGIN-2026-07-28.md).  
+3. على Render (اختياري): `WHATSAPP_OTP_TEMPLATE` بعد موافقة Meta.  
+4. لاحقاً: كاش Redis للمنتجات · إخفاء وحدات عبر الباقات بوضوح أكبر · أرشفة docs.
