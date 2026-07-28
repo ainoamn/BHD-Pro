@@ -267,31 +267,38 @@ export class WhatsappNotifyService {
 
   /** Named body vars for pos_receipt (Meta new UI). Empty = positional {{1}}… */
   receiptParamNames(): string[] {
-    const style = (process.env.WHATSAPP_RECEIPT_PARAM_STYLE || 'named').trim().toLowerCase();
-    if (style === 'positional' || style === 'numbered') return [];
-    const fromEnv = (process.env.WHATSAPP_RECEIPT_PARAM_NAMES || '')
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (fromEnv.length) return fromEnv;
-    return [
-      'customer_name',
-      'company_name',
-      'invoice_number',
-      'amount',
-      'receipt_url',
-    ];
+    const style = (process.env.WHATSAPP_RECEIPT_PARAM_STYLE || 'positional').trim().toLowerCase();
+    if (style === 'named') {
+      const fromEnv = (process.env.WHATSAPP_RECEIPT_PARAM_NAMES || '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (fromEnv.length) return fromEnv;
+      return [
+        'customer_name',
+        'company_name',
+        'invoice_number',
+        'amount',
+        'receipt_url',
+      ];
+    }
+    return [];
   }
 
   guestParamNames(): string[] {
-    const style = (process.env.WHATSAPP_GUEST_PARAM_STYLE || '').trim().toLowerCase();
-    if (style === 'positional' || style === 'numbered') return [];
+    const style = (
+      process.env.WHATSAPP_GUEST_PARAM_STYLE ||
+      process.env.WHATSAPP_RECEIPT_PARAM_STYLE ||
+      'positional'
+    )
+      .trim()
+      .toLowerCase();
+    if (style !== 'named') return [];
     const fromEnv = (process.env.WHATSAPP_GUEST_PARAM_NAMES || '')
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean);
     if (fromEnv.length) return fromEnv;
-    // Reuse receipt names when guest template shares the same body shape
     return this.receiptParamNames();
   }
 
