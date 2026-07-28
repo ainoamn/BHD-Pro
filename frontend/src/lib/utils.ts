@@ -173,6 +173,21 @@ export function apiErrorMessage(err: unknown, fallback = "Error"): string {
   if (lower.includes("item ids") || lower.includes("items required")) {
     return "اختر أصنافاً للتقسيم";
   }
+  if (lower.includes("draft lines are required")) {
+    return "أصناف السلة مطلوبة للتعليق";
+  }
+  if (lower.includes("heldmethod is required")) {
+    return "حدد طريقة العربون عند تعليق السلة بعربون";
+  }
+  if (lower.includes("heldamount is required")) {
+    return "حدد مبلغ العربون عند اختيار طريقة الدفع";
+  }
+  if (lower.includes("no open shift")) {
+    return "لا وردية مفتوحة — افتح وردية قبل عربون نقدي أو حركة صندوق";
+  }
+  if (lower.includes("parked cart not found")) {
+    return "السلة المعلّقة غير موجودة";
+  }
   // Honesty: surface Nest message rather than a generic fail when unmapped
   return raw;
 }

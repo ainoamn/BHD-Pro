@@ -27,7 +27,7 @@ import type { PosPendingFulfillment } from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
 import { useAuthStore } from "@/store/auth";
 import { posCopy } from "@/lib/pos-copy";
-import { formatMoney } from "@/lib/utils";
+import { formatMoney, apiErrorMessage } from "@/lib/utils";
 import type { Contact } from "@/types";
 import {
   DualApprovalModal,
@@ -1162,8 +1162,8 @@ export default function PosCheckoutPage() {
           : t.parkOk,
       );
       focusScan();
-    } catch {
-      toast.error(t.parkFail);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, t.parkFail));
     }
   };
 
