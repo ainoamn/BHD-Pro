@@ -4671,6 +4671,9 @@ export class RestoService {
     confirmToken?: string | null;
     confirmedAt?: Date | null;
     reminderSentAt?: Date | null;
+    notifyChannel?: string | null;
+    notifyResult?: string | null;
+    notifyAttempts?: number;
     createdAt: Date;
     table?: { id: string; code: string; name: string | null } | null;
   }) {
@@ -4687,6 +4690,9 @@ export class RestoService {
       confirmToken: r.confirmToken ?? null,
       confirmedAt: r.confirmedAt ?? null,
       reminderSentAt: r.reminderSentAt ?? null,
+      notifyChannel: r.notifyChannel ?? null,
+      notifyResult: r.notifyResult ?? null,
+      notifyAttempts: r.notifyAttempts ?? 0,
       table: r.table
         ? { id: r.table.id, code: r.table.code, name: r.table.name }
         : null,
@@ -5450,7 +5456,15 @@ export class RestoService {
     });
 
     const delivered = notify.ok && !notify.mock;
-    const data: Prisma.RestoReservationUpdateInput = {};
+    const data: Prisma.RestoReservationUpdateInput = {
+      notifyChannel: notify.channel,
+      notifyResult: notify.ok
+        ? notify.mock
+          ? 'mock'
+          : 'ok'
+        : `fail:${notify.error || 'unknown'}`,
+      notifyAttempts: (row.notifyAttempts || 0) + 1,
+    };
     if (kind === 'CONFIRM' && delivered) {
       data.status = 'CONFIRMED';
       data.confirmedAt = new Date();

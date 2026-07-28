@@ -2108,6 +2108,11 @@ model RestoReservation {
   confirmToken   String?   @unique @map("confirm_token")
   confirmedAt    DateTime? @map("confirmed_at")
   reminderSentAt DateTime? @map("reminder_sent_at")
+  /// WHATSAPP | SMS | null — last guest notify channel
+  notifyChannel  String?   @map("notify_channel")
+  /// ok | mock | fail:… — last guest notify result
+  notifyResult   String?   @map("notify_result")
+  notifyAttempts Int       @default(0) @map("notify_attempts")
   createdAt  DateTime               @default(now()) @map("created_at")
   updatedAt  DateTime               @updatedAt @map("updated_at")
 

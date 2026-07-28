@@ -20,6 +20,8 @@ type Reservation = {
   source?: string;
   confirmedAt?: string | null;
   reminderSentAt?: string | null;
+  notifyChannel?: string | null;
+  notifyResult?: string | null;
   table: { id: string; code: string; name: string | null } | null;
 };
 
@@ -303,6 +305,22 @@ export default function RestoReservationsPage() {
                     {r.source === "GUEST"
                       ? t.bookingSourceGuest
                       : t.bookingSourceStaff}
+                    {r.notifyResult
+                      ? ` · ${t.waitlistNotify}${(() => {
+                          const parts = [
+                            r.notifyChannel || null,
+                            r.notifyResult === "mock"
+                              ? t.notifyResultMock
+                              : r.notifyResult.startsWith("fail")
+                                ? t.notifyResultFail
+                                : r.notifyResult === "ok"
+                                  ? t.notifyResultOk
+                                  : null,
+                          ].filter(Boolean);
+                          return parts.length ? ` (${parts.join(" · ")})` : "";
+                        })()}`
+                      : ""}
+                    {r.reminderSentAt ? ` · ${t.resReminderSent}` : ""}
                   </p>
                   {r.notes ? (
                     <p className="text-xs text-amber-200/80 mt-1">{r.notes}</p>
