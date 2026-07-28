@@ -75,6 +75,11 @@ export class PosService {
 
   private bumpCatalogCache(companyId: string) {
     void this.redis.invalidatePosCatalog(companyId).catch(() => undefined);
+    void this.redis.invalidateDashboardStats(companyId).catch(() => undefined);
+  }
+
+  private bumpDashboardCache(companyId: string) {
+    void this.redis.invalidateDashboardStats(companyId).catch(() => undefined);
   }
 
   private hashKey(secret: string) {
@@ -986,6 +991,7 @@ export class PosService {
       /* never fail void */
     }
 
+    this.bumpDashboardCache(companyId);
     return {
       voided: true,
       invoice: cancelled,
@@ -1646,6 +1652,7 @@ export class PosService {
           },
         },
       });
+      this.bumpDashboardCache(companyId);
       return fresh || invoice;
     } catch (err) {
       if (loyaltyPointsDebited && !invoiceCreated) {

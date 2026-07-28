@@ -185,6 +185,7 @@
   "dashboard": {
     "title": "Dashboard",
     "subtitle": "Smart overview of your company performance in Oman",
+    "cachedHint": "Cached view (seconds) — refreshes right after a sale or payment",
     "revenue": "Total Revenue",
     "expenses": "Total Expenses",
     "profit": "Net Profit",

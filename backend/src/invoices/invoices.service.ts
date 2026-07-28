@@ -16,6 +16,7 @@ import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { PeriodsService } from '../periods/periods.service';
 import { ManagementAlertsService } from '../management-alerts/management-alerts.service';
 import { CustomerNotifyService } from '../notifications/customer-notify.service';
+import { RedisService } from '../redis/redis.service';
 
 const OMAN_VAT_RATE = 5;
 
@@ -30,8 +31,12 @@ export class InvoicesService {
     private periods: PeriodsService,
     private managementAlerts: ManagementAlertsService,
     private customerNotify: CustomerNotifyService,
+    private redis: RedisService,
   ) {}
 
+  private bumpDashboard(companyId: string) {
+    void this.redis.invalidateDashboardStats(companyId).catch(() => undefined);
+  }
   private calcLine(item: { quantity: number; unitPrice: number; discount?: number; taxRate?: number }) {
     const discount = item.discount || 0;
     const lineSubtotal = item.quantity * item.unitPrice - discount;
@@ -276,7 +281,10 @@ export class InvoicesService {
       },
     });
 
-    if (!cash) return created;
+    if (!cash) {
+      this.bumpDashboard(companyId);
+      return created;
+    }
 
     return this.recordPayment(companyId, userId, created.id, {
       method: dto.paymentMethod ?? PaymentMethod.CASH,
@@ -386,7 +394,7 @@ export class InvoicesService {
       });
     }
 
-    return this.prisma.invoice.update({
+    const updatedDraft = await this.prisma.invoice.update({
       where: { id },
       data: {
         ...(dto.type && { type: dto.type }),
@@ -405,6 +413,8 @@ export class InvoicesService {
       },
       include: { contact: true, items: true, costCenter: true, project: true },
     });
+    this.bumpDashboard(companyId);
+    return updatedDraft;
   }
 
   async updateStatus(companyId: string, userId: string, id: string, status: InvoiceStatus) {
@@ -432,7 +442,7 @@ export class InvoicesService {
       const fresh = await this.findOne(companyId, id);
       await this.glPosting.reverseInvoiceEntry(companyId, userId, fresh);
       await this.unwindCreditNoteSideEffects(companyId, fresh);
-      return this.prisma.invoice.update({
+      const cancelled = await this.prisma.invoice.update({
         where: { id },
         data: {
           status: InvoiceStatus.CANCELLED,
@@ -441,6 +451,8 @@ export class InvoicesService {
         },
         include: { contact: true, items: true, payments: true },
       });
+      this.bumpDashboard(companyId);
+      return cancelled;
     }
 
     const data: {
@@ -505,6 +517,7 @@ export class InvoicesService {
         );
     }
 
+    this.bumpDashboard(companyId);
     return updated;
   }
 
@@ -774,6 +787,7 @@ export class InvoicesService {
       // alerts must not block payment
     }
 
+    this.bumpDashboard(companyId);
     return updated;
   }
 
@@ -920,11 +934,13 @@ export class InvoicesService {
 
     await this.glPosting.reverseInvoiceEntry(companyId, userId, invoice);
 
-    return this.prisma.invoice.update({
+    const draft = await this.prisma.invoice.update({
       where: { id },
       data: { status: InvoiceStatus.DRAFT },
       include: { contact: true, items: true, payments: true },
     });
+    this.bumpDashboard(companyId);
+    return draft;
   }
 
   async reversePayment(companyId: string, userId: string, invoiceId: string, paymentId: string) {
@@ -951,11 +967,13 @@ export class InvoicesService {
     );
     const next = this.recalcAfterPayments(invoice, paidAmount);
 
-    return this.prisma.invoice.update({
+    const reversed = await this.prisma.invoice.update({
       where: { id: invoiceId },
       data: next,
       include: { contact: true, items: true, payments: true },
     });
+    this.bumpDashboard(companyId);
+    return reversed;
   }
 
   async reverseAllPayments(companyId: string, userId: string, invoiceId: string) {
@@ -981,11 +999,13 @@ export class InvoicesService {
 
     const next = this.recalcAfterPayments(invoice, 0);
 
-    return this.prisma.invoice.update({
+    const cleared = await this.prisma.invoice.update({
       where: { id: invoiceId },
       data: next,
       include: { contact: true, items: true, payments: true },
     });
+    this.bumpDashboard(companyId);
+    return cleared;
   }
 
   async send(companyId: string, userId: string, id: string, email?: string) {
@@ -999,6 +1019,7 @@ export class InvoicesService {
     });
 
     await this.glPosting.postInvoice(companyId, userId, updated);
+    this.bumpDashboard(companyId);
 
     if (!recipient) {
       return {
@@ -1040,6 +1061,7 @@ export class InvoicesService {
       );
     }
     await this.prisma.invoice.delete({ where: { id } });
+    this.bumpDashboard(companyId);
     return { message: 'Invoice deleted' };
   }
 

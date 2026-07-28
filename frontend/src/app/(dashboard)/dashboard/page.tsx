@@ -54,6 +54,7 @@ interface DashboardData {
     status: string;
   }[];
   cashFlow: { month: string; revenue: number; expenses: number }[];
+  cached?: boolean;
 }
 
 function LockedHint({ label }: { label: string }) {
@@ -132,6 +133,10 @@ export default function DashboardPage() {
         <QueryError onRetry={() => refetch()} />
       ) : (
         <>
+          {data.cached ? (
+            <p className="text-xs text-slate-500 -mt-2">{t("cachedHint")}</p>
+          ) : null}
+
           {grant("onboarding") && data.onboarding ? (
             <OnboardingChecklist data={data.onboarding} />
           ) : null}

@@ -16,6 +16,7 @@ import { PeriodsModule } from '../periods/periods.module';
 import { DualControlModule } from '../dual-control/dual-control.module';
 import { ManagementAlertsModule } from '../management-alerts/management-alerts.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { RedisModule } from '../redis/redis.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     DualControlModule,
     ManagementAlertsModule,
     NotificationsModule,
+    RedisModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: (config: ConfigService) => ({

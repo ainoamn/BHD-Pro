@@ -125,6 +125,20 @@ export class RedisService implements OnModuleDestroy {
     return removed;
   }
 
+  /** Drop dashboard stats cache for a company (invoice/payment/POS mutations). */
+  async invalidateDashboardStats(companyId: string): Promise<boolean> {
+    if (!(await this.ensureReady()) || !this.client) return false;
+    try {
+      const n = await this.client.del(this.dashboardStatsKey(companyId));
+      return n > 0;
+    } catch (err) {
+      this.logger.warn(
+        `Redis invalidateDashboardStats failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return false;
+    }
+  }
+
   private async ensureReady(): Promise<boolean> {
     if (!this.client) return false;
     try {

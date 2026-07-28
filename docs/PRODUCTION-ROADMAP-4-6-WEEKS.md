@@ -54,7 +54,7 @@
 | البند | الحالة |
 |-------|--------|
 | Redis اختياري throttle/health | **منجز اختيارياً** (Wave BA) — فعّل `REDIS_URL` |
-| كاش منتجات/Dashboard كامل | **جزئي** — كتالوج POS (BU) + إحصاءات Dashboard (BV) عبر Redis اختياري |
+| كاش منتجات/Dashboard كامل | **جزئي** — كتالوج POS (BU) + Dashboard (BV) + إبطال عند الكتابة (BY) |
 | Prisma N+1 / indexes | **جزئي** — فهارس مركّبة Dashboard/POS (Wave BX)؛ مراجعة N+1 لاحقاً |
 
 ---
@@ -99,6 +99,6 @@
 ## الخطوة التالية المقترحة
 
 1. **أنت اليوم:** Cloudflare §1.1 + تدوير أسرار + لصق Sentry DSN.  
-2. **الكود (Wave BX — منجز):** فهارس مركّبة للوحة التحكم والكاشير — [`HISABY-WAVE-BX-DASHBOARD-INDEXES-2026-07-28.md`](./HISABY-WAVE-BX-DASHBOARD-INDEXES-2026-07-28.md).  
-3. على Render: انتظر `migrate deploy` عند الإقلاع؛ اختياري `REDIS_URL` + قالب OTP.  
+2. **الكود (Wave BY — منجز):** إبطال كاش لوحة التحكم عند البيع/الدفع — [`HISABY-WAVE-BY-DASHBOARD-CACHE-INVALIDATE-2026-07-28.md`](./HISABY-WAVE-BY-DASHBOARD-CACHE-INVALIDATE-2026-07-28.md).  
+3. على Render: `REDIS_URL` اختياري؛ قالب OTP واتساب.  
 4. لاحقاً: أرشفة docs.

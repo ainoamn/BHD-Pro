@@ -41,6 +41,7 @@ describe('Redis optional wiring', () => {
     const svc = new RedisService();
     expect(svc.dashboardStatsKey('co1')).toBe('hisaby:dashboard:stats:v1:co1');
     expect(svc.dashboardStatsTtlSec()).toBe(120);
+    expect(await svc.invalidateDashboardStats('co1')).toBe(false);
     await svc.onModuleDestroy();
   });
 });
