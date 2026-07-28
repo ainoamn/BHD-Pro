@@ -818,6 +818,14 @@ model Invoice {
   @@index([posShiftId])
   @@index([posWarehouseId])
   @@index([posFulfillmentStatus])
+  /// Dashboard / reports: month & cashflow aggregates by type+date
+  @@index([companyId, type, date])
+  /// Dashboard: pending collection + stale PAID repair
+  @@index([companyId, status, paymentStatus])
+  /// Recent invoices + POS day buckets
+  @@index([companyId, createdAt])
+  /// POS today sales / voids (isCash + createdAt)
+  @@index([companyId, type, isCash, createdAt])
   @@map("invoices")
 }
 
@@ -867,6 +875,8 @@ model Payment {
 
   @@index([invoiceId])
   @@index([bankAccountId])
+  /// Dashboard: today's payments by date then join invoice
+  @@index([date])
   @@map("payments")
 }
 
@@ -1042,6 +1052,10 @@ model Product {
   @@index([sku])
   @@index([barcode])
   @@index([category])
+  /// POS catalog + dashboard product counts
+  @@index([companyId, isActive])
+  /// POS incremental syncStock?since=
+  @@index([companyId, updatedAt])
   @@map("products")
 }
 
@@ -1205,6 +1219,8 @@ model Contact {
   @@index([companyId])
   @@index([type])
   @@index([taxId])
+  /// Dashboard customer count
+  @@index([companyId, isActive, type])
   @@map("contacts")
 }
 
