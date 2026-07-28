@@ -215,6 +215,21 @@ export function apiErrorMessage(err: unknown, fallback = "Error"): string {
   if (lower.includes("tableid is required for dine-in")) {
     return "الطاولة مطلوبة لطلب الصالة";
   }
+  if (lower.includes("unknown dual-control action")) {
+    return "إجراء الموافقة المزدوجة غير معروف";
+  }
+  if (lower.includes("approvalrequestid is required")) {
+    return "معرّف طلب الموافقة مطلوب";
+  }
+  if (lower.includes("valid 6-digit whatsapp otp")) {
+    return "أدخل رمز واتساب صالحاً من 6 أرقام";
+  }
+  if (lower.includes("unsupported approval method")) {
+    return "طريقة الموافقة غير مدعومة";
+  }
+  if (lower.includes("too many whatsapp otp")) {
+    return "محاولات OTP كثيرة — انتظر دقائق";
+  }
   // Honesty: surface Nest message rather than a generic fail when unmapped
   return raw;
 }

@@ -1691,7 +1691,28 @@ export class RestoService {
   }
 
   async getOrder(companyId: string, orderId: string) {
-    return this.mapOrder(await this.loadOrder(companyId, orderId));
+    const mapped = this.mapOrder(await this.loadOrder(companyId, orderId));
+    if (mapped.loyalty?.contactId) {
+      try {
+        const pts = await this.incentives.getContactPoints(
+          companyId,
+          mapped.loyalty.contactId,
+        );
+        mapped.loyalty = {
+          ...mapped.loyalty,
+          points: pts.points,
+          customerEnabled: pts.customerEnabled,
+          redeemEnabled: pts.redeemEnabled,
+        };
+      } catch {
+        mapped.loyalty = {
+          ...mapped.loyalty,
+          customerEnabled: false,
+          redeemEnabled: false,
+        };
+      }
+    }
+    return mapped;
   }
 
   async openOrder(companyId: string, userId: string, dto: OpenRestoOrderDto) {

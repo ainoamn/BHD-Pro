@@ -1543,7 +1543,11 @@ export default function RestoFloorPage() {
                             {order.loyalty.name}
                           </p>
                           <p className="text-[10px] text-stone-400">
-                            {t.loyaltyPoints}: {order.loyalty.points}
+                            {order.loyalty.customerEnabled === false
+                              ? locale === "en"
+                                ? "Guest linked — loyalty points are off"
+                                : "ضيف مرتبط — نقاط الولاء غير مفعّلة"
+                              : `${t.loyaltyPoints}: ${order.loyalty.points}`}
                             {order.loyalty.phone
                               ? ` · ${order.loyalty.phone}`
                               : ""}
@@ -1558,6 +1562,8 @@ export default function RestoFloorPage() {
                           {t.loyaltyClear}
                         </button>
                       </div>
+                      {order.loyalty.customerEnabled !== false &&
+                      order.loyalty.redeemEnabled !== false ? (
                       <label className="block space-y-1">
                         <span className="text-[10px] text-stone-500">
                           {t.loyaltyRedeem}
@@ -1571,6 +1577,7 @@ export default function RestoFloorPage() {
                           className="w-full h-8 rounded-lg bg-black/30 border border-white/10 px-2 text-xs tabular-nums"
                         />
                       </label>
+                      ) : null}
                     </div>
                   ) : (
                     <div className="space-y-1.5">

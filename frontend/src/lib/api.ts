@@ -59,6 +59,8 @@ export type RestoOrderPayload = {
     name: string;
     phone: string | null;
     points: number;
+    customerEnabled?: boolean;
+    redeemEnabled?: boolean;
   } | null;
   sentAt: string | null;
   closedAt: string | null;

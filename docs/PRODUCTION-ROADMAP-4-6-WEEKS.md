@@ -99,6 +99,6 @@
 ## الخطوة التالية المقترحة
 
 1. **أنت اليوم:** Cloudflare §1.1 + تدوير أسرار + لصق Sentry DSN.  
-2. **الكود (Wave EP — منجز):** صدق أخطاء موافقة مزدوجة وإرسال مستندات — [`HISABY-WAVE-EP-DUAL-SEND-DOC-ERROR-HONESTY-2026-07-28.md`](./HISABY-WAVE-EP-DUAL-SEND-DOC-ERROR-HONESTY-2026-07-28.md) · قبله EO خريطة الطاولات.  
+2. **الكود (Wave EQ — منجز):** صدق حالة الولاء على الصالة + خرائط Dual/OTP — [`HISABY-WAVE-EQ-FLOOR-LOYALTY-STATUS-HONESTY-2026-07-28.md`](./HISABY-WAVE-EQ-FLOOR-LOYALTY-STATUS-HONESTY-2026-07-28.md) · قبله EP موافقة/مستندات.  
 3. على Render: `prisma migrate deploy` (يشمل أعمدة إشعار الحجوزات) · `REDIS_URL` اختياري؛ قالب OTP واتساب؛ `REQUIRE_2FA_HARD_AFTER_GRACE=1` عند الرغبة بقفل التعديلات.  
 4. لاحقاً: أرشفة docs.
