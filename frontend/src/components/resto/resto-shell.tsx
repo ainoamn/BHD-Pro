@@ -30,9 +30,12 @@ import { restoCopy } from "@/lib/resto-copy";
 import { cn } from "@/lib/utils";
 import {
   canAccessModule,
+  canOpenAccountingApp,
+  canOpenPosApp,
   moduleForRestoPath,
   type ModuleKey,
 } from "@/lib/module-permissions";
+import { homePathForUser } from "@/lib/user-home";
 import { PlanUpgradeGate } from "@/components/billing/plan-upgrade-gate";
 import { ShellAlertsBell } from "@/components/shared/shell-alerts-bell";
 import { ShellThemeToggle } from "@/components/shared/shell-theme-toggle";
@@ -100,6 +103,8 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
 
   const canModule = (module: ModuleKey, needed: "view" | "edit" = "view") =>
     isAdmin || canAccessModule(perms, module, needed);
+  const showAccountingNav = canOpenAccountingApp(perms, user?.role);
+  const showPosNav = canOpenPosApp(perms, user?.role);
 
   const handleLogout = async () => {
     try {
@@ -235,6 +240,11 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
   const blockedByPerm =
     !!currentModule && !isLogin && !canModule(currentModule, "view");
 
+  useEffect(() => {
+    if (!hydrated || isLogin || !blockedByPerm) return;
+    router.replace(homePathForUser(user));
+  }, [hydrated, isLogin, blockedByPerm, router, user]);
+
   if (!planOk && !isLogin) {
     return (
       <div className="min-h-screen bg-[#14110f] text-stone-100 flex items-center justify-center p-6" dir={locale === "en" ? "ltr" : "rtl"}>
@@ -310,7 +320,8 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
                   : []),
               ]}
             />
-            <div className="hidden lg:flex items-center gap-1 sm:gap-2 min-w-0">
+            <div className="hidden lg:flex items-center gap-1 sm:gap-2 min-w-0 max-w-[55vw] overflow-x-auto scrollbar-none">
+            {showAccountingNav ? (
             <Link
               href="/dashboard"
               className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/15 px-2.5 py-1.5 text-xs font-bold text-emerald-300 hover:bg-emerald-500/25 shrink-0"
@@ -318,6 +329,8 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
               <Calculator className="w-4 h-4" />
               <span>{t.toAccounting}</span>
             </Link>
+            ) : null}
+            {showPosNav ? (
             <Link
               href="/pos"
               className="inline-flex items-center gap-1.5 rounded-lg bg-sky-500/15 px-2.5 py-1.5 text-xs font-bold text-sky-300 hover:bg-sky-500/25 shrink-0"
@@ -325,6 +338,7 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
               <Store className="w-4 h-4" />
               <span>{t.toPos}</span>
             </Link>
+            ) : null}
             <Link
               href="/resto"
               className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500/25 px-2.5 py-1.5 text-xs font-bold text-amber-100 ring-1 ring-amber-400/40 shrink-0"
@@ -402,6 +416,7 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
                 <p className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-stone-500">
                   {locale === "en" ? "Systems" : "الأنظمة"}
                 </p>
+                {showAccountingNav ? (
                 <Link
                   href="/dashboard"
                   onClick={() => setMenuOpen(false)}
@@ -410,6 +425,8 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
                   <Calculator className="w-4 h-4" />
                   {t.toAccounting}
                 </Link>
+                ) : null}
+                {showPosNav ? (
                 <Link
                   href="/pos"
                   onClick={() => setMenuOpen(false)}
@@ -418,6 +435,7 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
                   <Store className="w-4 h-4" />
                   {t.toPos}
                 </Link>
+                ) : null}
                 <p className="px-2 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wide text-stone-500">
                   {locale === "en" ? "Restaurants" : "المطاعم"}
                 </p>
@@ -471,7 +489,17 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
           </div>
         ) : null}
       </header>
-      <main className="mx-auto max-w-[1600px]">{children}</main>
+      <main className="mx-auto max-w-[1600px]">
+        {blockedByPerm ? (
+          <div className="p-6 text-center text-sm text-rose-100">
+            {locale === "en"
+              ? "Redirecting — this section is not available for your account."
+              : "جاري التحويل — هذا القسم غير متاح لحسابك."}
+          </div>
+        ) : (
+          children
+        )}
+      </main>
     </div>
   );
 }

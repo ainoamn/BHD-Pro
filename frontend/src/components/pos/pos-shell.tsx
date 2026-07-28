@@ -23,7 +23,8 @@ import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 import { useLocaleStore } from "@/store/locale";
 import { posCopy } from "@/lib/pos-copy";
-import { canAccessModule, moduleForPosPath, type ModuleKey } from "@/lib/module-permissions";
+import { canAccessModule, moduleForPosPath, canOpenAccountingApp, canOpenRestoApp, type ModuleKey } from "@/lib/module-permissions";
+import { homePathForUser } from "@/lib/user-home";
 import { flushPendingPosSales, pendingAllCount, quarantinedAllCount, discardAllQuarantined } from "@/lib/pos-offline-sync";
 import {
   listPendingOps,
@@ -82,6 +83,9 @@ export function PosShell({ children }: { children: React.ReactNode }) {
       user?.role === "ADMIN" || canAccessModule(perms, module, needed),
     [perms, user?.role],
   );
+  const showAccountingNav =
+    canOpenAccountingApp(perms, user?.role) || canModule("posBooks", "view");
+  const showRestoNav = canOpenRestoApp(perms, user?.role);
 
   const refreshPending = useCallback(async () => {
     try {
@@ -432,6 +436,11 @@ export function PosShell({ children }: { children: React.ReactNode }) {
   const blockedByPerm =
     !!currentModule && !isCustomerDisplay && !canModule(currentModule, "view");
 
+  useEffect(() => {
+    if (!hydrated || bareShell || !blockedByPerm) return;
+    router.replace(homePathForUser(user));
+  }, [hydrated, bareShell, blockedByPerm, router, user]);
+
   return (
     <div className="min-h-screen bg-[#0b1220] text-slate-100" dir={locale === "en" ? "ltr" : "rtl"}>
       <header className="sticky top-0 z-40 border-b border-white/10 bg-[#0b1220]/90 backdrop-blur-xl">
@@ -498,7 +507,8 @@ export function PosShell({ children }: { children: React.ReactNode }) {
             ) : null}
 
             {/* Desktop nav strip */}
-            <div className="hidden lg:flex items-center gap-2">
+            <div className="hidden lg:flex items-center gap-2 max-w-[70vw] overflow-x-auto scrollbar-none">
+              {showAccountingNav ? (
               <button
                 type="button"
                 onClick={goAccounting}
@@ -508,6 +518,8 @@ export function PosShell({ children }: { children: React.ReactNode }) {
                 {linked === true ? <Calculator className="w-4 h-4" /> : <Wallet className="w-4 h-4" />}
                 <span>{linked === true ? t.toAccounting : t.posBooksNav}</span>
               </button>
+              ) : null}
+              {showRestoNav ? (
               <Link
                 href="/resto"
                 className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500/15 px-2.5 py-1.5 text-xs font-bold text-amber-200 hover:bg-amber-500/25 shrink-0"
@@ -515,6 +527,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
                 <UtensilsCrossed className="w-4 h-4" />
                 <span>{locale === "en" ? "Restaurants" : "المطاعم"}</span>
               </Link>
+              ) : null}
               <PosCommissionChip />
               <button
                 type="button"
@@ -581,6 +594,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
                   <span>{t.approvals}</span>
                 </Link>
               ) : null}
+              {canModule("settings", "view") ? (
               <Link
                 href="/pos/settings"
                 className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-300 hover:bg-white/5 shrink-0"
@@ -588,6 +602,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
                 <Settings2 className="w-4 h-4" />
                 <span>{t.settings}</span>
               </Link>
+              ) : null}
               <button
                 type="button"
                 onClick={handleLogout}
@@ -629,6 +644,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
                 <p className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">
                   {locale === "en" ? "Systems" : "الأنظمة"}
                 </p>
+                {showAccountingNav ? (
                 <button
                   type="button"
                   onClick={() => {
@@ -640,6 +656,8 @@ export function PosShell({ children }: { children: React.ReactNode }) {
                   <Calculator className="w-4 h-4" />
                   {linked === true ? t.toAccounting : t.posBooksNav}
                 </button>
+                ) : null}
+                {showRestoNav ? (
                 <Link
                   href="/resto"
                   onClick={() => setMenuOpen(false)}
@@ -648,6 +666,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
                   <UtensilsCrossed className="w-4 h-4" />
                   {locale === "en" ? "Restaurants" : "المطاعم"}
                 </Link>
+                ) : null}
                 <p className="px-2 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">
                   {locale === "en" ? "POS" : "الكاشير"}
                 </p>
@@ -668,7 +687,9 @@ export function PosShell({ children }: { children: React.ReactNode }) {
                   ...(canSeeApprovals
                     ? [{ href: "/pos/approvals", label: t.approvals, icon: ShieldCheck }]
                     : []),
-                  { href: "/pos/settings", label: t.settings, icon: Settings2 },
+                  ...(canModule("settings", "view")
+                    ? [{ href: "/pos/settings", label: t.settings, icon: Settings2 }]
+                    : []),
                 ].map((item) => {
                   const Icon = "icon" in item && item.icon ? item.icon : null;
                   return (
@@ -895,7 +916,17 @@ export function PosShell({ children }: { children: React.ReactNode }) {
         onCancel={() => setUnlockOpen(false)}
         onConfirm={onUnlock}
       />
-      <main className="mx-auto max-w-[1600px]">{children}</main>
+      <main className="mx-auto max-w-[1600px] px-0 sm:px-0">
+        {blockedByPerm ? (
+          <div className="p-6 text-center text-sm text-rose-200">
+            {locale === "en"
+              ? "Redirecting — this section is not available for your account."
+              : "جاري التحويل — هذا القسم غير متاح لحسابك."}
+          </div>
+        ) : (
+          children
+        )}
+      </main>
     </div>
   );
 }

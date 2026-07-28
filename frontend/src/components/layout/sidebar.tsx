@@ -295,7 +295,11 @@ export function Sidebar() {
       </div>
 
       <div className="px-3 pt-3 shrink-0 space-y-2">
-        {isModuleOpen("pos", features.pos !== false) ? (
+        {canAccessModule(modulePermissions, "posSales", "view") ||
+        canAccessModule(modulePermissions, "posShifts", "view") ||
+        canAccessModule(modulePermissions, "posInventory", "view") ||
+        user?.role === "ADMIN" ? (
+          isModuleOpen("pos", features.pos !== false) ? (
           <Link
             href="/pos"
             onClick={() => {
@@ -334,8 +338,13 @@ export function Sidebar() {
               </>
             )}
           </Link>
-        )}
-        {isModuleOpen("resto", features.resto !== false) ? (
+        )
+        ) : null}
+        {canAccessModule(modulePermissions, "floor", "view") ||
+        canAccessModule(modulePermissions, "kitchen", "view") ||
+        canAccessModule(modulePermissions, "restoMenu", "view") ||
+        user?.role === "ADMIN" ? (
+          isModuleOpen("resto", features.resto !== false) ? (
           <Link
             href="/resto"
             onClick={() => {
@@ -374,7 +383,8 @@ export function Sidebar() {
               </>
             )}
           </Link>
-        )}
+        )
+        ) : null}
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">

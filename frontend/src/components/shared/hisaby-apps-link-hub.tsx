@@ -15,6 +15,11 @@ import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 import { useLocaleStore } from "@/store/locale";
 import { cn } from "@/lib/utils";
+import {
+  canOpenAccountingApp,
+  canOpenPosApp,
+  canOpenRestoApp,
+} from "@/lib/module-permissions";
 
 type HubTone = "accounting" | "pos" | "resto";
 
@@ -190,6 +195,7 @@ export function HisabyAppsLinkHub({
         ? "rounded-2xl border border-white/10 bg-white/5 p-4 space-y-3"
         : "rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-3";
 
+  const perms = user?.modulePermissions;
   const apps = [
     {
       key: "accounting" as const,
@@ -198,6 +204,7 @@ export function HisabyAppsLinkHub({
       icon: Calculator,
       linked: true as boolean | null,
       current: tone === "accounting",
+      visible: canOpenAccountingApp(perms, role),
       manage: null as null | { link: () => void; unlink: () => void },
     },
     {
@@ -207,6 +214,7 @@ export function HisabyAppsLinkHub({
       icon: ShoppingCart,
       linked: posLinked,
       current: tone === "pos",
+      visible: canOpenPosApp(perms, role),
       manage: { link: linkPos, unlink: unlinkPos },
     },
     {
@@ -216,9 +224,12 @@ export function HisabyAppsLinkHub({
       icon: UtensilsCrossed,
       linked: restoLinked,
       current: tone === "resto",
+      visible: canOpenRestoApp(perms, role),
       manage: { link: linkResto, unlink: unlinkResto },
     },
-  ];
+  ].filter((a) => a.visible);
+
+  if (!apps.length) return null;
 
   return (
     <div className={cn(shell, className)}>
@@ -276,16 +287,16 @@ export function HisabyAppsLinkHub({
               <div className="mt-auto flex flex-wrap gap-1.5">
                 <Link
                   href={app.href}
-                  className="inline-flex rounded-lg bg-white/10 hover:bg-white/15 px-2.5 py-1 text-[11px] font-bold"
+                  className="inline-flex min-h-9 items-center rounded-lg bg-white/10 hover:bg-white/15 px-2.5 py-1 text-[11px] font-bold"
                 >
                   {t.open}
                 </Link>
-                {app.manage && app.linked === false ? (
+                {app.manage && app.linked === false && canManage ? (
                   <button
                     type="button"
                     disabled={!!busy}
                     onClick={() => void app.manage!.link()}
-                    className="inline-flex items-center gap-1 rounded-lg bg-emerald-500/90 px-2.5 py-1 text-[11px] font-bold text-[#0f1410] disabled:opacity-50"
+                    className="inline-flex min-h-9 items-center gap-1 rounded-lg bg-emerald-500/90 px-2.5 py-1 text-[11px] font-bold text-[#0f1410] disabled:opacity-50"
                   >
                     {isBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
                     {t.link}
@@ -296,7 +307,7 @@ export function HisabyAppsLinkHub({
                     type="button"
                     disabled={!!busy}
                     onClick={() => void app.manage!.unlink()}
-                    className="inline-flex items-center gap-1 rounded-lg border border-white/20 px-2.5 py-1 text-[11px] font-semibold disabled:opacity-50"
+                    className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-white/20 px-2.5 py-1 text-[11px] font-semibold disabled:opacity-50"
                   >
                     {isBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
                     {t.unlink}

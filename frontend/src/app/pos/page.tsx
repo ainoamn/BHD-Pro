@@ -4217,7 +4217,7 @@ export default function PosCheckoutPage() {
               {t.splitTender}
             </button>
           )}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 touch-manipulation">
             <button
               type="button"
               data-pos-pay="CASH"

@@ -332,6 +332,69 @@ export function canAccessModule(
   return RANK[level] >= RANK[needed];
 }
 
+/** Any of these modules unlocks the Accounting app entry in cross-nav. */
+export const ACCOUNTING_ENTRY_MODULES: ModuleKey[] = [
+  "dashboard",
+  "sales",
+  "purchases",
+  "accounting",
+  "reports",
+  "contacts",
+  "inventory",
+  "journal",
+  "chartOfAccounts",
+];
+
+export const POS_ENTRY_MODULES: ModuleKey[] = [
+  "posSales",
+  "posShifts",
+  "posInventory",
+  "posContacts",
+  "posBooks",
+];
+
+export const RESTO_ENTRY_MODULES: ModuleKey[] = [
+  "floor",
+  "kitchen",
+  "expo",
+  "restoMenu",
+  "restoReservations",
+  "restoReports",
+  "restoContacts",
+];
+
+export function canAccessAnyModule(
+  permissions: Partial<ModulePermissions> | null | undefined,
+  modules: ModuleKey[],
+  needed: AccessLevel = "view",
+): boolean {
+  return modules.some((m) => canAccessModule(permissions, m, needed));
+}
+
+export function canOpenAccountingApp(
+  permissions: Partial<ModulePermissions> | null | undefined,
+  role?: string | null,
+): boolean {
+  if (role === "ADMIN") return true;
+  return canAccessAnyModule(permissions, ACCOUNTING_ENTRY_MODULES, "view");
+}
+
+export function canOpenPosApp(
+  permissions: Partial<ModulePermissions> | null | undefined,
+  role?: string | null,
+): boolean {
+  if (role === "ADMIN") return true;
+  return canAccessAnyModule(permissions, POS_ENTRY_MODULES, "view");
+}
+
+export function canOpenRestoApp(
+  permissions: Partial<ModulePermissions> | null | undefined,
+  role?: string | null,
+): boolean {
+  if (role === "ADMIN") return true;
+  return canAccessAnyModule(permissions, RESTO_ENTRY_MODULES, "view");
+}
+
 export const RESTO_SECTION_MODULE: Record<string, ModuleKey> = {
   "/resto": "floor",
   "/resto/takeaway": "floor",
