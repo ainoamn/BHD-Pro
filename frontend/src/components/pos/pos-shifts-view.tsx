@@ -427,14 +427,18 @@ export function PosShiftsView({
       const payload = res.data as {
         zReport?: ZReport;
         shift?: { id?: string };
-        zEmail?: { sent?: number; skipped?: boolean };
+        zEmail?: { sent?: number; mocked?: number; skipped?: boolean };
       };
       const z = payload?.zReport || null;
       setLastZ(z);
       setLastClosedShiftId(payload?.shift?.id || null);
       if (z) printShiftReport(t, z, "Z", company?.name);
-      if (payload?.zEmail && !payload.zEmail.skipped && (payload.zEmail.sent || 0) > 0) {
-        toast.success(t.zEmailSent);
+      if (payload?.zEmail && !payload.zEmail.skipped) {
+        if ((payload.zEmail.sent || 0) > 0) {
+          toast.success(t.zEmailSent);
+        } else if ((payload.zEmail.mocked || 0) > 0) {
+          toast(t.zEmailMock, { icon: "🧪" });
+        }
       }
       qc.invalidateQueries({ queryKey: ["pos-shift-current"] });
       qc.invalidateQueries({ queryKey: ["pos-shifts"] });

@@ -2939,14 +2939,19 @@ export class PosService {
       closedBy?: { name?: string } | null;
     },
     zReport: Record<string, unknown>,
-  ): Promise<{ sent: number; skipped: boolean; error?: string }> {
+  ): Promise<{
+    sent: number;
+    mocked: number;
+    skipped: boolean;
+    error?: string;
+  }> {
     try {
       const settings = await this.dualControl.getZReportEmailSettings(companyId);
       if (!settings.enabled) {
-        return { sent: 0, skipped: true };
+        return { sent: 0, mocked: 0, skipped: true };
       }
       if (!this.emailNotify.isConfigured()) {
-        return { sent: 0, skipped: true, error: 'Email not configured' };
+        return { sent: 0, mocked: 0, skipped: true, error: 'Email not configured' };
       }
       const company = await this.prisma.company.findUnique({
         where: { id: companyId },
@@ -2959,20 +2964,23 @@ export class PosService {
       );
       const subject = `Z-Report · ${company?.name || 'Hisaby'} · ${shift.id.slice(0, 8)}`;
       let sent = 0;
+      let mocked = 0;
       for (const to of settings.emails) {
         const res = await this.emailNotify.sendText({ to, subject, text });
-        if (res.ok) sent += 1;
+        if (res.ok && res.mock) mocked += 1;
+        else if (res.ok) sent += 1;
         else {
           this.logger.warn(`Z-report email to ${to} failed: ${res.error || 'unknown'}`);
         }
       }
-      return { sent, skipped: false };
+      return { sent, mocked, skipped: false };
     } catch (err) {
       this.logger.warn(
         `Z-report email failed: ${err instanceof Error ? err.message : String(err)}`,
       );
       return {
         sent: 0,
+        mocked: 0,
         skipped: false,
         error: err instanceof Error ? err.message : 'email failed',
       };

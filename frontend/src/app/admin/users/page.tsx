@@ -325,13 +325,17 @@ function UsersInner() {
       const res = await api.resetAdminUserPassword(u.id);
       const data = res.data as {
         emailSent?: boolean;
+        emailMock?: boolean;
         temporaryPassword?: string;
       };
       if (data.emailSent) toast.success(t.passwordSent);
       else if (data.temporaryPassword) {
-        toast.success(`${t.tempPassword}: ${data.temporaryPassword}`, {
-          duration: 12000,
-        });
+        toast(
+          data.emailMock
+            ? `${t.passwordMock}: ${data.temporaryPassword}`
+            : `${t.tempPassword}: ${data.temporaryPassword}`,
+          { duration: 12000, icon: data.emailMock ? "🧪" : undefined },
+        );
       } else toast.success(en ? "Password reset" : "تمت إعادة التعيين");
     } catch (err: unknown) {
       toast.error(errMsg(err, en ? "Reset failed" : "تعذر إعادة التعيين"));

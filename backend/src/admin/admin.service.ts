@@ -1107,6 +1107,7 @@ export class AdminService implements OnModuleInit {
     });
 
     let emailSent = false;
+    let emailMock = false;
     let emailError: string | undefined;
     try {
       const result = await this.emailNotify.sendText({
@@ -1126,7 +1127,8 @@ export class AdminService implements OnModuleInit {
           'يرجى تسجيل الدخول وتغييرها فوراً.',
         ].join('\n'),
       });
-      emailSent = result.ok;
+      emailMock = !!result.mock;
+      emailSent = result.ok && !emailMock;
       emailError = result.error;
     } catch (err) {
       emailError = err instanceof Error ? err.message : 'email failed';
@@ -1137,6 +1139,7 @@ export class AdminService implements OnModuleInit {
       id: user.id,
       email: user.email,
       emailSent,
+      emailMock,
       ...(emailSent ? {} : { temporaryPassword }),
       ...(emailError && !emailSent ? { emailError } : {}),
     };
