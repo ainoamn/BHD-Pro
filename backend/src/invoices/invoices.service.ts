@@ -368,7 +368,7 @@ export class InvoicesService {
 
       await this.prisma.invoiceItem.createMany({ data: itemsData });
 
-      return this.prisma.invoice.update({
+      const withItems = await this.prisma.invoice.update({
         where: { id },
         data: {
           ...(dto.type && { type: dto.type }),
@@ -392,6 +392,8 @@ export class InvoicesService {
         },
         include: { contact: true, items: true, costCenter: true, project: true },
       });
+      this.bumpDashboard(companyId);
+      return withItems;
     }
 
     const updatedDraft = await this.prisma.invoice.update({
