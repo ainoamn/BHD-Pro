@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { X, Mail, MessageCircle, Loader2 } from "lucide-react";
+import { X, Mail, MessageCircle, Loader2, Cloud } from "lucide-react";
 import toast from "react-hot-toast";
 import { InvoiceDocumentData } from "@/components/invoices/invoice-document";
 import {
@@ -19,6 +19,8 @@ interface SendDocumentModalProps {
   companyName?: string;
   variant?: "invoice" | "receipt";
   onClose: () => void;
+  /** Called after server email path may have changed invoice status */
+  onServerSent?: () => void;
 }
 
 export function SendDocumentModal({
@@ -26,13 +28,19 @@ export function SendDocumentModal({
   companyName,
   variant = "invoice",
   onClose,
+  onServerSent,
 }: SendDocumentModalProps) {
   const t = useTranslations("invoices");
   const docLabel = shareDocumentLabel(invoice.type, variant);
-  const [loading, setLoading] = useState<"whatsapp" | "email" | null>(null);
+  const [loading, setLoading] = useState<"whatsapp" | "email" | "server" | null>(
+    null,
+  );
 
   const waPhone = formatPhoneForWhatsApp(invoice.contact.phone);
   const hasPhone = !!waPhone;
+  const hasEmail = !!invoice.contact.email?.trim();
+  const canServerSend =
+    invoice.status !== "CANCELLED" && variant === "invoice";
 
   const createShareUrl = async (): Promise<string> => {
     const res = await api.createDocumentShareLink(invoice.id, variant);
@@ -77,6 +85,39 @@ export function SendDocumentModal({
       window.setTimeout(() => onClose(), 200);
     } catch {
       toast.error(t("shareLinkError"));
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const handleServerEmail = async () => {
+    if (!hasEmail) {
+      toast.error(t("emailNeedAddress"));
+      return;
+    }
+    setLoading("server");
+    try {
+      const res = await api.sendInvoice(invoice.id);
+      const data = res.data as {
+        emailSent?: boolean;
+        emailMock?: boolean;
+        emailSkipped?: boolean;
+        emailError?: string;
+        message?: string;
+      };
+      if (data.emailSent) {
+        toast.success(t("serverEmailSent"));
+      } else if (data.emailMock) {
+        toast(t("serverEmailMock"), { icon: "🧪", duration: 8000 });
+      } else if (data.emailSkipped) {
+        toast(t("serverEmailSkipped"), { icon: "⚠️", duration: 8000 });
+      } else {
+        toast(t("serverEmailFail"), { icon: "⚠️", duration: 8000 });
+      }
+      onServerSent?.();
+      window.setTimeout(() => onClose(), 250);
+    } catch {
+      toast.error(t("sendError"));
     } finally {
       setLoading(null);
     }
@@ -149,6 +190,36 @@ export function SendDocumentModal({
               )}
             </div>
           </button>
+
+          {canServerSend ? (
+            <button
+              type="button"
+              onClick={handleServerEmail}
+              disabled={!!loading || !hasEmail}
+              className="w-full flex items-center gap-4 p-4 rounded-xl border border-cyan-800/50 bg-cyan-950/30 hover:bg-cyan-950/50 transition-colors text-right disabled:opacity-50"
+            >
+              <div className="w-11 h-11 rounded-xl bg-cyan-600/20 flex items-center justify-center shrink-0">
+                {loading === "server" ? (
+                  <Loader2 className="w-5 h-5 text-cyan-400 animate-spin" />
+                ) : (
+                  <Cloud className="w-5 h-5 text-cyan-400" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-white">{t("sendViaHisabyEmail")}</p>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  {t("sendViaHisabyEmailHint")}
+                </p>
+                {hasEmail ? (
+                  <p className="text-xs text-cyan-400/80 mt-1 truncate">
+                    {invoice.contact.email}
+                  </p>
+                ) : (
+                  <p className="text-xs text-amber-400/80 mt-1">{t("emailNeedAddress")}</p>
+                )}
+              </div>
+            </button>
+          ) : null}
         </div>
       </div>
     </div>

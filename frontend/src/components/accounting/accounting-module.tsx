@@ -1541,6 +1541,7 @@ export function AccountingModule() {
           companyName={company?.name}
           variant={shareDocument.variant}
           onClose={() => setShareDocument(null)}
+          onServerSent={() => invalidateInvoiceQueries()}
         />
       )}
 

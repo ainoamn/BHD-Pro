@@ -1036,21 +1036,30 @@ export class InvoicesService {
 
   async send(companyId: string, userId: string, id: string, email?: string) {
     const invoice = await this.findOne(companyId, id);
+    if (invoice.status === InvoiceStatus.CANCELLED) {
+      throw new BadRequestException('Cannot send a cancelled invoice');
+    }
+
     const recipient = (email || invoice.contact.email || '').trim() || null;
 
-    const updated = await this.prisma.invoice.update({
-      where: { id },
-      data: { status: InvoiceStatus.SENT },
-      include: { contact: true, items: true, payments: true },
-    });
-
-    await this.glPosting.postInvoice(companyId, userId, updated);
-    this.bumpDashboard(companyId);
+    // Never downgrade PAID → SENT; only mark draft/open docs as SENT
+    if (invoice.status !== InvoiceStatus.PAID) {
+      const updated = await this.prisma.invoice.update({
+        where: { id },
+        data: { status: InvoiceStatus.SENT },
+        include: { contact: true, items: true, payments: true },
+      });
+      await this.glPosting.postInvoice(companyId, userId, updated);
+      this.bumpDashboard(companyId);
+    }
 
     if (!recipient) {
       return {
         success: true,
-        message: `Invoice ${invoice.number} marked as sent (no email on file)`,
+        message:
+          invoice.status === InvoiceStatus.PAID
+            ? `Invoice ${invoice.number}: no email on file`
+            : `Invoice ${invoice.number} marked as sent (no email on file)`,
         email: null,
         emailSent: false,
         emailMock: false,
@@ -1062,7 +1071,10 @@ export class InvoicesService {
     if (!this.emailNotify.isConfigured()) {
       return {
         success: true,
-        message: `Invoice ${invoice.number} marked as sent (email not configured)`,
+        message:
+          invoice.status === InvoiceStatus.PAID
+            ? `Invoice ${invoice.number}: email not configured`
+            : `Invoice ${invoice.number} marked as sent (email not configured)`,
         email: recipient,
         emailSent: false,
         emailMock: false,
@@ -1112,13 +1124,15 @@ export class InvoicesService {
       this.logger.warn(`Invoice email failed for ${invoice.number}: ${emailError}`);
     }
 
+    const marked =
+      invoice.status !== InvoiceStatus.PAID ? 'marked as sent — ' : '';
     const message = emailSent
       ? `Invoice ${invoice.number} emailed to ${recipient}`
       : emailMock
-        ? `Invoice ${invoice.number} marked as sent — email mock (not delivered) to ${recipient}`
-        : `Invoice ${invoice.number} marked as sent (email not delivered${
+        ? `Invoice ${invoice.number} ${marked}email mock (not delivered) to ${recipient}`
+        : `Invoice ${invoice.number} ${marked || ''}email not delivered${
             emailError ? `: ${emailError}` : ''
-          })`;
+          }`;
 
     return {
       success: true,
