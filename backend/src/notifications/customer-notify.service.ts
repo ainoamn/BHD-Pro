@@ -203,6 +203,27 @@ export class CustomerNotifyService {
     }
   }
 
+  /** Deferred POS sale ready for pickup / stock fulfilled. */
+  async notifyPosFulfill(
+    companyId: string,
+    invoiceId: string,
+    contactId: string,
+  ): Promise<{ whatsapp?: string; email?: string; sms?: string } | null> {
+    try {
+      return await this.sendCustomerPosMessage(
+        companyId,
+        invoiceId,
+        contactId,
+        'fulfill',
+      );
+    } catch (err) {
+      this.logger.warn(
+        `notifyPosFulfill failed: ${err instanceof Error ? err.message : err}`,
+      );
+      return null;
+    }
+  }
+
   /**
    * After partner/terminal pay settles: send receipt once and persist result
    * on invoice.customFieldsJson.partnerPayNotify (idempotent).
@@ -263,7 +284,7 @@ export class CustomerNotifyService {
     companyId: string,
     invoiceId: string,
     contactId: string,
-    kind: 'sale' | 'void' | 'refund' | 'blind_return',
+    kind: 'sale' | 'void' | 'refund' | 'blind_return' | 'fulfill',
     creditNoteId?: string,
     force = false,
   ): Promise<{
@@ -357,6 +378,15 @@ export class CustomerNotifyService {
         `إشعار دائن: ${invoice.number}`,
         `المبلغ: ${totalStr}`,
         `عرض المستند: ${viewUrl}`,
+        `للإبلاغ: ${disputeUrl}`,
+      ].join('\n');
+    } else if (kind === 'fulfill') {
+      body = [
+        `مرحباً ${contact.name}،`,
+        `طلبك جاهز للاستلام لدى ${company.name}`,
+        `فاتورة: ${invoice.number}`,
+        `المبلغ: ${totalStr}`,
+        `عرض الإيصال: ${viewUrl}`,
         `للإبلاغ: ${disputeUrl}`,
       ].join('\n');
     } else {

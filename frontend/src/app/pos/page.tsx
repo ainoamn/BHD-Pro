@@ -3146,8 +3146,16 @@ export default function PosCheckoutPage() {
                       setFulfillBusyId(p.id);
                       void api
                         .fulfillPosSale(p.id)
-                        .then(() => {
+                        .then((res) => {
                           toast.success(t.fulfillOk);
+                          toastPosCustomerNotify(
+                            (
+                              res.data as {
+                                customerNotify?: CustomerNotifySummary;
+                              }
+                            )?.customerNotify,
+                            t,
+                          );
                           setPendingFulfillments((prev) =>
                             prev.filter((x) => x.id !== p.id),
                           );

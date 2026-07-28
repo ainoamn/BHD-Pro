@@ -1004,9 +1004,9 @@ export class PosService {
     };
   }
 
-  /** Awaited notify for sale/void/refund/blind-return honesty; never throws. */
+  /** Awaited notify for sale/void/refund/blind-return/fulfill honesty; never throws. */
   private async awaitCustomerNotify(
-    kind: 'sale' | 'void' | 'refund' | 'blind_return',
+    kind: 'sale' | 'void' | 'refund' | 'blind_return' | 'fulfill',
     companyId: string,
     invoiceId: string,
     contactId: string | null | undefined,
@@ -1034,6 +1034,13 @@ export class PosService {
       }
       if (kind === 'blind_return') {
         return await this.customerNotify.notifyPosBlindReturn(
+          companyId,
+          invoiceId,
+          contactId,
+        );
+      }
+      if (kind === 'fulfill') {
+        return await this.customerNotify.notifyPosFulfill(
           companyId,
           invoiceId,
           contactId,
@@ -1822,7 +1829,20 @@ export class PosService {
           },
         },
       });
-      return { ok: true, invoice: updated, fulfilledBy: actor.sub };
+
+      const customerNotify = await this.awaitCustomerNotify(
+        'fulfill',
+        companyId,
+        updated.id,
+        updated.contactId,
+      );
+
+      return {
+        ok: true,
+        invoice: updated,
+        fulfilledBy: actor.sub,
+        customerNotify: customerNotify ?? null,
+      };
     } catch (err) {
       for (const row of reserved.reverse()) {
         try {
