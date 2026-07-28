@@ -52,8 +52,6 @@ import {
 import { openPosReceiptEmail, openPosReceiptWhatsApp } from "@/lib/pos-receipt-share";
 import {
   printPosReceiptBrowser,
-  buildPosReceiptPdfBlob,
-  downloadBlob,
   type PosReceiptPrintData,
 } from "@/lib/pos-receipt-print";
 import { formatCompanyAddressCompact } from "@/lib/contact-address";
