@@ -3058,7 +3058,13 @@ class ApiClient {
   resendPosSaleNotify(id: string) {
     return this.post<{
       ok: boolean;
-      delivery?: { whatsapp?: string; email?: string; sms?: string };
+      delivery?: {
+        whatsapp?: string;
+        email?: string;
+        sms?: string;
+        whatsappError?: string;
+        receiptTemplate?: string | null;
+      };
     }>(`/pos/sales/${id}/notify`);
   }
 

@@ -19,7 +19,12 @@ import { PageHeader, LoadingSpinner, QueryError, GlassCard } from "@/components/
 import { cn, apiErrorMessage } from "@/lib/utils";
 
 type MessagingStatus = {
-  whatsapp: { configured: boolean; mode: string };
+  whatsapp: {
+    configured: boolean;
+    mode: string;
+    receiptTemplate?: string | null;
+    guestTemplate?: string | null;
+  };
   email: { configured: boolean; mode: string };
   sms?: { configured: boolean; mode: string };
   storage: { driver: string; s3Ready: boolean };
@@ -101,6 +106,12 @@ export default function IntegrationsPage() {
         title: t("whatsapp"),
         ok: status.whatsapp.configured,
         detail: status.whatsapp.mode,
+        warn:
+          status.whatsapp.configured && !status.whatsapp.receiptTemplate
+            ? t("whatsappTemplateMissing")
+            : status.whatsapp.receiptTemplate
+              ? `${t("whatsappTemplate")}: ${status.whatsapp.receiptTemplate}`
+              : null,
       },
       {
         key: "email",
@@ -179,6 +190,18 @@ export default function IntegrationsPage() {
               >
                 {c.ok ? t("ready") : t("notReady")} · {c.detail}
               </p>
+              {"warn" in c && c.warn ? (
+                <p
+                  className={cn(
+                    "mt-2 text-xs leading-relaxed",
+                    status?.whatsapp.receiptTemplate
+                      ? "text-slate-400"
+                      : "text-amber-300",
+                  )}
+                >
+                  {c.warn}
+                </p>
+              ) : null}
             </GlassCard>
           ))}
         </div>

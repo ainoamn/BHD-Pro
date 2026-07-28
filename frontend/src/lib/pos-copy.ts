@@ -416,6 +416,9 @@ export const posCopy = {
     shareWhatsAppResendFail: "تعذر إرسال واتساب من السيرفر",
     shareWhatsAppNeedCustomer: "البيع يحتاج عميلاً برقم جوال لإعادة الإرسال",
     shareWhatsAppPartial: "تم تنزيل PDF — واتساب لم يُرسل (تحقق من القالب/الرقم)",
+    shareWhatsAppOpenedManual: "فُتح واتساب يدوياً — الصق الرسالة إن لزم",
+    shareWhatsAppNeedTemplate:
+      "Meta ترفض الإرسال بدون قالب معتمد — اضبط WHATSAPP_RECEIPT_TEMPLATE على Render",
     partnerPay: "دفع شريك (بطاقة/محفظة)",
     partnerPayHint: "يفتح بوابة ثواني/Stripe/PayPal — ليس شارة NFC",
     partnerPayOpened: "تم فتح صفحة دفع الشريك",
@@ -994,6 +997,9 @@ export const posCopy = {
     shareWhatsAppResendFail: "Could not resend WhatsApp from server",
     shareWhatsAppNeedCustomer: "Sale needs a customer with a phone to resend",
     shareWhatsAppPartial: "PDF downloaded — WhatsApp was not sent (check template/phone)",
+    shareWhatsAppOpenedManual: "Opened WhatsApp manually — paste the message if needed",
+    shareWhatsAppNeedTemplate:
+      "Meta blocks send without an approved template — set WHATSAPP_RECEIPT_TEMPLATE on Render",
     partnerPay: "Partner pay (card/wallet)",
     partnerPayHint: "Opens Thawani/Stripe/PayPal — not the NFC approval badge",
     partnerPayOpened: "Partner checkout opened",

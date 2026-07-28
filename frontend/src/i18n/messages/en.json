@@ -909,7 +909,9 @@
     "bodyPlaceholder": "Optional — default text is used if empty",
     "sendTest": "Send test",
     "testOk": "Sent",
-    "testFail": "Send failed — check configuration"
+    "testFail": "Send failed — check configuration",
+    "whatsappTemplate": "Receipt template",
+    "whatsappTemplateMissing": "Missing WHATSAPP_RECEIPT_TEMPLATE — Meta blocks first-contact receipts without an approved Utility template"
   },
   "ai": {
     "title": "AI assistant (human-in-the-loop)",

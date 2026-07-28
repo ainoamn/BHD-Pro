@@ -909,7 +909,9 @@
     "bodyPlaceholder": "اختياري — يُستخدم نص افتراضي إن تُرك فارغاً",
     "sendTest": "إرسال اختبار",
     "testOk": "تم الإرسال",
-    "testFail": "فشل الإرسال — راجع الإعدادات"
+    "testFail": "فشل الإرسال — راجع الإعدادات",
+    "whatsappTemplate": "قالب الإيصال",
+    "whatsappTemplateMissing": "ناقص WHATSAPP_RECEIPT_TEMPLATE — Meta ترفض إيصالات أول تواصل بدون قالب Utility معتمد"
   },
   "ai": {
     "title": "مساعد AI بإشراف بشري",

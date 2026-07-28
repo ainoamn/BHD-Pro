@@ -49,7 +49,7 @@ import {
   openPosCustomerDisplayWindow,
   publishPosCustomerDisplay,
 } from "@/lib/pos-customer-display";
-import { openPosReceiptEmail } from "@/lib/pos-receipt-share";
+import { openPosReceiptEmail, openPosReceiptWhatsApp } from "@/lib/pos-receipt-share";
 import {
   printPosReceiptBrowser,
   buildPosReceiptPdfBlob,
@@ -4375,19 +4375,44 @@ export default function PosCheckoutPage() {
                       const canResend =
                         !!lastInvoice.id &&
                         !String(lastInvoice.id).startsWith("OFF-");
+                      let waError = "";
                       if (canResend) {
                         try {
                           const res = await api.resendPosSaleNotify(lastInvoice.id);
                           waOk = res.data?.delivery?.whatsapp === "ok";
+                          waError = String(res.data?.delivery?.whatsappError || "");
                         } catch {
                           waOk = false;
                         }
                       }
 
                       toast.dismiss(toastId);
-                      if (pdfOk && waOk) toast.success(t.shareWhatsAppPdfOk);
-                      else if (pdfOk && canResend) toast.error(t.shareWhatsAppPartial);
-                      else if (pdfOk) toast.success(t.shareWhatsAppPdfDownloaded);
+                      if (pdfOk && waOk) {
+                        toast.success(t.shareWhatsAppPdfOk);
+                      } else if (pdfOk && canResend && !waOk) {
+                        const cust = customers.find((c) => c.id === contactId);
+                        const opened = openPosReceiptWhatsApp({
+                          companyName: company?.name,
+                          number: lastInvoice.number,
+                          warehouseLabel: lastInvoice.warehouseLabel,
+                          paymentMethod: lastInvoice.paymentMethod,
+                          total: lastInvoice.total,
+                          currency,
+                          lines: receiptLines,
+                          customerPhone: cust?.phone || null,
+                        });
+                        const needTpl =
+                          /template|131047|24|WHATSAPP_RECEIPT/i.test(waError);
+                        toast.error(
+                          needTpl
+                            ? t.shareWhatsAppNeedTemplate || t.shareWhatsAppPartial
+                            : waError
+                              ? `${t.shareWhatsAppPartial}: ${waError.slice(0, 160)}`
+                              : t.shareWhatsAppPartial,
+                          { duration: 8000 },
+                        );
+                        if (opened) toast(t.shareWhatsAppOpenedManual, { duration: 5000 });
+                      } else if (pdfOk) toast.success(t.shareWhatsAppPdfDownloaded);
                       else toast.error(t.shareWhatsAppPdfFail);
                     } catch {
                       toast.dismiss(toastId);

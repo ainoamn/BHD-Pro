@@ -53,6 +53,7 @@ export class MessagingController {
         configured: this.whatsapp.isConfigured(),
         mode: this.whatsapp.mode(),
         receiptTemplate: this.whatsapp.receiptTemplateName(),
+        guestTemplate: this.whatsapp.guestTemplateName(),
       },
       email: {
         configured: this.email.isConfigured(),
@@ -101,6 +102,8 @@ export class MessagingController {
             'للاختبار الداخلي فقط: WHATSAPP_TOKEN=mock',
             'أضف أرقام المديرين في whatsappNotifyPhones — واترك autoSendPosReceipts مفعّلاً.',
             'لإيصالات أول تواصل مع العميل: أنشئ قالب Utility في WhatsApp Manager (5 متغيرات) واضبط WHATSAPP_RECEIPT_TEMPLATE — بدون قالب Meta ترفض الرسالة خارج نافذة 24 ساعة.',
+            'المحاسبة: عند وضع الفاتورة SENT/PAID يُرسل نفس قالب الإيصال للعميل تلقائياً.',
+            'المطاعم: إشعارات الطاولة/الحجز تستخدم نفس القالب أو WHATSAPP_GUEST_TEMPLATE.',
             'دليل كامل: docs/MESSAGING-WHATSAPP-EMAIL-GUIDE.md',
           ],
         },
@@ -203,8 +206,33 @@ export class MessagingController {
       `رسالة اختبار من Hisaby (${user.email}) — ${new Date().toISOString()}`;
 
     if (dto.channel === 'whatsapp') {
+      const template = this.whatsapp.receiptTemplateName();
+      if (template) {
+        const res = await this.whatsapp.sendTemplate(dto.to, template, [
+          'اختبار',
+          'Hisaby',
+          'TEST-001',
+          '0.000 OMR',
+          'https://hisaby.pro',
+        ]);
+        return {
+          channel: 'whatsapp',
+          ...res,
+          mode: this.whatsapp.mode(),
+          via: 'template',
+          template,
+        };
+      }
       const res = await this.whatsapp.sendText(dto.to, body);
-      return { channel: 'whatsapp', ...res, mode: this.whatsapp.mode() };
+      return {
+        channel: 'whatsapp',
+        ...res,
+        mode: this.whatsapp.mode(),
+        via: 'text',
+        hint: res.ok
+          ? undefined
+          : 'Outside the 24h window Meta requires WHATSAPP_RECEIPT_TEMPLATE (approved Utility template).',
+      };
     }
 
     if (dto.channel === 'sms') {

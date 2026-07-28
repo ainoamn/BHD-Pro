@@ -27,6 +27,19 @@ export class WhatsappNotifyService {
     return (process.env.WHATSAPP_RECEIPT_TEMPLATE_LANG || 'ar').trim() || 'ar';
   }
 
+  /** Approved template for guest / resto alerts; falls back to receipt template. */
+  guestTemplateName(): string | null {
+    const name = (process.env.WHATSAPP_GUEST_TEMPLATE || '').trim();
+    return name || this.receiptTemplateName();
+  }
+
+  guestTemplateLang(): string {
+    return (
+      (process.env.WHATSAPP_GUEST_TEMPLATE_LANG || '').trim() ||
+      this.receiptTemplateLang()
+    );
+  }
+
   private async parseMetaError(res: Response): Promise<string> {
     const text = await res.text();
     try {
@@ -247,6 +260,53 @@ export class WhatsappNotifyService {
     const hint =
       !template && /24|window|template|re-engage|131047|131026/i.test(text.error || '')
         ? ' — أنشئ قالباً معتمداً واضبط WHATSAPP_RECEIPT_TEMPLATE'
+        : '';
+    return {
+      ok: false,
+      error: `${text.error || 'send failed'}${hint}`,
+      via: 'text',
+    };
+  }
+
+  /**
+   * Guest / restaurant alert: prefer template (first contact), else session text.
+   * Template vars: {{1}} guest · {{2}} company · {{3}} title · {{4}} detail · {{5}} link
+   */
+  async sendGuestNotify(
+    toE164: string,
+    opts: {
+      guestName: string;
+      companyName: string;
+      title: string;
+      detail: string;
+      link?: string | null;
+      fullBody: string;
+    },
+  ): Promise<{ ok: boolean; error?: string; via?: 'template' | 'text' }> {
+    const template = this.guestTemplateName();
+    if (template) {
+      const result = await this.sendTemplate(
+        toE164,
+        template,
+        [
+          opts.guestName || '-',
+          opts.companyName || '-',
+          opts.title || '-',
+          (opts.detail || '-').slice(0, 200),
+          opts.link || '-',
+        ],
+        this.guestTemplateLang(),
+      );
+      if (result.ok) return { ...result, via: 'template' };
+      this.logger.warn(`Guest template failed, trying session text: ${result.error}`);
+    }
+
+    const text = await this.sendText(toE164, opts.fullBody);
+    if (text.ok) return { ...text, via: 'text' };
+
+    const hint =
+      !template && /24|window|template|re-engage|131047|131026/i.test(text.error || '')
+        ? ' — أنشئ قالباً واضبط WHATSAPP_RECEIPT_TEMPLATE أو WHATSAPP_GUEST_TEMPLATE'
         : '';
     return {
       ok: false,

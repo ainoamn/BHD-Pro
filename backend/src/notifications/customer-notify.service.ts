@@ -115,7 +115,13 @@ export class CustomerNotifyService {
     companyId: string,
     invoiceId: string,
     contactId: string,
-  ): Promise<{ whatsapp: string; email: string; sms: string }> {
+  ): Promise<{
+    whatsapp: string;
+    email: string;
+    sms: string;
+    whatsappError?: string;
+    receiptTemplate?: string | null;
+  }> {
     const delivery = await this.sendCustomerPosMessage(
       companyId,
       invoiceId,
@@ -129,6 +135,7 @@ export class CustomerNotifyService {
         whatsapp: 'skipped',
         email: 'skipped',
         sms: 'skipped',
+        whatsappError: 'notify skipped (walk-in / no channel / missing contact)',
       }
     );
   }
@@ -175,7 +182,15 @@ export class CustomerNotifyService {
     kind: 'sale' | 'void' | 'refund',
     creditNoteId?: string,
     force = false,
-  ): Promise<{ whatsapp: string; email: string; sms: string } | null> {
+  ): Promise<{
+    whatsapp: string;
+    email: string;
+    sms: string;
+    whatsappError?: string;
+    emailError?: string;
+    smsError?: string;
+    receiptTemplate?: string | null;
+  } | null> {
     const [invoice, contact, company] = await Promise.all([
       this.prisma.invoice.findFirst({
         where: { id: invoiceId, companyId },
@@ -269,27 +284,18 @@ export class CustomerNotifyService {
     let waOk = false;
     let waError: string | undefined;
     if (isValidMobileE164(digits) && this.whatsapp.isConfigured()) {
-      if (kind === 'sale') {
-        const result = await this.whatsapp.sendPosReceipt(digits, {
-          customerName: contact.name,
-          companyName: company.name,
-          invoiceNumber: String(invoice.number || ''),
-          amount: totalStr,
-          viewUrl,
-          fullBody: body,
-        });
-        waOk = result.ok;
-        waError = result.error;
-      } else {
-        const caption = body.slice(0, 900);
-        const result = await this.whatsapp.sendDocumentLink(
-          digits,
-          viewUrl,
-          caption,
-          `${invoice.number || 'receipt'}.pdf`,
-        );
-        waOk = result.ok;
-        waError = result.error;
+      const result = await this.whatsapp.sendPosReceipt(digits, {
+        customerName: contact.name,
+        companyName: company.name,
+        invoiceNumber: String(invoice.number || ''),
+        amount: totalStr,
+        viewUrl,
+        fullBody: body,
+      });
+      waOk = result.ok;
+      waError = result.error;
+      if (!this.whatsapp.receiptTemplateName() && !waOk) {
+        waError = `${waError || 'send failed'} — اضبط WHATSAPP_RECEIPT_TEMPLATE على Render بعد اعتماد قالب Meta`;
       }
     } else if (contact.phone?.trim()) {
       waError = `invalid phone (normalized=${digits || 'empty'}) or WhatsApp not configured`;
@@ -329,9 +335,13 @@ export class CustomerNotifyService {
     }
 
     const delivery = {
-      whatsapp: waOk ? 'ok' : 'fail',
+      whatsapp: waOk ? ('ok' as const) : ('fail' as const),
       email: emailStatus,
       sms: smsStatus,
+      ...(waError ? { whatsappError: waError } : {}),
+      ...(emailError ? { emailError } : {}),
+      ...(smsError ? { smsError } : {}),
+      receiptTemplate: this.whatsapp.receiptTemplateName(),
     };
 
     try {
@@ -345,9 +355,6 @@ export class CustomerNotifyService {
             delivery: {
               ...((existing.delivery as object) || {}),
               ...delivery,
-              ...(waError ? { whatsappError: waError } : {}),
-              ...(emailError ? { emailError } : {}),
-              ...(smsError ? { smsError } : {}),
               kind,
               at: new Date().toISOString(),
             },

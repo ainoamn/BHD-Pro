@@ -43,6 +43,7 @@ export class HealthController {
       emailMode: this.email.mode(),
       whatsappConfigured: this.whatsapp.isConfigured(),
       whatsappMode: this.whatsapp.mode(),
+      whatsappReceiptTemplate: this.whatsapp.receiptTemplateName(),
       smsConfigured: this.sms.isConfigured(),
       smsMode: this.sms.mode(),
     };
@@ -91,6 +92,7 @@ export class HealthController {
       emailMode: this.email.mode(),
       whatsappConfigured: this.whatsapp.isConfigured(),
       whatsappMode: this.whatsapp.mode(),
+      whatsappReceiptTemplate: this.whatsapp.receiptTemplateName(),
       smsConfigured: this.sms.isConfigured(),
       smsMode: this.sms.mode(),
       timestamp: new Date().toISOString(),

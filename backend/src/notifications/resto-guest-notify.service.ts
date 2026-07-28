@@ -136,7 +136,40 @@ export class RestoGuestNotifyService {
       );
 
       if (this.whatsapp.isConfigured()) {
-        const res = await this.whatsapp.sendText(e164, body);
+        const kindTitle =
+          opts.kind === 'WAITLIST_READY'
+            ? opts.locale === 'en'
+              ? 'Table ready'
+              : 'الطاولة جاهزة'
+            : opts.kind === 'RESERVATION_CONFIRM'
+              ? opts.locale === 'en'
+                ? 'Reservation confirmed'
+                : 'تأكيد الحجز'
+              : opts.kind === 'RESERVATION_REMIND'
+                ? opts.locale === 'en'
+                  ? 'Reservation reminder'
+                  : 'تذكير بالحجز'
+                : opts.locale === 'en'
+                  ? 'Reserved table ready'
+                  : 'طاولة الحجز جاهزة';
+        const detailParts = [
+          opts.tableCode ? `table ${opts.tableCode}` : '',
+          opts.quotedMinutes != null ? `${opts.quotedMinutes} min` : '',
+          opts.reservedAt
+            ? opts.reservedAt.toLocaleString(
+                opts.locale === 'en' ? 'en-GB' : 'ar',
+                { dateStyle: 'medium', timeStyle: 'short' },
+              )
+            : '',
+        ].filter(Boolean);
+        const res = await this.whatsapp.sendGuestNotify(e164, {
+          guestName: opts.guestName,
+          companyName: company?.name || 'Hisaby Resto',
+          title: kindTitle,
+          detail: detailParts.join(' · ') || kindTitle,
+          link: opts.confirmUrl || null,
+          fullBody: body,
+        });
         if (res.ok) return { ok: true, channel: 'WHATSAPP' };
         this.logger.warn(`WhatsApp resto notify failed: ${res.error}`);
       }

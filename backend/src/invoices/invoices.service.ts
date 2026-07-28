@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
@@ -14,17 +15,21 @@ import { GlPostingService } from '../journal/gl-posting.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { PeriodsService } from '../periods/periods.service';
 import { ManagementAlertsService } from '../management-alerts/management-alerts.service';
+import { CustomerNotifyService } from '../notifications/customer-notify.service';
 
 const OMAN_VAT_RATE = 5;
 
 @Injectable()
 export class InvoicesService {
+  private readonly logger = new Logger(InvoicesService.name);
+
   constructor(
     private prisma: PrismaService,
     private glPosting: GlPostingService,
     private subscriptions: SubscriptionsService,
     private periods: PeriodsService,
     private managementAlerts: ManagementAlertsService,
+    private customerNotify: CustomerNotifyService,
   ) {}
 
   private calcLine(item: { quantity: number; unitPrice: number; discount?: number; taxRate?: number }) {
@@ -479,6 +484,25 @@ export class InvoicesService {
       for (const pay of updated.payments) {
         await this.glPosting.postPayment(companyId, userId, pay, updated);
       }
+    }
+
+    // Accounting invoices (not POS): WhatsApp / email / SMS when marked SENT or PAID
+    const notes = String(updated.notes || '');
+    const isPosSale = notes.includes('Hisaby POS');
+    if (
+      !isPosSale &&
+      updated.contactId &&
+      (status === InvoiceStatus.SENT || status === InvoiceStatus.PAID) &&
+      (updated.type === InvoiceType.SALES ||
+        updated.type === InvoiceType.CREDIT_NOTE)
+    ) {
+      void this.customerNotify
+        .notifyPosSale(companyId, updated.id, updated.contactId)
+        .catch((err) =>
+          this.logger.warn(
+            `accounting WA notify failed: ${err instanceof Error ? err.message : err}`,
+          ),
+        );
     }
 
     return updated;
