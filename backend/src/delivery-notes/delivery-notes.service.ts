@@ -6,10 +6,18 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateDeliveryNoteDto } from './dto/create-delivery-note.dto';
 import { DeliveryNoteStatus, MovementType } from '@prisma/client';
+import { RedisService } from '../redis/redis.service';
 
 @Injectable()
 export class DeliveryNotesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private redis: RedisService,
+  ) {}
+
+  private bumpPosCatalog(companyId: string) {
+    void this.redis.invalidatePosCatalog(companyId).catch(() => undefined);
+  }
 
   private async generateNumber(companyId: string) {
     const year = new Date().getFullYear();
@@ -135,7 +143,7 @@ export class DeliveryNotesService {
       }
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const delivered = await this.prisma.$transaction(async (tx) => {
       for (const item of note.items) {
         if (!item.productId) continue;
         const product = await tx.product.findFirst({
@@ -221,6 +229,8 @@ export class DeliveryNotesService {
         },
       });
     });
+    this.bumpPosCatalog(companyId);
+    return delivered;
   }
 
   async cancel(companyId: string, id: string) {
@@ -235,7 +245,7 @@ export class DeliveryNotesService {
         throw new BadRequestException('Delivered note has no warehouse to reverse stock');
       }
 
-      return this.prisma.$transaction(async (tx) => {
+      const cancelled = await this.prisma.$transaction(async (tx) => {
         for (const item of note.items) {
           if (!item.productId) continue;
           const product = await tx.product.findFirst({
@@ -295,6 +305,8 @@ export class DeliveryNotesService {
           },
         });
       });
+      this.bumpPosCatalog(companyId);
+      return cancelled;
     }
 
     return this.prisma.deliveryNote.update({

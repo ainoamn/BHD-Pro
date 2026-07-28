@@ -9,10 +9,18 @@ import {
   UpdateStockCountLinesDto,
 } from './dto/stock-count.dto';
 import { MovementType, StockCountStatus } from '@prisma/client';
+import { RedisService } from '../redis/redis.service';
 
 @Injectable()
 export class StockCountsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private redis: RedisService,
+  ) {}
+
+  private bumpPosCatalog(companyId: string) {
+    void this.redis.invalidatePosCatalog(companyId).catch(() => undefined);
+  }
 
   private async generateNumber(companyId: string) {
     const year = new Date().getFullYear();
@@ -180,7 +188,7 @@ export class StockCountsService {
 
     const warehouseId = count.warehouseId || (await this.resolveWarehouse(companyId));
 
-    return this.prisma.$transaction(async (tx) => {
+    const completed = await this.prisma.$transaction(async (tx) => {
       for (const line of count.lines) {
         const system = Number(line.systemQty);
         const counted = Number(line.countedQty);
@@ -250,6 +258,8 @@ export class StockCountsService {
         },
       });
     });
+    this.bumpPosCatalog(companyId);
+    return completed;
   }
 
   async cancel(companyId: string, id: string) {
@@ -345,6 +355,7 @@ export class StockCountsService {
       });
     });
 
+    this.bumpPosCatalog(companyId);
     return {
       ...(await this.findOne(companyId, id)),
       alreadyReversed: false,

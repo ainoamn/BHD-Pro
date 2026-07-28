@@ -37,6 +37,10 @@ export class InvoicesService {
   private bumpDashboard(companyId: string) {
     void this.redis.invalidateDashboardStats(companyId).catch(() => undefined);
   }
+
+  private bumpPosCatalog(companyId: string) {
+    void this.redis.invalidatePosCatalog(companyId).catch(() => undefined);
+  }
   private calcLine(item: { quantity: number; unitPrice: number; discount?: number; taxRate?: number }) {
     const discount = item.discount || 0;
     const lineSubtotal = item.quantity * item.unitPrice - discount;
@@ -454,6 +458,9 @@ export class InvoicesService {
         include: { contact: true, items: true, payments: true },
       });
       this.bumpDashboard(companyId);
+      if (fresh.type === InvoiceType.CREDIT_NOTE) {
+        this.bumpPosCatalog(companyId);
+      }
       return cancelled;
     }
 

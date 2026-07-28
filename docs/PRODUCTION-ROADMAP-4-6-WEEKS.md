@@ -99,6 +99,6 @@
 ## الخطوة التالية المقترحة
 
 1. **أنت اليوم:** Cloudflare §1.1 + تدوير أسرار + لصق Sentry DSN.  
-2. **الكود (Wave BZ — منجز):** صدق كاش كتالوج POS + إبطال لوحة عند تسوية بوابة — [`HISABY-WAVE-BZ-POS-CACHE-PAY-INVALIDATE-2026-07-28.md`](./HISABY-WAVE-BZ-POS-CACHE-PAY-INVALIDATE-2026-07-28.md).  
+2. **الكود (Wave CA — منجز):** إبطال كاش كتالوج POS عند جرد/تسليم/إلغاء إشعار دائن — [`HISABY-WAVE-CA-POS-CACHE-STOCK-PATHS-2026-07-28.md`](./HISABY-WAVE-CA-POS-CACHE-STOCK-PATHS-2026-07-28.md).  
 3. على Render: `REDIS_URL` اختياري؛ قالب OTP واتساب.  
 4. لاحقاً: أرشفة docs.
