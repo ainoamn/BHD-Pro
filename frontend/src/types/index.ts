@@ -16,6 +16,8 @@ export interface User {
   twoFactorPastGrace?: boolean;
   twoFactorDeadline?: string | null;
   twoFactorDaysLeft?: number | null;
+  /** True when API blocks mutations after grace (REQUIRE_2FA_HARD_AFTER_GRACE) */
+  twoFactorHardAfterGrace?: boolean;
   mustCompleteProfile?: boolean;
   /** Home POS warehouse — cashiers auto-lock here */
   defaultWarehouseId?: string | null;

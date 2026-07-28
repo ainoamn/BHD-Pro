@@ -54,6 +54,8 @@
     "password": "Password",
     "disableHint": "Enter your password and a TOTP code to disable 2FA",
     "requiredHint": "Required for manager roles by security policy — enable it now.",
+    "hardLockHint": "Grace ended and hard lock is on — mutations are blocked until 2FA is enabled.",
+    "softPastGraceHint": "Grace ended but hard lock is off on the server — mutations are still allowed.",
     "cannotDisable": "2FA cannot be disabled while policy requires it for this role.",
     "enabled": "Two-factor authentication enabled",
     "disabled": "Two-factor authentication disabled"

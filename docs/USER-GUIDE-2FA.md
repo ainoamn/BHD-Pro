@@ -34,5 +34,5 @@ REQUIRE_2FA_HARD_AFTER_GRACE=1
 
 - عيّن `REQUIRE_2FA_GRACE_FROM` عند توسيع الأدوار لبدء عدّاد المهلة للجميع.
 - بدون `GRACE_FROM` يبقى التنبيه فقط (بدون انتهاء مهلة أو قفل).
-- `REQUIRE_2FA_HARD_AFTER_GRACE=1` يمنع التعديلات بعد انتهاء المهلة حتى تفعيل 2FA.
+- `REQUIRE_2FA_HARD_AFTER_GRACE` افتراضياً off — الواجهة تفرّق soft/hard؛ ضع `1` لمنع التعديلات بعد انتهاء المهلة حتى تفعيل 2FA.
 - أو اترك الافتراضي `ADMIN,MANAGER`. القيمة `off` لـ `REQUIRE_2FA_ROLES` تعطّل سياسة البيئة (غير مُستحسن للإنتاج).

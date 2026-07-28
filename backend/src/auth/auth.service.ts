@@ -21,6 +21,7 @@ import {
   companyRequires2faForAdmins,
   computeTwoFactorGrace,
   envRequires2faForRole,
+  isHard2faAfterGraceEnabled,
   parseRequire2faGraceDays,
   resolveTwoFactorGraceStart,
 } from './two-factor-policy';
@@ -181,6 +182,7 @@ export class AuthService {
       pastGrace: grace.pastGrace,
       deadline: grace.deadline,
       daysLeft: grace.daysLeft,
+      hardAfterGrace: this.isHard2faAfterGrace(),
     };
   }
 
@@ -223,6 +225,14 @@ export class AuthService {
       userCreatedAt,
     );
     return computeTwoFactorGrace(required, enabled, graceDays, graceStart);
+  }
+
+  /** Wave CE — mutations blocked after grace only when env hard-lock is on. */
+  isHard2faAfterGrace(): boolean {
+    return isHard2faAfterGraceEnabled(
+      this.config.get<string>('REQUIRE_2FA_HARD_AFTER_GRACE') ||
+        process.env.REQUIRE_2FA_HARD_AFTER_GRACE,
+    );
   }
 
   async setup2fa(userId: string) {
@@ -353,6 +363,7 @@ export class AuthService {
         twoFactorPastGrace: grace.pastGrace,
         twoFactorDeadline: grace.deadline,
         twoFactorDaysLeft: grace.daysLeft,
+        twoFactorHardAfterGrace: this.isHard2faAfterGrace(),
       },
       ...tokens,
     };
@@ -722,6 +733,7 @@ export class AuthService {
       twoFactorPastGrace: grace.pastGrace,
       twoFactorDeadline: grace.deadline,
       twoFactorDaysLeft: grace.daysLeft,
+      twoFactorHardAfterGrace: this.isHard2faAfterGrace(),
       permissions: safe.permissions || null,
       modulePermissions: resolveModulePermissions(safe.role, safe.permissions),
       defaultWarehouseId: safe.defaultWarehouseId || null,

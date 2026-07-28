@@ -379,6 +379,7 @@ class ApiClient {
         twoFactorPastGrace?: boolean;
         twoFactorDeadline?: string | null;
         twoFactorDaysLeft?: number | null;
+        twoFactorHardAfterGrace?: boolean;
         username?: string | null;
         phone?: string | null;
         mustCompleteProfile?: boolean;
@@ -405,6 +406,7 @@ class ApiClient {
           twoFactorDeadline: data.twoFactorDeadline ?? null,
           twoFactorDaysLeft:
             typeof data.twoFactorDaysLeft === 'number' ? data.twoFactorDaysLeft : null,
+          twoFactorHardAfterGrace: !!data.twoFactorHardAfterGrace,
           mustCompleteProfile: !!data.mustCompleteProfile,
           defaultWarehouseId: data.defaultWarehouseId ?? null,
           defaultWarehouse: data.defaultWarehouse ?? null,

@@ -27,7 +27,13 @@ export function TwoFactorSettings() {
     queryKey: ["2fa-status"],
     queryFn: async () => {
       const res = await api.get2faStatus();
-      return res.data as { enabled: boolean; required?: boolean };
+      return res.data as {
+        enabled: boolean;
+        required?: boolean;
+        pastGrace?: boolean;
+        hardAfterGrace?: boolean;
+        daysLeft?: number | null;
+      };
     },
   });
 
@@ -91,6 +97,10 @@ export function TwoFactorSettings() {
 
   const enabled = !!status?.enabled;
   const required = !!(status?.required || user?.twoFactorRequired);
+  const pastGrace = !!(status?.pastGrace || user?.twoFactorPastGrace);
+  const hardAfterGrace = !!(
+    status?.hardAfterGrace ?? user?.twoFactorHardAfterGrace
+  );
 
   return (
     <GlassCard className="p-6 space-y-4">
@@ -107,6 +117,15 @@ export function TwoFactorSettings() {
           </p>
           {required ? (
             <p className="text-xs text-amber-300/90 mt-2">{t("requiredHint")}</p>
+          ) : null}
+          {required && pastGrace && !enabled ? (
+            <p
+              className={`text-xs mt-2 ${
+                hardAfterGrace ? "text-rose-300/90" : "text-amber-200/90"
+              }`}
+            >
+              {hardAfterGrace ? t("hardLockHint") : t("softPastGraceHint")}
+            </p>
           ) : null}
         </div>
       </div>

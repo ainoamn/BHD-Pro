@@ -56,7 +56,7 @@ Dashboard → خدمتك → **Environment** → احفظ ثم **Manual Deploy**
 | `REQUIRE_2FA_ROLES` | `ADMIN,MANAGER` (افتراضي) أو أضف `ACCOUNTANT`: `ADMIN,MANAGER,ACCOUNTANT` |
 | `REQUIRE_2FA_GRACE_FROM` | عند التوسيع: ISO لتاريخ بدء المهلة (مثلاً اليوم) |
 | `REQUIRE_2FA_GRACE_DAYS` | `7` (افتراضي) |
-| `REQUIRE_2FA_HARD_AFTER_GRACE` | `1` بعد انتهاء المهلة لمنع التعديلات حتى تفعيل 2FA |
+| `REQUIRE_2FA_HARD_AFTER_GRACE` | اختياري — `1` بعد انتهاء المهلة لمنع التعديلات حتى تفعيل 2FA (الافتراضي off؛ الواجهة تعرض soft/hard بصدق) |
 | `COOKIE_SAME_SITE` | `none` إذا الواجهة والدومين مختلفان عن الـ API عبر كوكيز عبر المواقع؛ غالباً مع rewrite على Vercel يكفي `lax` — جرّب `lax` أولاً |
 
 ### Migrations (مهم جداً — بعد موجات الدعوات + المستودع الذكي BC)

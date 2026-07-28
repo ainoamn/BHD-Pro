@@ -99,6 +99,6 @@
 ## الخطوة التالية المقترحة
 
 1. **أنت اليوم:** Cloudflare §1.1 + تدوير أسرار + لصق Sentry DSN.  
-2. **الكود (Wave CD — منجز):** صدق Redis في صفحة الربط — [`HISABY-WAVE-CD-REDIS-INTEGRATIONS-HONESTY-2026-07-28.md`](./HISABY-WAVE-CD-REDIS-INTEGRATIONS-HONESTY-2026-07-28.md).  
-3. على Render: `REDIS_URL` اختياري؛ قالب OTP واتساب.  
+2. **الكود (Wave CE — منجز):** صدق قفل 2FA بعد المهلة (soft vs hard) — [`HISABY-WAVE-CE-2FA-HARD-LOCK-HONESTY-2026-07-28.md`](./HISABY-WAVE-CE-2FA-HARD-LOCK-HONESTY-2026-07-28.md).  
+3. على Render: `REDIS_URL` اختياري؛ قالب OTP واتساب؛ `REQUIRE_2FA_HARD_AFTER_GRACE=1` عند الرغبة بقفل التعديلات.  
 4. لاحقاً: أرشفة docs.
