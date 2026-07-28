@@ -2562,7 +2562,17 @@ class ApiClient {
   }
 
   cancelRestoOrder(orderId: string, approval?: DualApprovalPayload) {
-    return this.post<RestoOrderPayload>(`/resto/orders/${orderId}/cancel`, {
+    return this.post<
+      RestoOrderPayload & {
+        notify?: {
+          ok: boolean;
+          channel: string | null;
+          error?: string;
+          mock?: boolean;
+          mode?: string;
+        } | null;
+      }
+    >(`/resto/orders/${orderId}/cancel`, {
       approval,
     });
   }

@@ -274,8 +274,21 @@ export default function RestoOrderPage() {
   const confirmCancel = async (approval: DualApprovalPayload) => {
     setBusy(true);
     try {
-      await api.cancelRestoOrder(orderId, approval);
-      toast.success(t.cancelOk);
+      const res = await api.cancelRestoOrder(orderId, approval);
+      const notify = res.data.notify;
+      if (notify?.ok) {
+        toast.success(
+          notify.mock || notify.mode === "mock"
+            ? t.orderCancelNotifyMock
+            : t.orderCancelNotifyOk,
+        );
+      } else if (notify?.error === "no_phone") {
+        toast.success(t.orderCancelNotifyNoPhone);
+      } else if (notify) {
+        toast.success(t.orderCancelNotifyFail);
+      } else {
+        toast.success(t.cancelOk);
+      }
       setCancelDualOpen(false);
       router.push("/resto");
     } catch (err) {

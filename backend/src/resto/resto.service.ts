@@ -1908,7 +1908,11 @@ export class RestoService {
     }
 
     const order = await this.getOrder(companyId, opened.id);
-    return { ...order, idempotent: false as const };
+    return {
+      ...order,
+      idempotent: false as const,
+      notify: opened.notify ?? null,
+    };
   }
 
   async addItem(companyId: string, orderId: string, dto: AddRestoOrderItemDto) {
@@ -3846,19 +3850,19 @@ export class RestoService {
       mock?: boolean;
       mode?: string;
     } | null = null;
-    const shouldNotifyGuest =
+    const statusChanged =
       (dto.deliveryStatus === 'OUT' || dto.deliveryStatus === 'DELIVERED') &&
-      dto.deliveryStatus !== prevStatus &&
-      !!order.guestPhone?.trim() &&
-      !!order.guestName?.trim();
-    if (shouldNotifyGuest) {
+      dto.deliveryStatus !== prevStatus;
+    if (statusChanged && order.guestPhone?.trim()) {
       notify = await this.guestNotify.notifyGuest({
         companyId,
         phone: order.guestPhone,
-        guestName: order.guestName || 'Guest',
+        guestName: order.guestName?.trim() || order.number || 'Guest',
         kind:
           dto.deliveryStatus === 'OUT' ? 'DELIVERY_OUT' : 'DELIVERY_DONE',
       });
+    } else if (statusChanged && !order.guestPhone?.trim()) {
+      notify = { ok: false, channel: null, error: 'no_phone' };
     }
 
     const updated = await this.getOrder(companyId, orderId);
@@ -3936,7 +3940,27 @@ export class RestoService {
         });
       }
     });
-    return this.getOrder(companyId, orderId);
+
+    let notify: {
+      ok: boolean;
+      channel: string | null;
+      error?: string;
+      mock?: boolean;
+      mode?: string;
+    } | null = null;
+    if (order.guestPhone?.trim()) {
+      notify = await this.guestNotify.notifyGuest({
+        companyId,
+        phone: order.guestPhone,
+        guestName: order.guestName?.trim() || order.number || 'Guest',
+        kind: 'ORDER_CANCELLED',
+      });
+    } else {
+      notify = { ok: false, channel: null, error: 'no_phone' };
+    }
+
+    const updated = await this.getOrder(companyId, orderId);
+    return { ...updated, notify };
   }
 
   async getReportsSummary(companyId: string, days = 7) {

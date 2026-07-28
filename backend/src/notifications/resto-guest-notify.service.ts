@@ -22,6 +22,7 @@ export type RestoGuestNotifyKind =
   | 'DELIVERY_RECEIVED'
   | 'TAKEAWAY_RECEIVED'
   | 'TAKEAWAY_READY'
+  | 'ORDER_CANCELLED'
   | 'PAY_LINK';
 
 @Injectable()
@@ -129,6 +130,11 @@ export class RestoGuestNotifyService {
         ? `مرحباً ${guestName}، طلبكم للاستلام من ${companyName} جاهز. تفضلوا بالاستلام.`
         : `Hi ${guestName}, your takeaway order from ${companyName} is ready for pickup.`;
     }
+    if (kind === 'ORDER_CANCELLED') {
+      return ar
+        ? `مرحباً ${guestName}، تم إلغاء طلبكم في ${companyName}. للاستفسار تواصلوا مع المطعم.`
+        : `Hi ${guestName}, your order at ${companyName} was cancelled. Contact the restaurant if needed.`;
+    }
     if (kind === 'PAY_LINK') {
       return ar
         ? `مرحباً ${guestName}، رابط دفع فاتورتكم في ${companyName}${opts.tableCode ? ` (طاولة ${opts.tableCode})` : ''}:${opts.confirmUrl ? `\n${opts.confirmUrl}` : ''}`
@@ -192,58 +198,42 @@ export class RestoGuestNotifyService {
       );
 
       if (this.whatsapp.isConfigured()) {
+        const titlesAr: Record<RestoGuestNotifyKind, string> = {
+          WAITLIST_READY: 'الطاولة جاهزة',
+          WAITLIST_CANCELLED: 'إلغاء الانتظار',
+          RESERVATION_CONFIRM: 'تأكيد الحجز',
+          RESERVATION_REMIND: 'تذكير بالحجز',
+          RESERVATION_TABLE_READY: 'طاولة الحجز جاهزة',
+          RESERVATION_CANCELLED: 'إلغاء الحجز',
+          RESERVATION_NO_SHOW: 'عدم حضور الحجز',
+          DELIVERY_OUT: 'الطلب في الطريق',
+          DELIVERY_DONE: 'تم التسليم',
+          DELIVERY_RECEIVED: 'استلام توصيل',
+          TAKEAWAY_RECEIVED: 'استلام سفري',
+          TAKEAWAY_READY: 'جاهز للاستلام',
+          ORDER_CANCELLED: 'إلغاء الطلب',
+          PAY_LINK: 'رابط الدفع',
+        };
+        const titlesEn: Record<RestoGuestNotifyKind, string> = {
+          WAITLIST_READY: 'Table ready',
+          WAITLIST_CANCELLED: 'Waitlist cancelled',
+          RESERVATION_CONFIRM: 'Reservation confirmed',
+          RESERVATION_REMIND: 'Reservation reminder',
+          RESERVATION_TABLE_READY: 'Reserved table ready',
+          RESERVATION_CANCELLED: 'Reservation cancelled',
+          RESERVATION_NO_SHOW: 'Reservation no-show',
+          DELIVERY_OUT: 'Out for delivery',
+          DELIVERY_DONE: 'Delivered',
+          DELIVERY_RECEIVED: 'Delivery received',
+          TAKEAWAY_RECEIVED: 'Takeaway received',
+          TAKEAWAY_READY: 'Takeaway ready',
+          ORDER_CANCELLED: 'Order cancelled',
+          PAY_LINK: 'Pay link',
+        };
         const kindTitle =
-          opts.kind === 'WAITLIST_READY'
-            ? opts.locale === 'en'
-              ? 'Table ready'
-              : 'الطاولة جاهزة'
-            : opts.kind === 'WAITLIST_CANCELLED'
-              ? opts.locale === 'en'
-                ? 'Waitlist cancelled'
-                : 'إلغاء الانتظار'
-              : opts.kind === 'RESERVATION_CONFIRM'
-              ? opts.locale === 'en'
-                ? 'Reservation confirmed'
-                : 'تأكيد الحجز'
-              : opts.kind === 'RESERVATION_REMIND'
-                ? opts.locale === 'en'
-                  ? 'Reservation reminder'
-                  : 'تذكير بالحجز'
-                : opts.kind === 'DELIVERY_OUT'
-                  ? opts.locale === 'en'
-                    ? 'Out for delivery'
-                    : 'الطلب في الطريق'
-                  : opts.kind === 'DELIVERY_DONE'
-                    ? opts.locale === 'en'
-                      ? 'Delivered'
-                      : 'تم التسليم'
-                    : opts.kind === 'DELIVERY_RECEIVED'
-                      ? opts.locale === 'en'
-                        ? 'Delivery received'
-                        : 'استلام توصيل'
-                      : opts.kind === 'TAKEAWAY_RECEIVED'
-                        ? opts.locale === 'en'
-                          ? 'Takeaway received'
-                          : 'استلام سفري'
-                        : opts.kind === 'TAKEAWAY_READY'
-                          ? opts.locale === 'en'
-                            ? 'Takeaway ready'
-                            : 'جاهز للاستلام'
-                          : opts.kind === 'PAY_LINK'
-                        ? opts.locale === 'en'
-                          ? 'Pay link'
-                          : 'رابط الدفع'
-                        : opts.kind === 'RESERVATION_CANCELLED'
-                          ? opts.locale === 'en'
-                            ? 'Reservation cancelled'
-                            : 'إلغاء الحجز'
-                          : opts.kind === 'RESERVATION_NO_SHOW'
-                            ? opts.locale === 'en'
-                              ? 'Reservation no-show'
-                              : 'عدم حضور الحجز'
-                            : opts.locale === 'en'
-                              ? 'Reserved table ready'
-                              : 'طاولة الحجز جاهزة';
+          opts.locale === 'en'
+            ? titlesEn[opts.kind]
+            : titlesAr[opts.kind];
         const detailParts = [
           opts.tableCode ? `table ${opts.tableCode}` : '',
           opts.quotedMinutes != null ? `${opts.quotedMinutes} min` : '',

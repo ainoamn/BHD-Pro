@@ -848,7 +848,21 @@ export default function RestoFloorPage() {
     if (!order) return;
     setBusy(true);
     try {
-      await api.cancelRestoOrder(order.id, approval);
+      const res = await api.cancelRestoOrder(order.id, approval);
+      const notify = res.data.notify;
+      if (notify?.ok) {
+        toast.success(
+          notify.mock || notify.mode === "mock"
+            ? t.orderCancelNotifyMock
+            : t.orderCancelNotifyOk,
+        );
+      } else if (notify?.error === "no_phone") {
+        toast.success(t.orderCancelNotifyNoPhone);
+      } else if (notify) {
+        toast.success(t.orderCancelNotifyFail);
+      } else {
+        toast.success(t.cancelOk);
+      }
       setOrder(null);
       setCancelDualOpen(false);
       await loadFloor();

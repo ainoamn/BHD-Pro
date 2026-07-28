@@ -99,6 +99,6 @@
 ## الخطوة التالية المقترحة
 
 1. **أنت اليوم:** Cloudflare §1.1 + تدوير أسرار + لصق Sentry DSN.  
-2. **الكود (Wave DS — منجز):** صدق إشعار استلام توصيل/سفري — [`HISABY-WAVE-DS-DELIVERY-TAKEAWAY-RECEIVED-NOTIFY-HONESTY-2026-07-28.md`](./HISABY-WAVE-DS-DELIVERY-TAKEAWAY-RECEIVED-NOTIFY-HONESTY-2026-07-28.md) · قبله DR حجز طاقم.  
+2. **الكود (Wave DT — منجز):** صدق إشعار إلغاء طلب المطعم — [`HISABY-WAVE-DT-ORDER-CANCEL-NOTIFY-HONESTY-2026-07-28.md`](./HISABY-WAVE-DT-ORDER-CANCEL-NOTIFY-HONESTY-2026-07-28.md) · قبله DS استلام توصيل/سفري.  
 3. على Render: `prisma migrate deploy` (يشمل أعمدة إشعار الحجوزات) · `REDIS_URL` اختياري؛ قالب OTP واتساب؛ `REQUIRE_2FA_HARD_AFTER_GRACE=1` عند الرغبة بقفل التعديلات.  
 4. لاحقاً: أرشفة docs.
