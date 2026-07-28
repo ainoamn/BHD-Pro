@@ -49,9 +49,11 @@ import {
   openPosCustomerDisplayWindow,
   publishPosCustomerDisplay,
 } from "@/lib/pos-customer-display";
-import { openPosReceiptEmail, sharePosReceiptWhatsAppWithPdf } from "@/lib/pos-receipt-share";
+import { openPosReceiptEmail } from "@/lib/pos-receipt-share";
 import {
   printPosReceiptBrowser,
+  buildPosReceiptPdfBlob,
+  downloadBlob,
   type PosReceiptPrintData,
 } from "@/lib/pos-receipt-print";
 import { formatCompanyAddressCompact } from "@/lib/contact-address";
@@ -4286,30 +4288,12 @@ export default function PosCheckoutPage() {
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
+                  title={t.shareWhatsAppHint || t.shareWhatsApp}
                   onClick={async () => {
                     const toastId = toast.loading(t.shareWhatsAppPdfPreparing);
+                    let pdfOk = false;
+                    let waOk = false;
                     try {
-                      let viewUrl: string | undefined;
-                      if (lastInvoice.id) {
-                        try {
-                          const res = await api.createDocumentShareLink(
-                            lastInvoice.id,
-                            "receipt",
-                          );
-                          const data = res.data as {
-                            shareUrl?: string;
-                            sharePath?: string;
-                          };
-                          viewUrl = data.sharePath
-                            ? toAppAbsoluteUrl(data.sharePath)
-                            : data.shareUrl
-                              ? toAppAbsoluteUrl(data.shareUrl)
-                              : undefined;
-                        } catch {
-                          /* optional link */
-                        }
-                      }
-                      const cust = customers.find((c) => c.id === contactId);
                       const receiptLines = (lastInvoice.lines || []).map((l) => ({
                         name: l.name,
                         qty: l.qty,
@@ -4353,27 +4337,32 @@ export default function PosCheckoutPage() {
                             locale === "en" ? "Print receipt" : "طباعة الإيصال",
                         },
                       };
-                      const result = await sharePosReceiptWhatsAppWithPdf({
-                        share: {
-                          companyName: company?.name,
-                          number: lastInvoice.number,
-                          warehouseLabel: lastInvoice.warehouseLabel,
-                          paymentMethod: lastInvoice.paymentMethod,
-                          total: lastInvoice.total,
-                          currency,
-                          lines: receiptLines,
-                          customerPhone: cust?.phone,
-                          viewUrl,
-                        },
-                        printData,
-                        locale: locale === "en" ? "en" : "ar",
-                      });
-                      toast.dismiss(toastId);
-                      if (result.sharedNative) {
-                        toast.success(t.shareWhatsAppPdfOk);
-                      } else {
-                        toast.success(t.shareWhatsAppPdfDownloaded);
+
+                      try {
+                        const { blob, filename } = await buildPosReceiptPdfBlob(printData);
+                        downloadBlob(blob, filename);
+                        pdfOk = true;
+                      } catch {
+                        /* PDF failure reported below */
                       }
+
+                      const canResend =
+                        !!lastInvoice.id &&
+                        !String(lastInvoice.id).startsWith("OFF-");
+                      if (canResend) {
+                        try {
+                          const res = await api.resendPosSaleNotify(lastInvoice.id);
+                          waOk = res.data?.delivery?.whatsapp === "ok";
+                        } catch {
+                          waOk = false;
+                        }
+                      }
+
+                      toast.dismiss(toastId);
+                      if (pdfOk && waOk) toast.success(t.shareWhatsAppPdfOk);
+                      else if (pdfOk && canResend) toast.error(t.shareWhatsAppPartial);
+                      else if (pdfOk) toast.success(t.shareWhatsAppPdfDownloaded);
+                      else toast.error(t.shareWhatsAppPdfFail);
                     } catch {
                       toast.dismiss(toastId);
                       toast.error(t.shareWhatsAppPdfFail);
