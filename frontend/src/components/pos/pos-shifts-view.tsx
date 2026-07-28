@@ -395,9 +395,23 @@ export function PosShiftsView({
         warehouseId: warehouseId || undefined,
         notes: openingNotes.trim() || undefined,
       }),
-    onSuccess: () => {
+    onSuccess: (res) => {
       toast.success(t.shiftOpened);
       setOpeningNotes("");
+      const notify = (
+        res.data as {
+          staffNotify?: {
+            status?: "ok" | "mock" | "fail" | "skipped";
+            targets?: number;
+          };
+        }
+      )?.staffNotify;
+      if (notify?.status === "ok") toast.success(t.shiftStaffNotifyOk);
+      else if (notify?.status === "mock")
+        toast(t.shiftStaffNotifyMock, { icon: "🧪" });
+      else if (notify?.status === "fail") toast.error(t.shiftStaffNotifyFail);
+      else if (notify?.status === "skipped")
+        toast(t.shiftStaffNotifySkipped, { icon: "⚠️" });
       qc.invalidateQueries({ queryKey: ["pos-shift-current"] });
       qc.invalidateQueries({ queryKey: ["pos-shifts"] });
     },
@@ -428,6 +442,10 @@ export function PosShiftsView({
         zReport?: ZReport;
         shift?: { id?: string };
         zEmail?: { sent?: number; mocked?: number; skipped?: boolean };
+        staffNotify?: {
+          status?: "ok" | "mock" | "fail" | "skipped";
+          targets?: number;
+        };
       };
       const z = payload?.zReport || null;
       setLastZ(z);
@@ -440,6 +458,13 @@ export function PosShiftsView({
           toast(t.zEmailMock, { icon: "🧪" });
         }
       }
+      const sn = payload?.staffNotify;
+      if (sn?.status === "ok") toast.success(t.shiftStaffNotifyOk);
+      else if (sn?.status === "mock")
+        toast(t.shiftStaffNotifyMock, { icon: "🧪" });
+      else if (sn?.status === "fail") toast.error(t.shiftStaffNotifyFail);
+      else if (sn?.status === "skipped")
+        toast(t.shiftStaffNotifySkipped, { icon: "⚠️" });
       qc.invalidateQueries({ queryKey: ["pos-shift-current"] });
       qc.invalidateQueries({ queryKey: ["pos-shifts"] });
     },

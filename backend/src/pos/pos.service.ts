@@ -40,6 +40,12 @@ import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { GlPostingService } from '../journal/gl-posting.service';
 import { CustomerNotifyService } from '../notifications/customer-notify.service';
 import { EmailNotifyService } from '../notifications/email-notify.service';
+import { WhatsappNotifyService } from '../notifications/whatsapp-notify.service';
+import {
+  dialCodeForCountry,
+  isValidMobileE164,
+  toE164Digits,
+} from '../common/phone';
 import { PosIncentivesService } from './pos-incentives.service';
 import { productWhereForWarehouse } from '../common/warehouse-product-scope';
 import {
@@ -68,6 +74,7 @@ export class PosService {
     private glPosting: GlPostingService,
     private customerNotify: CustomerNotifyService,
     private emailNotify: EmailNotifyService,
+    private whatsapp: WhatsappNotifyService,
     private incentives: PosIncentivesService,
     private audit: AuditService,
     private redis: RedisService,
@@ -2867,7 +2874,16 @@ export class PosService {
         warehouse: { select: { id: true, name: true, code: true } },
       },
     });
-    return { shift };
+    const whLabel = shift.warehouse
+      ? `${shift.warehouse.code || ''} ${shift.warehouse.name || ''}`.trim()
+      : 'default';
+    const staffNotify = await this.notifyStaffWhatsAppAlert(companyId, [
+      `فتح وردية · ${whLabel}`,
+      `Shift opened · ${whLabel}`,
+      `بواسطة / by: ${shift.openedBy?.name || shift.openedBy?.email || actor.email}`,
+      `افتتاح / float: ${openingFloat.toFixed(3)}`,
+    ]);
+    return { shift, staffNotify };
   }
 
   async closeShift(
@@ -2939,11 +2955,84 @@ export class PosService {
       denominationCounts: dto.denominationCounts || null,
     });
 
+    const whLabel = updated.warehouse
+      ? `${updated.warehouse.code || ''} ${updated.warehouse.name || ''}`.trim()
+      : 'default';
+    const staffNotify = await this.notifyStaffWhatsAppAlert(companyId, [
+      `إغلاق وردية · ${whLabel}`,
+      `Shift closed · ${whLabel}`,
+      `بواسطة / by: ${updated.closedBy?.name || updated.closedBy?.email || actor.email}`,
+      `نقد متوقع / expected: ${expectedCash.toFixed(3)} · إغلاق / counted: ${closingCash.toFixed(3)}`,
+      `فرق / variance: ${(closingCash - expectedCash).toFixed(3)}`,
+    ]);
+
     return {
       shift: updated,
       zReport: { ...zReport, denominationCounts: dto.denominationCounts || null },
       zEmail,
+      staffNotify,
     };
+  }
+
+  /** Best-effort WhatsApp ping to dual-control notify phones (never throws). */
+  private async notifyStaffWhatsAppAlert(
+    companyId: string,
+    detailLines: string[],
+  ): Promise<{
+    status: 'ok' | 'mock' | 'fail' | 'skipped';
+    targets: number;
+  }> {
+    try {
+      if (!this.whatsapp.isConfigured()) {
+        return { status: 'skipped', targets: 0 };
+      }
+      const company = await this.prisma.company.findUnique({
+        where: { id: companyId },
+        select: {
+          phone: true,
+          name: true,
+          country: true,
+          securityConfig: true,
+        },
+      });
+      const cfg =
+        company?.securityConfig &&
+        typeof company.securityConfig === 'object' &&
+        !Array.isArray(company.securityConfig)
+          ? (company.securityConfig as { whatsappNotifyPhones?: string[] })
+          : {};
+      const dial = dialCodeForCountry(company?.country);
+      const targets = new Set<string>();
+      for (const p of cfg.whatsappNotifyPhones || []) {
+        const d = toE164Digits(String(p), dial);
+        if (isValidMobileE164(d)) targets.add(d);
+      }
+      if (company?.phone) {
+        const d = toE164Digits(company.phone, dial);
+        if (isValidMobileE164(d)) targets.add(d);
+      }
+      if (!targets.size) {
+        return { status: 'skipped', targets: 0 };
+      }
+
+      const body = [
+        `Hisaby · ${company?.name || 'POS'}`,
+        ...detailLines.filter(Boolean),
+      ].join('\n');
+
+      const results = await Promise.all(
+        [...targets].map((to) => this.whatsapp.sendText(to, body)),
+      );
+      const anyLive = results.some((r) => r.ok && !r.mock);
+      const anyMock = results.some((r) => r.ok && !!r.mock);
+      const status = anyLive ? 'ok' : anyMock ? 'mock' : 'fail';
+      return { status, targets: targets.size };
+    } catch (err) {
+      this.logger.warn(
+        `Staff WhatsApp alert failed: ${err instanceof Error ? err.message : err}`,
+      );
+      return { status: 'fail', targets: 0 };
+    }
   }
 
   private formatZReportPlainText(

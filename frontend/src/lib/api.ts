@@ -3455,7 +3455,13 @@ class ApiClient {
     warehouseId?: string;
     notes?: string;
   }) {
-    return this.post('/pos/shifts/open', data || {});
+    return this.post<{
+      shift: unknown;
+      staffNotify?: {
+        status: 'ok' | 'mock' | 'fail' | 'skipped';
+        targets: number;
+      };
+    }>('/pos/shifts/open', data || {});
   }
 
   closePosShift(data: {
@@ -3468,6 +3474,11 @@ class ApiClient {
     return this.post<{
       shift: { id: string; closedAt?: string; closingCash?: number | string };
       zReport: Record<string, unknown>;
+      zEmail?: { sent?: number; mocked?: number; skipped?: boolean };
+      staffNotify?: {
+        status: 'ok' | 'mock' | 'fail' | 'skipped';
+        targets: number;
+      };
     }>('/pos/shifts/close', data);
   }
 
