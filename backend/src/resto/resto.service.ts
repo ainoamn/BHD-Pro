@@ -25,6 +25,7 @@ import { PosIncentivesService } from '../pos/pos-incentives.service';
 import { DualControlService } from '../dual-control/dual-control.service';
 import { RestoGuestNotifyService } from '../notifications/resto-guest-notify.service';
 import { WhatsappNotifyService } from '../notifications/whatsapp-notify.service';
+import { EmailNotifyService } from '../notifications/email-notify.service';
 import { InvoicesService } from '../invoices/invoices.service';
 import { DualApprovalDto } from '../dual-control/dto/approval.dto';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
@@ -109,6 +110,7 @@ export class RestoService {
     private readonly guestNotify: RestoGuestNotifyService,
     private readonly invoices: InvoicesService,
     private readonly whatsapp: WhatsappNotifyService,
+    private readonly email: EmailNotifyService,
   ) {}
 
   private kitchenBus(companyId: string) {
@@ -3363,6 +3365,12 @@ export class RestoService {
       email?: string;
       sms?: string;
     } | null = null;
+    let tipNotify: {
+      ok: boolean;
+      channel: 'WHATSAPP' | 'EMAIL' | null;
+      error?: string;
+      mock?: boolean;
+    } | null = null;
 
     if (!dto.soft) {
       const billable = order.items.filter(
@@ -3427,7 +3435,7 @@ export class RestoService {
       );
       const tipUser = await this.prisma.user.findFirst({
         where: { id: tipAssigneeId, companyId },
-        select: { name: true, email: true },
+        select: { id: true, name: true, email: true, phone: true },
       });
       const noteParts = [
         `Hisaby Resto ${order.number} [${order.channel}]`,
@@ -3506,6 +3514,15 @@ export class RestoService {
           ...(contactId ? { contactId } : {}),
         },
       });
+
+      if (tip > 0.0005 && tipAssigneeId) {
+        tipNotify = await this.notifyTipAssignee(companyId, {
+          tip,
+          orderNumber: order.number,
+          tableCode: order.table?.code || null,
+          assignee: tipUser,
+        });
+      }
     }
 
     await this.prisma.$transaction(async (tx) => {
@@ -3536,7 +3553,93 @@ export class RestoService {
       ...mapped,
       invoice: invoiceId ? { id: invoiceId } : null,
       customerNotify,
+      tipNotify,
     };
+  }
+
+  /** Best-effort tip credit alert to assignee WhatsApp → email. Never throws. */
+  private async notifyTipAssignee(
+    companyId: string,
+    opts: {
+      tip: number;
+      orderNumber: string;
+      tableCode?: string | null;
+      assignee: {
+        id: string;
+        name: string | null;
+        email: string;
+        phone: string | null;
+      } | null;
+    },
+  ): Promise<{
+    ok: boolean;
+    channel: 'WHATSAPP' | 'EMAIL' | null;
+    error?: string;
+    mock?: boolean;
+  }> {
+    try {
+      if (!opts.assignee) {
+        return { ok: false, channel: null, error: 'no_assignee' };
+      }
+      const company = await this.prisma.company.findUnique({
+        where: { id: companyId },
+        select: { name: true, currency: true, country: true },
+      });
+      const amount = `${opts.tip.toFixed(3)} ${company?.currency || 'OMR'}`;
+      const who = opts.assignee.name || opts.assignee.email;
+      const bodyAr = `حسابي · ${company?.name || 'مطعم'}\nبقشيش ${amount} لـ ${who}\nطلب ${opts.orderNumber}${
+        opts.tableCode ? ` · طاولة ${opts.tableCode}` : ''
+      }`;
+      const bodyEn = `Hisaby · ${company?.name || 'Restaurant'}\nTip ${amount} credited to ${who}\nOrder ${opts.orderNumber}${
+        opts.tableCode ? ` · table ${opts.tableCode}` : ''
+      }`;
+      const body = `${bodyAr}\n\n${bodyEn}`;
+
+      if (opts.assignee.phone?.trim() && this.whatsapp.isConfigured()) {
+        const dial = dialCodeForCountry(company?.country);
+        const e164 = toE164Digits(opts.assignee.phone, dial);
+        if (e164 && isValidMobileE164(e164)) {
+          const res = await this.whatsapp.sendText(e164, body);
+          if (res.ok) {
+            return {
+              ok: true,
+              channel: 'WHATSAPP',
+              mock: !!res.mock,
+            };
+          }
+        }
+      }
+
+      if (opts.assignee.email?.trim() && this.email.isConfigured()) {
+        const mail = await this.email.sendText({
+          to: opts.assignee.email.trim(),
+          subject: `Tip ${amount} · ${opts.orderNumber}`,
+          text: body,
+        });
+        if (mail.ok) {
+          return {
+            ok: true,
+            channel: 'EMAIL',
+            mock: !!mail.mock,
+          };
+        }
+        return {
+          ok: false,
+          channel: null,
+          error: mail.error || 'email_fail',
+        };
+      }
+
+      return {
+        ok: false,
+        channel: null,
+        error: opts.assignee.phone?.trim()
+          ? 'notify_fail'
+          : 'no_phone_or_email',
+      };
+    } catch {
+      return { ok: false, channel: null, error: 'notify_fail' };
+    }
   }
 
   private frontendOrigin() {

@@ -18,7 +18,7 @@ import { useLocaleStore } from "@/store/locale";
 import { useAuthStore } from "@/store/auth";
 import { restoCopy } from "@/lib/resto-copy";
 import { printRestoGuestCheck } from "@/lib/resto-guest-check";
-import { toastPosCustomerNotify } from "@/lib/pos-notify-toast";
+import { toastPosCustomerNotify, toastTipNotify } from "@/lib/pos-notify-toast";
 import { cn, apiErrorMessage } from "@/lib/utils";
 import {
   DualApprovalModal,
@@ -258,6 +258,12 @@ export default function RestoOrderPage() {
           saleNotifyMock: t.closePaidNotifyMock,
           saleNotifyPartial: t.closePaidNotifyPartial,
           saleNotifyFail: t.closePaidNotifyFail,
+        });
+        toastTipNotify(res.data?.tipNotify, {
+          tipNotifyOk: t.tipNotifyOk,
+          tipNotifyMock: t.tipNotifyMock,
+          tipNotifyFail: t.tipNotifyFail,
+          tipNotifyNoContact: t.tipNotifyNoContact,
         });
       }
       router.push("/resto");

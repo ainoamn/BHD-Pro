@@ -2481,6 +2481,12 @@ class ApiClient {
           email?: string;
           sms?: string;
         } | null;
+        tipNotify?: {
+          ok: boolean;
+          channel: string | null;
+          error?: string;
+          mock?: boolean;
+        } | null;
       }
     >(`/resto/orders/${orderId}/close`, data || {});
   }

@@ -16,7 +16,7 @@ import toast from "react-hot-toast";
 import { useLocaleStore } from "@/store/locale";
 import { useAuthStore } from "@/store/auth";
 import { restoCopy } from "@/lib/resto-copy";
-import { toastPosCustomerNotify } from "@/lib/pos-notify-toast";
+import { toastPosCustomerNotify, toastTipNotify } from "@/lib/pos-notify-toast";
 import { printRestoGuestCheck } from "@/lib/resto-guest-check";
 import {
   DualApprovalModal,
@@ -599,6 +599,12 @@ export default function RestoFloorPage() {
               email?: string;
               sms?: string;
             } | null;
+            tipNotify?: {
+              ok: boolean;
+              channel: string | null;
+              error?: string;
+              mock?: boolean;
+            } | null;
           }
         )?.customerNotify,
         {
@@ -606,6 +612,24 @@ export default function RestoFloorPage() {
           saleNotifyMock: t.closePaidNotifyMock,
           saleNotifyPartial: t.closePaidNotifyPartial,
           saleNotifyFail: t.closePaidNotifyFail,
+        },
+      );
+      toastTipNotify(
+        (
+          res.data.closed as {
+            tipNotify?: {
+              ok: boolean;
+              channel: string | null;
+              error?: string;
+              mock?: boolean;
+            } | null;
+          }
+        )?.tipNotify,
+        {
+          tipNotifyOk: t.tipNotifyOk,
+          tipNotifyMock: t.tipNotifyMock,
+          tipNotifyFail: t.tipNotifyFail,
+          tipNotifyNoContact: t.tipNotifyNoContact,
         },
       );
       if (res.data.source) {
@@ -648,6 +672,24 @@ export default function RestoFloorPage() {
         saleNotifyPartial: t.closePaidNotifyPartial,
         saleNotifyFail: t.closePaidNotifyFail,
       });
+      toastTipNotify(
+        (
+          res.data as {
+            tipNotify?: {
+              ok: boolean;
+              channel: string | null;
+              error?: string;
+              mock?: boolean;
+            } | null;
+          }
+        )?.tipNotify,
+        {
+          tipNotifyOk: t.tipNotifyOk,
+          tipNotifyMock: t.tipNotifyMock,
+          tipNotifyFail: t.tipNotifyFail,
+          tipNotifyNoContact: t.tipNotifyNoContact,
+        },
+      );
       setOrder(null);
       setTipAmount("");
       setCashPart("");
@@ -750,6 +792,12 @@ export default function RestoFloorPage() {
           saleNotifyMock: t.closePaidNotifyMock,
           saleNotifyPartial: t.closePaidNotifyPartial,
           saleNotifyFail: t.closePaidNotifyFail,
+        });
+        toastTipNotify(closeRes?.data?.tipNotify, {
+          tipNotifyOk: t.tipNotifyOk,
+          tipNotifyMock: t.tipNotifyMock,
+          tipNotifyFail: t.tipNotifyFail,
+          tipNotifyNoContact: t.tipNotifyNoContact,
         });
       }
       setOrder(null);

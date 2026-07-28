@@ -85,3 +85,43 @@ export function accumulateFlushNotify(
   }
   return agg;
 }
+
+export type TipNotifySummary = {
+  ok: boolean;
+  channel?: string | null;
+  error?: string;
+  mock?: boolean;
+} | null | undefined;
+
+export type TipNotifyCopy = {
+  tipNotifyOk: string;
+  tipNotifyMock: string;
+  tipNotifyFail: string;
+  tipNotifyNoContact: string;
+};
+
+export function toastTipNotify(
+  notify: TipNotifySummary,
+  copy: TipNotifyCopy,
+) {
+  if (!notify) return;
+  if (notify.ok) {
+    if (notify.mock) {
+      toast(copy.tipNotifyMock, { icon: "🧪", duration: 5000 });
+    } else {
+      toast.success(
+        `${copy.tipNotifyOk}${notify.channel ? ` · ${notify.channel}` : ""}`,
+        { duration: 4000 },
+      );
+    }
+    return;
+  }
+  if (
+    notify.error === "no_phone_or_email" ||
+    notify.error === "no_assignee"
+  ) {
+    toast(copy.tipNotifyNoContact, { icon: "⚠️", duration: 5000 });
+    return;
+  }
+  toast(copy.tipNotifyFail, { icon: "⚠️", duration: 5000 });
+}
