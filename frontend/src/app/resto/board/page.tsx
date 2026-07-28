@@ -5,7 +5,7 @@ import { Activity, Loader2, RefreshCw } from "lucide-react";
 import api from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
 import { restoCopy } from "@/lib/resto-copy";
-import { cn } from "@/lib/utils";
+import { cn, apiErrorMessage } from "@/lib/utils";
 
 type Board = Awaited<ReturnType<typeof api.getRestoLiveBoard>>["data"];
 
@@ -26,8 +26,8 @@ export default function RestoLiveBoardPage() {
     try {
       const res = await api.getRestoLiveBoard();
       setData(res.data);
-    } catch {
-      setError(t.actionFail);
+    } catch (err) {
+      setError(apiErrorMessage(err, t.actionFail));
     } finally {
       setLoading(false);
       setRefreshing(false);

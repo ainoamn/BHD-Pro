@@ -7,6 +7,7 @@ import api from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
 import { useAuthStore } from "@/store/auth";
 import { restoCopy } from "@/lib/resto-copy";
+import { apiErrorMessage } from "@/lib/utils";
 
 type MenuProduct = {
   id: string;
@@ -96,10 +97,10 @@ export default function RestoRecipesPage() {
           unit: String(p.unit || "piece"),
         })),
       );
-    } catch {
+    } catch (err) {
       setRecipes([]);
       setLoadError(true);
-      toast.error(t.actionFail);
+      toast.error(apiErrorMessage(err, t.actionFail));
     } finally {
       setLoading(false);
     }
@@ -149,8 +150,8 @@ export default function RestoRecipesPage() {
       });
       toast.success(t.recipeSaved);
       await load();
-    } catch {
-      toast.error(t.actionFail);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, t.actionFail));
     } finally {
       setBusy(false);
     }
@@ -169,8 +170,8 @@ export default function RestoRecipesPage() {
         setNotes("");
       }
       await load();
-    } catch {
-      toast.error(t.actionFail);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, t.actionFail));
     } finally {
       setBusy(false);
     }

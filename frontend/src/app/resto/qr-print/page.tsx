@@ -8,6 +8,7 @@ import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
 import { restoCopy } from "@/lib/resto-copy";
+import { apiErrorMessage } from "@/lib/utils";
 
 type QrTable = {
   id: string;
@@ -50,10 +51,10 @@ export default function RestoQrPrintPage() {
         }),
       );
       setTables(withQr);
-    } catch {
+    } catch (err) {
       setTables([]);
       setLoadError(true);
-      toast.error(t.actionFail);
+      toast.error(apiErrorMessage(err, t.actionFail));
     } finally {
       setLoading(false);
     }

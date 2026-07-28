@@ -9,6 +9,7 @@ import { HisabyAppsLinkHub } from "@/components/shared/hisaby-apps-link-hub";
 import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 import toast from "react-hot-toast";
+import { apiErrorMessage } from "@/lib/utils";
 
 type Station = {
   id: string;
@@ -161,8 +162,9 @@ export default function RestoSettingsPage() {
     setLoadError(false);
     try {
       await Promise.all([loadStations(), loadSections(), loadDayParts()]);
-    } catch {
+    } catch (err) {
       setLoadError(true);
+      toast.error(apiErrorMessage(err, t.actionFail));
     } finally {
       setBootLoading(false);
     }
@@ -192,8 +194,8 @@ export default function RestoSettingsPage() {
         currentHour: res.data.currentHour,
       });
       toast.success(t.dayPartSaved);
-    } catch {
-      toast.error(t.actionFail);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, t.actionFail));
     } finally {
       setDayPartBusy(false);
     }
@@ -205,8 +207,8 @@ export default function RestoSettingsPage() {
       const res = await api.updateRestoConfig({ kitchenSla });
       if (res.data.kitchenSla) setKitchenSla(res.data.kitchenSla);
       toast.success(t.slaSaved);
-    } catch {
-      toast.error(t.actionFail);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, t.actionFail));
     } finally {
       setSlaBusy(false);
     }
@@ -252,8 +254,8 @@ export default function RestoSettingsPage() {
         });
       }
       toast.success(t.bookingSaved);
-    } catch {
-      toast.error(t.actionFail);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, t.actionFail));
     } finally {
       setBookingBusy(false);
     }
@@ -279,8 +281,8 @@ export default function RestoSettingsPage() {
     try {
       await api.seedRestoDemoCatalog();
       toast.success(t.demoSeedOk);
-    } catch {
-      toast.error(t.actionFail);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, t.actionFail));
     } finally {
       setDemoBusy(false);
     }
@@ -292,8 +294,8 @@ export default function RestoSettingsPage() {
     try {
       await api.purgeRestoDemoCatalog();
       toast.success(t.demoPurgeOk);
-    } catch {
-      toast.error(t.actionFail);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, t.actionFail));
     } finally {
       setDemoBusy(false);
     }
@@ -307,8 +309,8 @@ export default function RestoSettingsPage() {
       const res = await api.assignRestoSection({ zoneId, userId });
       setSections(res.data.assignments || []);
       toast.success(t.sectionAssign);
-    } catch {
-      toast.error(t.actionFail);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, t.actionFail));
     } finally {
       setSectionBusy(false);
     }
@@ -321,8 +323,8 @@ export default function RestoSettingsPage() {
       setSections(res.data.assignments || []);
       setPickByZone((prev) => ({ ...prev, [zoneId]: "" }));
       toast.success(t.sectionRelease);
-    } catch {
-      toast.error(t.actionFail);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, t.actionFail));
     } finally {
       setSectionBusy(false);
     }
@@ -342,8 +344,8 @@ export default function RestoSettingsPage() {
       setNameEn("");
       toast.success(t.stationAdded);
       await loadStations();
-    } catch {
-      toast.error(t.actionFail);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, t.actionFail));
     } finally {
       setBusy(false);
     }
@@ -715,8 +717,8 @@ export default function RestoSettingsPage() {
                   const res = await api.ensureRestoGuestTokens();
                   setQrTables(res.data.tables || []);
                   toast.success(t.guestQrEnsure);
-                } catch {
-                  toast.error(t.actionFail);
+                } catch (err) {
+                  toast.error(apiErrorMessage(err, t.actionFail));
                 } finally {
                   setQrBusy(false);
                 }

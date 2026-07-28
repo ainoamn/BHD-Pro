@@ -5,6 +5,7 @@ import { BellRing, Loader2 } from "lucide-react";
 import api from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
 import { restoCopy } from "@/lib/resto-copy";
+import { apiErrorMessage } from "@/lib/utils";
 
 type ExpoItem = {
   id: string;
@@ -40,8 +41,8 @@ export default function RestoExpoPage() {
         setExpoWarn(res.data.sla.expoWarnMinutes);
       }
       setError("");
-    } catch {
-      setError(t.actionFail);
+    } catch (err) {
+      setError(apiErrorMessage(err, t.actionFail));
     } finally {
       setLoading(false);
     }
@@ -99,8 +100,8 @@ export default function RestoExpoPage() {
     try {
       await api.setRestoKitchenItemStatus(itemId, "SERVED");
       await load();
-    } catch {
-      setError(t.actionFail);
+    } catch (err) {
+      setError(apiErrorMessage(err, t.actionFail));
     } finally {
       setBusyId(null);
     }
@@ -111,8 +112,8 @@ export default function RestoExpoPage() {
     try {
       await api.recallRestoKitchenItem(itemId, "PREPARING");
       await load();
-    } catch {
-      setError(t.actionFail);
+    } catch (err) {
+      setError(apiErrorMessage(err, t.actionFail));
     } finally {
       setBusyId(null);
     }

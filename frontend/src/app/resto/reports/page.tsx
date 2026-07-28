@@ -6,7 +6,7 @@ import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
 import { restoCopy } from "@/lib/resto-copy";
-import { cn } from "@/lib/utils";
+import { cn, apiErrorMessage } from "@/lib/utils";
 
 type Summary = Awaited<
   ReturnType<typeof api.getRestoReportsSummary>
@@ -30,13 +30,14 @@ export default function RestoReportsPage() {
     try {
       const res = await api.getRestoReportsSummary(days);
       setData(res.data);
-    } catch {
+    } catch (err) {
       setData(null);
       setLoadError(true);
+      toast.error(apiErrorMessage(err, t.actionFail));
     } finally {
       setLoading(false);
     }
-  }, [days]);
+  }, [days, t.actionFail]);
 
   useEffect(() => {
     void load();
@@ -91,8 +92,8 @@ th,td{border-bottom:1px solid #ddd;padding:6px 4px;text-align:start;font-size:13
 <script>window.onload=()=>{window.print()}</script>
 </body></html>`);
       w.document.close();
-    } catch {
-      toast.error(t.actionFail);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, t.actionFail));
     } finally {
       setFlashBusy(false);
     }
