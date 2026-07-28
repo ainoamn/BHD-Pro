@@ -10,6 +10,7 @@ import api from "@/lib/api";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { useAuthStore } from "@/store/auth";
 import { homePathForUser } from "@/lib/user-home";
+import { wakeApi } from "@/lib/wake-api";
 
 function safeNextPath(raw: string | null): string {
   if (!raw) return "/dashboard";
@@ -43,6 +44,7 @@ function LoginForm() {
   const probeGen = useRef(0);
 
   useEffect(() => {
+    wakeApi();
     let cancelled = false;
     const myProbe = ++probeGen.current;
     // Safety net: never leave the page stuck on the spinner (cold API / hung refresh).

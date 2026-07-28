@@ -5782,6 +5782,8 @@ export class RestoService {
       ok: boolean;
       channel: string | null;
       error?: string;
+      mock?: boolean;
+      mode?: string;
     } | null = null;
     if (booking.autoNotify) {
       try {

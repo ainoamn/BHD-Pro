@@ -11,6 +11,7 @@ import { useLocaleStore } from "@/store/locale";
 import { posCopy } from "@/lib/pos-copy";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { homePathForUser } from "@/lib/user-home";
+import { wakeApi } from "@/lib/wake-api";
 
 export default function PosLoginPage() {
   const router = useRouter();
@@ -24,6 +25,7 @@ export default function PosLoginPage() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    wakeApi();
     let cancelled = false;
     (async () => {
       if (!isAuthenticated) await api.restoreSession();

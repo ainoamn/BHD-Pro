@@ -52,6 +52,13 @@ export default function PublicReservePage() {
     reservedAt: string;
     status: string;
     tableCode: string | null;
+    notify: {
+      ok: boolean;
+      channel: string | null;
+      error?: string;
+      mock?: boolean;
+      mode?: string;
+    } | null;
   } | null>(null);
 
   const ar = locale === "ar";
@@ -178,6 +185,7 @@ export default function PublicReservePage() {
         reservedAt: data.reservation?.reservedAt || selectedAt,
         status: data.reservation?.status || "PENDING",
         tableCode: data.reservation?.tableCode || null,
+        notify: data.notify ?? null,
       });
     } catch (err) {
       setError(
@@ -234,9 +242,20 @@ export default function PublicReservePage() {
               <p className="text-amber-200 font-semibold">{done.status}</p>
             </div>
             <p className="text-xs text-stone-400">
-              {ar
-                ? "تحقق من واتساب/الرسائل لإدارة الحجز"
-                : "Check WhatsApp/SMS for your manage link"}
+              {done.notify?.ok &&
+              !done.notify.mock &&
+              done.notify.mode !== "mock"
+                ? ar
+                  ? `تحقق من ${done.notify.channel === "SMS" ? "الرسائل" : "واتساب"} لإدارة الحجز — أو استخدم الرابط أدناه`
+                  : `Check ${done.notify.channel === "SMS" ? "SMS" : "WhatsApp"} for your manage link — or use the button below`
+                : done.notify?.ok &&
+                    (done.notify.mock || done.notify.mode === "mock")
+                  ? ar
+                    ? "الإشعار في وضع اختبار (لم يُرسل للضيف) — احفظ رابط الإدارة أدناه"
+                    : "Notify ran in mock mode (not delivered) — save the manage link below"
+                  : ar
+                    ? "احفظ رابط إدارة الحجز أدناه (لم يُرسل إشعار واتساب/رسائل)"
+                    : "Save your manage link below (no WhatsApp/SMS was sent)"}
             </p>
             <a
               href={done.manageUrl}
