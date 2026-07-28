@@ -99,6 +99,6 @@
 ## الخطوة التالية المقترحة
 
 1. **أنت اليوم:** Cloudflare §1.1 + تدوير أسرار + لصق Sentry DSN.  
-2. **الكود (Wave CS — منجز):** عرض `notifyResult` في قائمة الانتظار — [`HISABY-WAVE-CS-WAITLIST-NOTIFY-RESULT-UI-2026-07-28.md`](./HISABY-WAVE-CS-WAITLIST-NOTIFY-RESULT-UI-2026-07-28.md) · قبله CR صدق إشعار وسم الفاتورة.  
-3. على Render: `REDIS_URL` اختياري؛ قالب OTP واتساب؛ `REQUIRE_2FA_HARD_AFTER_GRACE=1` عند الرغبة بقفل التعديلات.  
+2. **الكود (Wave CT — منجز):** حفظ/عرض `notifyResult` على حجوزات المطاعم — [`HISABY-WAVE-CT-RESERVATION-NOTIFY-RESULT-2026-07-28.md`](./HISABY-WAVE-CT-RESERVATION-NOTIFY-RESULT-2026-07-28.md) · قبله CR/CS صدق إشعار الفاتورة والانتظار.  
+3. على Render: `prisma migrate deploy` (يشمل أعمدة إشعار الحجوزات) · `REDIS_URL` اختياري؛ قالب OTP واتساب؛ `REQUIRE_2FA_HARD_AFTER_GRACE=1` عند الرغبة بقفل التعديلات.  
 4. لاحقاً: أرشفة docs.
