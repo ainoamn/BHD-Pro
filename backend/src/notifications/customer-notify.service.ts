@@ -203,6 +203,62 @@ export class CustomerNotifyService {
     }
   }
 
+  /**
+   * After partner/terminal pay settles: send receipt once and persist result
+   * on invoice.customFieldsJson.partnerPayNotify (idempotent).
+   */
+  async notifyPosPartnerPayOnce(
+    companyId: string,
+    invoiceId: string,
+  ): Promise<{ whatsapp?: string; email?: string; sms?: string } | null> {
+    try {
+      const invoice = await this.prisma.invoice.findFirst({
+        where: { id: invoiceId, companyId },
+        select: {
+          id: true,
+          contactId: true,
+          notes: true,
+          customFieldsJson: true,
+        },
+      });
+      if (!invoice?.contactId) return null;
+      if (!String(invoice.notes || '').includes('[PARTNER_PAY]')) return null;
+
+      const fields =
+        invoice.customFieldsJson &&
+        typeof invoice.customFieldsJson === 'object' &&
+        !Array.isArray(invoice.customFieldsJson)
+          ? (invoice.customFieldsJson as Record<string, unknown>)
+          : {};
+      const prior = fields.partnerPayNotify as
+        | { whatsapp?: string; email?: string; sms?: string }
+        | null
+        | undefined;
+      if (prior && typeof prior === 'object') return prior;
+
+      const delivery = await this.notifyPosSale(
+        companyId,
+        invoice.id,
+        invoice.contactId,
+      );
+      await this.prisma.invoice.update({
+        where: { id: invoice.id },
+        data: {
+          customFieldsJson: {
+            ...fields,
+            partnerPayNotify: delivery ?? { skipped: true },
+          },
+        },
+      });
+      return delivery;
+    } catch (err) {
+      this.logger.warn(
+        `notifyPosPartnerPayOnce failed: ${err instanceof Error ? err.message : err}`,
+      );
+      return null;
+    }
+  }
+
   private async sendCustomerPosMessage(
     companyId: string,
     invoiceId: string,

@@ -14,6 +14,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PaymentsService } from '../payments/payments.service';
 import { CompanyGatewaysService } from '../payments/company-gateways.service';
 import { InvoicesService } from '../invoices/invoices.service';
+import { CustomerNotifyService } from '../notifications/customer-notify.service';
 
 export type TerminalTapMode = 'mock' | 'hosted' | 'softpos';
 
@@ -26,6 +27,7 @@ export class TerminalTapService {
     private payments: PaymentsService,
     private companyGateways: CompanyGatewaysService,
     private invoices: InvoicesService,
+    private customerNotify: CustomerNotifyService,
   ) {}
 
   preferredMode(): TerminalTapMode {
@@ -171,12 +173,25 @@ export class TerminalTapService {
     const paid =
       Number(invoice.paidAmount || 0) + 0.0005 >= Number(invoice.total) ||
       invoice.status === InvoiceStatus.PAID;
+    let customerNotify =
+      (fields.partnerPayNotify as {
+        whatsapp?: string;
+        email?: string;
+        sms?: string;
+      } | null) || null;
+    if (paid && !customerNotify) {
+      customerNotify = await this.customerNotify.notifyPosPartnerPayOnce(
+        companyId,
+        invoice.id,
+      );
+    }
     return {
       invoiceId: invoice.id,
       invoiceNumber: invoice.number,
       invoiceStatus: invoice.status,
       paid,
       session: tap ? { ...tap, status: paid ? 'CAPTURED' : tap.status } : null,
+      customerNotify: customerNotify ?? null,
     };
   }
 
@@ -237,6 +252,18 @@ export class TerminalTapService {
         notes: `${refreshed?.notes || invoice.notes || ''}\n[TERMINAL_TAP_MOCK_CAPTURED]`.trim(),
       },
     });
-    return { ok: true, status: 'CAPTURED', paid: true, paymentStatus: PaymentStatus.PAID };
+
+    const customerNotify = await this.customerNotify.notifyPosPartnerPayOnce(
+      companyId,
+      invoice.id,
+    );
+
+    return {
+      ok: true,
+      status: 'CAPTURED',
+      paid: true,
+      paymentStatus: PaymentStatus.PAID,
+      customerNotify: customerNotify ?? null,
+    };
   }
 }

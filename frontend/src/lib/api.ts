@@ -2987,11 +2987,25 @@ class ApiClient {
       paid: boolean;
       invoiceStatus?: string;
       session?: { status?: string; mode?: string } | null;
+      customerNotify?: {
+        whatsapp?: string;
+        email?: string;
+        sms?: string;
+      } | null;
     }>(`/pos/sales/${invoiceId}/terminal-tap`);
   }
 
   confirmPosTerminalTapMock(invoiceId: string) {
-    return this.post(`/pos/sales/${invoiceId}/terminal-tap/confirm-mock`, {});
+    return this.post<{
+      ok: boolean;
+      status?: string;
+      paid?: boolean;
+      customerNotify?: {
+        whatsapp?: string;
+        email?: string;
+        sms?: string;
+      } | null;
+    }>(`/pos/sales/${invoiceId}/terminal-tap/confirm-mock`, {});
   }
 
   createPosSale(data: {

@@ -727,6 +727,7 @@ export default function PosCheckoutPage() {
         if (res.data?.paid) {
           setAwaitingPayId(null);
           toast.success(t.terminalTapPaid);
+          toastPosCustomerNotify(res.data.customerNotify, t);
           void loadRecentSales();
           void loadOpsStrip();
         }
@@ -2647,9 +2648,10 @@ export default function PosCheckoutPage() {
               window.open(url, "_blank", "noopener,noreferrer");
               toast.success(t.terminalTapOpened);
             } else if (tap.mode === "mock") {
-              await api.confirmPosTerminalTapMock(inv.id);
+              const mockRes = await api.confirmPosTerminalTapMock(inv.id);
               setAwaitingPayId(null);
               toast.success(t.terminalTapMockOk);
+              toastPosCustomerNotify(mockRes.data?.customerNotify, t);
             } else {
               toast.error(t.terminalTapNeedConfig || t.terminalTapFail);
             }

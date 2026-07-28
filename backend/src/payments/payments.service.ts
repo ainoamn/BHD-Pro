@@ -22,6 +22,7 @@ import { baisaToOmr, CheckoutInput, omrToBaisa } from './payment.types';
 import { PlatformGatewaysService } from './platform-gateways.service';
 import { CompanyGatewaysService } from './company-gateways.service';
 import { RedisService } from '../redis/redis.service';
+import { CustomerNotifyService } from '../notifications/customer-notify.service';
 
 type GatewayRecord = {
   slug: PaymentGatewaySlug;
@@ -38,6 +39,7 @@ export class PaymentsService {
     private companyGateways: CompanyGatewaysService,
     private planCatalog: PlanCatalogService,
     private redis: RedisService,
+    private customerNotify: CustomerNotifyService,
   ) {}
 
   private getOrigin(): string {
@@ -714,6 +716,17 @@ export class PaymentsService {
     void this.redis
       .invalidateDashboardStats(billingInvoice.companyId)
       .catch(() => undefined);
+
+    // Partner/terminal POS: receipt after settle (idempotent; FE poll surfaces honesty)
+    const meta = (billingInvoice.metadataJson as Record<string, string>) || {};
+    if (
+      billingInvoice.purpose === BillingPurpose.INVOICE_COLLECTION &&
+      meta.invoiceId
+    ) {
+      void this.customerNotify
+        .notifyPosPartnerPayOnce(billingInvoice.companyId, meta.invoiceId)
+        .catch(() => undefined);
+    }
   }
 
   async getBillingInvoice(companyId: string | null, number: string) {

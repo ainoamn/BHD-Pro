@@ -1611,6 +1611,7 @@ export class PosService {
         sms?: string;
       } | null = null;
       if (
+        !partnerCheckout &&
         contact.name !== WALK_IN_NAME &&
         (contact.phone || contact.email)
       ) {

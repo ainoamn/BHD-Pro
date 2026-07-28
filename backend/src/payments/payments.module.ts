@@ -6,9 +6,10 @@ import { PaymentsController, PlatformGatewaysController } from './payments.contr
 import { PlatformAdminGuard } from '../common/guards/platform-admin.guard';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { RedisModule } from '../redis/redis.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [SubscriptionsModule, RedisModule],
+  imports: [SubscriptionsModule, RedisModule, NotificationsModule],
   controllers: [PaymentsController, PlatformGatewaysController],
   providers: [
     PaymentsService,
