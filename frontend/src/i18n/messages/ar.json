@@ -653,7 +653,9 @@
     "openShiftsTitle": "ورديات مفتوحة",
     "openShiftsMsg": "{count} وردية كاشير مفتوحة",
     "mgmtAlertsTitle": "تنبيهات إدارة مفتوحة",
-    "mgmtAlertsMsg": "{count} تنبيه بانتظار المراجعة"
+    "mgmtAlertsMsg": "{count} تنبيه بانتظار المراجعة",
+    "customerDisputesTitle": "بلاغات عملاء مفتوحة",
+    "customerDisputesMsg": "{count} بلاغ بانتظار المراجعة"
   },
   "status": {
     "paid": "مدفوع",

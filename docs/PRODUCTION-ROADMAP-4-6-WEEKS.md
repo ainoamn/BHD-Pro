@@ -99,6 +99,6 @@
 ## الخطوة التالية المقترحة
 
 1. **أنت اليوم:** Cloudflare §1.1 + تدوير أسرار + لصق Sentry DSN.  
-2. **الكود (Wave DA — منجز):** لوحة بلاغات العملاء — [`HISABY-WAVE-DA-CUSTOMER-DISPUTES-INBOX-2026-07-28.md`](./HISABY-WAVE-DA-CUSTOMER-DISPUTES-INBOX-2026-07-28.md) · قبله CZ إشعار ضيف التوصيل.  
+2. **الكود (Wave DB — منجز):** شارة بلاغات العملاء — [`HISABY-WAVE-DB-DISPUTES-BADGE-NOTIFY-2026-07-28.md`](./HISABY-WAVE-DB-DISPUTES-BADGE-NOTIFY-2026-07-28.md) · قبله DA لوحة البلاغات.  
 3. على Render: `prisma migrate deploy` (يشمل أعمدة إشعار الحجوزات) · `REDIS_URL` اختياري؛ قالب OTP واتساب؛ `REQUIRE_2FA_HARD_AFTER_GRACE=1` عند الرغبة بقفل التعديلات.  
 4. لاحقاً: أرشفة docs.

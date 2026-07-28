@@ -158,6 +158,17 @@ export function NotificationsButton() {
         });
       }
 
+      const openDisputes = Number(dashData.openCustomerDisputesCount ?? 0);
+      if (openDisputes > 0) {
+        items.push({
+          id: "open-customer-disputes",
+          title: t("customerDisputesTitle"),
+          message: t("customerDisputesMsg", { count: openDisputes }),
+          href: "/disputes",
+          type: "error",
+        });
+      }
+
       const openPosShifts = Number(dashData.openPosShiftsCount ?? 0);
       if (openPosShifts > 0) {
         items.push({

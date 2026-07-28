@@ -653,7 +653,9 @@
     "openShiftsTitle": "Open POS shifts",
     "openShiftsMsg": "{count} open cashier shift(s)",
     "mgmtAlertsTitle": "Open management alerts",
-    "mgmtAlertsMsg": "{count} alert(s) awaiting review"
+    "mgmtAlertsMsg": "{count} alert(s) awaiting review",
+    "customerDisputesTitle": "Open customer disputes",
+    "customerDisputesMsg": "{count} dispute(s) awaiting review"
   },
   "status": {
     "paid": "Paid",

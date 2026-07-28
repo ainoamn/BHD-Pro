@@ -166,6 +166,7 @@ export function Sidebar() {
   const modulePermissions = user?.modulePermissions;
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [openAlerts, setOpenAlerts] = useState(0);
+  const [openDisputes, setOpenDisputes] = useState(0);
   const [features, setFeatures] = useState<Record<string, boolean>>(() =>
     featuresFromPlanId(user?.company?.plan),
   );
@@ -257,15 +258,25 @@ export function Sidebar() {
     let cancelled = false;
     if (!user) {
       setOpenAlerts(0);
+      setOpenDisputes(0);
       return;
     }
     (async () => {
       try {
-        const res = await api.getManagementAlerts("OPEN");
-        const rows = res.data as unknown[];
-        if (!cancelled) setOpenAlerts(Array.isArray(rows) ? rows.length : 0);
+        const [alertsRes, disputesRes] = await Promise.all([
+          api.getManagementAlerts("OPEN"),
+          api.getCustomerDisputes("OPEN"),
+        ]);
+        if (cancelled) return;
+        const alertRows = alertsRes.data as unknown[];
+        const disputeRows = disputesRes.data as unknown[];
+        setOpenAlerts(Array.isArray(alertRows) ? alertRows.length : 0);
+        setOpenDisputes(Array.isArray(disputeRows) ? disputeRows.length : 0);
       } catch {
-        if (!cancelled) setOpenAlerts(0);
+        if (!cancelled) {
+          setOpenAlerts(0);
+          setOpenDisputes(0);
+        }
       }
     })();
     return () => {
@@ -461,6 +472,11 @@ export function Sidebar() {
                 {!sidebarCollapsed && item.href === "/management-alerts" && openAlerts > 0 && (
                   <span className="text-[10px] min-w-[1.25rem] h-5 px-1.5 rounded-full bg-amber-500/20 text-amber-300 flex items-center justify-center">
                     {openAlerts > 99 ? "99+" : openAlerts}
+                  </span>
+                )}
+                {!sidebarCollapsed && item.href === "/disputes" && openDisputes > 0 && (
+                  <span className="text-[10px] min-w-[1.25rem] h-5 px-1.5 rounded-full bg-rose-500/20 text-rose-300 flex items-center justify-center">
+                    {openDisputes > 99 ? "99+" : openDisputes}
                   </span>
                 )}
               </Link>

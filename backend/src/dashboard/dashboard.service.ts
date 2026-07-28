@@ -92,6 +92,7 @@ export class DashboardService {
       todayPosVoidAgg,
       openPosShifts,
       openManagementAlerts,
+      openCustomerDisputes,
     ] = await Promise.all([
       this.prisma.invoice.aggregate({
         where: { ...notCancelled, type: 'SALES', date: { gte: startOfMonth } },
@@ -240,6 +241,12 @@ export class DashboardService {
           status: 'OPEN',
         },
       }),
+      this.prisma.customerDispute.count({
+        where: {
+          companyId,
+          status: 'OPEN',
+        },
+      }),
     ]);
 
     const revenue = Number(monthSales._sum.total || 0);
@@ -321,6 +328,7 @@ export class DashboardService {
       todayPosVoidedTotal: Number(todayPosVoidAgg._sum.total || 0),
       openPosShiftsCount: openPosShifts,
       openManagementAlertsCount: openManagementAlerts,
+      openCustomerDisputesCount: openCustomerDisputes,
       alerts: {
         overdue: overdueCount > 0,
         lowStock: lowStockCount > 0,
@@ -329,6 +337,7 @@ export class DashboardService {
         pendingApprovals: pendingApprovals > 0,
         openPosShifts: openPosShifts > 0,
         openManagementAlerts: openManagementAlerts > 0,
+        openCustomerDisputes: openCustomerDisputes > 0,
       },
       onboarding,
       recentInvoices: recentInvoices.map((inv) => ({
