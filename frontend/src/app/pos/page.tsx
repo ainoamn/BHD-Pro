@@ -4373,9 +4373,18 @@ export default function PosCheckoutPage() {
                     const toastId = toast.loading(t.shareWhatsAppPdfPreparing);
                     try {
                       const res = await api.resendPosSaleNotify(lastInvoice.id);
-                      const waOk = res.data?.delivery?.whatsapp === "ok";
+                      const wa = res.data?.delivery?.whatsapp;
+                      const waOk = wa === "ok";
+                      const waMock = wa === "mock";
                       const waError = String(res.data?.delivery?.whatsappError || "");
                       toast.dismiss(toastId);
+                      if (waMock) {
+                        toast(t.shareWhatsAppMock || t.shareWhatsAppPartial, {
+                          icon: "🧪",
+                          duration: 7000,
+                        });
+                        return;
+                      }
                       if (waOk) {
                         toast.success(t.shareWhatsAppPdfOk);
                         return;
@@ -4463,6 +4472,8 @@ export default function PosCheckoutPage() {
                       toast.dismiss(toastId);
                       const sms = res.data?.delivery?.sms;
                       if (sms === "ok") toast.success(t.shareSmsOk);
+                      else if (sms === "mock")
+                        toast(t.shareSmsMock || t.shareSmsFail, { icon: "🧪", duration: 7000 });
                       else toast.error(t.shareSmsFail);
                     } catch (err: unknown) {
                       toast.dismiss(toastId);

@@ -897,6 +897,8 @@
     "readme": "اقرأني",
     "loadingGuide": "جاري تحميل الدليل…",
     "ready": "جاهز",
+    "mockMode": "وضع اختبار (mock)",
+    "mockModeHint": "لا يُرسل للعميل فعلياً — يُسجَّل في سجلات الخادم فقط. ضع مفاتيح حقيقية للإنتاج.",
     "notReady": "غير مضبوط",
     "whatsapp": "واتساب",
     "email": "البريد",
@@ -911,6 +913,7 @@
     "bodyPlaceholder": "اختياري — يُستخدم نص افتراضي إن تُرك فارغاً",
     "sendTest": "إرسال اختبار",
     "testOk": "تم الإرسال",
+    "testMock": "اختبار mock فقط — لم يُرسل للعميل",
     "testFail": "فشل الإرسال — راجع الإعدادات",
     "whatsappTemplate": "قالب الإيصال",
     "whatsappTemplateMissing": "ناقص WHATSAPP_RECEIPT_TEMPLATE — Meta ترفض إيصالات أول تواصل بدون قالب Utility معتمد"

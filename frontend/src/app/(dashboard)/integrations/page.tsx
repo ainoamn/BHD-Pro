@@ -22,13 +22,14 @@ type MessagingStatus = {
   whatsapp: {
     configured: boolean;
     mode: string;
+    live?: boolean;
     receiptTemplate?: string | null;
     guestTemplate?: string | null;
     otpTemplate?: string | null;
   };
   apps?: { alwaysLinked?: boolean; note?: string };
-  email: { configured: boolean; mode: string };
-  sms?: { configured: boolean; mode: string };
+  email: { configured: boolean; mode: string; live?: boolean };
+  sms?: { configured: boolean; mode: string; live?: boolean };
   storage: { driver: string; s3Ready: boolean };
   payments: {
     thawani: boolean;
@@ -89,8 +90,13 @@ export default function IntegrationsPage() {
         to: to.trim(),
         body: body.trim() || undefined,
       }),
-    onSuccess: () => {
-      toast.success(t("testOk"));
+    onSuccess: (res) => {
+      const data = res.data as { mode?: string; mock?: boolean } | undefined;
+      if (data?.mode === "mock" || data?.mock) {
+        toast(t("testMock"), { icon: "🧪" });
+      } else {
+        toast.success(t("testOk"));
+      }
       queryClient.invalidateQueries({ queryKey: ["messaging-status"] });
     },
     onError: (err: { response?: { data?: { message?: string } } }) => {
@@ -101,67 +107,103 @@ export default function IntegrationsPage() {
   const cards = useMemo(() => {
     if (!status) return [];
     const payOk = status.payments.thawani || status.payments.stripe || status.payments.paypal;
+    const channelTone = (configured: boolean, mode: string, live?: boolean) => {
+      if (!configured || mode === "off") return "off" as const;
+      if (mode === "mock" || live === false) return "mock" as const;
+      return "live" as const;
+    };
     return [
       {
         key: "whatsapp",
         icon: MessageCircle,
         title: t("whatsapp"),
-        ok: status.whatsapp.configured,
+        tone: channelTone(
+          status.whatsapp.configured,
+          status.whatsapp.mode,
+          status.whatsapp.live,
+        ),
         detail: status.whatsapp.mode,
         warn:
-          status.whatsapp.configured && !status.whatsapp.receiptTemplate
-            ? t("whatsappTemplateMissing")
-            : [
-                status.whatsapp.receiptTemplate
-                  ? `${t("whatsappTemplate")}: ${status.whatsapp.receiptTemplate}`
-                  : null,
-                status.whatsapp.otpTemplate
-                  ? `OTP: ${status.whatsapp.otpTemplate}`
-                  : null,
-              ]
-                .filter(Boolean)
-                .join(" · ") || null,
+          status.whatsapp.mode === "mock"
+            ? t("mockModeHint")
+            : status.whatsapp.configured && !status.whatsapp.receiptTemplate
+              ? t("whatsappTemplateMissing")
+              : [
+                  status.whatsapp.receiptTemplate
+                    ? `${t("whatsappTemplate")}: ${status.whatsapp.receiptTemplate}`
+                    : null,
+                  status.whatsapp.otpTemplate
+                    ? `OTP: ${status.whatsapp.otpTemplate}`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ") || null,
       },
       {
         key: "email",
         icon: Mail,
         title: t("email"),
-        ok: status.email.configured,
+        tone: channelTone(status.email.configured, status.email.mode, status.email.live),
         detail: status.email.mode,
+        warn: status.email.mode === "mock" ? t("mockModeHint") : null,
       },
       {
         key: "sms",
         icon: Smartphone,
         title: t("sms"),
-        ok: !!status.sms?.configured,
+        tone: channelTone(
+          !!status.sms?.configured,
+          status.sms?.mode || "off",
+          status.sms?.live,
+        ),
         detail: status.sms?.mode || "off",
+        warn: status.sms?.mode === "mock" ? t("mockModeHint") : null,
       },
       {
         key: "storage",
         icon: BookOpen,
         title: t("storage"),
-        ok: status.storage.driver === "s3" ? status.storage.s3Ready : true,
+        tone:
+          status.storage.driver === "s3"
+            ? status.storage.s3Ready
+              ? ("live" as const)
+              : ("off" as const)
+            : ("live" as const),
         detail: status.storage.driver,
+        warn: null as string | null,
       },
       {
         key: "payments",
         icon: CreditCard,
         title: t("payments"),
-        ok: payOk,
+        tone: payOk ? ("live" as const) : ("off" as const),
         detail: status.payments.terminalMode
           ? `terminal:${status.payments.terminalMode}`
           : "gateways",
+        warn: null as string | null,
       },
       {
         key: "ai",
         icon: Brain,
         title: t("ai"),
-        ok: !!status.ai?.llm,
+        tone: status.ai?.llm ? ("live" as const) : ("off" as const),
         detail: status.ai?.llm ? "llm" : "rules",
+        warn: null as string | null,
       },
     ];
   }, [status, t]);
 
+  const toneLabel = (tone: "live" | "mock" | "off") => {
+    if (tone === "live") return t("ready");
+    if (tone === "mock") return t("mockMode");
+    return t("notReady");
+  };
+
+  const toneClass = (tone: "live" | "mock" | "off") => {
+    if (tone === "live") return "text-emerald-400";
+    if (tone === "mock") return "text-amber-300";
+    return "text-amber-400";
+  };
   return (
     <div className="space-y-6">
       <PageHeader
@@ -191,21 +233,16 @@ export default function IntegrationsPage() {
                 <c.icon className="h-5 w-5 text-emerald-400" />
                 <span className="font-semibold">{c.title}</span>
               </div>
-              <p
-                className={cn(
-                  "mt-3 text-sm font-medium",
-                  c.ok ? "text-emerald-400" : "text-amber-400",
-                )}
-              >
-                {c.ok ? t("ready") : t("notReady")} · {c.detail}
+              <p className={cn("mt-3 text-sm font-medium", toneClass(c.tone))}>
+                {toneLabel(c.tone)} · {c.detail}
               </p>
-              {"warn" in c && c.warn ? (
+              {c.warn ? (
                 <p
                   className={cn(
                     "mt-2 text-xs leading-relaxed",
-                    status?.whatsapp.receiptTemplate
-                      ? "text-slate-400"
-                      : "text-amber-300",
+                    c.tone === "mock" || !status?.whatsapp.receiptTemplate
+                      ? "text-amber-300"
+                      : "text-slate-400",
                   )}
                 >
                   {c.warn}

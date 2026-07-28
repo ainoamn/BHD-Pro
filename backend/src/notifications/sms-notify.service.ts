@@ -37,7 +37,7 @@ export class SmsNotifyService {
   async sendText(opts: {
     to: string;
     body: string;
-  }): Promise<{ ok: boolean; error?: string; mode: string; sid?: string }> {
+  }): Promise<{ ok: boolean; error?: string; mode: string; sid?: string; mock?: boolean }> {
     const mode = this.mode();
     if (mode === 'off') {
       return { ok: false, error: 'SMS is not configured', mode };
@@ -48,7 +48,7 @@ export class SmsNotifyService {
 
     if (mode === 'mock') {
       this.logger.log(`[mock-sms] to=${to} body=${opts.body.slice(0, 200)}`);
-      return { ok: true, mode, sid: `mock_${Date.now()}` };
+      return { ok: true, mode, mock: true, sid: `mock_${Date.now()}` };
     }
 
     const sid = process.env.TWILIO_ACCOUNT_SID!;

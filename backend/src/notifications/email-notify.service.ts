@@ -29,7 +29,7 @@ export class EmailNotifyService {
     subject: string;
     text: string;
     html?: string;
-  }): Promise<{ ok: boolean; error?: string; mode: string }> {
+  }): Promise<{ ok: boolean; error?: string; mode: string; mock?: boolean }> {
     const mode = this.mode();
     if (mode === 'off') {
       return { ok: false, error: 'Email is not configured', mode };
@@ -37,7 +37,7 @@ export class EmailNotifyService {
 
     if (mode === 'mock') {
       this.logger.log(`[mock-email] to=${opts.to} subject=${opts.subject} body=${opts.text.slice(0, 200)}`);
-      return { ok: true, mode };
+      return { ok: true, mode, mock: true };
     }
 
     if (mode === 'resend') {

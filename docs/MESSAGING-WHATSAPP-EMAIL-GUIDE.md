@@ -150,7 +150,7 @@ WHATSAPP_RECEIPT_TEMPLATE_LANG=ar
 |--------|-----------|-------------|
 | **Resend** | `RESEND_API_KEY` + `EMAIL_FROM` | الأسرع للـ SaaS |
 | **SMTP** | `SMTP_HOST` `SMTP_PORT` `SMTP_USER` `SMTP_PASS` | بريد الشركة الحالي |
-| **mock** | `EMAIL_MODE=mock` | تطوير بدون إرسال حقيقي |
+| **mock** | `EMAIL_MODE=mock` | تطوير بدون إرسال حقيقي — حالة التسليم في API تكون `mock` (ليست `ok`)؛ واجهة التكاملات تعرض «وضع اختبار» |
 
 ```bash
 EMAIL_ENABLED=true

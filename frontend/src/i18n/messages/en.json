@@ -897,6 +897,8 @@
     "readme": "Read me",
     "loadingGuide": "Loading guide…",
     "ready": "Ready",
+    "mockMode": "Test mode (mock)",
+    "mockModeHint": "Nothing is delivered to the customer — only logged on the server. Set real provider keys for production.",
     "notReady": "Not configured",
     "whatsapp": "WhatsApp",
     "email": "Email",
@@ -911,6 +913,7 @@
     "bodyPlaceholder": "Optional — default text is used if empty",
     "sendTest": "Send test",
     "testOk": "Sent",
+    "testMock": "Mock test only — not delivered to the customer",
     "testFail": "Send failed — check configuration",
     "whatsappTemplate": "Receipt template",
     "whatsappTemplateMissing": "Missing WHATSAPP_RECEIPT_TEMPLATE — Meta blocks first-contact receipts without an approved Utility template"

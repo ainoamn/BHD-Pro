@@ -99,6 +99,6 @@
 ## الخطوة التالية المقترحة
 
 1. **أنت اليوم:** Cloudflare §1.1 + تدوير أسرار + لصق Sentry DSN.  
-2. **الكود (Wave BS — منجز):** صدق إخفاء وحدات الباقة في الشريط والاشتراك ولوحات التطبيقات — [`HISABY-WAVE-BS-PLAN-MODULE-HONESTY-2026-07-28.md`](./HISABY-WAVE-BS-PLAN-MODULE-HONESTY-2026-07-28.md).  
+2. **الكود (Wave BT — منجز):** صدق وضع mock للواتساب/البريد/SMS — [`HISABY-WAVE-BT-MESSAGING-MOCK-HONESTY-2026-07-28.md`](./HISABY-WAVE-BT-MESSAGING-MOCK-HONESTY-2026-07-28.md).  
 3. على Render (اختياري): `WHATSAPP_OTP_TEMPLATE` بعد موافقة Meta.  
-4. لاحقاً: كاش Redis لكتالوج POS · صدق mock للبريد/SMS · أرشفة docs.
+4. لاحقاً: كاش Redis لكتالوج POS · أرشفة docs.

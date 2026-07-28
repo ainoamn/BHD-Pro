@@ -282,6 +282,7 @@ export class CustomerNotifyService {
     const dial = dialCodeForCountry(company.country);
     const digits = toE164Digits(contact.phone, dial);
     let waOk = false;
+    let waMock = false;
     let waError: string | undefined;
     if (isValidMobileE164(digits) && this.whatsapp.isConfigured()) {
       const result = await this.whatsapp.sendPosReceipt(digits, {
@@ -293,6 +294,7 @@ export class CustomerNotifyService {
         fullBody: body,
       });
       waOk = result.ok;
+      waMock = !!result.mock || this.whatsapp.mode() === 'mock';
       waError = result.error;
       if (!this.whatsapp.receiptTemplateName() && !waOk) {
         waError = `${waError || 'send failed'} — اضبط WHATSAPP_RECEIPT_TEMPLATE على Render بعد اعتماد قالب Meta`;
@@ -304,7 +306,7 @@ export class CustomerNotifyService {
       waError = 'no phone on contact';
     }
 
-    let emailStatus: 'ok' | 'fail' | 'skipped' = 'skipped';
+    let emailStatus: 'ok' | 'mock' | 'fail' | 'skipped' = 'skipped';
     let emailError: string | undefined;
     const emailAllowed = force || cfg.autoSendPosReceiptEmail !== false;
     if (emailAllowed && contact.email?.trim() && this.email.isConfigured()) {
@@ -320,22 +322,22 @@ export class CustomerNotifyService {
         text: body,
         html: `<pre style="font-family:sans-serif;white-space:pre-wrap">${body.replace(/</g, '&lt;')}</pre>`,
       });
-      emailStatus = mail.ok ? 'ok' : 'fail';
+      emailStatus = mail.ok ? (mail.mode === 'mock' || mail.mock ? 'mock' : 'ok') : 'fail';
       emailError = mail.error;
     }
 
-    let smsStatus: 'ok' | 'fail' | 'skipped' = 'skipped';
+    let smsStatus: 'ok' | 'mock' | 'fail' | 'skipped' = 'skipped';
     let smsError: string | undefined;
     const smsAllowed = force || cfg.autoSendPosReceiptSms !== false;
     if (smsAllowed && isValidMobileE164(digits) && this.sms.isConfigured()) {
       const smsBody = body.slice(0, 600);
       const sms = await this.sms.sendText({ to: digits, body: smsBody });
-      smsStatus = sms.ok ? 'ok' : 'fail';
+      smsStatus = sms.ok ? (sms.mode === 'mock' || sms.mock ? 'mock' : 'ok') : 'fail';
       smsError = sms.error;
     }
 
     const delivery = {
-      whatsapp: waOk ? ('ok' as const) : ('fail' as const),
+      whatsapp: waOk ? (waMock ? ('mock' as const) : ('ok' as const)) : ('fail' as const),
       email: emailStatus,
       sms: smsStatus,
       ...(waError ? { whatsappError: waError } : {}),

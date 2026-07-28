@@ -73,7 +73,7 @@ export class WhatsappNotifyService {
     }
   }
 
-  async sendText(toE164: string, body: string): Promise<{ ok: boolean; error?: string }> {
+  async sendText(toE164: string, body: string): Promise<{ ok: boolean; error?: string; mock?: boolean }> {
     if (!this.isConfigured()) {
       return { ok: false, error: 'WhatsApp is not configured on the server' };
     }
@@ -85,7 +85,7 @@ export class WhatsappNotifyService {
 
     if (this.mode() === 'mock') {
       this.logger.log(`[mock-whatsapp] to=${phone} body=${body.slice(0, 240)}`);
-      return { ok: true };
+      return { ok: true, mock: true };
     }
 
     const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID!;
@@ -135,7 +135,7 @@ export class WhatsappNotifyService {
     bodyParams: string[],
     lang?: string,
     paramNames?: string[],
-  ): Promise<{ ok: boolean; error?: string }> {
+  ): Promise<{ ok: boolean; error?: string; mock?: boolean }> {
     if (!this.isConfigured()) {
       return { ok: false, error: 'WhatsApp is not configured on the server' };
     }
@@ -147,7 +147,7 @@ export class WhatsappNotifyService {
       this.logger.log(
         `[mock-whatsapp-template] to=${phone} name=${templateName} params=${bodyParams.join('|')}`,
       );
-      return { ok: true };
+      return { ok: true, mock: true };
     }
 
     const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID!;
@@ -218,14 +218,14 @@ export class WhatsappNotifyService {
     link: string,
     caption: string,
     filename = 'document.pdf',
-  ): Promise<{ ok: boolean; error?: string }> {
+  ): Promise<{ ok: boolean; error?: string; mock?: boolean }> {
     if (!this.isConfigured()) {
       return { ok: false, error: 'WhatsApp is not configured on the server' };
     }
     const phone = toE164.replace(/[^\d]/g, '');
     if (this.mode() === 'mock') {
       this.logger.log(`[mock-whatsapp-doc] to=${phone} link=${link} caption=${caption}`);
-      return { ok: true };
+      return { ok: true, mock: true };
     }
 
     const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID!;
@@ -316,7 +316,7 @@ export class WhatsappNotifyService {
       viewUrl: string;
       fullBody: string;
     },
-  ): Promise<{ ok: boolean; error?: string; via?: 'template' | 'text' }> {
+  ): Promise<{ ok: boolean; error?: string; via?: 'template' | 'text'; mock?: boolean }> {
     const template = this.receiptTemplateName();
     if (template) {
       const result = await this.sendTemplate(
@@ -332,7 +332,7 @@ export class WhatsappNotifyService {
         this.receiptTemplateLang(),
         this.receiptParamNames(),
       );
-      if (result.ok) return { ...result, via: 'template' };
+      if (result.ok) return { ...result, via: 'template', mock: !!(result as { mock?: boolean }).mock };
       this.logger.warn(`Receipt template failed, trying session text: ${result.error}`);
     }
 
@@ -342,7 +342,7 @@ export class WhatsappNotifyService {
       opts.fullBody.slice(0, 900),
       `${opts.invoiceNumber || 'receipt'}.pdf`,
     );
-    if (text.ok) return { ...text, via: 'text' };
+    if (text.ok) return { ...text, via: 'text', mock: !!(text as { mock?: boolean }).mock };
 
     const hint =
       !template && /24|window|template|re-engage|131047|131026/i.test(text.error || '')

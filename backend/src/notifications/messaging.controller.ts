@@ -52,6 +52,7 @@ export class MessagingController {
       whatsapp: {
         configured: this.whatsapp.isConfigured(),
         mode: this.whatsapp.mode(),
+        live: this.whatsapp.mode() === 'live',
         receiptTemplate: this.whatsapp.receiptTemplateName(),
         guestTemplate: this.whatsapp.guestTemplateName(),
         otpTemplate: this.whatsapp.otpTemplateName(),
@@ -64,10 +65,12 @@ export class MessagingController {
       email: {
         configured: this.email.isConfigured(),
         mode: this.email.mode(),
+        live: this.email.mode() === 'resend' || this.email.mode() === 'smtp',
       },
       sms: {
         configured: this.sms.isConfigured(),
         mode: this.sms.mode(),
+        live: this.sms.mode() === 'twilio',
       },
       storage: {
         driver: this.storage.driver(),
