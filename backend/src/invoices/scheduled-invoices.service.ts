@@ -245,7 +245,7 @@ export class ScheduledInvoicesService {
     });
 
     // Issue invoice and post to GL (Wafeq-style recurring billing)
-    await this.invoicesService.send(companyId, userId, invoice.id);
+    const sendResult = await this.invoicesService.send(companyId, userId, invoice.id);
 
     await this.prisma.scheduledInvoice.update({
       where: { id },
@@ -255,7 +255,16 @@ export class ScheduledInvoicesService {
       },
     });
 
-    return this.invoicesService.findOne(companyId, invoice.id);
+    const issued = await this.invoicesService.findOne(companyId, invoice.id);
+    return {
+      ...issued,
+      emailSent: !!sendResult.emailSent,
+      emailMock: !!sendResult.emailMock,
+      emailSkipped: !!(sendResult as { emailSkipped?: boolean }).emailSkipped,
+      ...('emailError' in sendResult && sendResult.emailError
+        ? { emailError: String(sendResult.emailError) }
+        : {}),
+    };
   }
 
   /** Cron: all companies. Manual API: pass companyId to scope to one tenant. */
@@ -273,15 +282,21 @@ export class ScheduledInvoicesService {
     });
 
     let generated = 0;
+    let emailSent = 0;
+    let emailMock = 0;
+    let emailSkipped = 0;
     for (const row of due) {
       try {
-        await this.generateNow(row.companyId, row.createdById, row.id);
+        const result = await this.generateNow(row.companyId, row.createdById, row.id);
         generated += 1;
+        if (result.emailSent) emailSent += 1;
+        else if (result.emailMock) emailMock += 1;
+        else emailSkipped += 1;
       } catch {
         // skip failed rows; cron will retry next run
       }
     }
 
-    return { checked: due.length, generated };
+    return { checked: due.length, generated, emailSent, emailMock, emailSkipped };
   }
 }

@@ -144,10 +144,22 @@ export function ProcurementPage({ mode }: ProcurementPageProps) {
   const convertMutation = useMutation({
     mutationFn: (id: string) =>
       isPO ? api.convertPurchaseOrder(id) : api.generateScheduledInvoice(id),
-    onSuccess: () => {
+    onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: [queryKey] });
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      toast.success(isPO ? t("converted") : t("generated"));
+      if (isPO) {
+        toast.success(t("converted"));
+        return;
+      }
+      const data = res.data as {
+        emailSent?: boolean;
+        emailMock?: boolean;
+        emailSkipped?: boolean;
+      };
+      if (data.emailSent) toast.success(t("generatedEmailed"));
+      else if (data.emailMock) toast(t("generatedEmailMock"), { icon: "🧪", duration: 8000 });
+      else if (data.emailSkipped) toast(t("generatedEmailSkipped"), { icon: "⚠️", duration: 8000 });
+      else toast.success(t("generated"));
     },
     onError: (err) => toast.error(apiErrorMessage(err, tCommon("error"))),
   });
@@ -174,10 +186,28 @@ export function ProcurementPage({ mode }: ProcurementPageProps) {
   const processDueMutation = useMutation({
     mutationFn: () => api.processDueScheduledInvoices(),
     onSuccess: (res) => {
-      const data = res.data as { checked: number; generated: number };
+      const data = res.data as {
+        checked: number;
+        generated: number;
+        emailSent?: number;
+        emailMock?: number;
+        emailSkipped?: number;
+      };
       queryClient.invalidateQueries({ queryKey: [queryKey] });
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      toast.success(t("processDueDone", { count: data.generated }));
+      if ((data.emailMock || 0) > 0 || (data.emailSkipped || 0) > 0) {
+        toast(
+          t("processDueDoneHonest", {
+            count: data.generated,
+            sent: data.emailSent || 0,
+            mock: data.emailMock || 0,
+            skipped: data.emailSkipped || 0,
+          }),
+          { icon: "🧪", duration: 9000 },
+        );
+      } else {
+        toast.success(t("processDueDone", { count: data.generated }));
+      }
     },
     onError: (err) => toast.error(apiErrorMessage(err, tCommon("error"))),
   });
