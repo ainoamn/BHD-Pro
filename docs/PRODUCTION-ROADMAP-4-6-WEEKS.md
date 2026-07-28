@@ -99,6 +99,6 @@
 ## الخطوة التالية المقترحة
 
 1. **أنت اليوم:** Cloudflare §1.1 + تدوير أسرار + لصق Sentry DSN.  
-2. **الكود (Wave CY — منجز):** صدق إشعار التاجر عند بلاغ العميل — [`HISABY-WAVE-CY-DISPUTE-MERCHANT-NOTIFY-HONESTY-2026-07-28.md`](./HISABY-WAVE-CY-DISPUTE-MERCHANT-NOTIFY-HONESTY-2026-07-28.md) · قبله CX بريد إيصال الكاشير.  
+2. **الكود (Wave CZ — منجز):** إشعار ضيف التوصيل — [`HISABY-WAVE-CZ-DELIVERY-GUEST-NOTIFY-HONESTY-2026-07-28.md`](./HISABY-WAVE-CZ-DELIVERY-GUEST-NOTIFY-HONESTY-2026-07-28.md) · قبله CY بلاغ العميل.  
 3. على Render: `prisma migrate deploy` (يشمل أعمدة إشعار الحجوزات) · `REDIS_URL` اختياري؛ قالب OTP واتساب؛ `REQUIRE_2FA_HARD_AFTER_GRACE=1` عند الرغبة بقفل التعديلات.  
 4. لاحقاً: أرشفة docs.

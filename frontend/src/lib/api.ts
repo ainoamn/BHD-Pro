@@ -2495,7 +2495,17 @@ class ApiClient {
       driverPhone?: string;
     },
   ) {
-    return this.patch<RestoOrderPayload>(`/resto/orders/${orderId}/delivery`, data);
+    return this.patch<
+      RestoOrderPayload & {
+        notify?: {
+          ok: boolean;
+          channel: string | null;
+          error?: string;
+          mock?: boolean;
+          mode?: string;
+        } | null;
+      }
+    >(`/resto/orders/${orderId}/delivery`, data);
   }
 
   cancelRestoOrder(orderId: string, approval?: DualApprovalPayload) {

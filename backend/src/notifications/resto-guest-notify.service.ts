@@ -13,7 +13,9 @@ export type RestoGuestNotifyKind =
   | 'WAITLIST_READY'
   | 'RESERVATION_CONFIRM'
   | 'RESERVATION_REMIND'
-  | 'RESERVATION_TABLE_READY';
+  | 'RESERVATION_TABLE_READY'
+  | 'DELIVERY_OUT'
+  | 'DELIVERY_DONE';
 
 @Injectable()
 export class RestoGuestNotifyService {
@@ -90,6 +92,16 @@ export class RestoGuestNotifyService {
         ? `تذكير: حجزكم في ${companyName}${when ? ` يوم ${when}` : ''} باسم ${guestName}. نتطلع لزيارتكم.${opts.confirmUrl ? `\n${opts.confirmUrl}` : ''}`
         : `Reminder: your reservation at ${companyName}${when ? ` on ${when}` : ''} for ${guestName}. We look forward to seeing you.${opts.confirmUrl ? `\n${opts.confirmUrl}` : ''}`;
     }
+    if (kind === 'DELIVERY_OUT') {
+      return ar
+        ? `مرحباً ${guestName}، طلبكم من ${companyName} في الطريق إليكم.`
+        : `Hi ${guestName}, your order from ${companyName} is on the way.`;
+    }
+    if (kind === 'DELIVERY_DONE') {
+      return ar
+        ? `مرحباً ${guestName}، تم تسليم طلبكم من ${companyName}. نتمنى أن تستمتعوا.`
+        : `Hi ${guestName}, your order from ${companyName} was delivered. Enjoy!`;
+    }
     return ar
       ? `مرحباً ${guestName}، طاولتكم للحجز جاهزة في ${companyName}${opts.tableCode ? ` (${opts.tableCode})` : ''}.`
       : `Hi ${guestName}, your reserved table is ready at ${companyName}${opts.tableCode ? ` (${opts.tableCode})` : ''}.`;
@@ -151,9 +163,17 @@ export class RestoGuestNotifyService {
                 ? opts.locale === 'en'
                   ? 'Reservation reminder'
                   : 'تذكير بالحجز'
-                : opts.locale === 'en'
-                  ? 'Reserved table ready'
-                  : 'طاولة الحجز جاهزة';
+                : opts.kind === 'DELIVERY_OUT'
+                  ? opts.locale === 'en'
+                    ? 'Out for delivery'
+                    : 'الطلب في الطريق'
+                  : opts.kind === 'DELIVERY_DONE'
+                    ? opts.locale === 'en'
+                      ? 'Delivered'
+                      : 'تم التسليم'
+                    : opts.locale === 'en'
+                      ? 'Reserved table ready'
+                      : 'طاولة الحجز جاهزة';
         const detailParts = [
           opts.tableCode ? `table ${opts.tableCode}` : '',
           opts.quotedMinutes != null ? `${opts.quotedMinutes} min` : '',

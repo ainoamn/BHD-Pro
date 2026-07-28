@@ -3703,6 +3703,7 @@ export class RestoService {
       throw new BadRequestException('driverName is required when dispatching OUT');
     }
 
+    const prevStatus = order.deliveryStatus || 'QUEUED';
     await this.prisma.restoOrder.update({
       where: { id: orderId },
       data: {
@@ -3718,7 +3719,31 @@ export class RestoService {
           : {}),
       },
     });
-    return this.getOrder(companyId, orderId);
+
+    let notify: {
+      ok: boolean;
+      channel: string | null;
+      error?: string;
+      mock?: boolean;
+      mode?: string;
+    } | null = null;
+    const shouldNotifyGuest =
+      (dto.deliveryStatus === 'OUT' || dto.deliveryStatus === 'DELIVERED') &&
+      dto.deliveryStatus !== prevStatus &&
+      !!order.guestPhone?.trim() &&
+      !!order.guestName?.trim();
+    if (shouldNotifyGuest) {
+      notify = await this.guestNotify.notifyGuest({
+        companyId,
+        phone: order.guestPhone,
+        guestName: order.guestName || 'Guest',
+        kind:
+          dto.deliveryStatus === 'OUT' ? 'DELIVERY_OUT' : 'DELIVERY_DONE',
+      });
+    }
+
+    const updated = await this.getOrder(companyId, orderId);
+    return { ...updated, notify };
   }
 
   async cancelOrder(

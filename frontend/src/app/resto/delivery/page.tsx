@@ -138,11 +138,39 @@ export default function RestoDeliveryPage() {
     }));
   };
 
+  const toastNotify = (notify?: {
+    ok: boolean;
+    channel: string | null;
+    error?: string;
+    mock?: boolean;
+    mode?: string;
+  } | null) => {
+    if (!notify) return;
+    if (notify.ok) {
+      if (notify.mock || notify.mode === "mock") {
+        toast(
+          `${t.notifySentMock}${notify.channel ? ` · ${notify.channel}` : ""}`,
+          { icon: "🧪" },
+        );
+      } else {
+        toast.success(
+          `${t.notifySent}${notify.channel ? ` · ${notify.channel}` : ""}`,
+        );
+      }
+      return;
+    }
+    if (notify.error === "no_phone") {
+      toast.error(t.notifyNoPhone);
+      return;
+    }
+    toast.error(t.notifyFail);
+  };
+
   const advance = async (o: DeliveryOrder, next: DeliveryStatus) => {
     setBusy(true);
     try {
       const d = driverFor(o);
-      await api.updateRestoDelivery(o.id, {
+      const res = await api.updateRestoDelivery(o.id, {
         deliveryStatus: next,
         ...(next === "OUT" || next === "DELIVERED"
           ? {
@@ -151,6 +179,7 @@ export default function RestoDeliveryPage() {
             }
           : {}),
       });
+      toastNotify(res.data?.notify);
       await load();
     } catch (err) {
       const msg = (err as { response?: { data?: { message?: string } } })
