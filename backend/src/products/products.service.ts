@@ -37,6 +37,7 @@ export class ProductsService {
 
   private bumpPosCatalog(companyId: string) {
     void this.redis.invalidatePosCatalog(companyId).catch(() => undefined);
+    void this.redis.invalidateDashboardStats(companyId).catch(() => undefined);
   }
   async findAll(companyId: string) {
     return this.prisma.product.findMany({

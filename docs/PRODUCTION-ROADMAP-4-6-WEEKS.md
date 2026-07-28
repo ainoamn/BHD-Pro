@@ -99,6 +99,6 @@
 ## الخطوة التالية المقترحة
 
 1. **أنت اليوم:** Cloudflare §1.1 + تدوير أسرار + لصق Sentry DSN.  
-2. **الكود (Wave CB — منجز):** إبطال كاش POS عند عكس تعديل/تحويل + تلميح مزامنة خلفية — [`HISABY-WAVE-CB-POS-REVERSE-BG-CACHE-2026-07-28.md`](./HISABY-WAVE-CB-POS-REVERSE-BG-CACHE-2026-07-28.md).  
+2. **الكود (Wave CC — منجز):** إبطال كاش اللوحة عند طفرات المخزون + صدق Redis في الإطلاق/smoke — [`HISABY-WAVE-CC-DASHBOARD-STOCK-INVALIDATE-2026-07-28.md`](./HISABY-WAVE-CC-DASHBOARD-STOCK-INVALIDATE-2026-07-28.md).  
 3. على Render: `REDIS_URL` اختياري؛ قالب OTP واتساب.  
 4. لاحقاً: أرشفة docs.

@@ -39,5 +39,9 @@ echo "$READY_BODY" | grep -q '"database":"ok"' || {
   echo "FAIL: database is not ok"
   exit 1
 }
+echo "$READY_BODY" | grep -Eq '"redis":"(ok|skipped)"' || {
+  echo "FAIL: redis field missing or unexpected (want ok|skipped)"
+  exit 1
+}
 
 echo "OK — API live and ready"

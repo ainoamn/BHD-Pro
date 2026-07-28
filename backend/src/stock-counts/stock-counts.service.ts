@@ -20,6 +20,7 @@ export class StockCountsService {
 
   private bumpPosCatalog(companyId: string) {
     void this.redis.invalidatePosCatalog(companyId).catch(() => undefined);
+    void this.redis.invalidateDashboardStats(companyId).catch(() => undefined);
   }
 
   private async generateNumber(companyId: string) {
