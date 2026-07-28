@@ -99,6 +99,6 @@
 ## الخطوة التالية المقترحة
 
 1. **أنت اليوم:** Cloudflare §1.1 + تدوير أسرار + لصق Sentry DSN.  
-2. **الكود (Wave DO — منجز):** صدق settle + تأكيد/إلغاء حجز عام — [`HISABY-WAVE-DO-SETTLE-BOOK-NOTIFY-HONESTY-2026-07-28.md`](./HISABY-WAVE-DO-SETTLE-BOOK-NOTIFY-HONESTY-2026-07-28.md) · قبله DN إغلاق طلب.  
+2. **الكود (Wave DP — منجز):** صدق إشعار إلغاء/عدم حضور الحجز — [`HISABY-WAVE-DP-RESERVATION-CANCEL-NOSHOW-NOTIFY-HONESTY-2026-07-28.md`](./HISABY-WAVE-DP-RESERVATION-CANCEL-NOSHOW-NOTIFY-HONESTY-2026-07-28.md) · قبله DO settle/حجز عام.  
 3. على Render: `prisma migrate deploy` (يشمل أعمدة إشعار الحجوزات) · `REDIS_URL` اختياري؛ قالب OTP واتساب؛ `REQUIRE_2FA_HARD_AFTER_GRACE=1` عند الرغبة بقفل التعديلات.  
 4. لاحقاً: أرشفة docs.

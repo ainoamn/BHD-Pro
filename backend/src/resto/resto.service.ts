@@ -4948,6 +4948,7 @@ export class RestoService {
     id: string,
     status: 'PENDING' | 'CONFIRMED' | 'SEATED' | 'CANCELLED' | 'NO_SHOW',
     userId?: string,
+    opts?: { skipGuestNotify?: boolean },
   ) {
     const row = await this.prisma.restoReservation.findFirst({
       where: { id, companyId },
@@ -5054,6 +5055,31 @@ export class RestoService {
         }
       } else if (!row.phone?.trim()) {
         notify = { ok: false, channel: null, error: 'no_phone' };
+      }
+    } else if (
+      (status === 'CANCELLED' || status === 'NO_SHOW') &&
+      row.status !== status &&
+      row.phone?.trim() &&
+      !opts?.skipGuestNotify
+    ) {
+      try {
+        const company = await this.prisma.company.findUnique({
+          where: { id: companyId },
+          select: { restoConfig: true },
+        });
+        const autoNotify =
+          this.parseRestoConfig(company?.restoConfig).booking.autoNotify !==
+          false;
+        if (autoNotify) {
+          const n = await this.notifyReservationGuest(
+            companyId,
+            id,
+            status === 'NO_SHOW' ? 'NO_SHOW' : 'CANCELLED',
+          );
+          notify = n.notify;
+        }
+      } catch {
+        notify = { ok: false, channel: null, error: 'notify_failed' };
       }
     }
 
@@ -5567,7 +5593,7 @@ export class RestoService {
   async notifyReservationGuest(
     companyId: string,
     id: string,
-    kind: 'CONFIRM' | 'REMINDER' | 'TABLE_READY' = 'CONFIRM',
+    kind: 'CONFIRM' | 'REMINDER' | 'TABLE_READY' | 'CANCELLED' | 'NO_SHOW' = 'CONFIRM',
   ) {
     const row = await this.prisma.restoReservation.findFirst({
       where: { id, companyId },
@@ -5589,7 +5615,11 @@ export class RestoService {
         ? ('RESERVATION_REMIND' as const)
         : kind === 'TABLE_READY'
           ? ('RESERVATION_TABLE_READY' as const)
-          : ('RESERVATION_CONFIRM' as const);
+          : kind === 'CANCELLED'
+            ? ('RESERVATION_CANCELLED' as const)
+            : kind === 'NO_SHOW'
+              ? ('RESERVATION_NO_SHOW' as const)
+              : ('RESERVATION_CONFIRM' as const);
 
     const notify = await this.guestNotify.notifyGuest({
       companyId,
@@ -5598,7 +5628,8 @@ export class RestoService {
       kind: mapKind,
       tableCode: row.table?.code,
       reservedAt: row.reservedAt,
-      confirmUrl,
+      confirmUrl:
+        kind === 'CANCELLED' || kind === 'NO_SHOW' ? undefined : confirmUrl,
     });
 
     const delivered = notify.ok && !notify.mock;
@@ -6056,6 +6087,8 @@ export class RestoService {
       row.companyId,
       row.id,
       'CANCELLED',
+      undefined,
+      { skipGuestNotify: true },
     );
     const when = row.reservedAt.toLocaleString('ar', {
       dateStyle: 'medium',

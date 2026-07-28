@@ -14,6 +14,8 @@ export type RestoGuestNotifyKind =
   | 'RESERVATION_CONFIRM'
   | 'RESERVATION_REMIND'
   | 'RESERVATION_TABLE_READY'
+  | 'RESERVATION_CANCELLED'
+  | 'RESERVATION_NO_SHOW'
   | 'DELIVERY_OUT'
   | 'DELIVERY_DONE'
   | 'TAKEAWAY_READY'
@@ -114,6 +116,16 @@ export class RestoGuestNotifyService {
         ? `مرحباً ${guestName}، رابط دفع فاتورتكم في ${companyName}${opts.tableCode ? ` (طاولة ${opts.tableCode})` : ''}:${opts.confirmUrl ? `\n${opts.confirmUrl}` : ''}`
         : `Hi ${guestName}, pay your bill at ${companyName}${opts.tableCode ? ` (table ${opts.tableCode})` : ''}:${opts.confirmUrl ? `\n${opts.confirmUrl}` : ''}`;
     }
+    if (kind === 'RESERVATION_CANCELLED') {
+      return ar
+        ? `مرحباً ${guestName}، تم إلغاء حجزكم في ${companyName}${when ? ` يوم ${when}` : ''}.`
+        : `Hi ${guestName}, your reservation at ${companyName}${when ? ` on ${when}` : ''} was cancelled.`;
+    }
+    if (kind === 'RESERVATION_NO_SHOW') {
+      return ar
+        ? `مرحباً ${guestName}، سُجّل عدم حضور لحجزكم في ${companyName}${when ? ` يوم ${when}` : ''}. للتواصل مع المطعم عند الحاجة.`
+        : `Hi ${guestName}, your reservation at ${companyName}${when ? ` on ${when}` : ''} was marked no-show. Contact the restaurant if needed.`;
+    }
     return ar
       ? `مرحباً ${guestName}، طاولتكم للحجز جاهزة في ${companyName}${opts.tableCode ? ` (${opts.tableCode})` : ''}.`
       : `Hi ${guestName}, your reserved table is ready at ${companyName}${opts.tableCode ? ` (${opts.tableCode})` : ''}.`;
@@ -191,9 +203,17 @@ export class RestoGuestNotifyService {
                         ? opts.locale === 'en'
                           ? 'Pay link'
                           : 'رابط الدفع'
-                        : opts.locale === 'en'
-                          ? 'Reserved table ready'
-                          : 'طاولة الحجز جاهزة';
+                        : opts.kind === 'RESERVATION_CANCELLED'
+                          ? opts.locale === 'en'
+                            ? 'Reservation cancelled'
+                            : 'إلغاء الحجز'
+                          : opts.kind === 'RESERVATION_NO_SHOW'
+                            ? opts.locale === 'en'
+                              ? 'Reservation no-show'
+                              : 'عدم حضور الحجز'
+                            : opts.locale === 'en'
+                              ? 'Reserved table ready'
+                              : 'طاولة الحجز جاهزة';
         const detailParts = [
           opts.tableCode ? `table ${opts.tableCode}` : '',
           opts.quotedMinutes != null ? `${opts.quotedMinutes} min` : '',
