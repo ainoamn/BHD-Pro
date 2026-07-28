@@ -60,6 +60,42 @@ import {
   type CustomFieldDef,
 } from "@/components/custom-fields/custom-fields-inputs";
 
+type CustomerNotifySummary = {
+  whatsapp?: string;
+  email?: string;
+  sms?: string;
+};
+
+function toastCustomerNotify(
+  notify: CustomerNotifySummary | null | undefined,
+  t: (key: string) => string,
+  paidAlreadyToasted: boolean,
+) {
+  const channels = ["whatsapp", "email", "sms"] as const;
+  const statuses = channels.map((c) => notify?.[c] || "skipped");
+  const live = statuses.filter((s) => s === "ok").length;
+  const mock = statuses.filter((s) => s === "mock").length;
+  const fail = statuses.filter((s) => s === "fail").length;
+
+  if (!notify || (live === 0 && mock === 0 && fail === 0)) {
+    if (!paidAlreadyToasted) toast.success(t("sentSuccess"));
+    return;
+  }
+  if (mock > 0 && live === 0) {
+    toast(t("sentNotifyMock"), { icon: "🧪" });
+    return;
+  }
+  if (fail > 0 && live === 0 && mock === 0) {
+    toast(t("sentNotifyFail"), { icon: "⚠️" });
+    return;
+  }
+  if (mock > 0 || fail > 0) {
+    toast(t("sentNotifyPartial"), { icon: "🧪" });
+    return;
+  }
+  toast.success(t("sentNotifyOk"));
+}
+
 interface Contact {
   id: string;
   name: string;
@@ -738,14 +774,20 @@ export function AccountingModule() {
       status: string;
       approval?: DualApprovalPayload;
     }) => api.updateInvoiceStatus(id, status, approval),
-    onSuccess: (_data, { id, status }) => {
+    onSuccess: (res, { id, status }) => {
       invalidateInvoiceQueries();
       setCancelPendingId(null);
+      const body = (res as { data?: { customerNotify?: CustomerNotifySummary | null } })
+        ?.data;
+      const notify = body?.customerNotify;
       if (status === "PAID") {
         toast.success(t("paidSuccess"));
         if (printInvoice?.id === id) setDocumentVariant("receipt");
+        if (notify) toastCustomerNotify(notify, t, true);
       } else if (status === "CANCELLED") toast.success(t("cancelledSuccess"));
-      else toast.success(t("saved"));
+      else if (status === "SENT") {
+        toastCustomerNotify(notify, t, false);
+      } else toast.success(t("saved"));
     },
     onError: (err) => toast.error(apiErrorMessage(err, t("actionError"))),
   });

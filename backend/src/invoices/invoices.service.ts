@@ -514,6 +514,14 @@ export class InvoicesService {
     // Accounting invoices (not POS): WhatsApp / email / SMS when marked SENT or PAID
     const notes = String(updated.notes || '');
     const isPosSale = notes.includes('Hisaby POS');
+    let customerNotify: {
+      whatsapp?: string;
+      email?: string;
+      sms?: string;
+      whatsappError?: string;
+      emailError?: string;
+      smsError?: string;
+    } | null = null;
     if (
       !isPosSale &&
       updated.contactId &&
@@ -521,17 +529,22 @@ export class InvoicesService {
       (updated.type === InvoiceType.SALES ||
         updated.type === InvoiceType.CREDIT_NOTE)
     ) {
-      void this.customerNotify
-        .notifyPosSale(companyId, updated.id, updated.contactId)
-        .catch((err) =>
-          this.logger.warn(
-            `accounting WA notify failed: ${err instanceof Error ? err.message : err}`,
-          ),
-        );
+      customerNotify = await this.customerNotify.notifyPosSale(
+        companyId,
+        updated.id,
+        updated.contactId,
+      );
     }
 
     this.bumpDashboard(companyId);
-    return updated;
+    return {
+      ...updated,
+      ...(customerNotify
+        ? { customerNotify }
+        : status === InvoiceStatus.SENT || status === InvoiceStatus.PAID
+          ? { customerNotify: null }
+          : {}),
+    };
   }
 
   /** Reverse payment journals + delete rows without touching invoice status. */

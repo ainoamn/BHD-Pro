@@ -268,9 +268,19 @@ export default function RestoWaitlistPage() {
                       ? ` · ~${e.quotedMinutes}`
                       : ""}
                     {e.status === "NOTIFIED"
-                      ? ` · ${t.waitlistNotify}${
-                          e.notifyChannel ? ` (${e.notifyChannel})` : ""
-                        }`
+                      ? ` · ${t.waitlistNotify}${(() => {
+                          const parts = [
+                            e.notifyChannel || null,
+                            e.notifyResult === "mock"
+                              ? t.notifyResultMock
+                              : e.notifyResult?.startsWith("fail")
+                                ? t.notifyResultFail
+                                : e.notifyResult === "ok"
+                                  ? t.notifyResultOk
+                                  : null,
+                          ].filter(Boolean);
+                          return parts.length ? ` (${parts.join(" · ")})` : "";
+                        })()}`
                       : ""}
                   </p>
                 </div>
