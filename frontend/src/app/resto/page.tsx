@@ -101,6 +101,8 @@ export default function RestoFloorPage() {
   const [menuError, setMenuError] = useState(false);
   const [menuQ, setMenuQ] = useState("");
   const [guests, setGuests] = useState(2);
+  const [guestNameDraft, setGuestNameDraft] = useState("");
+  const [guestPhoneDraft, setGuestPhoneDraft] = useState("");
   const [stations, setStations] = useState<Station[]>([]);
   const [stationId, setStationId] = useState("");
   const [itemNote, setItemNote] = useState("");
@@ -188,10 +190,20 @@ export default function RestoFloorPage() {
   useEffect(() => {
     if (!order) {
       setTipAssigneeId("");
+      setGuestNameDraft("");
+      setGuestPhoneDraft("");
       return;
     }
     setTipAssigneeId(order.tipAssigneeId || order.openedById || "");
-  }, [order?.id, order?.tipAssigneeId, order?.openedById]);
+    setGuestNameDraft(order.guestName || "");
+    setGuestPhoneDraft(order.guestPhone || "");
+  }, [
+    order?.id,
+    order?.tipAssigneeId,
+    order?.openedById,
+    order?.guestName,
+    order?.guestPhone,
+  ]);
 
   const loadOpsExtras = useCallback(async () => {
     setOpsExtrasError(false);
@@ -458,8 +470,31 @@ export default function RestoFloorPage() {
       const res = await api.updateRestoOrder(order.id, { guests: n });
       setOrder(res.data);
       setGuests(n);
-    } catch {
-      setError(t.actionFail);
+    } catch (err) {
+      setError(apiErrorMessage(err, t.actionFail));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveGuestContact = async () => {
+    if (!order) return;
+    const name = guestNameDraft.trim();
+    const phone = guestPhoneDraft.trim();
+    const prevName = (order.guestName || "").trim();
+    const prevPhone = (order.guestPhone || "").trim();
+    if (name === prevName && phone === prevPhone) return;
+    setBusy(true);
+    setError("");
+    try {
+      const res = await api.updateRestoOrder(order.id, {
+        guestName: name,
+        guestPhone: phone,
+      });
+      setOrder(res.data);
+      toast.success(t.guestContactSaved);
+    } catch (err) {
+      setError(apiErrorMessage(err, t.actionFail));
     } finally {
       setBusy(false);
     }
@@ -568,8 +603,8 @@ export default function RestoFloorPage() {
         seat: next,
       });
       setOrder(res.data);
-    } catch {
-      setError(t.actionFail);
+    } catch (err) {
+      setError(apiErrorMessage(err, t.actionFail));
     } finally {
       setBusy(false);
     }
@@ -1209,6 +1244,41 @@ export default function RestoFloorPage() {
                       />
                       <span>· {itemStatusLabel(order.status)}</span>
                     </p>
+                    <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                      <label className="block space-y-0.5">
+                        <span className="text-[10px] text-stone-500">{t.guestName}</span>
+                        <input
+                          value={guestNameDraft}
+                          disabled={busy}
+                          onChange={(e) => setGuestNameDraft(e.target.value)}
+                          onBlur={() => void saveGuestContact()}
+                          placeholder={t.guestName}
+                          className="w-full h-8 rounded-md bg-black/30 border border-white/10 px-2 text-xs"
+                        />
+                      </label>
+                      <label className="block space-y-0.5">
+                        <span className="text-[10px] text-stone-500">{t.guestPhone}</span>
+                        <input
+                          value={guestPhoneDraft}
+                          disabled={busy}
+                          onChange={(e) => setGuestPhoneDraft(e.target.value)}
+                          onBlur={() => void saveGuestContact()}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.currentTarget.blur();
+                            }
+                          }}
+                          placeholder={t.guestPhone}
+                          inputMode="tel"
+                          className="w-full h-8 rounded-md bg-black/30 border border-white/10 px-2 text-xs tabular-nums"
+                        />
+                      </label>
+                    </div>
+                    {!guestPhoneDraft.trim() ? (
+                      <p className="text-[10px] text-amber-200/70 mt-1">
+                        {t.guestPhoneHint}
+                      </p>
+                    ) : null}
                   </div>
                   <button
                     type="button"

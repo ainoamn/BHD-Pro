@@ -348,6 +348,7 @@ export const restoCopy = {
     mergeOk: "دُمجت الطلبات",
     splitOk: "قُسّم الطلب",
     guestPhoneHint: "أضف هاتف الضيف لاحقاً لتفعيل واتساب (رابط دفع / إيصال / إلغاء)",
+    guestContactSaved: "حُفظت بيانات الضيف",
     closePaidHint: "يُنشئ فاتورة في الكاشير/المحاسبة ويخصم المخزون",
     paymentMethod: "طريقة الدفع",
     cash: "نقداً",
