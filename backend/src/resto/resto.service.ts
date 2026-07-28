@@ -5115,16 +5115,34 @@ export class RestoService {
           tableId: row.tableId,
           status: { in: ACTIVE_ORDER },
         },
-        select: { id: true },
+        select: { id: true, guestName: true, guestPhone: true },
       });
       if (existing) {
         openedOrderId = existing.id;
+        if (
+          (row.guestName?.trim() && !existing.guestName?.trim()) ||
+          (row.phone?.trim() && !existing.guestPhone?.trim())
+        ) {
+          await this.prisma.restoOrder.update({
+            where: { id: existing.id },
+            data: {
+              ...(!existing.guestName?.trim() && row.guestName?.trim()
+                ? { guestName: row.guestName.trim() }
+                : {}),
+              ...(!existing.guestPhone?.trim() && row.phone?.trim()
+                ? { guestPhone: row.phone.trim() }
+                : {}),
+            },
+          });
+        }
       } else {
         const opened = await this.openOrder(companyId, userId || '', {
           tableId: row.tableId,
           guests: row.guests,
           notes: `Reservation: ${row.guestName}`,
           channel: RestoOrderChannel.DINE_IN,
+          guestName: row.guestName,
+          guestPhone: row.phone || undefined,
         });
         openedOrderId = opened.id;
       }
@@ -5621,10 +5639,33 @@ export class RestoService {
         tableId,
         channel: RestoOrderChannel.DINE_IN,
         guests: row.guests,
+        guestName: row.guestName,
+        guestPhone: row.phone || undefined,
         notes: [`Waitlist: ${row.guestName}`, row.notes]
           .filter(Boolean)
           .join(' — '),
       });
+      const openCheck = await this.prisma.restoOrder.findFirst({
+        where: { id: order.id, companyId },
+        select: { id: true, guestName: true, guestPhone: true },
+      });
+      if (
+        openCheck &&
+        ((row.guestName?.trim() && !openCheck.guestName?.trim()) ||
+          (row.phone?.trim() && !openCheck.guestPhone?.trim()))
+      ) {
+        await this.prisma.restoOrder.update({
+          where: { id: openCheck.id },
+          data: {
+            ...(!openCheck.guestName?.trim() && row.guestName?.trim()
+              ? { guestName: row.guestName.trim() }
+              : {}),
+            ...(!openCheck.guestPhone?.trim() && row.phone?.trim()
+              ? { guestPhone: row.phone.trim() }
+              : {}),
+          },
+        });
+      }
       const updated = await this.prisma.restoWaitlistEntry.update({
         where: { id },
         data: {
@@ -5634,7 +5675,8 @@ export class RestoService {
           seatedAt: new Date(),
         },
       });
-      return { ...this.mapWaitlist(updated), order };
+      const refreshed = await this.getOrder(companyId, order.id);
+      return { ...this.mapWaitlist(updated), order: refreshed };
     }
 
     const updated = await this.prisma.restoWaitlistEntry.update({
