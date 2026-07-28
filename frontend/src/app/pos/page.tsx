@@ -4363,112 +4363,72 @@ export default function PosCheckoutPage() {
                   type="button"
                   title={t.shareWhatsAppHint || t.shareWhatsApp}
                   onClick={async () => {
+                    if (!lastInvoice.id || String(lastInvoice.id).startsWith("OFF-")) {
+                      toast.error(t.shareWhatsAppNeedCustomer);
+                      return;
+                    }
+                    const cust = customers.find((c) => c.id === contactId);
+                    if (!cust?.phone && !lastInvoice.id) {
+                      toast.error(t.shareWhatsAppNeedCustomer);
+                      return;
+                    }
                     const toastId = toast.loading(t.shareWhatsAppPdfPreparing);
-                    let pdfOk = false;
-                    let waOk = false;
                     try {
-                      const receiptLines = (lastInvoice.lines || []).map((l) => ({
-                        name: l.name,
-                        qty: l.qty,
-                        lineTotal: l.lineTotal,
-                        barcode: l.barcode || null,
-                        sku: l.sku || null,
-                      }));
-                      const printData: PosReceiptPrintData = {
-                        brand: t.brand,
-                        company: {
-                          name: company?.name,
-                          address: company?.address,
-                          city: company?.city,
-                          country: company?.country,
-                          phone: company?.phone,
-                          email: company?.email,
-                          vatNumber: company?.vatNumber,
-                          crNumber: company?.crNumber,
-                          logo: company?.logo || "/brand/hisaby-mark.png",
-                        },
-                        number: lastInvoice.number,
-                        paymentMethod: lastInvoice.paymentMethod,
-                        warehouseLabel: lastInvoice.warehouseLabel,
-                        total: lastInvoice.total || 0,
-                        currency,
-                        lines: receiptLines,
-                        locale: locale === "en" ? "en" : "ar",
-                        labels: {
-                          vat: locale === "en" ? "VAT" : "الرقم الضريبي",
-                          cr: locale === "en" ? "CR" : "السجل التجاري",
-                          phone: locale === "en" ? "Phone" : "الهاتف",
-                          email: locale === "en" ? "Email" : "البريد",
-                          warehouse: t.warehouse,
-                          payment: t.payment,
-                          total: t.total,
-                          barcode:
-                            locale === "en"
-                              ? "Scan barcode for returns"
-                              : "امسح الباركود للإرجاع",
-                          printBtn:
-                            locale === "en" ? "Print receipt" : "طباعة الإيصال",
-                        },
-                      };
-
-                      try {
-                        const { blob, filename } = await buildPosReceiptPdfBlob(printData);
-                        downloadBlob(blob, filename);
-                        pdfOk = true;
-                      } catch {
-                        /* PDF failure reported below */
-                      }
-
-                      const canResend =
-                        !!lastInvoice.id &&
-                        !String(lastInvoice.id).startsWith("OFF-");
-                      let waError = "";
-                      if (canResend) {
-                        try {
-                          const res = await api.resendPosSaleNotify(lastInvoice.id);
-                          waOk = res.data?.delivery?.whatsapp === "ok";
-                          waError = String(res.data?.delivery?.whatsappError || "");
-                        } catch {
-                          waOk = false;
-                        }
-                      }
-
+                      const res = await api.resendPosSaleNotify(lastInvoice.id);
+                      const waOk = res.data?.delivery?.whatsapp === "ok";
+                      const waError = String(res.data?.delivery?.whatsappError || "");
                       toast.dismiss(toastId);
-                      if (pdfOk && waOk) {
+                      if (waOk) {
                         toast.success(t.shareWhatsAppPdfOk);
-                      } else if (pdfOk && canResend && !waOk) {
-                        const cust = customers.find((c) => c.id === contactId);
-                        const opened = openPosReceiptWhatsApp({
-                          companyName: company?.name,
-                          number: lastInvoice.number,
-                          warehouseLabel: lastInvoice.warehouseLabel,
-                          paymentMethod: lastInvoice.paymentMethod,
-                          total: lastInvoice.total,
-                          currency,
-                          lines: receiptLines,
-                          customerPhone: cust?.phone || null,
-                        });
-                        const needTpl =
-                          /template|131047|24|WHATSAPP_RECEIPT/i.test(waError);
-                        toast.error(
-                          needTpl
-                            ? t.shareWhatsAppNeedTemplate || t.shareWhatsAppPartial
-                            : waError
-                              ? `${t.shareWhatsAppPartial}: ${waError.slice(0, 160)}`
-                              : t.shareWhatsAppPartial,
-                          { duration: 8000 },
-                        );
-                        if (opened) toast(t.shareWhatsAppOpenedManual, { duration: 5000 });
-                      } else if (pdfOk) toast.success(t.shareWhatsAppPdfDownloaded);
-                      else toast.error(t.shareWhatsAppPdfFail);
-                    } catch {
+                        return;
+                      }
+                      const pending =
+                        /template|131047|24|WHATSAPP_RECEIPT|not configured|قيد/i.test(
+                          waError,
+                        ) || !res.data?.delivery?.receiptTemplate;
+                      toast.error(
+                        pending
+                          ? t.shareWhatsAppTemplatePending || t.shareWhatsAppNeedTemplate
+                          : waError
+                            ? `${t.shareWhatsAppPartial}: ${waError.slice(0, 160)}`
+                            : t.shareWhatsAppPartial,
+                        { duration: 9000 },
+                      );
+                    } catch (err: unknown) {
                       toast.dismiss(toastId);
-                      toast.error(t.shareWhatsAppPdfFail);
+                      const msg = (err as { response?: { data?: { message?: string } } })
+                        ?.response?.data?.message;
+                      toast.error(
+                        typeof msg === "string" ? msg : t.shareWhatsAppResendFail,
+                        { duration: 7000 },
+                      );
                     }
                   }}
                   className="min-h-10 h-10 rounded-xl border border-emerald-500/30 text-sm text-emerald-200 hover:bg-emerald-500/10"
                 >
                   {t.shareWhatsApp}
+                </button>
+                <button
+                  type="button"
+                  title={t.shareWhatsAppManualHint || t.shareWhatsAppManual}
+                  onClick={() => {
+                    const cust = customers.find((c) => c.id === contactId);
+                    const opened = openPosReceiptWhatsApp({
+                      companyName: company?.name,
+                      number: lastInvoice.number,
+                      warehouseLabel: lastInvoice.warehouseLabel,
+                      paymentMethod: lastInvoice.paymentMethod,
+                      total: lastInvoice.total,
+                      currency,
+                      lines: lastInvoice.lines,
+                      customerPhone: cust?.phone || null,
+                    });
+                    if (opened) toast.success(t.shareWhatsAppOpenedManual);
+                    else toast.error(t.shareWhatsAppResendFail);
+                  }}
+                  className="min-h-10 h-10 rounded-xl border border-lime-500/25 text-sm text-lime-100/90 hover:bg-lime-500/10"
+                >
+                  {t.shareWhatsAppManual}
                 </button>
                 <button
                   type="button"
