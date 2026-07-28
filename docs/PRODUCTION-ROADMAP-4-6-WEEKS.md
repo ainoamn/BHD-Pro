@@ -99,6 +99,6 @@
 ## الخطوة التالية المقترحة
 
 1. **أنت اليوم:** Cloudflare §1.1 + تدوير أسرار + لصق Sentry DSN.  
-2. **الكود (Wave EE — منجز):** صدق تنبيه 86 القائمة — [`HISABY-WAVE-EE-MENU-86-STAFF-NOTIFY-HONESTY-2026-07-28.md`](./HISABY-WAVE-EE-MENU-86-STAFF-NOTIFY-HONESTY-2026-07-28.md) · قبله ED هاتف الضيف.  
+2. **الكود (Wave EF — منجز):** صدق مستعجل/تعليق المطبخ — [`HISABY-WAVE-EF-KITCHEN-HOLD-RUSH-TOAST-HONESTY-2026-07-28.md`](./HISABY-WAVE-EF-KITCHEN-HOLD-RUSH-TOAST-HONESTY-2026-07-28.md) · قبله EE تنبيه 86.  
 3. على Render: `prisma migrate deploy` (يشمل أعمدة إشعار الحجوزات) · `REDIS_URL` اختياري؛ قالب OTP واتساب؛ `REQUIRE_2FA_HARD_AFTER_GRACE=1` عند الرغبة بقفل التعديلات.  
 4. لاحقاً: أرشفة docs.

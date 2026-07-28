@@ -220,8 +220,8 @@ export default function RestoMenuPage() {
       const res = await api.getRestoMenu(q.trim() || undefined);
       setItems(res.data.items || []);
       toast.success(t.menu86ReconcileOk);
-    } catch {
-      toast.error(t.actionFail);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, t.actionFail));
     } finally {
       setReconciling(false);
     }
@@ -307,8 +307,8 @@ export default function RestoMenuPage() {
         ),
       );
       toast.success(locale === "en" ? "Station saved" : "حُفظت المحطة");
-    } catch {
-      toast.error(t.actionFail);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, t.actionFail));
     } finally {
       setBusyId(null);
     }
@@ -329,8 +329,8 @@ export default function RestoMenuPage() {
           it.id === productId ? { ...it, allergens: next } : it,
         ),
       );
-    } catch {
-      toast.error(t.actionFail);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, t.actionFail));
     } finally {
       setBusyId(null);
     }
@@ -351,8 +351,8 @@ export default function RestoMenuPage() {
           it.id === productId ? { ...it, dietaryTags: next } : it,
         ),
       );
-    } catch {
-      toast.error(t.actionFail);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, t.actionFail));
     } finally {
       setBusyId(null);
     }
@@ -373,8 +373,8 @@ export default function RestoMenuPage() {
           it.id === productId ? { ...it, dayParts: next } : it,
         ),
       );
-    } catch {
-      toast.error(t.actionFail);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, t.actionFail));
     } finally {
       setBusyId(null);
     }
@@ -405,8 +405,8 @@ export default function RestoMenuPage() {
         ),
       );
       toast.success(t.dayPartPriceSaved);
-    } catch {
-      toast.error(t.actionFail);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, t.actionFail));
     } finally {
       setBusyId(null);
     }

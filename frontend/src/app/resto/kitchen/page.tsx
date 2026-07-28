@@ -6,6 +6,7 @@ import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
 import { restoCopy } from "@/lib/resto-copy";
+import { apiErrorMessage } from "@/lib/utils";
 
 type KitchenItem = {
   id: string;
@@ -183,6 +184,7 @@ export default function RestoKitchenPage() {
     status: "PREPARING" | "READY" | "SERVED",
   ) => {
     setBusyId(itemId);
+    setError("");
     try {
       const res = await api.setRestoKitchenItemStatus(itemId, status);
       const notify = res.data?.notify;
@@ -203,8 +205,10 @@ export default function RestoKitchenPage() {
         toast.error(t.notifyFail);
       }
       await load();
-    } catch {
-      setError(t.actionFail);
+    } catch (err) {
+      const msg = apiErrorMessage(err, t.actionFail);
+      setError(msg);
+      toast.error(msg);
     } finally {
       setBusyId(null);
     }
@@ -212,11 +216,16 @@ export default function RestoKitchenPage() {
 
   const toggleRush = async (it: KitchenItem) => {
     setBusyId(it.id);
+    setError("");
+    const next = !it.isRush;
     try {
-      await api.setRestoKitchenRush(it.id, !it.isRush);
+      await api.setRestoKitchenRush(it.id, next);
+      toast.success(next ? t.kdsRushSet : t.kdsRushCleared);
       await load();
-    } catch {
-      setError(t.actionFail);
+    } catch (err) {
+      const msg = apiErrorMessage(err, t.actionFail);
+      setError(msg);
+      toast.error(msg);
     } finally {
       setBusyId(null);
     }
@@ -224,11 +233,16 @@ export default function RestoKitchenPage() {
 
   const toggleHold = async (it: KitchenItem) => {
     setBusyId(it.id);
+    setError("");
+    const next = !it.heldAt;
     try {
-      await api.setRestoKitchenHold(it.id, !it.heldAt);
+      await api.setRestoKitchenHold(it.id, next);
+      toast.success(next ? t.kdsHoldSet : t.kdsHoldCleared);
       await load();
-    } catch {
-      setError(t.actionFail);
+    } catch (err) {
+      const msg = apiErrorMessage(err, t.actionFail);
+      setError(msg);
+      toast.error(msg);
     } finally {
       setBusyId(null);
     }
@@ -236,11 +250,15 @@ export default function RestoKitchenPage() {
 
   const recall = async (itemId: string, to: "PREPARING" | "READY") => {
     setBusyId(itemId);
+    setError("");
     try {
       await api.recallRestoKitchenItem(itemId, to);
+      toast.success(t.kdsRecallOk);
       await load();
-    } catch {
-      setError(t.actionFail);
+    } catch (err) {
+      const msg = apiErrorMessage(err, t.actionFail);
+      setError(msg);
+      toast.error(msg);
     } finally {
       setBusyId(null);
     }
