@@ -16,6 +16,7 @@ import toast from "react-hot-toast";
 import { useLocaleStore } from "@/store/locale";
 import { useAuthStore } from "@/store/auth";
 import { restoCopy } from "@/lib/resto-copy";
+import { toastPosCustomerNotify } from "@/lib/pos-notify-toast";
 import { printRestoGuestCheck } from "@/lib/resto-guest-check";
 import {
   DualApprovalModal,
@@ -682,6 +683,8 @@ export default function RestoFloorPage() {
                 Number(loyaltyRedeem) > 0 ? Number(loyaltyRedeem) : undefined,
             }
           : {};
+      let closeRes: Awaited<ReturnType<typeof api.closeRestoOrder>> | null =
+        null;
       if (method === "soft") {
         await api.closeRestoOrder(order.id, { soft: true });
       } else if (method === "SPLIT") {
@@ -696,7 +699,7 @@ export default function RestoFloorPage() {
           return;
         }
         const card = Number((due - cash).toFixed(3));
-        await api.closeRestoOrder(order.id, {
+        closeRes = await api.closeRestoOrder(order.id, {
           payments: [
             { method: "CASH", amount: cash },
             { method: "CREDIT_CARD", amount: card },
@@ -707,12 +710,21 @@ export default function RestoFloorPage() {
           ...loyalty,
         });
       } else {
-        await api.closeRestoOrder(order.id, {
+        closeRes = await api.closeRestoOrder(order.id, {
           paymentMethod: method,
           tipAmount: Number(tipAmount) || undefined,
           tipAssigneeId: tipTo,
           serviceChargePct: Number(serviceChargePct) || undefined,
           ...loyalty,
+        });
+      }
+      if (method !== "soft") {
+        toast.success(t.closePaidOk);
+        toastPosCustomerNotify(closeRes?.data?.customerNotify, {
+          saleNotifyOk: t.closePaidNotifyOk,
+          saleNotifyMock: t.closePaidNotifyMock,
+          saleNotifyPartial: t.closePaidNotifyPartial,
+          saleNotifyFail: t.closePaidNotifyFail,
         });
       }
       setOrder(null);

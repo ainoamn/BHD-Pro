@@ -2453,10 +2453,16 @@ class ApiClient {
       serviceChargePct?: number;
     },
   ) {
-    return this.post<RestoOrderPayload & { invoice?: { id: string } | null }>(
-      `/resto/orders/${orderId}/close`,
-      data || {},
-    );
+    return this.post<
+      RestoOrderPayload & {
+        invoice?: { id: string } | null;
+        customerNotify?: {
+          whatsapp?: string;
+          email?: string;
+          sms?: string;
+        } | null;
+      }
+    >(`/resto/orders/${orderId}/close`, data || {});
   }
 
   settleRestoBySeat(

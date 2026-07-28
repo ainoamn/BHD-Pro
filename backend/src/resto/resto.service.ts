@@ -3290,6 +3290,11 @@ export class RestoService {
     }
 
     let invoiceId: string | null = order.invoiceId ?? null;
+    let customerNotify: {
+      whatsapp?: string;
+      email?: string;
+      sms?: string;
+    } | null = null;
 
     if (!dto.soft) {
       const billable = order.items.filter(
@@ -3378,6 +3383,16 @@ export class RestoService {
             }))
           : null;
 
+      let contactId = dto.contactId || order.contactId || undefined;
+      if (!contactId && order.guestPhone?.trim()) {
+        const { contact } = await this.findOrCreateLoyaltyContact(
+          companyId,
+          order.guestPhone,
+          order.guestName || undefined,
+        );
+        contactId = contact.id;
+      }
+
       const invoice = await this.pos.createSale(companyId, actor, {
         items: lines.map((i) => ({
           productId: i.productId as string,
@@ -3387,7 +3402,7 @@ export class RestoService {
         paymentMethod: dto.paymentMethod ?? PaymentMethod.CASH,
         ...(split ? { payments: split } : {}),
         warehouseId,
-        contactId: dto.contactId || order.contactId || undefined,
+        contactId,
         tipAmount: tip > 0.0005 ? tip : undefined,
         tipAssigneeId,
         loyaltyPointsToRedeem:
@@ -3400,6 +3415,16 @@ export class RestoService {
         clientSaleId: `resto-${order.id}`,
       });
       invoiceId = invoice.id;
+      customerNotify =
+        (
+          invoice as {
+            customerNotify?: {
+              whatsapp?: string;
+              email?: string;
+              sms?: string;
+            } | null;
+          }
+        ).customerNotify ?? null;
       try {
         await this.reconcileAuto86(companyId);
       } catch {
@@ -3410,9 +3435,7 @@ export class RestoService {
         where: { id: orderId },
         data: {
           tipAssigneeId,
-          ...(dto.contactId || order.contactId
-            ? { contactId: dto.contactId || order.contactId }
-            : {}),
+          ...(contactId ? { contactId } : {}),
         },
       });
     }
@@ -3444,6 +3467,7 @@ export class RestoService {
     return {
       ...mapped,
       invoice: invoiceId ? { id: invoiceId } : null,
+      customerNotify,
     };
   }
 

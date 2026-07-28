@@ -18,6 +18,7 @@ import { useLocaleStore } from "@/store/locale";
 import { useAuthStore } from "@/store/auth";
 import { restoCopy } from "@/lib/resto-copy";
 import { printRestoGuestCheck } from "@/lib/resto-guest-check";
+import { toastPosCustomerNotify } from "@/lib/pos-notify-toast";
 import { cn, apiErrorMessage } from "@/lib/utils";
 import {
   DualApprovalModal,
@@ -247,11 +248,17 @@ export default function RestoOrderPage() {
       if (method === "soft") {
         await api.closeRestoOrder(orderId, { soft: true });
       } else {
-        await api.closeRestoOrder(orderId, {
+        const res = await api.closeRestoOrder(orderId, {
           paymentMethod: method,
           tipAmount: Number(tipAmount) || undefined,
         });
         toast.success(t.closePaidOk);
+        toastPosCustomerNotify(res.data?.customerNotify, {
+          saleNotifyOk: t.closePaidNotifyOk,
+          saleNotifyMock: t.closePaidNotifyMock,
+          saleNotifyPartial: t.closePaidNotifyPartial,
+          saleNotifyFail: t.closePaidNotifyFail,
+        });
       }
       router.push("/resto");
     } catch (err) { toast.error(apiErrorMessage(err, t.fail));
