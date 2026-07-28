@@ -126,13 +126,15 @@ export class WhatsappNotifyService {
 
   /**
    * Business-initiated message via approved template.
-   * Body params order must match the Meta template variables {{1}}…{{n}}.
+   * Positional {{1}}…{{n}} or named {{customer_name}} (Meta newer UI).
+   * Set WHATSAPP_TEMPLATE_PARAM_NAMES=name1,name2,… to send named params.
    */
   async sendTemplate(
     toE164: string,
     templateName: string,
     bodyParams: string[],
     lang?: string,
+    paramNames?: string[],
   ): Promise<{ ok: boolean; error?: string }> {
     if (!this.isConfigured()) {
       return { ok: false, error: 'WhatsApp is not configured on the server' };
@@ -152,14 +154,23 @@ export class WhatsappNotifyService {
     const token = process.env.WHATSAPP_TOKEN!;
     const url = `https://graph.facebook.com/v19.0/${phoneId}/messages`;
     const language = { code: (lang || this.receiptTemplateLang()).trim() || 'ar' };
+    const names =
+      paramNames && paramNames.length
+        ? paramNames
+        : (process.env.WHATSAPP_TEMPLATE_PARAM_NAMES || '')
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean);
+    const useNamed = names.length > 0 && names.length === bodyParams.length;
     const components =
       bodyParams.length > 0
         ? [
             {
               type: 'body',
-              parameters: bodyParams.map((text) => ({
+              parameters: bodyParams.map((text, i) => ({
                 type: 'text',
                 text: String(text || '-').slice(0, 1024),
+                ...(useNamed ? { parameter_name: names[i] } : {}),
               })),
             },
           ]
@@ -254,6 +265,36 @@ export class WhatsappNotifyService {
     }
   }
 
+  /** Named body vars for pos_receipt (Meta new UI). Empty = positional {{1}}… */
+  receiptParamNames(): string[] {
+    const style = (process.env.WHATSAPP_RECEIPT_PARAM_STYLE || 'named').trim().toLowerCase();
+    if (style === 'positional' || style === 'numbered') return [];
+    const fromEnv = (process.env.WHATSAPP_RECEIPT_PARAM_NAMES || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (fromEnv.length) return fromEnv;
+    return [
+      'customer_name',
+      'company_name',
+      'invoice_number',
+      'amount',
+      'receipt_url',
+    ];
+  }
+
+  guestParamNames(): string[] {
+    const style = (process.env.WHATSAPP_GUEST_PARAM_STYLE || '').trim().toLowerCase();
+    if (style === 'positional' || style === 'numbered') return [];
+    const fromEnv = (process.env.WHATSAPP_GUEST_PARAM_NAMES || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (fromEnv.length) return fromEnv;
+    // Reuse receipt names when guest template shares the same body shape
+    return this.receiptParamNames();
+  }
+
   /**
    * POS receipt: prefer approved template (required for first contact),
    * else session text/document (only works inside 24h customer window).
@@ -271,13 +312,19 @@ export class WhatsappNotifyService {
   ): Promise<{ ok: boolean; error?: string; via?: 'template' | 'text' }> {
     const template = this.receiptTemplateName();
     if (template) {
-      const result = await this.sendTemplate(toE164, template, [
-        opts.customerName,
-        opts.companyName,
-        opts.invoiceNumber,
-        opts.amount,
-        opts.viewUrl,
-      ]);
+      const result = await this.sendTemplate(
+        toE164,
+        template,
+        [
+          opts.customerName,
+          opts.companyName,
+          opts.invoiceNumber,
+          opts.amount,
+          opts.viewUrl,
+        ],
+        this.receiptTemplateLang(),
+        this.receiptParamNames(),
+      );
       if (result.ok) return { ...result, via: 'template' };
       this.logger.warn(`Receipt template failed, trying session text: ${result.error}`);
     }
@@ -303,7 +350,6 @@ export class WhatsappNotifyService {
 
   /**
    * Guest / restaurant alert: prefer template (first contact), else session text.
-   * Template vars: {{1}} guest · {{2}} company · {{3}} title · {{4}} detail · {{5}} link
    */
   async sendGuestNotify(
     toE164: string,
@@ -329,6 +375,7 @@ export class WhatsappNotifyService {
           opts.link || '-',
         ],
         this.guestTemplateLang(),
+        this.guestParamNames(),
       );
       if (result.ok) return { ...result, via: 'template' };
       this.logger.warn(`Guest template failed, trying session text: ${result.error}`);

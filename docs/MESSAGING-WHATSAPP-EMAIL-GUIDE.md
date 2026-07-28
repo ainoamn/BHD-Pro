@@ -89,13 +89,19 @@ WHATSAPP_RECEIPT_TEMPLATE_LANG=ar
 # WHATSAPP_GUEST_TEMPLATE_LANG=ar
 ```
 
-**قالب Meta (Utility) — نص مقترح للجسم:**
+**قالب Meta (Utility) — الصق هذا النص بالضبط (أسماء متغيرات، وليس أرقام):**
 
 ```
-مرحباً {{1}}، إيصال من {{2}}. رقم الفاتورة: {{3}}. المبلغ: {{4}}. عرض الإيصال: {{5}}
+مرحباً {{customer_name}}، إيصال من {{company_name}}. رقم الفاتورة: {{invoice_number}}. المبلغ: {{amount}}. عرض الإيصال: {{receipt_url}}. شكراً لتعاملكم معنا.
 ```
 
-بعد موافقة Meta ضع اسم القالب في `WHATSAPP_RECEIPT_TEMPLATE` على Render ثم أعد تشغيل الخدمة.
+ملاحظات مهمة:
+- لا تكتب `Hello` ولا تضع متغيراً في آخر السطر بدون نص بعده.
+- بعد الصق: اضغط «إضافة عينة» واملأ أمثلة لكل متغير ثم أرسل للمراجعة.
+- الاسم: `pos_receipt` · اللغة: عربي · الفئة: أداة مساعدة (Utility).
+
+بعد موافقة Meta ضع على Render:
+`WHATSAPP_RECEIPT_TEMPLATE=pos_receipt` و `WHATSAPP_RECEIPT_TEMPLATE_LANG=ar`
 
 ### أين يُرسل النظام تلقائياً؟
 | القناة | الحدث |

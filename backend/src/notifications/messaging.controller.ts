@@ -208,13 +208,14 @@ export class MessagingController {
     if (dto.channel === 'whatsapp') {
       const template = this.whatsapp.receiptTemplateName();
       if (template) {
-        const res = await this.whatsapp.sendTemplate(dto.to, template, [
-          'اختبار',
-          'Hisaby',
-          'TEST-001',
-          '0.000 OMR',
-          'https://hisaby.pro',
-        ]);
+        const names = this.whatsapp.receiptParamNames();
+        const res = await this.whatsapp.sendTemplate(
+          dto.to,
+          template,
+          ['اختبار', 'Hisaby', 'TEST-001', '0.000 OMR', 'https://hisaby.pro'],
+          undefined,
+          names,
+        );
         return {
           channel: 'whatsapp',
           ...res,
