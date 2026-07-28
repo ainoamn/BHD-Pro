@@ -6,6 +6,7 @@ import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
 import { NfcBadgeReader } from "@/components/security/nfc-badge-reader";
+import { apiErrorMessage } from "@/lib/utils";
 
 export type DualControlAction =
   | "POS_VOID"
@@ -304,8 +305,8 @@ export function DualApprovalModal({
           toast(t.managerNotifyFail, { icon: "⚠️", duration: 7000 });
         else if (mn?.status === "skipped")
           toast(t.managerNotifySkipped, { icon: "⚠️", duration: 7000 });
-      } catch {
-        toast.error(t.requestFail);
+      } catch (err) {
+        toast.error(apiErrorMessage(err, t.requestFail));
       } finally {
         setRequestBusy(false);
       }
@@ -355,8 +356,8 @@ export function DualApprovalModal({
       } else {
         toast.success(t.otpSent);
       }
-    } catch {
-      toast.error(t.otpFail);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, t.otpFail));
     } finally {
       setOtpBusy(false);
     }

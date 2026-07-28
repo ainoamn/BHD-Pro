@@ -656,8 +656,8 @@ export function AccountingModule() {
       const res = await api.getInvoice(invoiceId);
       setPrintInvoice(res.data as Invoice);
       setDocumentVariant("receipt");
-    } catch {
-      toast.error(t("actionError"));
+    } catch (err) {
+      toast.error(apiErrorMessage(err, t("actionError")));
       const inv = invoices.find((i) => i.id === invoiceId);
       if (inv) {
         setPrintInvoice(inv);
@@ -1078,8 +1078,8 @@ export function AccountingModule() {
         documentColor: company?.documentColor,
         labels: buildPrintLabels(full, variant),
       });
-    } catch {
-      toast.error(t("downloadError"));
+    } catch (err) {
+      toast.error(apiErrorMessage(err, t("downloadError")));
     }
   };
 
@@ -1090,8 +1090,8 @@ export function AccountingModule() {
         invoice: toDocumentData(res.data as Invoice),
         variant,
       });
-    } catch {
-      toast.error(t("shareLinkError"));
+    } catch (err) {
+      toast.error(apiErrorMessage(err, t("shareLinkError")));
     }
   };
 

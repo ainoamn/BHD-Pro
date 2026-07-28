@@ -13,6 +13,7 @@ import {
 import { formatPhoneForWhatsApp } from "@/lib/phone";
 import api from "@/lib/api";
 import { toAppAbsoluteUrl } from "@/lib/app-url";
+import { apiErrorMessage } from "@/lib/utils";
 
 interface SendDocumentModalProps {
   invoice: InvoiceDocumentData;
@@ -65,8 +66,8 @@ export function SendDocumentModal({
       }
       toast.success(t("sendWhatsAppOpened"));
       window.setTimeout(() => onClose(), 200);
-    } catch {
-      toast.error(t("shareLinkError"));
+    } catch (err) {
+      toast.error(apiErrorMessage(err, t("shareLinkError")));
     } finally {
       setLoading(null);
     }
@@ -83,8 +84,8 @@ export function SendDocumentModal({
       openInvoiceEmailClient(invoice, companyName, variant, shareUrl);
       toast.success(t("sendEmailOpened"));
       window.setTimeout(() => onClose(), 200);
-    } catch {
-      toast.error(t("shareLinkError"));
+    } catch (err) {
+      toast.error(apiErrorMessage(err, t("shareLinkError")));
     } finally {
       setLoading(null);
     }
@@ -112,12 +113,17 @@ export function SendDocumentModal({
       } else if (data.emailSkipped) {
         toast(t("serverEmailSkipped"), { icon: "⚠️", duration: 8000 });
       } else {
-        toast(t("serverEmailFail"), { icon: "⚠️", duration: 8000 });
+        toast(
+          data.emailError
+            ? `${t("serverEmailFail")}: ${data.emailError}`
+            : t("serverEmailFail"),
+          { icon: "⚠️", duration: 8000 },
+        );
       }
       onServerSent?.();
       window.setTimeout(() => onClose(), 250);
-    } catch {
-      toast.error(t("sendError"));
+    } catch (err) {
+      toast.error(apiErrorMessage(err, t("sendError")));
     } finally {
       setLoading(null);
     }
