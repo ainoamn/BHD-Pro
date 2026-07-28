@@ -99,6 +99,6 @@
 ## الخطوة التالية المقترحة
 
 1. **أنت اليوم:** Cloudflare §1.1 + تدوير أسرار + لصق Sentry DSN.  
-2. **الكود (Wave DZ — منجز):** تذكير الحجوزات التلقائي — [`HISABY-WAVE-DZ-RESERVATION-REMINDER-CRON-2026-07-28.md`](./HISABY-WAVE-DZ-RESERVATION-REMINDER-CRON-2026-07-28.md) · قبله DY عدم حضور الانتظار.  
+2. **الكود (Wave EA — منجز):** صدق تنبيه الطاقم لطلب QR — [`HISABY-WAVE-EA-GUEST-QR-ORDER-STAFF-NOTIFY-HONESTY-2026-07-28.md`](./HISABY-WAVE-EA-GUEST-QR-ORDER-STAFF-NOTIFY-HONESTY-2026-07-28.md) · قبله DZ تذكير الحجوزات.  
 3. على Render: `prisma migrate deploy` (يشمل أعمدة إشعار الحجوزات) · `REDIS_URL` اختياري؛ قالب OTP واتساب؛ `REQUIRE_2FA_HARD_AFTER_GRACE=1` عند الرغبة بقفل التعديلات.  
 4. لاحقاً: أرشفة docs.

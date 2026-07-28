@@ -328,17 +328,39 @@ export default function GuestOrderPage() {
       if (!res.ok) throw new Error("fail");
       const data = (await res.json().catch(() => ({}))) as {
         firedToKitchen?: boolean;
+        staffNotify?: { status?: string; targets?: number };
       };
       setCart([]);
-      setOkMsg(
-        locale === "en"
-          ? data.firedToKitchen === false
-            ? "Added to your check — kitchen may still be catching up."
-            : "Order sent to kitchen."
-          : data.firedToKitchen === false
-            ? "أُضيف للفاتورة — قد يتأخر إرسال المطبخ قليلاً."
-            : "أُرسل الطلب مباشرة إلى المطبخ.",
-      );
+      const wa = data.staffNotify?.status;
+      const baseEn =
+        data.firedToKitchen === false
+          ? "Added to your check — kitchen may still be catching up."
+          : "Order sent to kitchen.";
+      const baseAr =
+        data.firedToKitchen === false
+          ? "أُضيف للفاتورة — قد يتأخر إرسال المطبخ قليلاً."
+          : "أُرسل الطلب مباشرة إلى المطبخ.";
+      const waEn =
+        wa === "ok"
+          ? " Staff WhatsApp alert sent."
+          : wa === "mock"
+            ? " Staff WhatsApp is in mock mode (not delivered)."
+            : wa === "fail"
+              ? " Staff WhatsApp could not be sent."
+              : wa === "skipped"
+                ? " (No staff WhatsApp numbers configured.)"
+                : "";
+      const waAr =
+        wa === "ok"
+          ? " وأُرسل تنبيه واتساب للطاقم."
+          : wa === "mock"
+            ? " واتساب الطاقم في وضع mock (لم يُسلَّم)."
+            : wa === "fail"
+              ? " تعذّر إرسال واتساب للطاقم."
+              : wa === "skipped"
+                ? " (لا أرقام واتساب مهيأة للطاقم.)"
+                : "";
+      setOkMsg(locale === "en" ? `${baseEn}${waEn}` : `${baseAr}${waAr}`);
       await load();
     } catch {
       setError(

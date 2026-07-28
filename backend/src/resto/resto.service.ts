@@ -6879,6 +6879,21 @@ export class RestoService {
     if (firedToKitchen) {
       this.notifyKitchen(table.companyId);
     }
+
+    const itemCount = dto.items.reduce(
+      (s, l) => s + (Number(l.qty) > 0 ? Number(l.qty) : 1),
+      0,
+    );
+    const staffNotify = await this.notifyFloorStaffAlert(table.companyId, [
+      `طاولة ${table.code}: طلب ضيف عبر QR (${itemCount} صنف)${
+        firedToKitchen ? ' — أُرسل للمطبخ' : ' — بانتظار المطبخ'
+      }`,
+      `Table ${table.code}: guest QR order (${itemCount} items)${
+        firedToKitchen ? ' — fired to kitchen' : ' — kitchen fire pending'
+      }`,
+      `افتح المطبخ /resto/kitchen أو الطاولة /resto`,
+    ]);
+
     const mapped = await this.getOrder(table.companyId, order.id);
     return {
       ok: true,
@@ -6893,6 +6908,7 @@ export class RestoService {
         ? 'Sent to kitchen'
         : 'Added to check — kitchen fire pending',
       firedToKitchen,
+      staffNotify,
     };
   }
 
