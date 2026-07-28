@@ -99,6 +99,6 @@
 ## الخطوة التالية المقترحة
 
 1. **أنت اليوم:** Cloudflare §1.1 + تدوير أسرار + لصق Sentry DSN.  
-2. **الكود (Wave DC — منجز):** إشعار جاهزية الاستلام — [`HISABY-WAVE-DC-TAKEAWAY-READY-NOTIFY-2026-07-28.md`](./HISABY-WAVE-DC-TAKEAWAY-READY-NOTIFY-2026-07-28.md) · قبله DB شارة البلاغات.  
+2. **الكود (Wave DD — منجز):** صدق إشعار إيصال بيع الكاشير — [`HISABY-WAVE-DD-POS-SALE-NOTIFY-HONESTY-2026-07-28.md`](./HISABY-WAVE-DD-POS-SALE-NOTIFY-HONESTY-2026-07-28.md) · قبله DC جاهزية الاستلام.  
 3. على Render: `prisma migrate deploy` (يشمل أعمدة إشعار الحجوزات) · `REDIS_URL` اختياري؛ قالب OTP واتساب؛ `REQUIRE_2FA_HARD_AFTER_GRACE=1` عند الرغبة بقفل التعديلات.  
 4. لاحقاً: أرشفة docs.

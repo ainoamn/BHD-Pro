@@ -2559,7 +2559,16 @@ export default function PosCheckoutPage() {
       }
 
       const res = await api.createPosSale(payload);
-      const inv = res.data as { id?: string; number?: string; total?: number | string };
+      const inv = res.data as {
+        id?: string;
+        number?: string;
+        total?: number | string;
+        customerNotify?: {
+          whatsapp?: string;
+          email?: string;
+          sms?: string;
+        } | null;
+      };
       setLastInvoice({
         id: inv.id,
         number: inv.number,
@@ -2653,6 +2662,24 @@ export default function PosCheckoutPage() {
       writeLastSaleFingerprint(fp);
       clearActiveCartSession();
       toast.success(isPartner ? t.partnerPayPending : t.saleOk);
+      if (!isPartner && inv.customerNotify) {
+        const statuses = ["whatsapp", "email", "sms"].map(
+          (c) =>
+            inv.customerNotify?.[c as "whatsapp" | "email" | "sms"] || "skipped",
+        );
+        const live = statuses.filter((s) => s === "ok").length;
+        const mock = statuses.filter((s) => s === "mock").length;
+        const fail = statuses.filter((s) => s === "fail").length;
+        if (mock > 0 && live === 0) {
+          toast(t.saleNotifyMock, { icon: "🧪", duration: 6000 });
+        } else if (fail > 0 && live === 0 && mock === 0) {
+          toast(t.saleNotifyFail, { icon: "⚠️", duration: 6000 });
+        } else if (mock > 0 || fail > 0) {
+          toast(t.saleNotifyPartial, { icon: "🧪", duration: 6000 });
+        } else if (live > 0) {
+          toast.success(t.saleNotifyOk, { duration: 4000 });
+        }
+      }
       void maybeKickDrawer(
         effectivePayments?.some((p) => p.method === "CASH") ? "CASH" : method,
       );

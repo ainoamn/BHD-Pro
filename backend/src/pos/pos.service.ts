@@ -1006,24 +1006,50 @@ export class PosService {
     creditNoteId?: string,
   ) {
     if (!contactId) return;
-    void (async () => {
-      try {
-        if (kind === 'sale') {
-          await this.customerNotify.notifyPosSale(companyId, invoiceId, contactId);
-        } else if (kind === 'void') {
-          await this.customerNotify.notifyPosVoid(companyId, invoiceId, contactId);
-        } else {
-          await this.customerNotify.notifyPosRefund(
-            companyId,
-            invoiceId,
-            contactId,
-            creditNoteId,
-          );
-        }
-      } catch {
-        /* never fail the POS action */
+    void this.awaitCustomerNotify(
+      kind,
+      companyId,
+      invoiceId,
+      contactId,
+      creditNoteId,
+    );
+  }
+
+  /** Awaited notify for sale checkout honesty; never throws. */
+  private async awaitCustomerNotify(
+    kind: 'sale' | 'void' | 'refund',
+    companyId: string,
+    invoiceId: string,
+    contactId: string | null | undefined,
+    creditNoteId?: string,
+  ): Promise<{
+    whatsapp?: string;
+    email?: string;
+    sms?: string;
+  } | null> {
+    if (!contactId) return null;
+    try {
+      if (kind === 'sale') {
+        return await this.customerNotify.notifyPosSale(
+          companyId,
+          invoiceId,
+          contactId,
+        );
       }
-    })();
+      if (kind === 'void') {
+        await this.customerNotify.notifyPosVoid(companyId, invoiceId, contactId);
+        return null;
+      }
+      await this.customerNotify.notifyPosRefund(
+        companyId,
+        invoiceId,
+        contactId,
+        creditNoteId,
+      );
+      return null;
+    } catch {
+      return null;
+    }
   }
 
   private async resolveSaleContact(companyId: string, contactId?: string) {
@@ -1581,8 +1607,21 @@ export class PosService {
         /* keep TEMP */
       }
 
-      if (contact.name !== WALK_IN_NAME && contact.phone) {
-        this.fireCustomerNotify('sale', companyId, invoice.id, contact.id);
+      let customerNotify: {
+        whatsapp?: string;
+        email?: string;
+        sms?: string;
+      } | null = null;
+      if (
+        contact.name !== WALK_IN_NAME &&
+        (contact.phone || contact.email)
+      ) {
+        customerNotify = await this.awaitCustomerNotify(
+          'sale',
+          companyId,
+          invoice.id,
+          contact.id,
+        );
       }
 
       // Loyalty + parked draft: best-effort after sale is durable — don't delay cashier UX
@@ -1653,7 +1692,10 @@ export class PosService {
         },
       });
       this.bumpDashboardCache(companyId);
-      return fresh || invoice;
+      return {
+        ...(fresh || invoice),
+        customerNotify: customerNotify ?? null,
+      };
     } catch (err) {
       if (loyaltyPointsDebited && !invoiceCreated) {
         try {
