@@ -54,7 +54,7 @@
 | البند | الحالة |
 |-------|--------|
 | Redis اختياري throttle/health | **منجز اختيارياً** (Wave BA) — فعّل `REDIS_URL` |
-| كاش منتجات/Dashboard كامل | **جزئي** — كتالوج POS عبر Redis (Wave BU)؛ Dashboard لاحقاً |
+| كاش منتجات/Dashboard كامل | **جزئي** — كتالوج POS (BU) + إحصاءات Dashboard (BV) عبر Redis اختياري |
 | Prisma N+1 / indexes | **جزئي** — مراجعة لاحقة |
 
 ---
@@ -99,6 +99,6 @@
 ## الخطوة التالية المقترحة
 
 1. **أنت اليوم:** Cloudflare §1.1 + تدوير أسرار + لصق Sentry DSN.  
-2. **الكود (Wave BU — منجز):** كاش Redis اختياري لكتالوج POS — [`HISABY-WAVE-BU-POS-CATALOG-REDIS-2026-07-28.md`](./HISABY-WAVE-BU-POS-CATALOG-REDIS-2026-07-28.md).  
-3. على Render (اختياري): `REDIS_URL` + `POS_CATALOG_CACHE_TTL_SEC`؛ و`WHATSAPP_OTP_TEMPLATE` بعد موافقة Meta.  
-4. لاحقاً: كاش لوحة التحكم · أرشفة docs.
+2. **الكود (Wave BV — منجز):** كاش Redis اختياري للوحة التحكم — [`HISABY-WAVE-BV-DASHBOARD-REDIS-2026-07-28.md`](./HISABY-WAVE-BV-DASHBOARD-REDIS-2026-07-28.md).  
+3. على Render (اختياري): `REDIS_URL` + `POS_CATALOG_CACHE_TTL_SEC` / `DASHBOARD_CACHE_TTL_SEC`؛ و`WHATSAPP_OTP_TEMPLATE`.  
+4. لاحقاً: أرشفة docs · تحسينات smoke.

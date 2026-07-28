@@ -1,16 +1,39 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { InvoiceStatus, PaymentStatus, PaymentMethod } from '@prisma/client';
+import { RedisService } from '../redis/redis.service';
 
 @Injectable()
 export class DashboardService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private redis: RedisService,
+  ) {}
 
   async getStats(companyId: string) {
+    const cacheKey = this.redis.dashboardStatsKey(companyId);
+    if (this.redis.isConfigured()) {
+      const hit = await this.redis.getJson<Record<string, unknown>>(cacheKey);
+      if (hit && typeof hit === 'object') {
+        return { ...hit, cached: true };
+      }
+    }
+
+    const stats = await this.computeStats(companyId);
+    const payload = { ...stats, cached: false };
+    if (this.redis.isConfigured()) {
+      void this.redis
+        .setJson(cacheKey, payload, this.redis.dashboardStatsTtlSec())
+        .catch(() => undefined);
+    }
+    return payload;
+  }
+
+  private async computeStats(companyId: string) {
     const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
     const sixMonthsAgo = new Date(Date.now() - 180 * 86400000);
 
-    // Sync paid invoices (legacy fix)
+    // Sync paid invoices (legacy fix) — only on cache miss
     const stalePaid = await this.prisma.invoice.findMany({
       where: {
         companyId,

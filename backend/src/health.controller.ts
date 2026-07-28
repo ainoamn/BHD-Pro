@@ -41,6 +41,10 @@ export class HealthController {
       posCatalogCacheTtlSec: this.redis.isConfigured()
         ? this.redis.posCatalogTtlSec()
         : null,
+      dashboardCache: this.redis.isConfigured(),
+      dashboardCacheTtlSec: this.redis.isConfigured()
+        ? this.redis.dashboardStatsTtlSec()
+        : null,
       attachmentStorage: storage.driver,
       s3Configured: storage.s3Configured,
       emailConfigured: this.email.isConfigured(),

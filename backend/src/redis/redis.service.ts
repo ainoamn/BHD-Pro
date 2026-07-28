@@ -56,6 +56,17 @@ export class RedisService implements OnModuleDestroy {
     return Math.min(600, Math.max(5, Math.floor(n)));
   }
 
+  dashboardStatsKey(companyId: string): string {
+    return `hisaby:dashboard:stats:v1:${companyId}`;
+  }
+
+  /** TTL seconds for dashboard stats cache (default 30, clamp 5–120). */
+  dashboardStatsTtlSec(): number {
+    const n = Number(process.env.DASHBOARD_CACHE_TTL_SEC || 30);
+    if (!Number.isFinite(n)) return 30;
+    return Math.min(120, Math.max(5, Math.floor(n)));
+  }
+
   async getJson<T>(key: string): Promise<T | null> {
     if (!(await this.ensureReady()) || !this.client) return null;
     try {
