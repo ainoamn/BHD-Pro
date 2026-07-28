@@ -156,6 +156,10 @@ export default function RestoReservationsPage() {
     try {
       const res = await api.updateRestoReservationStatus(id, status);
       await load();
+      if (status === "CONFIRMED") {
+        toast.success(t.reservationOk);
+        toastNotify(res.data.notify ?? undefined);
+      }
       if (status === "SEATED" && res.data.openedOrderId) {
         router.push(`/resto/orders/${res.data.openedOrderId}`);
       }

@@ -99,6 +99,6 @@
 ## الخطوة التالية المقترحة
 
 1. **أنت اليوم:** Cloudflare §1.1 + تدوير أسرار + لصق Sentry DSN.  
-2. **الكود (Wave DL — منجز):** صدق إشعار رابط دفع المطعم — [`HISABY-WAVE-DL-RESTO-PAY-LINK-NOTIFY-HONESTY-2026-07-28.md`](./HISABY-WAVE-DL-RESTO-PAY-LINK-NOTIFY-HONESTY-2026-07-28.md) · قبله DK تسليم مؤجّل.  
+2. **الكود (Wave DM — منجز):** صدق إشعار تأكيد الحجز — [`HISABY-WAVE-DM-RESTO-RESERVATION-CONFIRM-NOTIFY-HONESTY-2026-07-28.md`](./HISABY-WAVE-DM-RESTO-RESERVATION-CONFIRM-NOTIFY-HONESTY-2026-07-28.md) · قبله DL رابط دفع.  
 3. على Render: `prisma migrate deploy` (يشمل أعمدة إشعار الحجوزات) · `REDIS_URL` اختياري؛ قالب OTP واتساب؛ `REQUIRE_2FA_HARD_AFTER_GRACE=1` عند الرغبة بقفل التعديلات.  
 4. لاحقاً: أرشفة docs.

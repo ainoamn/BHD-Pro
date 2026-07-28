@@ -1938,6 +1938,13 @@ class ApiClient {
       id: string;
       status: string;
       openedOrderId?: string | null;
+      notify?: {
+        ok: boolean;
+        channel: string | null;
+        error?: string;
+        mock?: boolean;
+        mode?: string;
+      } | null;
     }>(`/resto/reservations/${id}/status`, { status });
   }
 

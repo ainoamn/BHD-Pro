@@ -5003,9 +5003,40 @@ export class RestoService {
       }
     }
 
+    let notify: {
+      ok: boolean;
+      channel: string | null;
+      error?: string;
+      mock?: boolean;
+      mode?: string;
+    } | null = null;
+    if (status === 'CONFIRMED' && row.status !== 'CONFIRMED') {
+      const company = await this.prisma.company.findUnique({
+        where: { id: companyId },
+        select: { restoConfig: true },
+      });
+      const autoNotify =
+        this.parseRestoConfig(company?.restoConfig).booking.autoNotify !== false;
+      if (autoNotify && row.phone?.trim()) {
+        try {
+          const n = await this.notifyReservationGuest(
+            companyId,
+            id,
+            'CONFIRM',
+          );
+          notify = n.notify;
+        } catch {
+          notify = { ok: false, channel: null, error: 'notify_failed' };
+        }
+      } else if (!row.phone?.trim()) {
+        notify = { ok: false, channel: null, error: 'no_phone' };
+      }
+    }
+
     return {
       ...this.mapReservation(updated),
       openedOrderId,
+      notify,
     };
   }
 
