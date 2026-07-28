@@ -4454,6 +4454,45 @@ export default function PosCheckoutPage() {
                 </button>
                 <button
                   type="button"
+                  title={t.shareEmailHint || t.shareEmail}
+                  onClick={async () => {
+                    if (!lastInvoice.id || String(lastInvoice.id).startsWith("OFF-")) {
+                      toast.error(t.partnerPayOffline);
+                      return;
+                    }
+                    const cust = customers.find((c) => c.id === contactId);
+                    if (!cust?.email?.trim()) {
+                      toast.error(t.shareEmailNeedCustomer);
+                      return;
+                    }
+                    const toastId = toast.loading(t.shareEmail);
+                    try {
+                      const res = await api.resendPosSaleNotify(lastInvoice.id);
+                      toast.dismiss(toastId);
+                      const email = res.data?.delivery?.email;
+                      if (email === "ok") toast.success(t.shareEmailOk);
+                      else if (email === "mock")
+                        toast(t.shareEmailMock, { icon: "🧪", duration: 7000 });
+                      else if (email === "skipped")
+                        toast(t.shareEmailSkipped || t.shareEmailFail, {
+                          icon: "⚠️",
+                          duration: 7000,
+                        });
+                      else toast.error(t.shareEmailFail);
+                    } catch (err: unknown) {
+                      toast.dismiss(toastId);
+                      const msg = (err as { response?: { data?: { message?: string } } })
+                        ?.response?.data?.message;
+                      toast.error(typeof msg === "string" ? msg : t.shareEmailFail);
+                    }
+                  }}
+                  className="min-h-10 h-10 rounded-xl border border-sky-500/30 text-sm text-sky-200 hover:bg-sky-500/10"
+                >
+                  {t.shareEmail}
+                </button>
+                <button
+                  type="button"
+                  title={t.shareEmailManualHint || t.shareEmailManual}
                   onClick={() =>
                     openPosReceiptEmail({
                       companyName: company?.name,
@@ -4465,9 +4504,9 @@ export default function PosCheckoutPage() {
                       lines: lastInvoice.lines,
                     })
                   }
-                  className="min-h-10 h-10 rounded-xl border border-sky-500/30 text-sm text-sky-200 hover:bg-sky-500/10"
+                  className="min-h-10 h-10 rounded-xl border border-sky-500/20 text-sm text-sky-100/80 hover:bg-sky-500/10"
                 >
-                  {t.shareEmail}
+                  {t.shareEmailManual}
                 </button>
                 <button
                   type="button"
