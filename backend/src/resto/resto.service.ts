@@ -6012,6 +6012,7 @@ export class RestoService {
   async publicConfirmReservation(token: string) {
     const row = await this.prisma.restoReservation.findFirst({
       where: { confirmToken: token },
+      include: { table: { select: { code: true } } },
     });
     if (!row) throw new NotFoundException('Reservation link invalid');
     if (row.status === 'CANCELLED' || row.status === 'NO_SHOW') {
@@ -6025,18 +6026,49 @@ export class RestoService {
       },
       include: { table: { select: { id: true, code: true, name: true } } },
     });
-    return this.mapReservation(updated);
+    const when = row.reservedAt.toLocaleString('ar', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    });
+    const companyNotify = await this.notifyFloorStaffAlert(row.companyId, [
+      `الضيف أكّد الحجز: ${row.guestName}`,
+      `Guest confirmed: ${row.guestName}`,
+      when ? `الوقت: ${when}` : '',
+      updated.table?.code ? `طاولة ${updated.table.code}` : '',
+      `افتح الحجوزات /resto/reservations`,
+    ]);
+    return {
+      ...this.mapReservation(updated),
+      companyNotify,
+    };
   }
 
   async publicCancelReservation(token: string) {
     const row = await this.prisma.restoReservation.findFirst({
       where: { confirmToken: token },
+      include: { table: { select: { code: true } } },
     });
     if (!row) throw new NotFoundException('Reservation link invalid');
     if (row.status === 'SEATED') {
       throw new BadRequestException('Already seated');
     }
-    return this.updateReservationStatus(row.companyId, row.id, 'CANCELLED');
+    const result = await this.updateReservationStatus(
+      row.companyId,
+      row.id,
+      'CANCELLED',
+    );
+    const when = row.reservedAt.toLocaleString('ar', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    });
+    const companyNotify = await this.notifyFloorStaffAlert(row.companyId, [
+      `الضيف ألغى الحجز: ${row.guestName}`,
+      `Guest cancelled: ${row.guestName}`,
+      when ? `الوقت: ${when}` : '',
+      row.table?.code ? `طاولة ${row.table.code}` : '',
+      `افتح الحجوزات /resto/reservations`,
+    ]);
+    return { ...result, companyNotify };
   }
 
   private mapWaitlist(r: {
@@ -6485,11 +6517,17 @@ export class RestoService {
       },
     });
 
-    const staffNotify = await this.notifyFloorStaffOfGuestCall(
-      table.companyId,
-      table.code,
-      dto.type,
-    );
+    const staffNotify = await this.notifyFloorStaffAlert(table.companyId, [
+      `طاولة ${table.code}: ${
+        dto.type === 'CHECK'
+          ? 'طلب فاتورة'
+          : dto.type === 'WATER'
+            ? 'طلب ماء'
+            : 'طلب نادل'
+      }`,
+      `Table ${table.code}: guest call (${dto.type})`,
+      `افتح خريطة الطاولات /resto`,
+    ]);
 
     return {
       ok: true,
@@ -6507,10 +6545,9 @@ export class RestoService {
   }
 
   /** Best-effort WhatsApp ping to dual-control notify phones (never throws). */
-  private async notifyFloorStaffOfGuestCall(
+  private async notifyFloorStaffAlert(
     companyId: string,
-    tableCode: string,
-    callType: string,
+    detailLines: string[],
   ): Promise<{
     status: 'ok' | 'mock' | 'fail' | 'skipped';
     targets: number;
@@ -6540,17 +6577,9 @@ export class RestoService {
         return { status: 'skipped', targets: 0 };
       }
 
-      const kindLabel =
-        callType === 'CHECK'
-          ? 'طلب فاتورة'
-          : callType === 'WATER'
-            ? 'طلب ماء'
-            : 'طلب نادل';
       const body = [
         `Hisaby · ${company?.name || 'Restaurant'}`,
-        `طاولة ${tableCode}: ${kindLabel}`,
-        `Table ${tableCode}: guest call (${callType})`,
-        `افتح خريطة الطاولات /resto`,
+        ...detailLines.filter(Boolean),
       ].join('\n');
 
       const results = await Promise.all(

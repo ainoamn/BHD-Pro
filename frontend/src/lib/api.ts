@@ -2483,7 +2483,14 @@ class ApiClient {
   ) {
     return this.post<{
       source: RestoOrderPayload | null;
-      closed: RestoOrderPayload & { invoice?: { id: string } | null };
+      closed: RestoOrderPayload & {
+        invoice?: { id: string } | null;
+        customerNotify?: {
+          whatsapp?: string;
+          email?: string;
+          sms?: string;
+        } | null;
+      };
       mode: 'full' | 'seat';
       seat?: number;
     }>(`/resto/orders/${orderId}/settle/by-seat`, data);
@@ -2501,10 +2508,16 @@ class ApiClient {
       loyaltyPointsToRedeem?: number;
     },
   ) {
-    return this.post<RestoOrderPayload & { invoice?: { id: string } | null }>(
-      `/resto/orders/${orderId}/settle/equal`,
-      data,
-    );
+    return this.post<
+      RestoOrderPayload & {
+        invoice?: { id: string } | null;
+        customerNotify?: {
+          whatsapp?: string;
+          email?: string;
+          sms?: string;
+        } | null;
+      }
+    >(`/resto/orders/${orderId}/settle/equal`, data);
   }
 
   updateRestoDelivery(

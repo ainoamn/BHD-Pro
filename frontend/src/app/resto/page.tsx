@@ -590,6 +590,24 @@ export default function RestoFloorPage() {
         loyaltyPointsToRedeem:
           Number(loyaltyRedeem) > 0 ? Number(loyaltyRedeem) : undefined,
       });
+      toast.success(t.closePaidOk);
+      toastPosCustomerNotify(
+        (
+          res.data.closed as {
+            customerNotify?: {
+              whatsapp?: string;
+              email?: string;
+              sms?: string;
+            } | null;
+          }
+        )?.customerNotify,
+        {
+          saleNotifyOk: t.closePaidNotifyOk,
+          saleNotifyMock: t.closePaidNotifyMock,
+          saleNotifyPartial: t.closePaidNotifyPartial,
+          saleNotifyFail: t.closePaidNotifyFail,
+        },
+      );
       if (res.data.source) {
         setOrder(res.data.source);
       } else {
@@ -613,7 +631,7 @@ export default function RestoFloorPage() {
     setBusy(true);
     setError("");
     try {
-      await api.settleRestoEqual(order.id, {
+      const res = await api.settleRestoEqual(order.id, {
         parts,
         paymentMethod: method,
         tipAmount: Number(tipAmount) || undefined,
@@ -622,6 +640,13 @@ export default function RestoFloorPage() {
         contactId: order.contactId || order.loyalty?.contactId || undefined,
         loyaltyPointsToRedeem:
           Number(loyaltyRedeem) > 0 ? Number(loyaltyRedeem) : undefined,
+      });
+      toast.success(t.closePaidOk);
+      toastPosCustomerNotify(res.data?.customerNotify, {
+        saleNotifyOk: t.closePaidNotifyOk,
+        saleNotifyMock: t.closePaidNotifyMock,
+        saleNotifyPartial: t.closePaidNotifyPartial,
+        saleNotifyFail: t.closePaidNotifyFail,
       });
       setOrder(null);
       setTipAmount("");

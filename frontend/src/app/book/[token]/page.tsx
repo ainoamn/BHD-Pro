@@ -82,15 +82,35 @@ export default function BookConfirmPage() {
         },
       );
       if (!res.ok) throw new Error("fail");
-      setMessage(
+      const data = (await res.json().catch(() => ({}))) as {
+        companyNotify?: { status?: string; targets?: number };
+      };
+      const wa = data.companyNotify?.status;
+      const base =
         action === "confirm"
           ? ar
             ? "تم تأكيد حجزكم. نتشرف بزيارتكم."
             : "Your reservation is confirmed. We look forward to seeing you."
           : ar
             ? "تم إلغاء الحجز."
-            : "Your reservation has been cancelled.",
-      );
+            : "Your reservation has been cancelled.";
+      const waNote =
+        wa === "ok"
+          ? ar
+            ? " وأُبلغ المطعم عبر واتساب."
+            : " The restaurant was notified on WhatsApp."
+          : wa === "mock"
+            ? ar
+              ? " إشعار المطعم في وضع mock (لم يُسلَّم)."
+              : " Restaurant notify is mock (not delivered)."
+            : wa === "fail"
+              ? ar
+                ? " تعذّر إشعار المطعم عبر واتساب."
+                : " Could not WhatsApp the restaurant."
+              : ar
+                ? " (لم يُرسل واتساب للمطعم — سيظهر في لوحة الحجوزات)."
+                : " (No WhatsApp to restaurant — it will show on their bookings board).";
+      setMessage(`${base}${waNote}`);
       await load();
     } catch {
       setError(ar ? "تعذّر إكمال الطلب" : "Could not complete the request");
