@@ -157,13 +157,20 @@ export default function RestoReservationsPage() {
     try {
       const res = await api.updateRestoReservationStatus(id, status);
       await load();
-      if (status === "CONFIRMED" || status === "CANCELLED" || status === "NO_SHOW") {
+      if (
+        status === "CONFIRMED" ||
+        status === "SEATED" ||
+        status === "CANCELLED" ||
+        status === "NO_SHOW"
+      ) {
         toast.success(
           status === "CONFIRMED"
             ? t.reservationConfirmed
-            : status === "NO_SHOW"
-              ? t.reservationNoShow
-              : t.reservationCancelled,
+            : status === "SEATED"
+              ? t.reservationSeated
+              : status === "NO_SHOW"
+                ? t.reservationNoShow
+                : t.reservationCancelled,
         );
         toastNotify(res.data.notify ?? undefined);
       }

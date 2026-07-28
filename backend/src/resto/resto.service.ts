@@ -5158,10 +5158,30 @@ export class RestoService {
       } else if (!row.phone?.trim()) {
         notify = { ok: false, channel: null, error: 'no_phone' };
       }
+    } else if (status === 'SEATED' && row.status !== 'SEATED') {
+      const company = await this.prisma.company.findUnique({
+        where: { id: companyId },
+        select: { restoConfig: true },
+      });
+      const autoNotify =
+        this.parseRestoConfig(company?.restoConfig).booking.autoNotify !== false;
+      if (autoNotify && row.phone?.trim()) {
+        try {
+          const n = await this.notifyReservationGuest(
+            companyId,
+            id,
+            'TABLE_READY',
+          );
+          notify = n.notify;
+        } catch {
+          notify = { ok: false, channel: null, error: 'notify_failed' };
+        }
+      } else if (!row.phone?.trim()) {
+        notify = { ok: false, channel: null, error: 'no_phone' };
+      }
     } else if (
       (status === 'CANCELLED' || status === 'NO_SHOW') &&
       row.status !== status &&
-      row.phone?.trim() &&
       !opts?.skipGuestNotify
     ) {
       try {
@@ -5172,13 +5192,15 @@ export class RestoService {
         const autoNotify =
           this.parseRestoConfig(company?.restoConfig).booking.autoNotify !==
           false;
-        if (autoNotify) {
+        if (autoNotify && row.phone?.trim()) {
           const n = await this.notifyReservationGuest(
             companyId,
             id,
             status === 'NO_SHOW' ? 'NO_SHOW' : 'CANCELLED',
           );
           notify = n.notify;
+        } else if (!row.phone?.trim()) {
+          notify = { ok: false, channel: null, error: 'no_phone' };
         }
       } catch {
         notify = { ok: false, channel: null, error: 'notify_failed' };
