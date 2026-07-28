@@ -40,6 +40,7 @@ export class SubscriptionReminderService {
     });
 
     let sent = 0;
+    let mocked = 0;
     for (const c of companies) {
       const expiry = c.planExpiry!;
       const daysLeft = Math.max(
@@ -65,23 +66,38 @@ export class SubscriptionReminderService {
         `— فريق حسابي`,
       ].join('\n');
 
+      let companyLive = 0;
+      let companyMock = 0;
       for (const to of unique) {
         try {
-          await this.email.sendText({ to, subject, text });
-          sent += 1;
+          const res = await this.email.sendText({ to, subject, text });
+          if (res.ok && res.mock) {
+            companyMock += 1;
+            mocked += 1;
+          } else if (res.ok) {
+            companyLive += 1;
+            sent += 1;
+          } else {
+            this.logger.warn(
+              `Reminder email failed for ${to}: ${res.error || 'unknown'}`,
+            );
+          }
         } catch (e) {
           this.logger.warn(`Reminder email failed for ${to}: ${e}`);
         }
       }
 
-      await this.prisma.company.update({
-        where: { id: c.id },
-        data: { subscriptionReminderSentAt: now },
-      });
+      // Stamp throttle even on mock so we do not spam logs daily; live count stays honest.
+      if (companyLive > 0 || companyMock > 0) {
+        await this.prisma.company.update({
+          where: { id: c.id },
+          data: { subscriptionReminderSentAt: now },
+        });
+      }
     }
 
     this.logger.log(
-      `Subscription reminders processed: companies=${companies.length} emails≈${sent}`,
+      `Subscription reminders processed: companies=${companies.length} liveEmails=${sent} mockEmails=${mocked}`,
     );
   }
 }

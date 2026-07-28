@@ -99,6 +99,6 @@
 ## الخطوة التالية المقترحة
 
 1. **أنت اليوم:** Cloudflare §1.1 + تدوير أسرار + لصق Sentry DSN.  
-2. **الكود (Wave CL — منجز):** صدق mock لبريد تقرير Z — [`HISABY-WAVE-CL-ZREPORT-EMAIL-MOCK-2026-07-28.md`](./HISABY-WAVE-CL-ZREPORT-EMAIL-MOCK-2026-07-28.md) · قبله CK إعادة تعيين كلمة مرور المنصة.  
+2. **الكود (Wave CM — منجز):** صدق سجل تذكيرات الاشتراك live/mock — [`HISABY-WAVE-CM-SUBSCRIPTION-REMINDER-MOCK-2026-07-28.md`](./HISABY-WAVE-CM-SUBSCRIPTION-REMINDER-MOCK-2026-07-28.md).  
 3. على Render: `REDIS_URL` اختياري؛ قالب OTP واتساب؛ `REQUIRE_2FA_HARD_AFTER_GRACE=1` عند الرغبة بقفل التعديلات.  
 4. لاحقاً: أرشفة docs.
