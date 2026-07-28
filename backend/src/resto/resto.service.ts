@@ -5525,9 +5525,13 @@ export class RestoService {
       ok: boolean;
       channel: string | null;
       error?: string;
+      mock?: boolean;
+      mode?: string;
     } | null = null;
     if (status === 'NOTIFIED') {
       notify = await this.sendWaitlistReadyNotify(companyId, updated);
+    } else if (status === 'CANCELLED' && row.status !== 'CANCELLED') {
+      notify = await this.sendWaitlistCancelledNotify(companyId, updated);
     }
 
     const fresh = await this.prisma.restoWaitlistEntry.findUnique({
@@ -5573,6 +5577,41 @@ export class RestoService {
       phone: row.phone,
       guestName: row.guestName,
       kind: 'WAITLIST_READY',
+      quotedMinutes: row.quotedMinutes,
+    });
+    await this.prisma.restoWaitlistEntry.update({
+      where: { id: row.id },
+      data: {
+        notifyChannel: result.channel,
+        notifyResult: result.ok
+          ? result.mock
+            ? 'mock'
+            : 'ok'
+          : `fail:${result.error || 'unknown'}`,
+        notifyAttempts: (row.notifyAttempts || 0) + 1,
+      },
+    });
+    return result;
+  }
+
+  private async sendWaitlistCancelledNotify(
+    companyId: string,
+    row: {
+      id: string;
+      guestName: string;
+      phone: string | null;
+      quotedMinutes: number | null;
+      notifyAttempts: number;
+    },
+  ) {
+    if (!row.phone?.trim()) {
+      return { ok: false, channel: null, error: 'no_phone' as const };
+    }
+    const result = await this.guestNotify.notifyGuest({
+      companyId,
+      phone: row.phone,
+      guestName: row.guestName,
+      kind: 'WAITLIST_CANCELLED',
       quotedMinutes: row.quotedMinutes,
     });
     await this.prisma.restoWaitlistEntry.update({

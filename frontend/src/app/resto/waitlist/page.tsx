@@ -163,6 +163,10 @@ export default function RestoWaitlistPage() {
           return;
         }
       }
+      if (status === "CANCELLED") {
+        toast.success(t.waitlistCancelledOk);
+        toastNotify(res.data?.notify);
+      }
       setSeatFor(null);
       setTableId("");
       await load();

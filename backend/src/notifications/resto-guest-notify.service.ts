@@ -11,6 +11,7 @@ import {
 
 export type RestoGuestNotifyKind =
   | 'WAITLIST_READY'
+  | 'WAITLIST_CANCELLED'
   | 'RESERVATION_CONFIRM'
   | 'RESERVATION_REMIND'
   | 'RESERVATION_TABLE_READY'
@@ -85,6 +86,11 @@ export class RestoGuestNotifyService {
       return ar
         ? `مرحباً ${guestName}، طاولتكم جاهزة في ${companyName}${opts.tableCode ? ` (${opts.tableCode})` : ''}. تفضلوا بالتوجه للاستقبال.`
         : `Hi ${guestName}, your table is ready at ${companyName}${opts.tableCode ? ` (${opts.tableCode})` : ''}. Please come to the host stand.`;
+    }
+    if (kind === 'WAITLIST_CANCELLED') {
+      return ar
+        ? `مرحباً ${guestName}، أُزيل طلب الانتظار في ${companyName}. نأمل خدمتكم قريباً.`
+        : `Hi ${guestName}, your waitlist entry at ${companyName} was cancelled. We hope to serve you soon.`;
     }
     if (kind === 'RESERVATION_CONFIRM') {
       return ar
@@ -179,7 +185,11 @@ export class RestoGuestNotifyService {
             ? opts.locale === 'en'
               ? 'Table ready'
               : 'الطاولة جاهزة'
-            : opts.kind === 'RESERVATION_CONFIRM'
+            : opts.kind === 'WAITLIST_CANCELLED'
+              ? opts.locale === 'en'
+                ? 'Waitlist cancelled'
+                : 'إلغاء الانتظار'
+              : opts.kind === 'RESERVATION_CONFIRM'
               ? opts.locale === 'en'
                 ? 'Reservation confirmed'
                 : 'تأكيد الحجز'
