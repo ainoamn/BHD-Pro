@@ -368,7 +368,7 @@ export class WhatsappNotifyService {
       link?: string | null;
       fullBody: string;
     },
-  ): Promise<{ ok: boolean; error?: string; via?: 'template' | 'text' }> {
+  ): Promise<{ ok: boolean; error?: string; via?: 'template' | 'text'; mock?: boolean }> {
     const template = this.guestTemplateName();
     if (template) {
       const result = await this.sendTemplate(
@@ -384,12 +384,24 @@ export class WhatsappNotifyService {
         this.guestTemplateLang(),
         this.guestParamNames(),
       );
-      if (result.ok) return { ...result, via: 'template' };
+      if (result.ok) {
+        return {
+          ...result,
+          via: 'template',
+          mock: !!(result as { mock?: boolean }).mock,
+        };
+      }
       this.logger.warn(`Guest template failed, trying session text: ${result.error}`);
     }
 
     const text = await this.sendText(toE164, opts.fullBody);
-    if (text.ok) return { ...text, via: 'text' };
+    if (text.ok) {
+      return {
+        ...text,
+        via: 'text',
+        mock: !!(text as { mock?: boolean }).mock,
+      };
+    }
 
     const hint =
       !template && /24|window|template|re-engage|131047|131026/i.test(text.error || '')

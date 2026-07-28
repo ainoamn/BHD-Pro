@@ -5402,7 +5402,9 @@ export class RestoService {
       data: {
         notifyChannel: result.channel,
         notifyResult: result.ok
-          ? 'ok'
+          ? result.mock
+            ? 'mock'
+            : 'ok'
           : `fail:${result.error || 'unknown'}`,
         notifyAttempts: (row.notifyAttempts || 0) + 1,
       },
@@ -5447,12 +5449,13 @@ export class RestoService {
       confirmUrl,
     });
 
+    const delivered = notify.ok && !notify.mock;
     const data: Prisma.RestoReservationUpdateInput = {};
-    if (kind === 'CONFIRM' && notify.ok) {
+    if (kind === 'CONFIRM' && delivered) {
       data.status = 'CONFIRMED';
       data.confirmedAt = new Date();
     }
-    if (kind === 'REMINDER' && notify.ok) {
+    if (kind === 'REMINDER' && delivered) {
       data.reminderSentAt = new Date();
     }
     const updated = await this.prisma.restoReservation.update({

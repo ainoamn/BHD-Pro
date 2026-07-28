@@ -58,12 +58,21 @@ export default function RestoReservationsPage() {
     ok: boolean;
     channel: string | null;
     error?: string;
+    mock?: boolean;
+    mode?: string;
   }) => {
     if (!notify) return;
     if (notify.ok) {
-      toast.success(
-        `${t.notifySent}${notify.channel ? ` · ${notify.channel}` : ""}`,
-      );
+      if (notify.mock || notify.mode === "mock") {
+        toast(
+          `${t.notifySentMock}${notify.channel ? ` · ${notify.channel}` : ""}`,
+          { icon: "🧪" },
+        );
+      } else {
+        toast.success(
+          `${t.notifySent}${notify.channel ? ` · ${notify.channel}` : ""}`,
+        );
+      }
       return;
     }
     if (notify.error === "no_phone") {

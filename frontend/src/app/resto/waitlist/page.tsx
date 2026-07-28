@@ -34,6 +34,8 @@ type NotifyPayload = {
   ok: boolean;
   channel: string | null;
   error?: string;
+  mock?: boolean;
+  mode?: string;
 } | null | undefined;
 
 export default function RestoWaitlistPage() {
@@ -55,9 +57,16 @@ export default function RestoWaitlistPage() {
   const toastNotify = (notify: NotifyPayload) => {
     if (!notify) return;
     if (notify.ok) {
-      toast.success(
-        `${t.notifySent}${notify.channel ? ` · ${notify.channel}` : ""}`,
-      );
+      if (notify.mock || notify.mode === "mock") {
+        toast(
+          `${t.notifySentMock}${notify.channel ? ` · ${notify.channel}` : ""}`,
+          { icon: "🧪" },
+        );
+      } else {
+        toast.success(
+          `${t.notifySent}${notify.channel ? ` · ${notify.channel}` : ""}`,
+        );
+      }
       return;
     }
     if (notify.error === "no_phone") {

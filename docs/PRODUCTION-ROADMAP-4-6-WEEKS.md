@@ -99,6 +99,6 @@
 ## الخطوة التالية المقترحة
 
 1. **أنت اليوم:** Cloudflare §1.1 + تدوير أسرار + لصق Sentry DSN.  
-2. **الكود (Wave CH — منجز):** صدق mock لـ WhatsApp OTP في الحماية المزدوجة — [`HISABY-WAVE-CH-DUAL-OTP-MOCK-HONESTY-2026-07-28.md`](./HISABY-WAVE-CH-DUAL-OTP-MOCK-HONESTY-2026-07-28.md).  
+2. **الكود (Wave CI — منجز):** صدق mock لإشعارات ضيوف المطاعم — [`HISABY-WAVE-CI-RESTO-GUEST-MOCK-HONESTY-2026-07-28.md`](./HISABY-WAVE-CI-RESTO-GUEST-MOCK-HONESTY-2026-07-28.md).  
 3. على Render: `REDIS_URL` اختياري؛ قالب OTP واتساب؛ `REQUIRE_2FA_HARD_AFTER_GRACE=1` عند الرغبة بقفل التعديلات.  
 4. لاحقاً: أرشفة docs.

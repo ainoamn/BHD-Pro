@@ -112,6 +112,8 @@ export class RestoGuestNotifyService {
     ok: boolean;
     channel: 'WHATSAPP' | 'SMS' | null;
     error?: string;
+    mock?: boolean;
+    mode?: string;
   }> {
     try {
       if (!opts.phone?.trim()) {
@@ -170,12 +172,26 @@ export class RestoGuestNotifyService {
           link: opts.confirmUrl || null,
           fullBody: body,
         });
-        if (res.ok) return { ok: true, channel: 'WHATSAPP' };
+        if (res.ok) {
+          return {
+            ok: true,
+            channel: 'WHATSAPP',
+            mock: !!res.mock,
+            mode: res.mock ? 'mock' : this.whatsapp.mode(),
+          };
+        }
         this.logger.warn(`WhatsApp resto notify failed: ${res.error}`);
       }
       if (this.sms.isConfigured()) {
         const res = await this.sms.sendText({ to: e164, body });
-        if (res.ok) return { ok: true, channel: 'SMS' };
+        if (res.ok) {
+          return {
+            ok: true,
+            channel: 'SMS',
+            mock: !!res.mock,
+            mode: res.mock ? 'mock' : this.sms.mode(),
+          };
+        }
         return {
           ok: false,
           channel: 'SMS',
