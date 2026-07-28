@@ -1944,6 +1944,42 @@ export default function PosCheckoutPage() {
     return method;
   };
 
+  const salePaymentSummary = (sale: RecentCashSale) => {
+    const pays = sale.payments || [];
+    if (!pays.length) return "";
+    return pays
+      .map((p) => {
+        const label = paymentLabel(p.method);
+        const amt = p.amount != null ? Number(p.amount) : NaN;
+        if (!label) return "";
+        return Number.isFinite(amt) ? `${label} ${amt.toFixed(3)}` : label;
+      })
+      .filter(Boolean)
+      .join(" + ");
+  };
+
+  /** Load a past sale into the receipt action panel (resend / print / SMS / …). */
+  const focusSaleReceipt = (sale: RecentCashSale) => {
+    const paySummary = salePaymentSummary(sale);
+    setLastInvoice({
+      id: sale.id,
+      number: sale.number,
+      total: Number(sale.total),
+      paymentMethod: paySummary || undefined,
+      warehouseLabel: warehouseLabel || undefined,
+      lines: (sale.items || []).map((i) => ({
+        name: i.description,
+        qty: Number(i.quantity),
+        lineTotal: Number(i.total),
+        barcode: i.product?.barcode ?? null,
+        sku: i.product?.sku ?? null,
+        note: i.notes ?? null,
+      })),
+    });
+    if (sale.contact?.id) setContactId(sale.contact.id);
+    toast.success(t.saleReceiptFocused, { duration: 3500 });
+  };
+
   const reprintSale = async (
     sale: RecentCashSale,
     opts?: { gift?: boolean },
@@ -2289,45 +2325,20 @@ export default function PosCheckoutPage() {
       return;
     }
 
-    // Refresh on-hand stock from catalog / lookup before pay
+    // Stock from cart/catalog only — server enforces reservation. Avoiding N
+    // lookupPosProduct calls before every pay (was adding tens of seconds on cold API).
     let workingCart = cart;
-    const minByProduct = new Map<string, number>();
     try {
-      const refreshed = await Promise.all(
-        cart.map(async (line) => {
-          try {
-            const res = await api.lookupPosProduct(line.sku, warehouseId || undefined);
-            const p = res.data as PosProduct;
-            const minQ =
-              p.minQuantity != null && p.minQuantity !== ""
-                ? Number(p.minQuantity)
-                : NaN;
-            if (Number.isFinite(minQ)) minByProduct.set(line.productId, minQ);
-            return {
-              ...line,
-              stock: Number(p.quantity),
-              isTracked: p.isTracked,
-            };
-          } catch {
-            const fromCatalog = catalog.find((c) => c.id === line.productId);
-            if (fromCatalog) {
-              const minQ =
-                fromCatalog.minQuantity != null && fromCatalog.minQuantity !== ""
-                  ? Number(fromCatalog.minQuantity)
-                  : NaN;
-              if (Number.isFinite(minQ)) minByProduct.set(line.productId, minQ);
-              return {
-                ...line,
-                stock: Number(fromCatalog.quantity),
-                isTracked: fromCatalog.isTracked,
-              };
-            }
-            return line;
-          }
-        }),
-      );
+      const refreshed = cart.map((line) => {
+        const fromCatalog = catalog.find((c) => c.id === line.productId);
+        if (!fromCatalog) return line;
+        return {
+          ...line,
+          stock: Number(fromCatalog.quantity),
+          isTracked: fromCatalog.isTracked,
+        };
+      });
       workingCart = refreshed;
-      setCart(refreshed);
     } catch {
       /* use cart as-is */
     }
@@ -2645,8 +2656,8 @@ export default function PosCheckoutPage() {
         }
       }
       loadCatalog(search);
-      loadRecentSales();
-      loadOpsStrip();
+      void loadRecentSales();
+      void loadOpsStrip();
       void refreshCustomerPurchases();
       if (isDeferredSale) {
         try {
@@ -3513,25 +3524,52 @@ export default function PosCheckoutPage() {
           ) : null}
           {recentSales.length > 0 ? (
             <div className="flex gap-2 overflow-x-auto pb-0.5">
-              {recentSales.map((sale) => (
+              {recentSales.map((sale) => {
+                const paySummary = salePaymentSummary(sale);
+                const selected = lastInvoice?.id === sale.id;
+                return (
                 <div
                   key={sale.id}
-                  className="shrink-0 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-start min-w-[9.5rem] space-y-1.5"
+                  className={`shrink-0 rounded-xl border px-3 py-2 text-start min-w-[10.5rem] space-y-1.5 ${
+                    selected
+                      ? "border-emerald-400/50 bg-emerald-500/10"
+                      : "border-white/10 bg-black/20"
+                  }`}
                 >
                   <button
                     type="button"
-                    onClick={() => void reprintSale(sale)}
+                    onClick={() => focusSaleReceipt(sale)}
                     className="w-full text-start hover:opacity-90 transition"
-                    title={t.reprint}
+                    title={t.receiptActions}
                   >
                     <p className="text-xs font-bold text-white truncate">{sale.number}</p>
                     <p className="text-[11px] text-sky-300 font-semibold mt-0.5">
                       {formatMoney(Number(sale.total), currency)}
                     </p>
-                    <p className="text-[10px] text-slate-500 mt-1 inline-flex items-center gap-1">
-                      <Printer className="w-3 h-3" />
-                      {t.reprint}
-                    </p>
+                    {paySummary ? (
+                      <p className="text-[10px] text-slate-400 mt-0.5 truncate">{paySummary}</p>
+                    ) : null}
+                    {(sale.contact?.name || sale.contact?.phone) ? (
+                      <p className="text-[10px] text-slate-500 mt-0.5 truncate">
+                        {[sale.contact?.name, sale.contact?.phone].filter(Boolean).join(" · ")}
+                      </p>
+                    ) : null}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => focusSaleReceipt(sale)}
+                    className="w-full h-7 rounded-lg border border-emerald-500/35 text-[10px] font-semibold text-emerald-200 hover:bg-emerald-500/15 transition"
+                  >
+                    {t.receiptActions}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void reprintSale(sale)}
+                    className="w-full h-7 rounded-lg border border-sky-500/30 text-[10px] font-semibold text-sky-200 hover:bg-sky-500/15 transition inline-flex items-center justify-center gap-1"
+                    title={t.reprint}
+                  >
+                    <Printer className="w-3 h-3" />
+                    {t.reprint}
                   </button>
                   <button
                     type="button"
@@ -3548,7 +3586,8 @@ export default function PosCheckoutPage() {
                     {t.refundSale}
                   </button>
                 </div>
-              ))}
+                );
+              })}
             </div>
           ) : null}
         </div>
@@ -4250,6 +4289,14 @@ export default function PosCheckoutPage() {
           ) : null}
           {lastInvoice && (
             <div className="space-y-2">
+              {lastInvoice.paymentMethod ? (
+                <p className="text-[11px] text-slate-400 text-center">
+                  {t.payment}:{" "}
+                  <span className="text-slate-200 font-semibold">
+                    {lastInvoice.paymentMethod}
+                  </span>
+                </p>
+              ) : null}
               <button
                 type="button"
                 onClick={() => printReceiptSnapshot(lastInvoice)}
@@ -5548,42 +5595,71 @@ export default function PosCheckoutPage() {
                       …
                     </p>
                   ) : null}
-                  {recentSales.map((sale) => (
+                  {recentSales.map((sale) => {
+                    const paySummary = salePaymentSummary(sale);
+                    const selected = lastInvoice?.id === sale.id;
+                    return (
                   <div
                     key={sale.id}
-                    className="rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 space-y-2"
+                    className={`rounded-xl border px-3 py-2.5 space-y-2 ${
+                      selected
+                        ? "border-emerald-400/50 bg-emerald-500/10"
+                        : "border-white/10 bg-black/25"
+                    }`}
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="font-bold text-white truncate">{sale.number}</p>
-                        <p className="text-[11px] text-slate-500">
-                          {sale.createdAt
-                            ? new Date(sale.createdAt).toLocaleString()
-                            : sale.date
-                              ? new Date(sale.date).toLocaleDateString()
-                              : "—"}
-                          {sale.contact?.name || sale.contact?.phone ? (
-                            <span className="text-slate-400">
-                              {" "}
-                              ·{" "}
-                              {[sale.contact?.name, sale.contact?.phone]
-                                .filter(Boolean)
-                                .join(" · ")}
-                            </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        focusSaleReceipt(sale);
+                        setReceiptsOpen(false);
+                      }}
+                      className="w-full text-start"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-bold text-white truncate">{sale.number}</p>
+                          <p className="text-[11px] text-slate-500">
+                            {sale.createdAt
+                              ? new Date(sale.createdAt).toLocaleString()
+                              : sale.date
+                                ? new Date(sale.date).toLocaleDateString()
+                                : "—"}
+                            {sale.contact?.name || sale.contact?.phone ? (
+                              <span className="text-slate-400">
+                                {" "}
+                                ·{" "}
+                                {[sale.contact?.name, sale.contact?.phone]
+                                  .filter(Boolean)
+                                  .join(" · ")}
+                              </span>
+                            ) : null}
+                            {sale.reprintCount ? (
+                              <span className="text-amber-300/90">
+                                {" "}
+                                · {t.reprintCount}: {sale.reprintCount}
+                              </span>
+                            ) : null}
+                          </p>
+                          {paySummary ? (
+                            <p className="text-[11px] text-slate-300 mt-0.5">{paySummary}</p>
                           ) : null}
-                          {sale.reprintCount ? (
-                            <span className="text-amber-300/90">
-                              {" "}
-                              · {t.reprintCount}: {sale.reprintCount}
-                            </span>
-                          ) : null}
+                        </div>
+                        <p className="text-sky-300 font-semibold tabular-nums shrink-0">
+                          {formatMoney(Number(sale.total), currency)}
                         </p>
                       </div>
-                      <p className="text-sky-300 font-semibold tabular-nums shrink-0">
-                        {formatMoney(Number(sale.total), currency)}
-                      </p>
-                    </div>
+                    </button>
                     <div className="flex flex-wrap gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          focusSaleReceipt(sale);
+                          setReceiptsOpen(false);
+                        }}
+                        className="h-8 px-2.5 rounded-lg border border-emerald-500/35 text-[11px] font-semibold text-emerald-200 hover:bg-emerald-500/15"
+                      >
+                        {t.receiptActions}
+                      </button>
                       <button
                         type="button"
                         onClick={() => {
@@ -5626,7 +5702,8 @@ export default function PosCheckoutPage() {
                       </button>
                     </div>
                   </div>
-                ))}
+                    );
+                  })}
                 </>
               )}
             </div>

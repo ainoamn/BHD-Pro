@@ -40,6 +40,24 @@ export class WhatsappNotifyService {
     );
   }
 
+  private metaFetchTimeoutMs(): number {
+    const n = Number(process.env.WHATSAPP_FETCH_TIMEOUT_MS || 12000);
+    return Number.isFinite(n) && n >= 3000 ? n : 12000;
+  }
+
+  private async metaFetch(
+    url: string,
+    init: RequestInit,
+  ): Promise<Response> {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), this.metaFetchTimeoutMs());
+    try {
+      return await fetch(url, { ...init, signal: ctrl.signal });
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   private async parseMetaError(res: Response): Promise<string> {
     const text = await res.text();
     try {
@@ -75,7 +93,7 @@ export class WhatsappNotifyService {
     const url = `https://graph.facebook.com/v19.0/${phoneId}/messages`;
 
     try {
-      const res = await fetch(url, {
+      const res = await this.metaFetch(url, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -95,7 +113,12 @@ export class WhatsappNotifyService {
       }
       return { ok: true };
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'send failed';
+      const message =
+        err instanceof Error && err.name === 'AbortError'
+          ? 'WhatsApp API timeout'
+          : err instanceof Error
+            ? err.message
+            : 'send failed';
       this.logger.warn(`WhatsApp send error: ${message}`);
       return { ok: false, error: message };
     }
@@ -143,7 +166,7 @@ export class WhatsappNotifyService {
         : undefined;
 
     try {
-      const res = await fetch(url, {
+      const res = await this.metaFetch(url, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -167,7 +190,12 @@ export class WhatsappNotifyService {
       }
       return { ok: true };
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'send failed';
+      const message =
+        err instanceof Error && err.name === 'AbortError'
+          ? 'WhatsApp API timeout'
+          : err instanceof Error
+            ? err.message
+            : 'send failed';
       this.logger.warn(`WhatsApp template error: ${message}`);
       return { ok: false, error: message };
     }
@@ -194,7 +222,7 @@ export class WhatsappNotifyService {
     const url = `https://graph.facebook.com/v19.0/${phoneId}/messages`;
 
     try {
-      const res = await fetch(url, {
+      const res = await this.metaFetch(url, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -214,7 +242,12 @@ export class WhatsappNotifyService {
       }
       return { ok: true };
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'send failed';
+      const message =
+        err instanceof Error && err.name === 'AbortError'
+          ? 'WhatsApp API timeout'
+          : err instanceof Error
+            ? err.message
+            : 'send failed';
       return this.sendText(toE164, `${caption}\n${link}`).then((r) =>
         r.ok ? r : { ok: false, error: message },
       );

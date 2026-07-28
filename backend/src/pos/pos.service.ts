@@ -1531,58 +1531,61 @@ export class PosService {
         this.fireCustomerNotify('sale', companyId, invoice.id, contact.id);
       }
 
-      try {
-        if (loyaltyRedeemPoints > 0.0005) {
-          await this.incentives.recordRedeemLedger(
-            companyId,
-            contact.id,
-            invoice.id,
-            loyaltyRedeemPoints,
-            `Redeem ${loyaltyRedeemValue.toFixed(3)}`,
-          );
-          try {
-            const existingFields =
-              ((invoice as { customFieldsJson?: Record<string, unknown> })
-                .customFieldsJson || {}) as Record<string, unknown>;
-            await this.prisma.invoice.update({
-              where: { id: invoice.id },
-              data: {
-                customFieldsJson: {
-                  ...existingFields,
-                  loyaltyRedeemPoints,
-                  loyaltyRedeemValue,
-                },
-              },
-            });
-          } catch {
-            /* non-fatal */
-          }
-        }
-      } catch (err) {
-        throw err instanceof BadRequestException
-          ? err
-          : new BadRequestException(
-              err instanceof Error ? err.message : 'Loyalty redeem failed',
+      // Loyalty + parked draft: best-effort after sale is durable — don't delay cashier UX
+      void (async () => {
+        try {
+          if (loyaltyRedeemPoints > 0.0005) {
+            await this.incentives.recordRedeemLedger(
+              companyId,
+              contact.id,
+              invoice.id,
+              loyaltyRedeemPoints,
+              `Redeem ${loyaltyRedeemValue.toFixed(3)}`,
             );
-      }
-
-      try {
-        await this.incentives.accrueOnSale(
-          companyId,
-          userId,
-          { id: invoice.id, total: invoice.total },
-          contact.name !== WALK_IN_NAME ? contact.id : null,
-        );
-      } catch {
-        /* never fail sale */
-      }
-
-      await this.consumeParkedDraftForSale(
-        companyId,
-        actor,
-        dto.parkedDraftId,
-        invoice.number,
-      );
+            try {
+              const existingFields =
+                ((invoice as { customFieldsJson?: Record<string, unknown> })
+                  .customFieldsJson || {}) as Record<string, unknown>;
+              await this.prisma.invoice.update({
+                where: { id: invoice.id },
+                data: {
+                  customFieldsJson: {
+                    ...existingFields,
+                    loyaltyRedeemPoints,
+                    loyaltyRedeemValue,
+                  },
+                },
+              });
+            } catch {
+              /* non-fatal */
+            }
+          }
+        } catch (err) {
+          this.logger.warn(
+            `loyalty redeem ledger failed: ${err instanceof Error ? err.message : err}`,
+          );
+        }
+        try {
+          await this.incentives.accrueOnSale(
+            companyId,
+            userId,
+            { id: invoice.id, total: invoice.total },
+            contact.name !== WALK_IN_NAME ? contact.id : null,
+          );
+        } catch {
+          /* never fail sale */
+        }
+        try {
+          await this.consumeParkedDraftForSale(
+            companyId,
+            actor,
+            dto.parkedDraftId,
+            invoice.number,
+          );
+        } catch {
+          /* non-fatal */
+        }
+      })();
 
       const fresh = await this.prisma.invoice.findUnique({
         where: { id: invoice.id },
