@@ -63,6 +63,18 @@ export default function RestoTakeawayPage() {
         guestName: guestName.trim() || undefined,
         guestPhone: guestPhone.trim() || undefined,
       });
+      const notify = res.data.notify;
+      if (notify?.ok) {
+        toast.success(
+          notify.mock || notify.mode === "mock"
+            ? t.orderReceivedMock
+            : t.orderReceivedOk,
+        );
+      } else if (notify?.error === "no_phone") {
+        toast.message(t.orderReceivedNoPhone);
+      } else if (notify) {
+        toast.message(t.orderReceivedFail);
+      }
       setGuestName("");
       setGuestPhone("");
       router.push(`/resto/orders/${res.data.id}`);

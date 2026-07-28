@@ -19,6 +19,8 @@ export type RestoGuestNotifyKind =
   | 'RESERVATION_NO_SHOW'
   | 'DELIVERY_OUT'
   | 'DELIVERY_DONE'
+  | 'DELIVERY_RECEIVED'
+  | 'TAKEAWAY_RECEIVED'
   | 'TAKEAWAY_READY'
   | 'PAY_LINK';
 
@@ -111,6 +113,16 @@ export class RestoGuestNotifyService {
       return ar
         ? `مرحباً ${guestName}، تم تسليم طلبكم من ${companyName}. نتمنى أن تستمتعوا.`
         : `Hi ${guestName}, your order from ${companyName} was delivered. Enjoy!`;
+    }
+    if (kind === 'DELIVERY_RECEIVED') {
+      return ar
+        ? `مرحباً ${guestName}، استلمنا طلب التوصيل من ${companyName} وبدأ التحضير.`
+        : `Hi ${guestName}, we received your delivery order at ${companyName} and started preparing.`;
+    }
+    if (kind === 'TAKEAWAY_RECEIVED') {
+      return ar
+        ? `مرحباً ${guestName}، استلمنا طلب الاستلام من ${companyName} وبدأ التحضير.`
+        : `Hi ${guestName}, we received your takeaway order at ${companyName} and started preparing.`;
     }
     if (kind === 'TAKEAWAY_READY') {
       return ar
@@ -205,11 +217,19 @@ export class RestoGuestNotifyService {
                     ? opts.locale === 'en'
                       ? 'Delivered'
                       : 'تم التسليم'
-                    : opts.kind === 'TAKEAWAY_READY'
+                    : opts.kind === 'DELIVERY_RECEIVED'
                       ? opts.locale === 'en'
-                        ? 'Takeaway ready'
-                        : 'جاهز للاستلام'
-                      : opts.kind === 'PAY_LINK'
+                        ? 'Delivery received'
+                        : 'استلام توصيل'
+                      : opts.kind === 'TAKEAWAY_RECEIVED'
+                        ? opts.locale === 'en'
+                          ? 'Takeaway received'
+                          : 'استلام سفري'
+                        : opts.kind === 'TAKEAWAY_READY'
+                          ? opts.locale === 'en'
+                            ? 'Takeaway ready'
+                            : 'جاهز للاستلام'
+                          : opts.kind === 'PAY_LINK'
                         ? opts.locale === 'en'
                           ? 'Pay link'
                           : 'رابط الدفع'

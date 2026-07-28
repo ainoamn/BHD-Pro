@@ -1735,7 +1735,36 @@ export class RestoService {
         channel,
       },
     });
-    return this.getOrder(companyId, order.id);
+    const mapped = await this.getOrder(companyId, order.id);
+    let notify: {
+      ok: boolean;
+      channel: string | null;
+      error?: string;
+      mock?: boolean;
+      mode?: string;
+    } | null = null;
+    if (
+      (channel === RestoOrderChannel.DELIVERY ||
+        channel === RestoOrderChannel.TAKEAWAY) &&
+      order.guestPhone?.trim()
+    ) {
+      notify = await this.guestNotify.notifyGuest({
+        companyId,
+        phone: order.guestPhone,
+        guestName: order.guestName?.trim() || order.number || 'Guest',
+        kind:
+          channel === RestoOrderChannel.DELIVERY
+            ? 'DELIVERY_RECEIVED'
+            : 'TAKEAWAY_RECEIVED',
+      });
+    } else if (
+      (channel === RestoOrderChannel.DELIVERY ||
+        channel === RestoOrderChannel.TAKEAWAY) &&
+      !order.guestPhone?.trim()
+    ) {
+      notify = { ok: false, channel: null, error: 'no_phone' };
+    }
+    return { ...mapped, notify };
   }
 
   /**

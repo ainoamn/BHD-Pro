@@ -88,6 +88,18 @@ export default function RestoDeliveryPage() {
         guestPhone: guestPhone.trim(),
         deliveryAddress: address.trim() || undefined,
       });
+      const notify = res.data.notify;
+      if (notify?.ok) {
+        toast.success(
+          notify.mock || notify.mode === "mock"
+            ? t.orderReceivedMock
+            : t.orderReceivedOk,
+        );
+      } else if (notify?.error === "no_phone") {
+        toast.message(t.orderReceivedNoPhone);
+      } else if (notify) {
+        toast.message(t.orderReceivedFail);
+      }
       router.push(`/resto/orders/${res.data.id}`);
     } catch {
       toast.error(t.actionFail);
