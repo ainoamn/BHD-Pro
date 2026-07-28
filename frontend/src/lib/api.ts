@@ -2904,6 +2904,8 @@ class ApiClient {
       count: number;
       products: unknown[];
       full?: boolean;
+      cached?: boolean;
+      needsWarehouse?: boolean;
     }>('/pos/catalog/sync', {
       params: warehouseId ? { warehouseId } : {},
     });
@@ -2917,6 +2919,8 @@ class ApiClient {
       products: unknown[];
       full?: boolean;
       since?: string;
+      cached?: boolean;
+      needsWarehouse?: boolean;
     }>('/pos/stock/sync', {
       params: {
         ...(warehouseId ? { warehouseId } : {}),

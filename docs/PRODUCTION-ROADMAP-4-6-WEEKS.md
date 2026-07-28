@@ -99,6 +99,6 @@
 ## الخطوة التالية المقترحة
 
 1. **أنت اليوم:** Cloudflare §1.1 + تدوير أسرار + لصق Sentry DSN.  
-2. **الكود (Wave BY — منجز):** إبطال كاش لوحة التحكم عند البيع/الدفع — [`HISABY-WAVE-BY-DASHBOARD-CACHE-INVALIDATE-2026-07-28.md`](./HISABY-WAVE-BY-DASHBOARD-CACHE-INVALIDATE-2026-07-28.md).  
+2. **الكود (Wave BZ — منجز):** صدق كاش كتالوج POS + إبطال لوحة عند تسوية بوابة — [`HISABY-WAVE-BZ-POS-CACHE-PAY-INVALIDATE-2026-07-28.md`](./HISABY-WAVE-BZ-POS-CACHE-PAY-INVALIDATE-2026-07-28.md).  
 3. على Render: `REDIS_URL` اختياري؛ قالب OTP واتساب.  
 4. لاحقاً: أرشفة docs.

@@ -260,6 +260,7 @@ export default function PosCheckoutPage() {
   const [cameraOpen, setCameraOpen] = useState(false);
   const [catalogStale, setCatalogStale] = useState(false);
   const [catalogRefreshing, setCatalogRefreshing] = useState(false);
+  const [catalogServerCached, setCatalogServerCached] = useState(false);
   const [awaitingPayId, setAwaitingPayId] = useState<string | null>(null);
   const [shiftOpen, setShiftOpen] = useState(false);
   const [shiftOpenedAt, setShiftOpenedAt] = useState<string | null>(null);
@@ -511,24 +512,33 @@ export default function PosCheckoutPage() {
           if (deltaRes.data?.full) {
             await saveCatalogCache(deltas, wh);
             setCatalog(deltas.slice(0, 80));
+            setCatalogServerCached(!!deltaRes.data?.cached);
           } else if (deltas.length) {
             await mergeCatalogDeltas(deltas, wh);
+            setCatalogServerCached(false);
           }
           setCatalogStale(false);
           if (search.trim()) await loadCatalog(search, wh);
-          toast.success(t.catalogSynced);
+          toast.success(
+            deltaRes.data?.full && deltaRes.data?.cached
+              ? t.catalogSyncedCached
+              : t.catalogSynced,
+          );
         } else {
           const res = await api.syncPosCatalog(wh);
           const rows = (res.data?.products as PosProduct[]) || [];
           await saveCatalogCache(rows, wh);
           setCatalogStale(false);
+          setCatalogServerCached(!!res.data?.cached);
           if (search.trim()) {
             await loadCatalog(search, wh);
           } else {
             setCatalog(rows.slice(0, 80));
             setCatalogLoaded(true);
           }
-          toast.success(t.catalogSynced);
+          toast.success(
+            res.data?.cached ? t.catalogSyncedCached : t.catalogSynced,
+          );
         }
       } else {
         await loadCatalog(search, warehouseId || undefined);
@@ -543,6 +553,7 @@ export default function PosCheckoutPage() {
     loadCatalog,
     search,
     t.catalogSynced,
+    t.catalogSyncedCached,
     t.catalogSyncFail,
     t.syncFail,
     t.refreshCatalog,
@@ -3366,6 +3377,8 @@ export default function PosCheckoutPage() {
         </div>
         {catalogStale ? (
           <p className="text-[11px] text-amber-300/90 px-1">{t.catalogStale}</p>
+        ) : catalogServerCached ? (
+          <p className="text-[11px] text-slate-500 px-1">{t.catalogCachedHint}</p>
         ) : null}
         {!shiftOpen && requireOpenShift ? (
           <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100 flex items-center justify-between gap-2">

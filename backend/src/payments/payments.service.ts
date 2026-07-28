@@ -21,6 +21,7 @@ import { GATEWAY_META, ONLINE_GATEWAYS } from './gateway.constants';
 import { baisaToOmr, CheckoutInput, omrToBaisa } from './payment.types';
 import { PlatformGatewaysService } from './platform-gateways.service';
 import { CompanyGatewaysService } from './company-gateways.service';
+import { RedisService } from '../redis/redis.service';
 
 type GatewayRecord = {
   slug: PaymentGatewaySlug;
@@ -36,6 +37,7 @@ export class PaymentsService {
     private platformGateways: PlatformGatewaysService,
     private companyGateways: CompanyGatewaysService,
     private planCatalog: PlanCatalogService,
+    private redis: RedisService,
   ) {}
 
   private getOrigin(): string {
@@ -708,6 +710,10 @@ export class PaymentsService {
         }
       }
     });
+
+    void this.redis
+      .invalidateDashboardStats(billingInvoice.companyId)
+      .catch(() => undefined);
   }
 
   async getBillingInvoice(companyId: string | null, number: string) {

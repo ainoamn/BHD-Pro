@@ -5,9 +5,10 @@ import { PlatformGatewaysService } from './platform-gateways.service';
 import { PaymentsController, PlatformGatewaysController } from './payments.controller';
 import { PlatformAdminGuard } from '../common/guards/platform-admin.guard';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
+import { RedisModule } from '../redis/redis.module';
 
 @Module({
-  imports: [SubscriptionsModule],
+  imports: [SubscriptionsModule, RedisModule],
   controllers: [PaymentsController, PlatformGatewaysController],
   providers: [
     PaymentsService,
