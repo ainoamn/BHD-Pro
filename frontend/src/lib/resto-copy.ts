@@ -802,6 +802,7 @@ export const restoCopy = {
     splitOk: "Order split",
     guestPhoneHint:
       "Add a guest phone later to enable WhatsApp (pay link / receipt / cancel)",
+    guestContactSaved: "Guest contact saved",
     closePaidHint: "Creates a POS/Accounting invoice and deducts stock",
     paymentMethod: "Payment method",
     cash: "Cash",
