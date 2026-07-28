@@ -1593,6 +1593,8 @@ export class RestoService {
             name: order.contact.name,
             phone: order.contact.phone,
             points: Number(order.contact.loyaltyPoints || 0),
+            customerEnabled: false,
+            redeemEnabled: false,
           }
         : null,
       table: order.table
