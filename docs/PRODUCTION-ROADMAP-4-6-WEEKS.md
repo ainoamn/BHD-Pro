@@ -99,6 +99,6 @@
 ## الخطوة التالية المقترحة
 
 1. **أنت اليوم:** Cloudflare §1.1 + تدوير أسرار + لصق Sentry DSN.  
-2. **الكود (Wave DW — منجز):** نسخ هاتف/اسم الضيف إلى الطلب عند الإجلاس — [`HISABY-WAVE-DW-SEAT-COPY-GUEST-CONTACT-2026-07-28.md`](./HISABY-WAVE-DW-SEAT-COPY-GUEST-CONTACT-2026-07-28.md) · قبله DV طاولة جاهزة.  
+2. **الكود (Wave DX — منجز):** صدق جاهزية طلب التوصيل — [`HISABY-WAVE-DX-DELIVERY-READY-NOTIFY-HONESTY-2026-07-28.md`](./HISABY-WAVE-DX-DELIVERY-READY-NOTIFY-HONESTY-2026-07-28.md) · قبله DW نسخ هاتف عند الإجلاس.  
 3. على Render: `prisma migrate deploy` (يشمل أعمدة إشعار الحجوزات) · `REDIS_URL` اختياري؛ قالب OTP واتساب؛ `REQUIRE_2FA_HARD_AFTER_GRACE=1` عند الرغبة بقفل التعديلات.  
 4. لاحقاً: أرشفة docs.

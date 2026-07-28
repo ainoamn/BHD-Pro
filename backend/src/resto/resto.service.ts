@@ -3022,7 +3022,8 @@ export class RestoService {
 
     if (
       status === 'READY' &&
-      item.order.channel === RestoOrderChannel.TAKEAWAY
+      (item.order.channel === RestoOrderChannel.TAKEAWAY ||
+        item.order.channel === RestoOrderChannel.DELIVERY)
     ) {
       const stillCooking = await this.prisma.restoOrderItem.count({
         where: {
@@ -3038,7 +3039,10 @@ export class RestoService {
             companyId,
             phone: item.order.guestPhone,
             guestName: item.order.guestName || item.order.number || 'Guest',
-            kind: 'TAKEAWAY_READY',
+            kind:
+              item.order.channel === RestoOrderChannel.DELIVERY
+                ? 'DELIVERY_READY'
+                : 'TAKEAWAY_READY',
           });
         } else {
           notify = { ok: false, channel: null, error: 'no_phone' };
@@ -3856,15 +3860,23 @@ export class RestoService {
       mode?: string;
     } | null = null;
     const statusChanged =
-      (dto.deliveryStatus === 'OUT' || dto.deliveryStatus === 'DELIVERED') &&
+      (dto.deliveryStatus === 'OUT' ||
+        dto.deliveryStatus === 'DELIVERED' ||
+        dto.deliveryStatus === 'READY') &&
       dto.deliveryStatus !== prevStatus;
+    // Kitchen path already notifies DELIVERY_READY when last item is ready.
+    // Staff advancing manually to READY (e.g. skip kitchen) still needs honesty.
     if (statusChanged && order.guestPhone?.trim()) {
       notify = await this.guestNotify.notifyGuest({
         companyId,
         phone: order.guestPhone,
         guestName: order.guestName?.trim() || order.number || 'Guest',
         kind:
-          dto.deliveryStatus === 'OUT' ? 'DELIVERY_OUT' : 'DELIVERY_DONE',
+          dto.deliveryStatus === 'OUT'
+            ? 'DELIVERY_OUT'
+            : dto.deliveryStatus === 'DELIVERED'
+              ? 'DELIVERY_DONE'
+              : 'DELIVERY_READY',
       });
     } else if (statusChanged && !order.guestPhone?.trim()) {
       notify = { ok: false, channel: null, error: 'no_phone' };

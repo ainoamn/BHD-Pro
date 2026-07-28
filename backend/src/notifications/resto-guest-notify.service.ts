@@ -20,6 +20,7 @@ export type RestoGuestNotifyKind =
   | 'DELIVERY_OUT'
   | 'DELIVERY_DONE'
   | 'DELIVERY_RECEIVED'
+  | 'DELIVERY_READY'
   | 'TAKEAWAY_RECEIVED'
   | 'TAKEAWAY_READY'
   | 'ORDER_CANCELLED'
@@ -120,6 +121,11 @@ export class RestoGuestNotifyService {
         ? `مرحباً ${guestName}، استلمنا طلب التوصيل من ${companyName} وبدأ التحضير.`
         : `Hi ${guestName}, we received your delivery order at ${companyName} and started preparing.`;
     }
+    if (kind === 'DELIVERY_READY') {
+      return ar
+        ? `مرحباً ${guestName}، طلب التوصيل من ${companyName} جاهز ويُجهَّز للإرسال.`
+        : `Hi ${guestName}, your delivery order from ${companyName} is ready and being prepared for dispatch.`;
+    }
     if (kind === 'TAKEAWAY_RECEIVED') {
       return ar
         ? `مرحباً ${guestName}، استلمنا طلب الاستلام من ${companyName} وبدأ التحضير.`
@@ -209,6 +215,7 @@ export class RestoGuestNotifyService {
           DELIVERY_OUT: 'الطلب في الطريق',
           DELIVERY_DONE: 'تم التسليم',
           DELIVERY_RECEIVED: 'استلام توصيل',
+          DELIVERY_READY: 'التوصيل جاهز',
           TAKEAWAY_RECEIVED: 'استلام سفري',
           TAKEAWAY_READY: 'جاهز للاستلام',
           ORDER_CANCELLED: 'إلغاء الطلب',
@@ -225,6 +232,7 @@ export class RestoGuestNotifyService {
           DELIVERY_OUT: 'Out for delivery',
           DELIVERY_DONE: 'Delivered',
           DELIVERY_RECEIVED: 'Delivery received',
+          DELIVERY_READY: 'Delivery ready',
           TAKEAWAY_RECEIVED: 'Takeaway received',
           TAKEAWAY_READY: 'Takeaway ready',
           ORDER_CANCELLED: 'Order cancelled',
