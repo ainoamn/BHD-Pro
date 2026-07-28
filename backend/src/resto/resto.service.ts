@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { createHash, randomBytes } from 'crypto';
@@ -97,6 +98,7 @@ const RESTO_SERVER_ROLES: UserRole[] = [
 
 @Injectable()
 export class RestoService {
+  private readonly logger = new Logger(RestoService.name);
   private readonly kitchenBuses = new Map<string, Subject<void>>();
 
   constructor(
@@ -372,6 +374,8 @@ export class RestoService {
     turnMinutes: 90,
     autoConfirm: false,
     autoNotify: true,
+    /** Minutes before reservedAt to send reminder; 0 = disabled */
+    remindMinutes: 120,
   };
 
   private hourInZone(timeZone: string, now = new Date()): number {
@@ -435,6 +439,7 @@ export class RestoService {
       turnMinutes: number;
       autoConfirm: boolean;
       autoNotify: boolean;
+      remindMinutes: number;
     };
   } {
     const base = { ...RestoService.DEFAULT_DAY_PARTS };
@@ -536,6 +541,12 @@ export class RestoService {
         ),
         autoConfirm: bookRaw.autoConfirm === true,
         autoNotify: bookRaw.autoNotify !== false,
+        remindMinutes: clampInt(
+          bookRaw.remindMinutes,
+          0,
+          24 * 60,
+          bookingBase.remindMinutes,
+        ),
       },
     };
   }
@@ -664,6 +675,12 @@ export class RestoService {
         nextBooking.autoConfirm = !!dto.booking.autoConfirm;
       if (dto.booking.autoNotify != null)
         nextBooking.autoNotify = !!dto.booking.autoNotify;
+      if (dto.booking.remindMinutes != null) {
+        const n = Number(dto.booking.remindMinutes);
+        nextBooking.remindMinutes = Number.isFinite(n)
+          ? Math.min(24 * 60, Math.max(0, Math.floor(n)))
+          : nextBooking.remindMinutes;
+      }
 
       if (dto.booking.publicSlug !== undefined) {
         const raw = (dto.booking.publicSlug || '').trim().toLowerCase();
@@ -1908,10 +1925,21 @@ export class RestoService {
     }
 
     const order = await this.getOrder(companyId, opened.id);
+    const openedNotify = (
+      opened as {
+        notify?: {
+          ok: boolean;
+          channel: string | null;
+          error?: string;
+          mock?: boolean;
+          mode?: string;
+        } | null;
+      }
+    ).notify;
     return {
       ...order,
       idempotent: false as const,
-      notify: opened.notify ?? null,
+      notify: openedNotify ?? null,
     };
   }
 
@@ -5900,7 +5928,7 @@ export class RestoService {
       data.status = 'CONFIRMED';
       data.confirmedAt = new Date();
     }
-    if (kind === 'REMINDER' && delivered) {
+    if (kind === 'REMINDER' && notify.ok) {
       data.reminderSentAt = new Date();
     }
     const updated = await this.prisma.restoReservation.update({
@@ -5909,6 +5937,80 @@ export class RestoService {
       include: { table: { select: { id: true, code: true, name: true } } },
     });
     return { ...this.mapReservation(updated), notify, confirmUrl };
+  }
+
+  /**
+   * Cron helper: send REMINDER for CONFIRMED bookings in each company's remind window.
+   * remindMinutes=0 or autoNotify=false skips that company.
+   */
+  async processDueReservationReminders(): Promise<{
+    scanned: number;
+    sent: number;
+    failed: number;
+  }> {
+    const now = new Date();
+    const maxHorizonMs = 24 * 60 * 60 * 1000;
+    const candidates = await this.prisma.restoReservation.findMany({
+      where: {
+        status: 'CONFIRMED',
+        reminderSentAt: null,
+        phone: { not: null },
+        reservedAt: {
+          gt: now,
+          lte: new Date(now.getTime() + maxHorizonMs),
+        },
+      },
+      select: {
+        id: true,
+        companyId: true,
+        reservedAt: true,
+        phone: true,
+      },
+      orderBy: { reservedAt: 'asc' },
+      take: 300,
+    });
+
+    let sent = 0;
+    let failed = 0;
+    if (candidates.length === 0) {
+      return { scanned: 0, sent: 0, failed: 0 };
+    }
+
+    const companyIds = [...new Set(candidates.map((c) => c.companyId))];
+    const companies = await this.prisma.company.findMany({
+      where: { id: { in: companyIds } },
+      select: { id: true, restoConfig: true },
+    });
+    const configByCompany = new Map(
+      companies.map((c) => [c.id, this.parseRestoConfig(c.restoConfig)]),
+    );
+
+    for (const row of candidates) {
+      const booking = configByCompany.get(row.companyId)?.booking;
+      if (!booking?.autoNotify || !(booking.remindMinutes > 0)) continue;
+      const windowMs = booking.remindMinutes * 60_000;
+      const dueAt = row.reservedAt.getTime() - windowMs;
+      if (dueAt > now.getTime()) continue;
+      if (!row.phone?.trim()) continue;
+      try {
+        const result = await this.notifyReservationGuest(
+          row.companyId,
+          row.id,
+          'REMINDER',
+        );
+        if (result.notify?.ok) sent += 1;
+        else failed += 1;
+      } catch (err) {
+        failed += 1;
+        this.logger.warn(
+          `Reminder failed for reservation ${row.id}: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      }
+    }
+
+    return { scanned: candidates.length, sent, failed };
   }
 
   async getPublicReservation(token: string) {

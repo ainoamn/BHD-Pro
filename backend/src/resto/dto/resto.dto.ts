@@ -979,6 +979,14 @@ export class RestoBookingConfigDto {
   @IsOptional()
   @IsBoolean()
   autoNotify?: boolean;
+
+  /** Minutes before reservation to auto-send reminder; 0 disables */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(1440)
+  remindMinutes?: number;
 }
 
 export class UpdateRestoConfigDto {

@@ -2880,6 +2880,7 @@ class ApiClient {
         turnMinutes: number;
         autoConfirm: boolean;
         autoNotify: boolean;
+        remindMinutes: number;
       };
       defaults: Record<string, { start: number; end: number }>;
       slaDefaults: {
@@ -2914,6 +2915,7 @@ class ApiClient {
       turnMinutes?: number;
       autoConfirm?: boolean;
       autoNotify?: boolean;
+      remindMinutes?: number;
     };
   }) {
     return this.put<{
@@ -2940,6 +2942,7 @@ class ApiClient {
         turnMinutes: number;
         autoConfirm: boolean;
         autoNotify: boolean;
+        remindMinutes: number;
       };
       defaults: Record<string, { start: number; end: number }>;
       slaDefaults: {

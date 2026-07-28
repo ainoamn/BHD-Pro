@@ -82,6 +82,7 @@ export default function RestoSettingsPage() {
     turnMinutes: 90,
     autoConfirm: false,
     autoNotify: true,
+    remindMinutes: 120,
   });
   const [bookingBusy, setBookingBusy] = useState(false);
   const [qrTables, setQrTables] = useState<
@@ -142,6 +143,10 @@ export default function RestoSettingsPage() {
         turnMinutes: res.data.booking.turnMinutes,
         autoConfirm: !!res.data.booking.autoConfirm,
         autoNotify: res.data.booking.autoNotify !== false,
+        remindMinutes:
+          typeof res.data.booking.remindMinutes === "number"
+            ? res.data.booking.remindMinutes
+            : 120,
       });
     }
     setDayPartMeta({
@@ -223,6 +228,7 @@ export default function RestoSettingsPage() {
           turnMinutes: booking.turnMinutes,
           autoConfirm: booking.autoConfirm,
           autoNotify: booking.autoNotify,
+          remindMinutes: booking.remindMinutes,
         },
       });
       if (res.data.booking) {
@@ -239,6 +245,10 @@ export default function RestoSettingsPage() {
           turnMinutes: res.data.booking.turnMinutes,
           autoConfirm: !!res.data.booking.autoConfirm,
           autoNotify: res.data.booking.autoNotify !== false,
+          remindMinutes:
+            typeof res.data.booking.remindMinutes === "number"
+              ? res.data.booking.remindMinutes
+              : 120,
         });
       }
       toast.success(t.bookingSaved);
@@ -550,6 +560,7 @@ export default function RestoSettingsPage() {
                 ["openHour", t.bookingOpen],
                 ["closeHour", t.bookingClose],
                 ["turnMinutes", t.bookingTurn],
+                ["remindMinutes", t.bookingRemind],
               ] as const
             ).map(([key, label]) => (
               <label key={key} className="block space-y-1">

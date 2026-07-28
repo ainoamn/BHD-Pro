@@ -3,6 +3,7 @@ import { RestoController } from './resto.controller';
 import { PublicRestoController } from './public-resto.controller';
 import { RestoService } from './resto.service';
 import { RestoDemoSeedService } from './resto-demo-seed.service';
+import { RestoReservationReminderService } from './resto-reservation-reminder.service';
 import { PosModule } from '../pos/pos.module';
 import { DualControlModule } from '../dual-control/dual-control.module';
 import { NotificationsModule } from '../notifications/notifications.module';
@@ -23,6 +24,7 @@ import { ModulePermissionGuard } from '../common/guards/module-permission.guard'
   providers: [
     RestoService,
     RestoDemoSeedService,
+    RestoReservationReminderService,
     PlanFeatureGuard,
     ModulePermissionGuard,
   ],
