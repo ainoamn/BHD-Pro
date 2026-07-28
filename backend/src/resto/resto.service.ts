@@ -3022,8 +3022,7 @@ export class RestoService {
 
     if (
       status === 'READY' &&
-      item.order.channel === RestoOrderChannel.TAKEAWAY &&
-      item.order.guestPhone?.trim()
+      item.order.channel === RestoOrderChannel.TAKEAWAY
     ) {
       const stillCooking = await this.prisma.restoOrderItem.count({
         where: {
@@ -3034,12 +3033,16 @@ export class RestoService {
         },
       });
       if (stillCooking === 0) {
-        notify = await this.guestNotify.notifyGuest({
-          companyId,
-          phone: item.order.guestPhone,
-          guestName: item.order.guestName || item.order.number || 'Guest',
-          kind: 'TAKEAWAY_READY',
-        });
+        if (item.order.guestPhone?.trim()) {
+          notify = await this.guestNotify.notifyGuest({
+            companyId,
+            phone: item.order.guestPhone,
+            guestName: item.order.guestName || item.order.number || 'Guest',
+            kind: 'TAKEAWAY_READY',
+          });
+        } else {
+          notify = { ok: false, channel: null, error: 'no_phone' };
+        }
       }
     }
 
@@ -3728,15 +3731,17 @@ export class RestoService {
       mock?: boolean;
       mode?: string;
     } | null = null;
-    if (order.guestPhone?.trim() && order.guestName?.trim()) {
+    if (order.guestPhone?.trim()) {
       notify = await this.guestNotify.notifyGuest({
         companyId,
         phone: order.guestPhone,
-        guestName: order.guestName,
+        guestName: order.guestName?.trim() || order.number || 'Guest',
         kind: 'PAY_LINK',
         tableCode: order.table?.code || null,
         confirmUrl: payUrl,
       });
+    } else {
+      notify = { ok: false, channel: null, error: 'no_phone' };
     }
 
     return {

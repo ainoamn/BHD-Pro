@@ -197,7 +197,9 @@ export default function RestoKitchenPage() {
             `${t.notifySent}${notify.channel ? ` · ${notify.channel}` : ""}`,
           );
         }
-      } else if (notify && !notify.ok && notify.error && notify.error !== "no_phone") {
+      } else if (notify?.error === "no_phone") {
+        toast(t.notifyNoPhone, { icon: "⚠️" });
+      } else if (notify && !notify.ok && notify.error) {
         toast.error(t.notifyFail);
       }
       await load();
