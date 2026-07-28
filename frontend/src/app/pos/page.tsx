@@ -672,13 +672,20 @@ export default function PosCheckoutPage() {
       const rows = ((res.data as RecentCashSale[]) || []).filter(
         (inv) => String(inv.status || "").toUpperCase() !== "CANCELLED",
       );
-      setRecentSales(rows);
-      if (!q?.trim()) {
-        const { saveRecentSalesCache } = await import("@/lib/pos-recent-sales-cache");
-        saveRecentSalesCache(rows, wh);
+      // Never wipe a non-empty strip with an empty API response (stale filter / race).
+      if (rows.length || q?.trim()) {
+        setRecentSales(rows);
+        if (!q?.trim()) {
+          const { saveRecentSalesCache } = await import("@/lib/pos-recent-sales-cache");
+          saveRecentSalesCache(rows, wh);
+        }
+      } else {
+        setRecentSales((prev) => {
+          if (prev.length) return prev;
+          return rows;
+        });
       }
     } catch {
-      // Keep previous rows visible; only surface error for retry
       setReceiptsError(true);
     } finally {
       setReceiptsLoading(false);
@@ -2358,22 +2365,7 @@ export default function PosCheckoutPage() {
       }
     }
 
-    const lowAfter = workingCart.filter((l) => {
-      if (!l.isTracked) return false;
-      const fromCatalog = catalog.find((c) => c.id === l.productId);
-      const minQ =
-        minByProduct.get(l.productId) ??
-        (fromCatalog?.minQuantity != null && fromCatalog.minQuantity !== ""
-          ? Number(fromCatalog.minQuantity)
-          : 5);
-      const threshold = Number.isFinite(minQ) ? minQ : 5;
-      return l.stock - l.quantity <= threshold;
-    });
-    if (lowAfter.length && !window.confirm(t.stockLowAfterSale)) {
-      setPendingCheckout(null);
-      setCheckoutBusy(false);
-      return;
-    }
+    // Soft stock notice only — do not block checkout with a confirm dialog.
 
     const usesStoreCredit =
       method === "STORE_CREDIT" ||
@@ -2554,6 +2546,39 @@ export default function PosCheckoutPage() {
         paymentMethod: paymentLabelJoined,
         warehouseLabel: warehouseLabel || undefined,
       });
+      if (inv.id) {
+        const cust = customers.find((c) => c.id === contactId);
+        setRecentSales((prev) => {
+          const next: RecentCashSale = {
+            id: inv.id!,
+            number: String(inv.number || ""),
+            total: Number(inv.total),
+            createdAt: new Date().toISOString(),
+            status: "PAID",
+            contact: cust
+              ? { id: cust.id, name: cust.name, phone: cust.phone }
+              : null,
+            items: snapshot.map((l) => ({
+              description: l.name,
+              quantity: l.qty,
+              total: l.lineTotal,
+              product: { barcode: l.barcode, sku: l.sku },
+              notes: "note" in l ? l.note : undefined,
+            })),
+            payments: effectivePayments?.length
+              ? effectivePayments.map((p) => ({
+                  method: p.method,
+                  amount: p.amount,
+                }))
+              : [{ method, amount: Number(inv.total) }],
+          };
+          const merged = [next, ...prev.filter((s) => s.id !== next.id)].slice(0, 20);
+          void import("@/lib/pos-recent-sales-cache").then(({ saveRecentSalesCache }) => {
+            saveRecentSalesCache(merged, warehouseId || undefined);
+          });
+          return merged;
+        });
+      }
       if (isPartner && inv.id) {
         setAwaitingPayId(inv.id);
         try {
@@ -3333,14 +3358,15 @@ export default function PosCheckoutPage() {
         {catalogStale ? (
           <p className="text-[11px] text-amber-300/90 px-1">{t.catalogStale}</p>
         ) : null}
-        {!shiftOpen ? (
+        {!shiftOpen && requireOpenShift ? (
           <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100 flex items-center justify-between gap-2">
             <span>{t.shiftBannerClosed}</span>
             <Link href="/pos/shifts" className="font-bold underline shrink-0">
               {t.openShiftsLink}
             </Link>
           </div>
-        ) : shiftOpenedAt &&
+        ) : shiftOpen &&
+          shiftOpenedAt &&
           Date.now() - new Date(shiftOpenedAt).getTime() >
             10 * 60 * 60 * 1000 ? (
           <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-[11px] text-rose-100 flex items-center justify-between gap-2">

@@ -2061,7 +2061,13 @@ export class PosService {
     const cashierId = opts?.cashierId;
     const from = this.startOfDayMuscat();
     const warehouseFilter = warehouseId
-      ? { posShift: { is: { warehouseId } } }
+      ? {
+          OR: [
+            { posWarehouseId: warehouseId },
+            { posShift: { is: { warehouseId } } },
+            { AND: [{ posWarehouseId: null }, { posShiftId: null }] },
+          ],
+        }
       : {};
 
     const baseWhere = {
@@ -2574,18 +2580,28 @@ export class PosService {
           ]
         : undefined;
 
+    const warehouseOr = warehouseId
+      ? [
+          { posWarehouseId: warehouseId },
+          { posShift: { is: { warehouseId } } },
+          // Legacy sales without warehouse tags still appear on the register
+          { AND: [{ posWarehouseId: null }, { posShiftId: null }] },
+        ]
+      : undefined;
+
     const sales = await this.prisma.invoice.findMany({
       where: {
         companyId,
         type: InvoiceType.SALES,
         isCash: true,
         notes: { contains: 'Hisaby POS' },
-        ...(warehouseId
-          ? {
-              posShift: { warehouseId },
-            }
-          : {}),
-        ...(searchOr ? { OR: searchOr } : {}),
+        ...(warehouseOr && searchOr
+          ? { AND: [{ OR: warehouseOr }, { OR: searchOr }] }
+          : warehouseOr
+            ? { OR: warehouseOr }
+            : searchOr
+              ? { OR: searchOr }
+              : {}),
       },
       orderBy: { createdAt: 'desc' },
       take,
@@ -2614,7 +2630,7 @@ export class PosService {
       createdAt: inv.createdAt,
       status: inv.status,
       notes: inv.notes,
-      warehouseId: inv.posShift?.warehouseId || null,
+      warehouseId: inv.posWarehouseId || inv.posShift?.warehouseId || null,
       contact: inv.contact,
       items: inv.items,
       payments: inv.payments,
