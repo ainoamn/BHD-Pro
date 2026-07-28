@@ -99,6 +99,6 @@
 ## الخطوة التالية المقترحة
 
 1. **أنت اليوم:** Cloudflare §1.1 + تدوير أسرار + لصق Sentry DSN.  
-2. **الكود (Wave BR — منجز):** OTP واتساب اختياري + ربط دائم عند الدخول — [`HISABY-WAVE-BR-OTP-ALWAYS-LINK-LOGIN-2026-07-28.md`](./HISABY-WAVE-BR-OTP-ALWAYS-LINK-LOGIN-2026-07-28.md).  
+2. **الكود (Wave BS — منجز):** صدق إخفاء وحدات الباقة في الشريط والاشتراك ولوحات التطبيقات — [`HISABY-WAVE-BS-PLAN-MODULE-HONESTY-2026-07-28.md`](./HISABY-WAVE-BS-PLAN-MODULE-HONESTY-2026-07-28.md).  
 3. على Render (اختياري): `WHATSAPP_OTP_TEMPLATE` بعد موافقة Meta.  
-4. لاحقاً: كاش Redis للمنتجات · إخفاء وحدات عبر الباقات بوضوح أكبر · أرشفة docs.
+4. لاحقاً: كاش Redis لكتالوج POS · صدق mock للبريد/SMS · أرشفة docs.

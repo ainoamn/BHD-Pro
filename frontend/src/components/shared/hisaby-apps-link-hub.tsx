@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import toast from "react-hot-toast";
 import {
   Calculator,
+  Crown,
   Link2,
   Loader2,
+  Lock,
   ShoppingCart,
   UtensilsCrossed,
 } from "lucide-react";
@@ -19,30 +20,40 @@ import {
   canOpenPosApp,
   canOpenRestoApp,
 } from "@/lib/module-permissions";
+import {
+  featuresFromPlanId,
+  rememberUpgradeIntent,
+  subscriptionUpgradeHref,
+  type UpgradeFeatureKey,
+} from "@/lib/plan-upgrade";
 
 type HubTone = "accounting" | "pos" | "resto";
 
 const copy = {
   ar: {
     title: "أنظمة حسابي — شركة واحدة",
-    hint: "المحاسبة والكاشير والمطاعم مربوطة دائماً: نفس الشركة والمستخدمين والمخزون والحسابات. التحكم بإظهار الأنظمة لاحقاً عبر الباقة والاشتراك.",
+    hint: "المحاسبة والكاشير والمطاعم مربوطة دائماً بنفس الشركة. إظهار كل نظام يعتمد على الباقة والصلاحيات.",
     accounting: "المحاسبة",
     pos: "الكاشير",
     resto: "المطاعم",
     open: "فتح",
+    upgrade: "ترقية",
     unified: "مربوط دائماً",
+    locked: "غير مشمول بالباقة",
     current: "الحالي",
     loadFailed: "تعذر تحميل حالة الأنظمة",
     retry: "إعادة المحاولة",
   },
   en: {
     title: "Hisaby apps — one company",
-    hint: "Accounting, POS, and Restaurants stay linked: same company, users, stock, and ledgers. Module visibility is controlled later by plan/subscription.",
+    hint: "Accounting, POS, and Restaurants stay linked on one company. Which apps you see depends on plan and permissions.",
     accounting: "Accounting",
     pos: "POS",
     resto: "Restaurants",
     open: "Open",
+    upgrade: "Upgrade",
     unified: "Always linked",
+    locked: "Not on your plan",
     current: "Current",
     loadFailed: "Could not load app status",
     retry: "Retry",
@@ -64,18 +75,31 @@ export function HisabyAppsLinkHub({
 
   const [ready, setReady] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  const [planFeatures, setPlanFeatures] = useState<Record<string, boolean>>(
+    () => featuresFromPlanId(user?.company?.plan),
+  );
 
   const refresh = useCallback(async () => {
     setLoadError(false);
     try {
-      await Promise.all([api.getPosLinkStatus(), api.getRestoLinkStatus()]);
+      const [sub] = await Promise.all([
+        api.getCurrentSubscription().catch(() => null),
+        api.getPosLinkStatus().catch(() => null),
+        api.getRestoLinkStatus().catch(() => null),
+      ]);
+      const data = sub?.data as
+        | { features?: Record<string, boolean>; plan?: string }
+        | undefined;
+      const fromPlan = featuresFromPlanId(data?.plan || user?.company?.plan);
+      setPlanFeatures({ ...fromPlan, ...(data?.features || {}) });
       setReady(true);
       setLoadError(false);
     } catch {
       setReady(false);
       setLoadError(true);
+      setPlanFeatures(featuresFromPlanId(user?.company?.plan));
     }
-  }, []);
+  }, [user?.company?.plan]);
 
   useEffect(() => {
     void refresh();
@@ -96,6 +120,8 @@ export function HisabyAppsLinkHub({
       icon: Calculator,
       current: tone === "accounting",
       visible: canOpenAccountingApp(perms, role),
+      planOk: true,
+      feature: null as UpgradeFeatureKey | null,
     },
     {
       key: "pos" as const,
@@ -104,6 +130,8 @@ export function HisabyAppsLinkHub({
       icon: ShoppingCart,
       current: tone === "pos",
       visible: canOpenPosApp(perms, role),
+      planOk: planFeatures.pos === true,
+      feature: "pos" as UpgradeFeatureKey,
     },
     {
       key: "resto" as const,
@@ -112,6 +140,8 @@ export function HisabyAppsLinkHub({
       icon: UtensilsCrossed,
       current: tone === "resto",
       visible: canOpenRestoApp(perms, role),
+      planOk: planFeatures.resto === true,
+      feature: "resto" as UpgradeFeatureKey,
     },
   ].filter((a) => a.visible);
 
@@ -141,6 +171,10 @@ export function HisabyAppsLinkHub({
       <div className="grid gap-2 sm:grid-cols-3">
         {apps.map((app) => {
           const Icon = app.icon;
+          const href =
+            app.planOk || !app.feature
+              ? app.href
+              : subscriptionUpgradeHref(app.feature, app.href);
           return (
             <div
               key={app.key}
@@ -155,6 +189,11 @@ export function HisabyAppsLinkHub({
                   <span className="text-[10px] font-bold uppercase opacity-50">
                     {t.current}
                   </span>
+                ) : !app.planOk ? (
+                  <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-300">
+                    <Lock className="w-3 h-3" />
+                    {t.locked}
+                  </span>
                 ) : ready ? (
                   <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-300">
                     <Link2 className="w-3 h-3" />
@@ -166,10 +205,21 @@ export function HisabyAppsLinkHub({
               </div>
               <div className="mt-auto">
                 <Link
-                  href={app.href}
-                  className="inline-flex min-h-9 items-center rounded-lg bg-white/10 hover:bg-white/15 px-2.5 py-1 text-[11px] font-bold"
+                  href={href}
+                  onClick={() => {
+                    if (!app.planOk && app.feature) {
+                      rememberUpgradeIntent(app.feature, app.href);
+                    }
+                  }}
+                  className={cn(
+                    "inline-flex min-h-9 items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-bold",
+                    app.planOk
+                      ? "bg-white/10 hover:bg-white/15"
+                      : "bg-amber-500/20 text-amber-200 hover:bg-amber-500/30",
+                  )}
                 >
-                  {t.open}
+                  {!app.planOk ? <Crown className="w-3 h-3" /> : null}
+                  {app.planOk ? t.open : t.upgrade}
                 </Link>
               </div>
             </div>

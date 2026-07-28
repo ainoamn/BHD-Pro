@@ -4,7 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Crown, Check, Loader2, Zap, CreditCard, Sparkles, ArrowLeft } from "lucide-react";
+import { Crown, Check, Lock, Loader2, Zap, CreditCard, Sparkles, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
@@ -19,6 +19,8 @@ import {
   UPGRADE_FEATURES,
   type UpgradeFeatureKey,
 } from "@/lib/plan-upgrade";
+
+const COMPARISON_FEATURES = Object.keys(UPGRADE_FEATURES) as UpgradeFeatureKey[];
 
 interface Plan {
   id: string;
@@ -502,41 +504,41 @@ function SubscriptionContent() {
 
               <ul className="space-y-2 text-sm text-slate-400 mb-6">
                 <li className="flex items-center gap-2">
-                  <Check className="w-4 h-4 text-emerald-400" />
+                  <Check className="w-4 h-4 text-emerald-400 shrink-0" />
                   {limitLabel(plan.invoicesLimit)} {t("invoicesLimit")}
                 </li>
                 <li className="flex items-center gap-2">
-                  <Check className="w-4 h-4 text-emerald-400" />
+                  <Check className="w-4 h-4 text-emerald-400 shrink-0" />
                   {limitLabel(plan.usersLimit)} {t("usersLimit")}
                 </li>
                 <li className="flex items-center gap-2">
-                  <Check className="w-4 h-4 text-emerald-400" />
+                  <Check className="w-4 h-4 text-emerald-400 shrink-0" />
                   {plan.support} {t("support")}
                 </li>
-                {plan.features?.pos && (
-                  <li className="flex items-center gap-2">
-                    <Check className="w-4 h-4 text-emerald-400" />
-                    POS / كاشير
-                  </li>
-                )}
-                {plan.features?.resto && (
-                  <li className="flex items-center gap-2">
-                    <Check className="w-4 h-4 text-emerald-400" />
-                    مطاعم / Restaurants
-                  </li>
-                )}
-                {plan.features?.aiAnalytics && (
-                  <li className="flex items-center gap-2">
-                    <Check className="w-4 h-4 text-emerald-400" />
-                    AI Analytics
-                  </li>
-                )}
-                {plan.features?.multiBranch && (
-                  <li className="flex items-center gap-2">
-                    <Check className="w-4 h-4 text-emerald-400" />
-                    فروع متعددة
-                  </li>
-                )}
+                {COMPARISON_FEATURES.map((key) => {
+                  const meta = UPGRADE_FEATURES[key];
+                  const included =
+                    plan.features?.[key] === true ||
+                    planIncludesFeature(plan.id, key);
+                  return (
+                    <li
+                      key={key}
+                      className={cn(
+                        "flex items-center gap-2",
+                        !included && "text-slate-600",
+                      )}
+                    >
+                      {included ? (
+                        <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                      ) : (
+                        <Lock className="w-4 h-4 text-slate-600 shrink-0" />
+                      )}
+                      <span className={cn(!included && "line-through decoration-slate-700")}>
+                        {en ? meta.labelEn : meta.labelAr}
+                      </span>
+                    </li>
+                  );
+                })}
               </ul>
 
               <button

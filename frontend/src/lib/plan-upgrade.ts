@@ -156,3 +156,30 @@ export function planIncludesFeature(
   const min = UPGRADE_FEATURES[feature].minPlan;
   return planRank(planId) >= planRank(min);
 }
+
+/** Conservative defaults from plan code before /subscription API returns. */
+export function featuresFromPlanId(
+  planId?: string | null,
+): Record<UpgradeFeatureKey, boolean> {
+  return {
+    pos: planIncludesFeature(planId || undefined, "pos"),
+    resto: planIncludesFeature(planId || undefined, "resto"),
+    aiAnalytics: planIncludesFeature(planId || undefined, "aiAnalytics"),
+    multiBranch: planIncludesFeature(planId || undefined, "multiBranch"),
+    apiKeys: planIncludesFeature(planId || undefined, "apiKeys"),
+    advancedReports: planIncludesFeature(planId || undefined, "advancedReports"),
+  };
+}
+
+export function isLegacyPlanFeature(
+  legacy?: string | null,
+): legacy is UpgradeFeatureKey {
+  return (
+    legacy === "pos" ||
+    legacy === "resto" ||
+    legacy === "aiAnalytics" ||
+    legacy === "multiBranch" ||
+    legacy === "apiKeys" ||
+    legacy === "advancedReports"
+  );
+}

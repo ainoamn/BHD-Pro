@@ -5,7 +5,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   Calculator,
+  Crown,
   Link2,
+  Lock,
   ShoppingCart,
   UtensilsCrossed,
 } from "lucide-react";
@@ -17,25 +19,41 @@ import {
   canOpenPosApp,
   canOpenRestoApp,
 } from "@/lib/module-permissions";
+import {
+  featuresFromPlanId,
+  rememberUpgradeIntent,
+  subscriptionUpgradeHref,
+  type UpgradeFeatureKey,
+} from "@/lib/plan-upgrade";
 
 export function HisabyAppsPanel({ className }: { className?: string }) {
   const t = useTranslations("dashboard");
   const user = useAuthStore((s) => s.user);
   const perms = user?.modulePermissions;
   const [loadError, setLoadError] = useState(false);
+  const [planFeatures, setPlanFeatures] = useState<Record<string, boolean>>(
+    () => featuresFromPlanId(user?.company?.plan),
+  );
 
   const refresh = useCallback(async () => {
     setLoadError(false);
     try {
-      await Promise.all([
+      const [sub] = await Promise.all([
+        api.getCurrentSubscription().catch(() => null),
         api.getPosLinkStatus().catch(() => null),
         api.getRestoLinkStatus().catch(() => null),
       ]);
+      const data = sub?.data as
+        | { features?: Record<string, boolean>; plan?: string }
+        | undefined;
+      const fromPlan = featuresFromPlanId(data?.plan || user?.company?.plan);
+      setPlanFeatures({ ...fromPlan, ...(data?.features || {}) });
       setLoadError(false);
     } catch {
       setLoadError(true);
+      setPlanFeatures(featuresFromPlanId(user?.company?.plan));
     }
-  }, []);
+  }, [user?.company?.plan]);
 
   useEffect(() => {
     void refresh();
@@ -44,7 +62,7 @@ export function HisabyAppsPanel({ className }: { className?: string }) {
   const apps = useMemo(() => {
     const all = [
       {
-        key: "accounting",
+        key: "accounting" as const,
         href: "/dashboard",
         title: t("appAccounting"),
         desc: t("appAccountingDesc"),
@@ -53,9 +71,11 @@ export function HisabyAppsPanel({ className }: { className?: string }) {
         iconTone: "bg-emerald-500/15 text-emerald-400",
         current: true,
         visible: canOpenAccountingApp(perms, user?.role),
+        planOk: true,
+        feature: null as UpgradeFeatureKey | null,
       },
       {
-        key: "pos",
+        key: "pos" as const,
         href: "/pos",
         title: t("appPos"),
         desc: t("appPosDesc"),
@@ -64,9 +84,11 @@ export function HisabyAppsPanel({ className }: { className?: string }) {
         iconTone: "bg-sky-500/15 text-sky-400",
         current: false,
         visible: canOpenPosApp(perms, user?.role),
+        planOk: planFeatures.pos === true,
+        feature: "pos" as UpgradeFeatureKey,
       },
       {
-        key: "resto",
+        key: "resto" as const,
         href: "/resto",
         title: t("appResto"),
         desc: t("appRestoDesc"),
@@ -75,10 +97,12 @@ export function HisabyAppsPanel({ className }: { className?: string }) {
         iconTone: "bg-amber-500/15 text-amber-400",
         current: false,
         visible: canOpenRestoApp(perms, user?.role),
+        planOk: planFeatures.resto === true,
+        feature: "resto" as UpgradeFeatureKey,
       },
     ];
     return all.filter((a) => a.visible);
-  }, [t, perms, user?.role]);
+  }, [t, perms, user?.role, planFeatures.pos, planFeatures.resto]);
 
   if (!apps.length) return null;
 
@@ -108,6 +132,10 @@ export function HisabyAppsPanel({ className }: { className?: string }) {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {apps.map((app) => {
           const Icon = app.icon;
+          const href =
+            app.planOk || !app.feature
+              ? app.href
+              : subscriptionUpgradeHref(app.feature, app.href);
           return (
             <div
               key={app.key}
@@ -126,6 +154,11 @@ export function HisabyAppsPanel({ className }: { className?: string }) {
                   <span className="text-[10px] font-bold uppercase tracking-wide text-white/70">
                     {t("appCurrent")}
                   </span>
+                ) : !app.planOk ? (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-300">
+                    <Lock className="w-3 h-3" />
+                    {t("appPlanLocked")}
+                  </span>
                 ) : (
                   <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-300">
                     <Link2 className="w-3 h-3" />
@@ -139,10 +172,21 @@ export function HisabyAppsPanel({ className }: { className?: string }) {
               </div>
               <div className="mt-auto">
                 <Link
-                  href={app.href}
-                  className="inline-flex min-h-10 items-center rounded-lg bg-white/10 hover:bg-white/15 px-3 py-1.5 text-xs font-bold text-white"
+                  href={href}
+                  onClick={() => {
+                    if (!app.planOk && app.feature) {
+                      rememberUpgradeIntent(app.feature, app.href);
+                    }
+                  }}
+                  className={cn(
+                    "inline-flex min-h-10 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-white",
+                    app.planOk
+                      ? "bg-white/10 hover:bg-white/15"
+                      : "bg-amber-500/25 hover:bg-amber-500/35 text-amber-100",
+                  )}
                 >
-                  {t("appOpen")}
+                  {!app.planOk ? <Crown className="w-3.5 h-3.5" /> : null}
+                  {app.planOk ? t("appOpen") : t("appUpgrade")}
                 </Link>
               </div>
             </div>

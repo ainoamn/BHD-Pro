@@ -56,6 +56,8 @@ import { useEffect, useState } from "react";
 import api from "@/lib/api";
 import { UpgradeBadge } from "@/components/billing/plan-upgrade-gate";
 import {
+  featuresFromPlanId,
+  isLegacyPlanFeature,
   rememberUpgradeIntent,
   subscriptionUpgradeHref,
   type UpgradeFeatureKey,
@@ -161,14 +163,9 @@ export function Sidebar() {
   const modulePermissions = user?.modulePermissions;
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [openAlerts, setOpenAlerts] = useState(0);
-  const [features, setFeatures] = useState<Record<string, boolean>>({
-    pos: true,
-    resto: true,
-    aiAnalytics: true,
-    apiKeys: true,
-    multiBranch: true,
-    advancedReports: true,
-  });
+  const [features, setFeatures] = useState<Record<string, boolean>>(() =>
+    featuresFromPlanId(user?.company?.plan),
+  );
   const [modules, setModules] = useState<Record<string, PlanModuleGrant> | null>(
     null,
   );
@@ -187,6 +184,10 @@ export function Sidebar() {
     const grant = modules?.[code];
     if (grant) return grant.enabled !== false;
     if (legacyFallback !== undefined) return legacyFallback;
+    const mod = findPlanModule(code);
+    if (isLegacyPlanFeature(mod?.legacyFeature)) {
+      return features[mod.legacyFeature] === true;
+    }
     return true;
   };
 
@@ -198,17 +199,14 @@ export function Sidebar() {
     if (isModuleOpen(code)) return null;
     const mod = findPlanModule(code);
     const legacy = mod?.legacyFeature;
-    const upgradeKey =
-      legacy === "pos" ||
-      legacy === "resto" ||
-      legacy === "aiAnalytics" ||
-      legacy === "multiBranch" ||
-      legacy === "apiKeys" ||
-      legacy === "advancedReports"
-        ? legacy
-        : code;
+    const upgradeKey = isLegacyPlanFeature(legacy) ? legacy : code;
     return { code, upgradeKey };
   };
+
+  useEffect(() => {
+    if (!user?.company?.plan || modules) return;
+    setFeatures(featuresFromPlanId(user.company.plan));
+  }, [user?.company?.plan, modules]);
 
   useEffect(() => {
     let cancelled = false;
@@ -234,19 +232,23 @@ export function Sidebar() {
         const data = res.data as {
           features?: Record<string, boolean>;
           modules?: Record<string, PlanModuleGrant>;
+          plan?: string;
         };
         if (!cancelled) {
-          if (data.features) setFeatures((prev) => ({ ...prev, ...data.features }));
+          const fromPlan = featuresFromPlanId(data.plan || user.company?.plan);
+          setFeatures({ ...fromPlan, ...(data.features || {}) });
           if (data.modules) setModules(data.modules);
         }
       } catch {
-        /* keep defaults until subscription loads */
+        if (!cancelled) {
+          setFeatures(featuresFromPlanId(user.company?.plan));
+        }
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [user?.id]);
+  }, [user?.id, user?.company?.plan]);
 
   useEffect(() => {
     let cancelled = false;
@@ -299,7 +301,7 @@ export function Sidebar() {
         canAccessModule(modulePermissions, "posShifts", "view") ||
         canAccessModule(modulePermissions, "posInventory", "view") ||
         user?.role === "ADMIN" ? (
-          isModuleOpen("pos", features.pos !== false) ? (
+          isModuleOpen("pos", features.pos === true) ? (
           <Link
             href="/pos"
             onClick={() => {
@@ -344,7 +346,7 @@ export function Sidebar() {
         canAccessModule(modulePermissions, "kitchen", "view") ||
         canAccessModule(modulePermissions, "restoMenu", "view") ||
         user?.role === "ADMIN" ? (
-          isModuleOpen("resto", features.resto !== false) ? (
+          isModuleOpen("resto", features.resto === true) ? (
           <Link
             href="/resto"
             onClick={() => {

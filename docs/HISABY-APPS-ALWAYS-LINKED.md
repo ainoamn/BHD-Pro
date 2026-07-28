@@ -11,4 +11,5 @@
 
 متغيرات الشركة: `posLinkedAt` و `restoLinkedAt` تُضبط عند التسجيل وتُحافظ عليها الخدمة (`ensureCompanyAppsLinked`).
 
-تفاصيل موجة BR: [`HISABY-WAVE-BR-OTP-ALWAYS-LINK-LOGIN-2026-07-28.md`](./HISABY-WAVE-BR-OTP-ALWAYS-LINK-LOGIN-2026-07-28.md)
+تفاصيل موجة BR: [`HISABY-WAVE-BR-OTP-ALWAYS-LINK-LOGIN-2026-07-28.md`](./HISABY-WAVE-BR-OTP-ALWAYS-LINK-LOGIN-2026-07-28.md)  
+إظهار الوحدات حسب الباقة (موجة BS): [`HISABY-WAVE-BS-PLAN-MODULE-HONESTY-2026-07-28.md`](./HISABY-WAVE-BS-PLAN-MODULE-HONESTY-2026-07-28.md)
