@@ -1230,13 +1230,14 @@ export default function PosCheckoutPage() {
         setHeldDeposit(null);
       }
       await loadParkedCarts();
+      toast.success(t.deleteParkedOk);
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number } })?.response?.status;
       if (status === 403) {
         toast.error(t.parkHoldNeedApproval);
         return;
       }
-      toast.error(t.parkFail);
+      toast.error(apiErrorMessage(err, t.parkFail));
     }
   };
 
@@ -1266,8 +1267,8 @@ export default function PosCheckoutPage() {
       setParkEdit(null);
       toast.success(t.renameParkedOk);
       await loadParkedCarts();
-    } catch {
-      toast.error(t.parkFail);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, t.parkFail));
     }
   };
 
