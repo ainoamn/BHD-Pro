@@ -3663,12 +3663,32 @@ export class RestoService {
       /* non-fatal */
     }
 
+    const payUrl = `${this.frontendOrigin()}/pay/${invoice.id}`;
+    let notify: {
+      ok: boolean;
+      channel: string | null;
+      error?: string;
+      mock?: boolean;
+      mode?: string;
+    } | null = null;
+    if (order.guestPhone?.trim() && order.guestName?.trim()) {
+      notify = await this.guestNotify.notifyGuest({
+        companyId,
+        phone: order.guestPhone,
+        guestName: order.guestName,
+        kind: 'PAY_LINK',
+        tableCode: order.table?.code || null,
+        confirmUrl: payUrl,
+      });
+    }
+
     return {
       orderId,
       invoiceId: invoice.id,
-      payUrl: `${this.frontendOrigin()}/pay/${invoice.id}`,
+      payUrl,
       alreadyPaid: false,
       total: Number(invoice.total),
+      notify,
     };
   }
 

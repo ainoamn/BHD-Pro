@@ -16,7 +16,8 @@ export type RestoGuestNotifyKind =
   | 'RESERVATION_TABLE_READY'
   | 'DELIVERY_OUT'
   | 'DELIVERY_DONE'
-  | 'TAKEAWAY_READY';
+  | 'TAKEAWAY_READY'
+  | 'PAY_LINK';
 
 @Injectable()
 export class RestoGuestNotifyService {
@@ -108,6 +109,11 @@ export class RestoGuestNotifyService {
         ? `مرحباً ${guestName}، طلبكم للاستلام من ${companyName} جاهز. تفضلوا بالاستلام.`
         : `Hi ${guestName}, your takeaway order from ${companyName} is ready for pickup.`;
     }
+    if (kind === 'PAY_LINK') {
+      return ar
+        ? `مرحباً ${guestName}، رابط دفع فاتورتكم في ${companyName}${opts.tableCode ? ` (طاولة ${opts.tableCode})` : ''}:${opts.confirmUrl ? `\n${opts.confirmUrl}` : ''}`
+        : `Hi ${guestName}, pay your bill at ${companyName}${opts.tableCode ? ` (table ${opts.tableCode})` : ''}:${opts.confirmUrl ? `\n${opts.confirmUrl}` : ''}`;
+    }
     return ar
       ? `مرحباً ${guestName}، طاولتكم للحجز جاهزة في ${companyName}${opts.tableCode ? ` (${opts.tableCode})` : ''}.`
       : `Hi ${guestName}, your reserved table is ready at ${companyName}${opts.tableCode ? ` (${opts.tableCode})` : ''}.`;
@@ -181,9 +187,13 @@ export class RestoGuestNotifyService {
                       ? opts.locale === 'en'
                         ? 'Takeaway ready'
                         : 'جاهز للاستلام'
-                      : opts.locale === 'en'
-                        ? 'Reserved table ready'
-                        : 'طاولة الحجز جاهزة';
+                      : opts.kind === 'PAY_LINK'
+                        ? opts.locale === 'en'
+                          ? 'Pay link'
+                          : 'رابط الدفع'
+                        : opts.locale === 'en'
+                          ? 'Reserved table ready'
+                          : 'طاولة الحجز جاهزة';
         const detailParts = [
           opts.tableCode ? `table ${opts.tableCode}` : '',
           opts.quotedMinutes != null ? `${opts.quotedMinutes} min` : '',
@@ -193,6 +203,7 @@ export class RestoGuestNotifyService {
                 { dateStyle: 'medium', timeStyle: 'short' },
               )
             : '',
+          opts.kind === 'PAY_LINK' && opts.confirmUrl ? opts.confirmUrl : '',
         ].filter(Boolean);
         const res = await this.whatsapp.sendGuestNotify(e164, {
           guestName: opts.guestName,

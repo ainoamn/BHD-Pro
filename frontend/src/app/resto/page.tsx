@@ -12,6 +12,7 @@ import {
   Printer,
 } from "lucide-react";
 import api, { type RestoOrderPayload } from "@/lib/api";
+import toast from "react-hot-toast";
 import { useLocaleStore } from "@/store/locale";
 import { useAuthStore } from "@/store/auth";
 import { restoCopy } from "@/lib/resto-copy";
@@ -761,6 +762,36 @@ export default function RestoFloorPage() {
       }
       if (res.data.payUrl) {
         window.open(res.data.payUrl, "_blank", "noopener,noreferrer");
+      }
+      toast.success(t.payLinkOk);
+      const notify = (
+        res.data as {
+          notify?: {
+            ok: boolean;
+            channel: string | null;
+            error?: string;
+            mock?: boolean;
+            mode?: string;
+          } | null;
+        }
+      ).notify;
+      if (notify?.ok) {
+        if (notify.mock || notify.mode === "mock") {
+          toast(
+            `${t.notifySentMock}${notify.channel ? ` · ${notify.channel}` : ""}`,
+            { icon: "🧪" },
+          );
+        } else {
+          toast.success(
+            `${t.notifySent}${notify.channel ? ` · ${notify.channel}` : ""}`,
+          );
+        }
+      } else if (notify?.error === "no_phone" || !notify) {
+        if (!order.guestPhone?.trim()) {
+          toast(t.payLinkNoGuestPhone, { icon: "⚠️", duration: 5000 });
+        }
+      } else if (notify && !notify.ok) {
+        toast(t.payLinkNotifyFail, { icon: "⚠️", duration: 5000 });
       }
       const refreshed = await api.getRestoOrder(order.id);
       setOrder(refreshed.data);
