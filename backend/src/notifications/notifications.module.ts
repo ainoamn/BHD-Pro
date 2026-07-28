@@ -7,9 +7,10 @@ import { RestoGuestNotifyService } from './resto-guest-notify.service';
 import { PublicDisputeController } from './public-dispute.controller';
 import { MessagingController } from './messaging.controller';
 import { StorageModule } from '../storage/storage.module';
+import { RedisModule } from '../redis/redis.module';
 
 @Module({
-  imports: [StorageModule],
+  imports: [StorageModule, RedisModule],
   controllers: [PublicDisputeController, MessagingController],
   providers: [
     WhatsappNotifyService,

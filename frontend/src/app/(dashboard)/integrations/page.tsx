@@ -7,6 +7,7 @@ import {
   BookOpen,
   Brain,
   CreditCard,
+  Database,
   Loader2,
   MessageCircle,
   Mail,
@@ -31,6 +32,13 @@ type MessagingStatus = {
   email: { configured: boolean; mode: string; live?: boolean };
   sms?: { configured: boolean; mode: string; live?: boolean };
   storage: { driver: string; s3Ready: boolean };
+  redis?: {
+    configured: boolean;
+    posCatalogCache?: boolean;
+    posCatalogCacheTtlSec?: number | null;
+    dashboardCache?: boolean;
+    dashboardCacheTtlSec?: number | null;
+  };
   payments: {
     thawani: boolean;
     stripe: boolean;
@@ -173,6 +181,19 @@ export default function IntegrationsPage() {
         warn: null as string | null,
       },
       {
+        key: "redis",
+        icon: Database,
+        title: t("redis"),
+        tone: status.redis?.configured ? ("live" as const) : ("off" as const),
+        detail: status.redis?.configured ? "REDIS_URL" : "off",
+        warn: status.redis?.configured
+          ? t("redisHint", {
+              posTtl: status.redis.posCatalogCacheTtlSec ?? 60,
+              dashTtl: status.redis.dashboardCacheTtlSec ?? 30,
+            })
+          : t("redisOffHint"),
+      },
+      {
         key: "payments",
         icon: CreditCard,
         title: t("payments"),
@@ -240,7 +261,7 @@ export default function IntegrationsPage() {
                 <p
                   className={cn(
                     "mt-2 text-xs leading-relaxed",
-                    c.tone === "mock" || !status?.whatsapp.receiptTemplate
+                    c.tone === "mock" || (c.key === "whatsapp" && !status?.whatsapp.receiptTemplate)
                       ? "text-amber-300"
                       : "text-slate-400",
                   )}

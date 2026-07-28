@@ -18,6 +18,7 @@ import { WhatsappNotifyService } from './whatsapp-notify.service';
 import { EmailNotifyService } from './email-notify.service';
 import { SmsNotifyService } from './sms-notify.service';
 import { StorageService } from '../storage/storage.service';
+import { RedisService } from '../redis/redis.service';
 
 class TestMessageDto {
   @IsIn(['whatsapp', 'email', 'sms'])
@@ -42,12 +43,14 @@ export class MessagingController {
     private email: EmailNotifyService,
     private sms: SmsNotifyService,
     private storage: StorageService,
+    private redis: RedisService,
   ) {}
 
   @Get('status')
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
   @ApiOperation({ summary: 'Integration status for WhatsApp, Email, SMS, Storage, Payments env' })
   status() {
+    const redisOn = this.redis.isConfigured();
     return {
       whatsapp: {
         configured: this.whatsapp.isConfigured(),
@@ -75,6 +78,13 @@ export class MessagingController {
       storage: {
         driver: this.storage.driver(),
         s3Ready: this.storage.isS3Configured(),
+      },
+      redis: {
+        configured: redisOn,
+        posCatalogCache: redisOn,
+        posCatalogCacheTtlSec: redisOn ? this.redis.posCatalogTtlSec() : null,
+        dashboardCache: redisOn,
+        dashboardCacheTtlSec: redisOn ? this.redis.dashboardStatsTtlSec() : null,
       },
       payments: {
         thawani: !!(process.env.THAWANI_SECRET_KEY || process.env.THAWANI_PUBLISHABLE_KEY),
@@ -137,6 +147,16 @@ export class MessagingController {
             'للاختبار بدون Twilio: TWILIO_MODE=mock',
             'تُرسل تلقائياً مع إيصالات الكاشير عند توفر رقم الجوال (إلى جانب واتساب).',
             'اختبار: POST /messaging/test بقناة sms.',
+          ],
+        },
+        {
+          id: 'redis',
+          titleAr: 'Redis (كاش POS واللوحة — اختياري)',
+          stepsAr: [
+            'ضع REDIS_URL على Render (Upstash أو Render Redis).',
+            'اختياري: POS_CATALOG_CACHE_TTL_SEC (افتراضي 60) و DASHBOARD_CACHE_TTL_SEC (افتراضي 30).',
+            'بدون Redis يعمل النظام كما هو؛ مع Redis تتسارع مزامنة الكتالوج وإحصاءات اللوحة مع إبطال عند البيع/المخزون.',
+            'تحقق: صفحة الربط → بطاقة Redis، أو /api/health → redisConfigured / posCatalogCache / dashboardCache.',
           ],
         },
         {
