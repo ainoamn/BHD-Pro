@@ -1799,7 +1799,11 @@
     "mark_OPEN": "إعادة فتح",
     "mark_REVIEWED": "وضع قيد المراجعة",
     "mark_RESOLVED": "حلّ",
-    "mark_DISMISSED": "رفض"
+    "mark_DISMISSED": "رفض",
+    "reporterNotifyOk": "تم تحديث الحالة وأُبلغ المبلّغ عبر واتساب",
+    "reporterNotifyMock": "تم التحديث — إشعار المبلّغ في وضع mock (لم يُسلَّم)",
+    "reporterNotifyFail": "تم التحديث — تعذّر إشعار المبلّغ",
+    "reporterNotifySkipped": "تم تحديث الحالة (لا هاتف للمبلّغ أو واتساب غير مهيأ)"
   },
   "attachments": {
     "title": "المرفقات",

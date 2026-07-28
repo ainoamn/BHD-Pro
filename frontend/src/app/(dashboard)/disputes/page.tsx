@@ -45,7 +45,6 @@ const STATUSES: DisputeStatus[] = [
 
 export default function CustomerDisputesPage() {
   const t = useTranslations("customerDisputes");
-  const tCommon = useTranslations("common");
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<DisputeStatus>("OPEN");
 
@@ -66,9 +65,20 @@ export default function CustomerDisputesPage() {
   const patchMutation = useMutation({
     mutationFn: ({ id, next }: { id: string; next: string }) =>
       api.updateCustomerDisputeStatus(id, next),
-    onSuccess: () => {
+    onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ["customer-disputes"] });
-      toast.success(tCommon("saved"));
+      const notify = (
+        res.data as {
+          reporterNotify?: { status?: string };
+        }
+      )?.reporterNotify;
+      const st = notify?.status;
+      if (st === "ok") toast.success(t("reporterNotifyOk"));
+      else if (st === "mock")
+        toast(t("reporterNotifyMock"), { icon: "🧪", duration: 6000 });
+      else if (st === "fail")
+        toast(t("reporterNotifyFail"), { icon: "⚠️", duration: 6000 });
+      else toast.success(t("reporterNotifySkipped"));
     },
     onError: (err) => toast.error(apiErrorMessage(err, t("forbidden"))),
   });

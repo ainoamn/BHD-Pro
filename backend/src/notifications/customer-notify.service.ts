@@ -599,7 +599,14 @@ export class CustomerNotifyService {
   ) {
     const row = await this.prisma.customerDispute.findFirst({
       where: { id, companyId },
-      select: { id: true },
+      select: {
+        id: true,
+        status: true,
+        reporterPhone: true,
+        reporterName: true,
+        publicCode: true,
+        invoice: { select: { number: true } },
+      },
     });
     if (!row) throw new NotFoundException('Dispute not found');
     const updated = await this.prisma.customerDispute.update({
@@ -617,6 +624,55 @@ export class CustomerNotifyService {
         },
       },
     });
+
+    let reporterNotify: {
+      status: 'ok' | 'mock' | 'fail' | 'skipped';
+      channel: 'WHATSAPP' | null;
+    } = { status: 'skipped', channel: null };
+
+    const statusChanged = row.status !== status;
+    const phone = updated.reporterPhone?.trim();
+    if (statusChanged && phone) {
+      try {
+        const company = await this.prisma.company.findUnique({
+          where: { id: companyId },
+          select: { name: true, country: true },
+        });
+        const dial = dialCodeForCountry(company?.country);
+        const e164 = toE164Digits(phone, dial);
+        if (!isValidMobileE164(e164) || !this.whatsapp.isConfigured()) {
+          reporterNotify = { status: 'skipped', channel: null };
+        } else {
+          const statusAr =
+            status === 'RESOLVED'
+              ? 'تم حل البلاغ'
+              : status === 'DISMISSED'
+                ? 'تم إغلاق البلاغ'
+                : status === 'REVIEWED'
+                  ? 'البلاغ قيد المراجعة'
+                  : 'البلاغ مفتوح مجدداً';
+          const body = [
+            `Hisaby · ${company?.name || 'Merchant'}`,
+            `${statusAr} — فاتورة ${updated.invoice.number}`,
+            `Dispute ${status} — invoice ${updated.invoice.number}`,
+            updated.reporterName ? `مرحباً ${updated.reporterName}` : '',
+          ]
+            .filter(Boolean)
+            .join('\n');
+          const res = await this.whatsapp.sendText(e164, body);
+          reporterNotify = {
+            status: res.ok ? (res.mock ? 'mock' : 'ok') : 'fail',
+            channel: 'WHATSAPP',
+          };
+        }
+      } catch (err) {
+        reporterNotify = { status: 'fail', channel: 'WHATSAPP' };
+        this.logger.warn(
+          `Dispute reporter notify failed: ${err instanceof Error ? err.message : err}`,
+        );
+      }
+    }
+
     return {
       id: updated.id,
       status: updated.status,
@@ -626,6 +682,7 @@ export class CustomerNotifyService {
       publicCode: updated.publicCode,
       createdAt: updated.createdAt,
       invoice: updated.invoice,
+      reporterNotify,
     };
   }
 }

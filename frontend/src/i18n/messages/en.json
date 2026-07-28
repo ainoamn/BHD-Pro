@@ -1799,7 +1799,11 @@
     "mark_OPEN": "Reopen",
     "mark_REVIEWED": "Mark in review",
     "mark_RESOLVED": "Resolve",
-    "mark_DISMISSED": "Dismiss"
+    "mark_DISMISSED": "Dismiss",
+    "reporterNotifyOk": "Status updated and reporter notified on WhatsApp",
+    "reporterNotifyMock": "Updated — reporter notify is mock (not delivered)",
+    "reporterNotifyFail": "Updated — could not notify the reporter",
+    "reporterNotifySkipped": "Status updated (no reporter phone or WhatsApp not configured)"
   },
   "attachments": {
     "title": "Attachments",

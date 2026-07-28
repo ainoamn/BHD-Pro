@@ -99,6 +99,6 @@
 ## الخطوة التالية المقترحة
 
 1. **أنت اليوم:** Cloudflare §1.1 + تدوير أسرار + لصق Sentry DSN.  
-2. **الكود (Wave DI — منجز):** صدق استدعاء نادل / مطبخ QR — [`HISABY-WAVE-DI-GUEST-CALL-KITCHEN-HONESTY-2026-07-28.md`](./HISABY-WAVE-DI-GUEST-CALL-KITCHEN-HONESTY-2026-07-28.md) · قبله DH دفع شريك.  
+2. **الكود (Wave DJ — منجز):** صدق إشعار مبلّغ البلاغ — [`HISABY-WAVE-DJ-DISPUTE-REPORTER-NOTIFY-HONESTY-2026-07-28.md`](./HISABY-WAVE-DJ-DISPUTE-REPORTER-NOTIFY-HONESTY-2026-07-28.md) · قبله DI استدعاء نادل.  
 3. على Render: `prisma migrate deploy` (يشمل أعمدة إشعار الحجوزات) · `REDIS_URL` اختياري؛ قالب OTP واتساب؛ `REQUIRE_2FA_HARD_AFTER_GRACE=1` عند الرغبة بقفل التعديلات.  
 4. لاحقاً: أرشفة docs.
