@@ -52,6 +52,7 @@ export class MessagingController {
       whatsapp: {
         configured: this.whatsapp.isConfigured(),
         mode: this.whatsapp.mode(),
+        receiptTemplate: this.whatsapp.receiptTemplateName(),
       },
       email: {
         configured: this.email.isConfigured(),
@@ -99,6 +100,7 @@ export class MessagingController {
             'ضعها على Render: WHATSAPP_TOKEN و WHATSAPP_PHONE_NUMBER_ID (إنتاج: System User token دائم).',
             'للاختبار الداخلي فقط: WHATSAPP_TOKEN=mock',
             'أضف أرقام المديرين في whatsappNotifyPhones — واترك autoSendPosReceipts مفعّلاً.',
+            'لإيصالات أول تواصل مع العميل: أنشئ قالب Utility في WhatsApp Manager (5 متغيرات) واضبط WHATSAPP_RECEIPT_TEMPLATE — بدون قالب Meta ترفض الرسالة خارج نافذة 24 ساعة.',
             'دليل كامل: docs/MESSAGING-WHATSAPP-EMAIL-GUIDE.md',
           ],
         },

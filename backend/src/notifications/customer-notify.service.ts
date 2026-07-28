@@ -212,11 +212,20 @@ export class CustomerNotifyService {
     if (!invoice || !contact || !company) return null;
 
     // Skip walk-in / no contact channel
-    if (/walk-?in|نقدي/i.test(contact.name)) return null;
-    if (!contact.phone?.trim() && !contact.email?.trim()) return null;
+    if (/walk-?in|نقدي/i.test(contact.name)) {
+      this.logger.debug(`skip notify: walk-in contact ${contact.id}`);
+      return null;
+    }
+    if (!contact.phone?.trim() && !contact.email?.trim()) {
+      this.logger.warn(`skip notify: contact ${contact.id} has no phone/email`);
+      return null;
+    }
 
     const cfg = this.parseSecurity(company.securityConfig);
-    if (!force && !this.shouldNotify(cfg)) return null;
+    if (!force && !this.shouldNotify(cfg)) {
+      this.logger.warn('skip notify: autoSendPosReceipts disabled or no channel configured');
+      return null;
+    }
 
     const code = await this.ensurePublicVerifyCode(invoice.id);
     const viewUrl = `${this.apiPublicBaseUrl()}/api/public/documents/c/${code}/view`;
@@ -260,17 +269,33 @@ export class CustomerNotifyService {
     let waOk = false;
     let waError: string | undefined;
     if (isValidMobileE164(digits) && this.whatsapp.isConfigured()) {
-      const caption = body.slice(0, 900);
-      const result = await this.whatsapp.sendDocumentLink(
-        digits,
-        viewUrl,
-        caption,
-        `${invoice.number || 'receipt'}.pdf`,
-      );
-      waOk = result.ok;
-      waError = result.error;
+      if (kind === 'sale') {
+        const result = await this.whatsapp.sendPosReceipt(digits, {
+          customerName: contact.name,
+          companyName: company.name,
+          invoiceNumber: String(invoice.number || ''),
+          amount: totalStr,
+          viewUrl,
+          fullBody: body,
+        });
+        waOk = result.ok;
+        waError = result.error;
+      } else {
+        const caption = body.slice(0, 900);
+        const result = await this.whatsapp.sendDocumentLink(
+          digits,
+          viewUrl,
+          caption,
+          `${invoice.number || 'receipt'}.pdf`,
+        );
+        waOk = result.ok;
+        waError = result.error;
+      }
+    } else if (contact.phone?.trim()) {
+      waError = `invalid phone (normalized=${digits || 'empty'}) or WhatsApp not configured`;
+      this.logger.warn(`WhatsApp skipped: ${waError}`);
     } else {
-      waError = 'invalid phone or WhatsApp not configured';
+      waError = 'no phone on contact';
     }
 
     let emailStatus: 'ok' | 'fail' | 'skipped' = 'skipped';

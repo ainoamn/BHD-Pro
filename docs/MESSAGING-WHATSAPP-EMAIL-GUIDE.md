@@ -81,7 +81,18 @@ https://developers.facebook.com/docs/whatsapp/cloud-api/get-started/
 WHATSAPP_ENABLED=true
 WHATSAPP_TOKEN=...                 # أو mock للاختبار الداخلي فقط
 WHATSAPP_PHONE_NUMBER_ID=...
+# إلزامي لإيصال أول رسالة للعميل (خارج نافذة 24 ساعة):
+WHATSAPP_RECEIPT_TEMPLATE=pos_receipt
+WHATSAPP_RECEIPT_TEMPLATE_LANG=ar
 ```
+
+**قالب Meta (Utility) — نص مقترح للجسم:**
+
+```
+مرحباً {{1}}، إيصال من {{2}}. رقم الفاتورة: {{3}}. المبلغ: {{4}}. عرض الإيصال: {{5}}
+```
+
+بعد موافقة Meta ضع اسم القالب في `WHATSAPP_RECEIPT_TEMPLATE`.
 
 ### إدارة داخل Hisaby
 1. `/integrations` — حالة القناة + زر اختبار  

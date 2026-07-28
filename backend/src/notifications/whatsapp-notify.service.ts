@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 
-/** Meta WhatsApp Cloud API (+ mock) text/document sender. */
+/** Meta WhatsApp Cloud API (+ mock) text/document/template sender. */
 @Injectable()
 export class WhatsappNotifyService {
   private readonly logger = new Logger(WhatsappNotifyService.name);
@@ -15,6 +15,31 @@ export class WhatsappNotifyService {
     if (!this.isConfigured()) return 'off';
     if ((process.env.WHATSAPP_TOKEN || '').toLowerCase() === 'mock') return 'mock';
     return 'live';
+  }
+
+  /** Approved template name for POS receipts (business-initiated). */
+  receiptTemplateName(): string | null {
+    const name = (process.env.WHATSAPP_RECEIPT_TEMPLATE || '').trim();
+    return name || null;
+  }
+
+  receiptTemplateLang(): string {
+    return (process.env.WHATSAPP_RECEIPT_TEMPLATE_LANG || 'ar').trim() || 'ar';
+  }
+
+  private async parseMetaError(res: Response): Promise<string> {
+    const text = await res.text();
+    try {
+      const json = JSON.parse(text) as {
+        error?: { message?: string; code?: number; error_data?: { details?: string } };
+      };
+      const msg = json?.error?.message || text;
+      const details = json?.error?.error_data?.details;
+      const code = json?.error?.code;
+      return [code ? `#${code}` : null, msg, details].filter(Boolean).join(' — ').slice(0, 500);
+    } catch {
+      return `WhatsApp API ${res.status}: ${text.slice(0, 400)}`;
+    }
   }
 
   async sendText(toE164: string, body: string): Promise<{ ok: boolean; error?: string }> {
@@ -51,14 +76,86 @@ export class WhatsappNotifyService {
         }),
       });
       if (!res.ok) {
-        const text = await res.text();
-        this.logger.warn(`WhatsApp send failed: ${res.status} ${text}`);
-        return { ok: false, error: `WhatsApp API ${res.status}` };
+        const err = await this.parseMetaError(res);
+        this.logger.warn(`WhatsApp send failed: ${err}`);
+        return { ok: false, error: err };
       }
       return { ok: true };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'send failed';
       this.logger.warn(`WhatsApp send error: ${message}`);
+      return { ok: false, error: message };
+    }
+  }
+
+  /**
+   * Business-initiated message via approved template.
+   * Body params order must match the Meta template variables {{1}}…{{n}}.
+   */
+  async sendTemplate(
+    toE164: string,
+    templateName: string,
+    bodyParams: string[],
+    lang?: string,
+  ): Promise<{ ok: boolean; error?: string }> {
+    if (!this.isConfigured()) {
+      return { ok: false, error: 'WhatsApp is not configured on the server' };
+    }
+    const phone = toE164.replace(/[^\d]/g, '');
+    if (phone.length < 8) {
+      return { ok: false, error: 'Invalid WhatsApp phone number' };
+    }
+    if (this.mode() === 'mock') {
+      this.logger.log(
+        `[mock-whatsapp-template] to=${phone} name=${templateName} params=${bodyParams.join('|')}`,
+      );
+      return { ok: true };
+    }
+
+    const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID!;
+    const token = process.env.WHATSAPP_TOKEN!;
+    const url = `https://graph.facebook.com/v19.0/${phoneId}/messages`;
+    const language = { code: (lang || this.receiptTemplateLang()).trim() || 'ar' };
+    const components =
+      bodyParams.length > 0
+        ? [
+            {
+              type: 'body',
+              parameters: bodyParams.map((text) => ({
+                type: 'text',
+                text: String(text || '-').slice(0, 1024),
+              })),
+            },
+          ]
+        : undefined;
+
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          to: phone,
+          type: 'template',
+          template: {
+            name: templateName,
+            language,
+            ...(components ? { components } : {}),
+          },
+        }),
+      });
+      if (!res.ok) {
+        const err = await this.parseMetaError(res);
+        this.logger.warn(`WhatsApp template failed: ${err}`);
+        return { ok: false, error: err };
+      }
+      return { ok: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'send failed';
+      this.logger.warn(`WhatsApp template error: ${message}`);
       return { ok: false, error: message };
     }
   }
@@ -98,9 +195,8 @@ export class WhatsappNotifyService {
         }),
       });
       if (!res.ok) {
-        const text = await res.text();
-        this.logger.warn(`WhatsApp document failed: ${res.status} ${text}`);
-        // fallback to text with link
+        const err = await this.parseMetaError(res);
+        this.logger.warn(`WhatsApp document failed: ${err}`);
         return this.sendText(toE164, `${caption}\n${link}`);
       }
       return { ok: true };
@@ -110,6 +206,53 @@ export class WhatsappNotifyService {
         r.ok ? r : { ok: false, error: message },
       );
     }
+  }
+
+  /**
+   * POS receipt: prefer approved template (required for first contact),
+   * else session text/document (only works inside 24h customer window).
+   */
+  async sendPosReceipt(
+    toE164: string,
+    opts: {
+      customerName: string;
+      companyName: string;
+      invoiceNumber: string;
+      amount: string;
+      viewUrl: string;
+      fullBody: string;
+    },
+  ): Promise<{ ok: boolean; error?: string; via?: 'template' | 'text' }> {
+    const template = this.receiptTemplateName();
+    if (template) {
+      const result = await this.sendTemplate(toE164, template, [
+        opts.customerName,
+        opts.companyName,
+        opts.invoiceNumber,
+        opts.amount,
+        opts.viewUrl,
+      ]);
+      if (result.ok) return { ...result, via: 'template' };
+      this.logger.warn(`Receipt template failed, trying session text: ${result.error}`);
+    }
+
+    const text = await this.sendDocumentLink(
+      toE164,
+      opts.viewUrl,
+      opts.fullBody.slice(0, 900),
+      `${opts.invoiceNumber || 'receipt'}.pdf`,
+    );
+    if (text.ok) return { ...text, via: 'text' };
+
+    const hint =
+      !template && /24|window|template|re-engage|131047|131026/i.test(text.error || '')
+        ? ' — أنشئ قالباً معتمداً واضبط WHATSAPP_RECEIPT_TEMPLATE'
+        : '';
+    return {
+      ok: false,
+      error: `${text.error || 'send failed'}${hint}`,
+      via: 'text',
+    };
   }
 
   /** Send a 6-digit OTP message (dual-control / verification flows). */
