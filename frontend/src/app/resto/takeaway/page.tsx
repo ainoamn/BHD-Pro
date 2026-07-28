@@ -72,9 +72,9 @@ export default function RestoTakeawayPage() {
             : t.orderReceivedOk,
         );
       } else if (notify?.error === "no_phone") {
-        toast.message(t.orderReceivedNoPhone);
+        toast(t.orderReceivedNoPhone);
       } else if (notify) {
-        toast.message(t.orderReceivedFail);
+        toast(t.orderReceivedFail);
       }
       setGuestName("");
       setGuestPhone("");
