@@ -577,8 +577,10 @@ export default function PosCheckoutPage() {
         const deltas = (deltaRes.data?.products as PosProduct[]) || [];
         if (deltaRes.data?.full) {
           await saveCatalogCache(deltas, wh);
+          if (!cancelled) setCatalogServerCached(!!deltaRes.data?.cached);
         } else if (deltas.length) {
           await mergeCatalogDeltas(deltas, wh);
+          if (!cancelled) setCatalogServerCached(false);
         }
         setCatalogStale(isCatalogStale(meta.savedAt) && !deltas.length);
         // Keep grid fresh from cache even on silent ticks (multi-register stock)

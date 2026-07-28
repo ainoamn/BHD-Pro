@@ -659,6 +659,7 @@ export class ProductsService {
       });
     });
 
+    this.bumpPosCatalog(companyId);
     return {
       product: await this.findOne(companyId, productId),
       alreadyReversed: false,
@@ -913,6 +914,7 @@ export class ProductsService {
       });
     });
 
+    this.bumpPosCatalog(companyId);
     return {
       product: await this.findOne(companyId, productId),
       alreadyReversed: false,
