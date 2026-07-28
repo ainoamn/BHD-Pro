@@ -137,8 +137,43 @@ export function apiErrorMessage(err: unknown, fallback = "Error"): string {
   if (lower.includes("cashiers require a home warehouse")) {
     return "الكاشير يحتاج مستودع موظف";
   }
-  // Prefer locale fallback over raw Nest English
-  if (/^[A-Za-z]/.test(raw) && fallback && fallback !== "Error") return fallback;
+  if (lower.includes("kitchen still has open items")) {
+    return "المطبخ ما زال فيه أصناف مفتوحة — جهّزها أو ألغِها أولاً";
+  }
+  if (
+    lower.includes("table is occupied") ||
+    lower.includes("already has an open order") ||
+    lower.includes("target table has an open")
+  ) {
+    return "الطاولة الهدف مشغولة بطلب مفتوح";
+  }
+  if (lower.includes("table not found") || lower.includes("target table not found")) {
+    return "الطاولة غير موجودة";
+  }
+  if (lower.includes("order is cancelled") || lower.includes("order already closed")) {
+    return "الطلب مغلق أو ملغى";
+  }
+  if (lower.includes("order is closed") || lower.includes("order is not active")) {
+    return "الطلب غير نشط";
+  }
+  if (lower.includes("no pending items") || lower.includes("nothing to send")) {
+    return "لا أصناف معلّقة للإرسال للمطبخ";
+  }
+  if (lower.includes("cannot merge") || lower.includes("merge")) {
+    if (lower.includes("same") || lower.includes("itself")) {
+      return "لا يمكن دمج الطلب مع نفسه";
+    }
+  }
+  if (lower.includes("online pay link already issued")) {
+    return "رابط دفع أونلاين صادر — ادفع أونلاين أو ألغِ الفاتورة أولاً";
+  }
+  if (lower.includes("no billable items")) {
+    return "لا أصناف قابلة للفوترة";
+  }
+  if (lower.includes("item ids") || lower.includes("items required")) {
+    return "اختر أصنافاً للتقسيم";
+  }
+  // Honesty: surface Nest message rather than a generic fail when unmapped
   return raw;
 }
 

@@ -18,6 +18,7 @@ import { useAuthStore } from "@/store/auth";
 import { restoCopy } from "@/lib/resto-copy";
 import { toastPosCustomerNotify, toastTipNotify } from "@/lib/pos-notify-toast";
 import { printRestoGuestCheck } from "@/lib/resto-guest-check";
+import { apiErrorMessage } from "@/lib/utils";
 import {
   DualApprovalModal,
   type DualApprovalPayload,
@@ -291,10 +292,13 @@ export default function RestoFloorPage() {
         } else {
           setOrder(res.data);
         }
+        if (!res.data.guestPhone?.trim()) {
+          toast(t.guestPhoneHint, { icon: "ℹ️", duration: 4500 });
+        }
         await loadFloor();
       }
-    } catch {
-      setError(t.actionFail);
+    } catch (err) {
+      setError(apiErrorMessage(err, t.actionFail));
     } finally {
       setBusy(false);
     }
@@ -358,14 +362,16 @@ export default function RestoFloorPage() {
   const runTransfer = async () => {
     if (!order || !opsTableId) return;
     setBusy(true);
+    setError("");
     try {
       const res = await api.transferRestoOrder(order.id, opsTableId);
       setOrder(res.data);
       setOpsMode("none");
       setOpsTableId("");
+      toast.success(t.transferOk);
       await loadFloor();
-    } catch {
-      setError(t.actionFail);
+    } catch (err) {
+      setError(apiErrorMessage(err, t.actionFail));
     } finally {
       setBusy(false);
     }
@@ -375,14 +381,16 @@ export default function RestoFloorPage() {
     if (!order || !opsTargetOrderId) return;
     if (!window.confirm(t.confirmMerge)) return;
     setBusy(true);
+    setError("");
     try {
       await api.mergeRestoOrder(order.id, opsTargetOrderId);
       setOrder(null);
       setOpsMode("none");
       setOpsTargetOrderId("");
+      toast.success(t.mergeOk);
       await loadFloor();
-    } catch {
-      setError(t.actionFail);
+    } catch (err) {
+      setError(apiErrorMessage(err, t.actionFail));
     } finally {
       setBusy(false);
     }
@@ -392,6 +400,7 @@ export default function RestoFloorPage() {
     if (!order || splitItemIds.length === 0) return;
     if (!asTakeaway && !opsTableId) return;
     setBusy(true);
+    setError("");
     try {
       const res = await api.splitRestoOrder(order.id, {
         itemIds: splitItemIds,
@@ -401,9 +410,10 @@ export default function RestoFloorPage() {
       setOpsMode("none");
       setSplitItemIds([]);
       setOpsTableId("");
+      toast.success(t.splitOk);
       await loadFloor();
-    } catch {
-      setError(t.actionFail);
+    } catch (err) {
+      setError(apiErrorMessage(err, t.actionFail));
     } finally {
       setBusy(false);
     }
@@ -493,8 +503,8 @@ export default function RestoFloorPage() {
       setVoidReason("");
       setVoidTarget(null);
       await loadFloor();
-    } catch {
-      setError(t.actionFail);
+    } catch (err) {
+      setError(apiErrorMessage(err, t.actionFail));
     } finally {
       setVoidBusy(false);
       setBusy(false);
@@ -504,12 +514,14 @@ export default function RestoFloorPage() {
   const sendKitchen = async (fireCourse?: number) => {
     if (!order) return;
     setBusy(true);
+    setError("");
     try {
       const res = await api.sendRestoOrder(order.id, fireCourse);
       setOrder(res.data);
+      toast.success(t.sendOk);
       await loadFloor();
-    } catch {
-      setError(t.actionFail);
+    } catch (err) {
+      setError(apiErrorMessage(err, t.actionFail));
     } finally {
       setBusy(false);
     }
@@ -754,6 +766,7 @@ export default function RestoFloorPage() {
         null;
       if (method === "soft") {
         await api.closeRestoOrder(order.id, { soft: true });
+        toast.success(t.softCloseOk);
       } else if (method === "SPLIT") {
         const tip = Number(tipAmount) || 0;
         const pct = Number(serviceChargePct) || 0;
@@ -816,7 +829,7 @@ export default function RestoFloorPage() {
         setError(t.needOpenShift);
         setShiftOpen(false);
       } else {
-        setError(t.actionFail);
+        setError(apiErrorMessage(err, t.actionFail));
       }
     } finally {
       setBusy(false);
@@ -880,8 +893,8 @@ export default function RestoFloorPage() {
       }
       const refreshed = await api.getRestoOrder(order.id);
       setOrder(refreshed.data);
-    } catch {
-      setError(t.actionFail);
+    } catch (err) {
+      setError(apiErrorMessage(err, t.actionFail));
     } finally {
       setBusy(false);
     }

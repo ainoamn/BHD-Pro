@@ -99,6 +99,6 @@
 ## الخطوة التالية المقترحة
 
 1. **أنت اليوم:** Cloudflare §1.1 + تدوير أسرار + لصق Sentry DSN.  
-2. **الكود (Wave EB — منجز):** صدق إشعار مستلم البقشيش — [`HISABY-WAVE-EB-TIP-ASSIGNEE-NOTIFY-HONESTY-2026-07-28.md`](./HISABY-WAVE-EB-TIP-ASSIGNEE-NOTIFY-HONESTY-2026-07-28.md) · قبله EA طلب QR.  
+2. **الكود (Wave EC — منجز):** صدق أخطاء خريطة الطاولات — [`HISABY-WAVE-EC-FLOOR-OPS-ERROR-HONESTY-2026-07-28.md`](./HISABY-WAVE-EC-FLOOR-OPS-ERROR-HONESTY-2026-07-28.md) · قبله EB إشعار البقشيش.  
 3. على Render: `prisma migrate deploy` (يشمل أعمدة إشعار الحجوزات) · `REDIS_URL` اختياري؛ قالب OTP واتساب؛ `REQUIRE_2FA_HARD_AFTER_GRACE=1` عند الرغبة بقفل التعديلات.  
 4. لاحقاً: أرشفة docs.
