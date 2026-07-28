@@ -8,6 +8,7 @@ import api from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
 import { useAuthStore } from "@/store/auth";
 import { restoCopy } from "@/lib/resto-copy";
+import { apiErrorMessage } from "@/lib/utils";
 
 type Reservation = {
   id: string;
@@ -105,10 +106,10 @@ export default function RestoReservationsPage() {
               name: tb.name,
             }));
       setTables(flat);
-    } catch {
+    } catch (err) {
       setRows([]);
       setLoadError(true);
-      toast.error(t.actionFail);
+      toast.error(apiErrorMessage(err, t.actionFail));
     } finally {
       setLoading(false);
     }
@@ -142,8 +143,8 @@ export default function RestoReservationsPage() {
       toast.success(t.reservationConfirmed);
       toastNotify(res.data.notify ?? undefined);
       await load();
-    } catch {
-      toast.error(t.actionFail);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, t.actionFail));
     } finally {
       setBusy(false);
     }
@@ -177,8 +178,8 @@ export default function RestoReservationsPage() {
       if (status === "SEATED" && res.data.openedOrderId) {
         router.push(`/resto/orders/${res.data.openedOrderId}`);
       }
-    } catch {
-      toast.error(t.actionFail);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, t.actionFail));
     } finally {
       setBusy(false);
     }
@@ -193,8 +194,8 @@ export default function RestoReservationsPage() {
       const res = await api.notifyRestoReservation(id, kind);
       toastNotify(res.data.notify);
       await load();
-    } catch {
-      toast.error(t.actionFail);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, t.actionFail));
     } finally {
       setBusy(false);
     }

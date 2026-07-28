@@ -99,6 +99,6 @@
 ## الخطوة التالية المقترحة
 
 1. **أنت اليوم:** Cloudflare §1.1 + تدوير أسرار + لصق Sentry DSN.  
-2. **الكود (Wave EK — منجز):** صدق تنبيه فتح الدرج بلا بيع — [`HISABY-WAVE-EK-NOSALE-STAFF-NOTIFY-HONESTY-2026-07-28.md`](./HISABY-WAVE-EK-NOSALE-STAFF-NOTIFY-HONESTY-2026-07-28.md) · قبله EJ ولاء QR.  
+2. **الكود (Wave EL — منجز):** صدق أخطاء طوابير المطعم (انتظار/حجز/سفري/توصيل) — [`HISABY-WAVE-EL-RESTO-QUEUE-ERROR-HONESTY-2026-07-28.md`](./HISABY-WAVE-EL-RESTO-QUEUE-ERROR-HONESTY-2026-07-28.md) · قبله EK فتح الدرج.  
 3. على Render: `prisma migrate deploy` (يشمل أعمدة إشعار الحجوزات) · `REDIS_URL` اختياري؛ قالب OTP واتساب؛ `REQUIRE_2FA_HARD_AFTER_GRACE=1` عند الرغبة بقفل التعديلات.  
 4. لاحقاً: أرشفة docs.

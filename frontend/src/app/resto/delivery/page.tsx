@@ -7,6 +7,7 @@ import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
 import { restoCopy } from "@/lib/resto-copy";
+import { apiErrorMessage } from "@/lib/utils";
 
 type DeliveryStatus = "QUEUED" | "KITCHEN" | "READY" | "OUT" | "DELIVERED";
 
@@ -58,10 +59,10 @@ export default function RestoDeliveryPage() {
       const res = await api.getRestoActiveOrders("DELIVERY");
       setOrders(res.data.orders || []);
       setLoadError(false);
-    } catch {
+    } catch (err) {
       setOrders([]);
       setLoadError(true);
-      toast.error(t.actionFail);
+      toast.error(apiErrorMessage(err, t.actionFail));
     } finally {
       setLoading(false);
     }
@@ -101,8 +102,8 @@ export default function RestoDeliveryPage() {
         toast.message(t.orderReceivedFail);
       }
       router.push(`/resto/orders/${res.data.id}`);
-    } catch {
-      toast.error(t.actionFail);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, t.actionFail));
       setBusy(false);
     }
   };
@@ -194,9 +195,7 @@ export default function RestoDeliveryPage() {
       toastNotify(res.data?.notify);
       await load();
     } catch (err) {
-      const msg = (err as { response?: { data?: { message?: string } } })
-        ?.response?.data?.message;
-      toast.error(typeof msg === "string" ? msg : t.actionFail);
+      toast.error(apiErrorMessage(err, t.actionFail));
     } finally {
       setBusy(false);
     }

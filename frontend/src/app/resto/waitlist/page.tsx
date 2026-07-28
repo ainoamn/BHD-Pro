@@ -7,6 +7,7 @@ import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
 import { restoCopy } from "@/lib/resto-copy";
+import { apiErrorMessage } from "@/lib/utils";
 
 type Entry = {
   id: string;
@@ -95,10 +96,10 @@ export default function RestoWaitlistPage() {
         ),
       );
       setLoadError(false);
-    } catch {
+    } catch (err) {
       setEntries([]);
       setLoadError(true);
-      toast.error(t.actionFail);
+      toast.error(apiErrorMessage(err, t.actionFail));
     } finally {
       setLoading(false);
     }
@@ -125,8 +126,8 @@ export default function RestoWaitlistPage() {
       setPhone("");
       await load();
       toast.success(t.waitlistAdd);
-    } catch {
-      toast.error(t.actionFail);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, t.actionFail));
     } finally {
       setBusy(false);
     }
@@ -138,8 +139,8 @@ export default function RestoWaitlistPage() {
       const res = await api.notifyRestoWaitlist(id);
       toastNotify(res.data.notify);
       await load();
-    } catch {
-      toast.error(t.actionFail);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, t.actionFail));
     } finally {
       setBusy(false);
     }
@@ -173,8 +174,8 @@ export default function RestoWaitlistPage() {
       setSeatFor(null);
       setTableId("");
       await load();
-    } catch {
-      toast.error(t.actionFail);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, t.actionFail));
     } finally {
       setBusy(false);
     }

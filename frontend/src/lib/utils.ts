@@ -191,6 +191,27 @@ export function apiErrorMessage(err: unknown, fallback = "Error"): string {
   if (lower.includes("customer loyalty is not enabled")) {
     return "ولاء العملاء غير مفعّل";
   }
+  if (lower.includes("waitlist entry not found")) {
+    return "سجل قائمة الانتظار غير موجود";
+  }
+  if (lower.includes("tableid required to seat")) {
+    return "اختر طاولة لإجلاس ضيف قائمة الانتظار";
+  }
+  if (lower.includes("cannot notify a closed waitlist")) {
+    return "لا يمكن إشعار سجل انتظار مغلق";
+  }
+  if (lower.includes("invalid reservation time")) {
+    return "وقت الحجز غير صالح";
+  }
+  if (lower.includes("reservation not found")) {
+    return "الحجز غير موجود";
+  }
+  if (lower.includes("reservation link invalid")) {
+    return "رابط الحجز غير صالح";
+  }
+  if (lower.includes("reservation is closed")) {
+    return "الحجز مغلق";
+  }
   // Honesty: surface Nest message rather than a generic fail when unmapped
   return raw;
 }
