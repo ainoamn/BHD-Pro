@@ -338,7 +338,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
           api.getCurrentSubscription().catch(() => null),
         ]);
         if (!cancelled) {
-          setLinked(!!linkRes.data.linked);
+          setLinked(true);
           setLinkLoadError(false);
           const features = (subRes?.data as { features?: Record<string, boolean> })
             ?.features;
@@ -384,8 +384,9 @@ export function PosShell({ children }: { children: React.ReactNode }) {
   };
 
   const goAccounting = () => {
-    // Unlinked: stay inside POS simple books. Linked: full accounting suite.
-    if (linked === true) {
+  // Unlinked: stay inside POS simple books. Linked: full accounting suite.
+    // Apps are always company-unified; go to accounting when allowed.
+    if (canOpenAccountingApp(perms, user?.role)) {
       router.push("/dashboard");
       return;
     }
@@ -466,7 +467,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
             <ShellThemeToggle tone="pos" />
             <ShellAlertsBell
               tone="pos"
-              hasAlert={linked === false || linkLoadError}
+              hasAlert={linkLoadError}
               title={t.alertsTitle}
               emptyLabel={t.alertsEmpty}
               items={[
@@ -478,17 +479,6 @@ export function PosShell({ children }: { children: React.ReactNode }) {
                         message: t.retry,
                         href: "/pos/settings",
                         tone: "error" as const,
-                      },
-                    ]
-                  : []),
-                ...(linked === false
-                  ? [
-                      {
-                        id: "pos-unlinked",
-                        title: t.unlinkedTitle,
-                        message: t.unlinked,
-                        href: "/pos/settings",
-                        tone: "warning" as const,
                       },
                     ]
                   : []),
@@ -513,10 +503,10 @@ export function PosShell({ children }: { children: React.ReactNode }) {
                 type="button"
                 onClick={goAccounting}
                 className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/15 px-2.5 py-1.5 text-xs font-bold text-emerald-300 hover:bg-emerald-500/25 shrink-0"
-                title={linked === true ? t.toAccounting : t.posBooksTitle}
+                title={t.toAccounting}
               >
-                {linked === true ? <Calculator className="w-4 h-4" /> : <Wallet className="w-4 h-4" />}
-                <span>{linked === true ? t.toAccounting : t.posBooksNav}</span>
+                <Calculator className="w-4 h-4" />
+                <span>{t.toAccounting}</span>
               </button>
               ) : null}
               {showRestoNav ? (
@@ -654,7 +644,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
                   className="w-full flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold bg-emerald-500/10 text-emerald-200"
                 >
                   <Calculator className="w-4 h-4" />
-                  {linked === true ? t.toAccounting : t.posBooksNav}
+                  {t.toAccounting}
                 </button>
                 ) : null}
                 {showRestoNav ? (

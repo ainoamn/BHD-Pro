@@ -6,7 +6,6 @@ import toast from "react-hot-toast";
 import {
   Calculator,
   Link2,
-  Link2Off,
   Loader2,
   ShoppingCart,
   UtensilsCrossed,
@@ -25,56 +24,30 @@ type HubTone = "accounting" | "pos" | "resto";
 
 const copy = {
   ar: {
-    title: "أنظمة حسابي الثلاثة",
-    hint: "اربط أو افصل الكاشير والمطاعم عن المحاسبة بنقرة واحدة — البيانات المشتركة (منتجات وجهات اتصال) تبقى.",
+    title: "أنظمة حسابي — شركة واحدة",
+    hint: "المحاسبة والكاشير والمطاعم مربوطة دائماً: نفس الشركة والمستخدمين والمخزون والحسابات. التحكم بإظهار الأنظمة لاحقاً عبر الباقة والاشتراك.",
     accounting: "المحاسبة",
     pos: "الكاشير",
     resto: "المطاعم",
     open: "فتح",
-    link: "ربط",
-    unlink: "فصل",
-    linked: "مربوط",
-    unlinked: "منفصل",
+    unified: "مربوط دائماً",
     current: "الحالي",
-    unlinkPosConfirm: "فصل الكاشير عن المحاسبة؟ يبقى المخزون وجهات الاتصال.",
-    unlinkRestoConfirm: "فصل المطاعم عن المحاسبة؟ تبقى الأصناف والطلبات التشغيلية.",
-    ok: "تم",
-    fail: "تعذر تنفيذ العملية",
-    forbidden: "غير مسموح لهذه الصلاحية",
-    loadFailed: "تعذر تحميل حالة الربط",
+    loadFailed: "تعذر تحميل حالة الأنظمة",
     retry: "إعادة المحاولة",
   },
   en: {
-    title: "Three Hisaby apps",
-    hint: "Link or unlink POS and Restaurants from Accounting in one tap — shared products and contacts stay.",
+    title: "Hisaby apps — one company",
+    hint: "Accounting, POS, and Restaurants stay linked: same company, users, stock, and ledgers. Module visibility is controlled later by plan/subscription.",
     accounting: "Accounting",
     pos: "POS",
     resto: "Restaurants",
     open: "Open",
-    link: "Link",
-    unlink: "Unlink",
-    linked: "Linked",
-    unlinked: "Separate",
+    unified: "Always linked",
     current: "Current",
-    unlinkPosConfirm: "Unlink POS from Accounting? Inventory and contacts remain.",
-    unlinkRestoConfirm: "Unlink Restaurants from Accounting? Menu items and floor data remain.",
-    ok: "Done",
-    fail: "Action failed",
-    forbidden: "Not allowed for this role",
-    loadFailed: "Could not load link status",
+    loadFailed: "Could not load app status",
     retry: "Retry",
   },
 } as const;
-
-function errMessage(err: unknown, fallback: string) {
-  const status = (err as { response?: { status?: number } })?.response?.status;
-  if (status === 403) return "forbidden";
-  const msg = (err as { response?: { data?: { message?: string | string[] } } })
-    ?.response?.data?.message;
-  if (typeof msg === "string") return msg;
-  if (Array.isArray(msg) && msg[0]) return String(msg[0]);
-  return fallback;
-}
 
 export function HisabyAppsLinkHub({
   tone = "accounting",
@@ -87,26 +60,19 @@ export function HisabyAppsLinkHub({
   const t = copy[locale === "en" ? "en" : "ar"];
   const user = useAuthStore((s) => s.user);
   const role = user?.role ?? "";
-  const canManage = ["ADMIN", "MANAGER", "RESTO_MANAGER"].includes(role);
+  const perms = user?.modulePermissions;
 
-  const [posLinked, setPosLinked] = useState<boolean | null>(null);
-  const [restoLinked, setRestoLinked] = useState<boolean | null>(null);
-  const [busy, setBusy] = useState<"pos" | "resto" | null>(null);
+  const [ready, setReady] = useState(false);
   const [loadError, setLoadError] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoadError(false);
     try {
-      const [pos, resto] = await Promise.all([
-        api.getPosLinkStatus(),
-        api.getRestoLinkStatus(),
-      ]);
-      setPosLinked(!!pos.data.linked);
-      setRestoLinked(!!resto.data.linked);
+      await Promise.all([api.getPosLinkStatus(), api.getRestoLinkStatus()]);
+      setReady(true);
       setLoadError(false);
     } catch {
-      setPosLinked(null);
-      setRestoLinked(null);
+      setReady(false);
       setLoadError(true);
     }
   }, []);
@@ -115,79 +81,6 @@ export function HisabyAppsLinkHub({
     void refresh();
   }, [refresh]);
 
-  const toastFail = (err: unknown) => {
-    const m = errMessage(err, t.fail);
-    toast.error(m === "forbidden" ? t.forbidden : m);
-  };
-
-  const linkPos = async () => {
-    setBusy("pos");
-    try {
-      const res = await api.activatePosLink();
-      const needs = (res.data as { needsWarehouse?: boolean })?.needsWarehouse;
-      toast.success(
-        needs
-          ? locale === "en"
-            ? "Linked — pick a POS warehouse in Settings"
-            : "تم الربط — اختر مخزن الكاشير من الإعدادات"
-          : t.ok,
-      );
-      await refresh();
-    } catch (err) {
-      toastFail(err);
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const unlinkPos = async () => {
-    if (!window.confirm(t.unlinkPosConfirm)) return;
-    setBusy("pos");
-    try {
-      await api.deactivatePosLink();
-      toast.success(t.ok);
-      await refresh();
-    } catch (err) {
-      toastFail(err);
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const linkResto = async () => {
-    setBusy("resto");
-    try {
-      const res = await api.activateRestoLink();
-      const needs = (res.data as { needsWarehouse?: boolean })?.needsWarehouse;
-      toast.success(
-        needs
-          ? locale === "en"
-            ? "Linked — pick a restaurant warehouse in Settings"
-            : "تم الربط — اختر مخزن المطاعم من الإعدادات"
-          : t.ok,
-      );
-      await refresh();
-    } catch (err) {
-      toastFail(err);
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const unlinkResto = async () => {
-    if (!window.confirm(t.unlinkRestoConfirm)) return;
-    setBusy("resto");
-    try {
-      await api.deactivateRestoLink();
-      toast.success(t.ok);
-      await refresh();
-    } catch (err) {
-      toastFail(err);
-    } finally {
-      setBusy(null);
-    }
-  };
-
   const shell =
     tone === "accounting"
       ? "rounded-xl border border-slate-700 bg-slate-800/40 p-4 space-y-3"
@@ -195,37 +88,30 @@ export function HisabyAppsLinkHub({
         ? "rounded-2xl border border-white/10 bg-white/5 p-4 space-y-3"
         : "rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-3";
 
-  const perms = user?.modulePermissions;
   const apps = [
     {
       key: "accounting" as const,
       href: "/dashboard",
       title: t.accounting,
       icon: Calculator,
-      linked: true as boolean | null,
       current: tone === "accounting",
       visible: canOpenAccountingApp(perms, role),
-      manage: null as null | { link: () => void; unlink: () => void },
     },
     {
       key: "pos" as const,
       href: "/pos",
       title: t.pos,
       icon: ShoppingCart,
-      linked: posLinked,
       current: tone === "pos",
       visible: canOpenPosApp(perms, role),
-      manage: { link: linkPos, unlink: unlinkPos },
     },
     {
       key: "resto" as const,
       href: "/resto",
       title: t.resto,
       icon: UtensilsCrossed,
-      linked: restoLinked,
       current: tone === "resto",
       visible: canOpenRestoApp(perms, role),
-      manage: { link: linkResto, unlink: unlinkResto },
     },
   ].filter((a) => a.visible);
 
@@ -255,7 +141,6 @@ export function HisabyAppsLinkHub({
       <div className="grid gap-2 sm:grid-cols-3">
         {apps.map((app) => {
           const Icon = app.icon;
-          const isBusy = busy === app.key;
           return (
             <div
               key={app.key}
@@ -270,49 +155,22 @@ export function HisabyAppsLinkHub({
                   <span className="text-[10px] font-bold uppercase opacity-50">
                     {t.current}
                   </span>
-                ) : app.linked === null ? (
-                  <span className="text-[10px] opacity-40">…</span>
-                ) : app.linked ? (
+                ) : ready ? (
                   <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-300">
                     <Link2 className="w-3 h-3" />
-                    {t.linked}
+                    {t.unified}
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-200">
-                    <Link2Off className="w-3 h-3" />
-                    {t.unlinked}
-                  </span>
+                  <Loader2 className="w-3 h-3 animate-spin opacity-40" />
                 )}
               </div>
-              <div className="mt-auto flex flex-wrap gap-1.5">
+              <div className="mt-auto">
                 <Link
                   href={app.href}
                   className="inline-flex min-h-9 items-center rounded-lg bg-white/10 hover:bg-white/15 px-2.5 py-1 text-[11px] font-bold"
                 >
                   {t.open}
                 </Link>
-                {app.manage && app.linked === false && canManage ? (
-                  <button
-                    type="button"
-                    disabled={!!busy}
-                    onClick={() => void app.manage!.link()}
-                    className="inline-flex min-h-9 items-center gap-1 rounded-lg bg-emerald-500/90 px-2.5 py-1 text-[11px] font-bold text-[#0f1410] disabled:opacity-50"
-                  >
-                    {isBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
-                    {t.link}
-                  </button>
-                ) : null}
-                {app.manage && app.linked === true && canManage ? (
-                  <button
-                    type="button"
-                    disabled={!!busy}
-                    onClick={() => void app.manage!.unlink()}
-                    className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-white/20 px-2.5 py-1 text-[11px] font-semibold disabled:opacity-50"
-                  >
-                    {isBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
-                    {t.unlink}
-                  </button>
-                ) : null}
               </div>
             </div>
           );

@@ -48,6 +48,7 @@ import {
   productMatchesPluArticle,
 } from '../common/pos-plu';
 import { AuditService } from '../audit/audit.service';
+import { ensureCompanyAppsLinked } from '../common/company-apps-link';
 
 const WALK_IN_NAME = 'POS Walk-in / نقدي';
 const POS_REPRINT_ACTION = 'POS_RECEIPT_REPRINT';
@@ -75,6 +76,7 @@ export class PosService {
   }
 
   async getLinkStatus(companyId: string) {
+    await ensureCompanyAppsLinked(this.prisma, companyId);
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
       select: {
@@ -97,13 +99,14 @@ export class PosService {
     });
     if (!company) throw new NotFoundException('Company not found');
     return {
-      linked: !!company.posLinkedAt,
+      linked: true,
+      alwaysLinked: true,
       companyId: company.id,
       companyName: company.name,
       keyPrefix: company.posIntegrationKeyPrefix,
       warehouseId: company.posWarehouseId,
       warehouse: company.posWarehouse,
-      restoLinked: !!company.restoLinkedAt,
+      restoLinked: true,
       apps: { accounting: true, pos: true, resto: true },
     };
   }
@@ -263,14 +266,14 @@ export class PosService {
     };
   }
 
-  /** Same-login SSO: mark Accounting ↔ POS as linked for this company */
+  /** Same-login SSO: apps are always unified — ensure timestamps and optional warehouse. */
   async activateLink(companyId: string, warehouseId?: string) {
+    await ensureCompanyAppsLinked(this.prisma, companyId);
     if (warehouseId) {
       return this.setWarehouse(companyId, warehouseId);
     }
-    const company = await this.prisma.company.update({
+    const company = await this.prisma.company.findUnique({
       where: { id: companyId },
-      data: { posLinkedAt: new Date() },
       select: {
         id: true,
         name: true,
@@ -287,8 +290,10 @@ export class PosService {
         },
       },
     });
+    if (!company) throw new NotFoundException('Company not found');
     return {
       linked: true,
+      alwaysLinked: true,
       companyId: company.id,
       companyName: company.name,
       linkedAt: company.posLinkedAt,
@@ -298,24 +303,25 @@ export class PosService {
     };
   }
 
-  /** Disconnect Accounting ↔ POS so each app can be tested independently */
+  /**
+   * Unlink is disabled: Accounting / POS / Restaurants stay one company.
+   * Disable modules later via plan / subscription.
+   */
   async deactivateLink(companyId: string) {
-    const company = await this.prisma.company.update({
+    await ensureCompanyAppsLinked(this.prisma, companyId);
+    const company = await this.prisma.company.findUnique({
       where: { id: companyId },
-      data: {
-        posLinkedAt: null,
-        posIntegrationKeyHash: null,
-        posIntegrationKeyPrefix: null,
-        posWarehouseId: null,
-      },
       select: { id: true, name: true, posLinkedAt: true },
     });
+    if (!company) throw new NotFoundException('Company not found');
     return {
-      linked: false,
+      linked: true,
+      alwaysLinked: true,
       companyId: company.id,
       companyName: company.name,
-      linkedAt: null,
-      warehouseId: null,
+      linkedAt: company.posLinkedAt,
+      message:
+        'Apps stay linked for this company. Turn modules off via subscription/plan later.',
     };
   }
 
@@ -2238,9 +2244,11 @@ export class PosService {
       where: { id: companyId },
       select: { posLinkedAt: true, currency: true, plan: true },
     });
+    await ensureCompanyAppsLinked(this.prisma, companyId);
 
     return {
-      linked: !!company?.posLinkedAt,
+      linked: true,
+      alwaysLinked: true,
       currency: company?.currency || 'OMR',
       plan: company?.plan || 'STARTER',
       monthFrom: monthStart.toISOString(),

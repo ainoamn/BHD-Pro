@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import toast from "react-hot-toast";
-import { Copy, KeyRound, Link2, ShoppingCart } from "lucide-react";
+import { Link2, ShoppingCart } from "lucide-react";
 import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 import { useLocaleStore } from "@/store/locale";
@@ -30,13 +30,8 @@ export function PosLinkSettings({
   const locale = useLocaleStore((s) => s.locale);
   const t = posCopy[locale === "en" ? "en" : "ar"];
   const user = useAuthStore((s) => s.user);
-  const isAdmin = user?.role === "ADMIN";
   const canManage = user?.role === "ADMIN" || user?.role === "MANAGER";
-  const [linked, setLinked] = useState(false);
-  const [prefix, setPrefix] = useState<string | null>(null);
   const [companyName, setCompanyName] = useState("");
-  const [generatedKey, setGeneratedKey] = useState<string | null>(null);
-  const [pasteKey, setPasteKey] = useState("");
   const [busy, setBusy] = useState(false);
   const [warehouses, setWarehouses] = useState<
     { id: string; code: string; name: string; nameEn?: string | null; sector?: string; isActive?: boolean }[]
@@ -50,8 +45,6 @@ export function PosLinkSettings({
       api.getPosLinkStatus(),
       api.getWarehouses(),
     ]);
-    setLinked(!!linkRes.data.linked);
-    setPrefix(linkRes.data.keyPrefix);
     setCompanyName(linkRes.data.companyName);
     const rows = ((whRes.data as typeof warehouses) || []).filter((w) => w.isActive !== false);
     setWarehouses(rows);
@@ -66,32 +59,6 @@ export function PosLinkSettings({
       .finally(() => setBootLoading(false));
   }, []);
 
-  const toastApiError = (err: unknown) => {
-    const status = (err as { response?: { status?: number } })?.response?.status;
-    if (status === 403) {
-      toast.error(t.forbidden);
-      return;
-    }
-    toast.error(errMessage(err, t.linkFail));
-  };
-
-  const activate = async () => {
-    if (!warehouseId) {
-      toast.error(t.warehouseRequired);
-      return;
-    }
-    setBusy(true);
-    try {
-      await api.activatePosLink(warehouseId);
-      toast.success(t.linked);
-      await refresh();
-    } catch (err) {
-      toastApiError(err);
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const saveWarehouse = async () => {
     if (!warehouseId) {
       toast.error(t.warehouseRequired);
@@ -103,50 +70,8 @@ export function PosLinkSettings({
       toast.success(t.warehouseSaved);
       await refresh();
     } catch (err) {
-      toastApiError(err);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const deactivate = async () => {
-    if (!window.confirm(t.unlinkConfirm)) return;
-    setBusy(true);
-    try {
-      await api.deactivatePosLink();
-      setGeneratedKey(null);
-      toast.success(t.unlinkOk);
-      await refresh();
-    } catch (err) {
-      toast.error(errMessage(err, t.unlinkFail));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const generate = async () => {
-    setBusy(true);
-    try {
-      const res = await api.generatePosLinkKey(warehouseId || undefined);
-      setGeneratedKey(res.data.key);
-      toast.success(t.keyHint);
-      await refresh();
-    } catch (err) {
-      toastApiError(err);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const confirmKey = async () => {
-    setBusy(true);
-    try {
-      await api.confirmPosLinkKey(pasteKey, warehouseId || undefined);
-      toast.success(t.linked);
-      setPasteKey("");
-      await refresh();
-    } catch (err) {
-      toastApiError(err);
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      toast.error(status === 403 ? t.forbidden : errMessage(err, t.linkFail));
     } finally {
       setBusy(false);
     }
@@ -156,24 +81,12 @@ export function PosLinkSettings({
   const panel = isAccounting
     ? "rounded-xl border border-slate-700 bg-slate-800/50 p-4 space-y-3"
     : "rounded-2xl border border-white/10 bg-white/5 p-4 space-y-3";
-  const statusOk = isAccounting
-    ? "border-emerald-500/40 bg-emerald-500/10"
-    : "border-emerald-500/30 bg-emerald-500/10";
-  const statusWarn = isAccounting
-    ? "border-amber-500/40 bg-amber-500/10"
-    : "border-amber-500/30 bg-amber-500/10";
+  const inputCls = isAccounting
+    ? "w-full h-10 rounded-lg bg-slate-900 border border-slate-700 px-3 text-sm text-white focus:outline-none focus:border-emerald-500"
+    : "w-full h-11 rounded-xl bg-[#0b1220] border border-white/10 px-3 text-sm";
   const btnPrimary = isAccounting
     ? "w-full h-10 rounded-lg bg-emerald-600 font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
     : "w-full h-11 rounded-xl bg-emerald-500 font-bold text-white hover:bg-emerald-400 disabled:opacity-50";
-  const btnSky = isAccounting
-    ? "w-full h-10 rounded-lg bg-sky-600 font-semibold text-white hover:bg-sky-500 disabled:opacity-50 inline-flex items-center justify-center gap-2"
-    : "w-full h-11 rounded-xl bg-sky-500 font-bold text-white hover:bg-sky-400 disabled:opacity-50 inline-flex items-center justify-center gap-2";
-  const inputCls = isAccounting
-    ? "w-full h-10 rounded-lg bg-slate-900 border border-slate-700 px-3 font-mono text-sm text-white focus:outline-none focus:border-emerald-500"
-    : "w-full h-11 rounded-xl bg-[#0b1220] border border-white/10 px-3 font-mono text-sm";
-  const secondaryBtn = isAccounting
-    ? "w-full h-10 rounded-lg border border-slate-600 font-semibold text-slate-200 hover:bg-slate-800 disabled:opacity-40"
-    : "w-full h-10 rounded-xl border border-white/15 font-semibold hover:bg-white/5 disabled:opacity-40";
 
   return (
     <div className={cn("space-y-4", className)}>
@@ -198,62 +111,58 @@ export function PosLinkSettings({
         </div>
       ) : (
         <>
-      {isAccounting && (
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div className="flex items-start gap-3 min-w-0">
-            <ShoppingCart className="w-6 h-6 text-emerald-400 shrink-0 mt-0.5" />
-            <div className="min-w-0">
-              <h2 className="text-lg font-semibold text-white">{t.posLinkTitle}</h2>
-              <p className="text-sm text-slate-400 mt-1">{t.posLinkDesc}</p>
-              {companyName ? (
-                <p className="text-xs text-slate-500 mt-1 truncate">{companyName}</p>
-              ) : null}
+          {isAccounting ? (
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div className="flex items-start gap-3 min-w-0">
+                <ShoppingCart className="w-6 h-6 text-emerald-400 shrink-0 mt-0.5" />
+                <div className="min-w-0">
+                  <h2 className="text-lg font-semibold text-white">{t.posLinkTitle}</h2>
+                  <p className="text-sm text-slate-400 mt-1">
+                    {locale === "en"
+                      ? "POS is always part of this company — shared stock, contacts, and users. Choose the default warehouse below."
+                      : "الكاشير جزء دائم من نفس الشركة — مخزون وجهات اتصال ومستخدمون مشتركون. اختر المخزن الافتراضي أدناه."}
+                  </p>
+                  {companyName ? (
+                    <p className="text-xs text-slate-500 mt-1 truncate">{companyName}</p>
+                  ) : null}
+                </div>
+              </div>
+              <Link
+                href="/pos"
+                className="text-sm px-4 py-2 rounded-lg bg-slate-800 text-emerald-400 hover:bg-slate-700 shrink-0"
+              >
+                {t.openPos}
+              </Link>
             </div>
+          ) : null}
+
+          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4">
+            <p className="font-bold flex items-center gap-2 text-sm sm:text-base text-emerald-200">
+              <Link2 className="w-4 h-4" />
+              {locale === "en" ? "Always linked to Accounting" : "مربوط دائماً بالمحاسبة"}
+            </p>
+            <p className="text-xs text-slate-400 mt-2 leading-relaxed">{t.sharedRecordsNote}</p>
           </div>
-          <Link
-            href="/pos"
-            className="text-sm px-4 py-2 rounded-lg bg-slate-800 text-emerald-400 hover:bg-slate-700 shrink-0"
-          >
-            {t.openPos}
-          </Link>
-        </div>
-      )}
 
-      <div className={cn("rounded-xl border p-4", linked ? statusOk : statusWarn)}>
-        <p className="font-bold flex items-center gap-2 text-sm sm:text-base">
-          <Link2 className="w-4 h-4" />
-          {linked ? t.linked : t.unlinked}
-        </p>
-        <p className="text-xs text-slate-400 mt-2 leading-relaxed">{t.sharedRecordsNote}</p>
-        {prefix && (
-          <p className="text-xs text-slate-500 mt-2">
-            Key prefix: {prefix}…
-          </p>
-        )}
-      </div>
-
-      <div className={panel}>
-        <label className="block space-y-1 mb-3">
-          <span className="text-xs text-slate-400">{t.warehouseLabel}</span>
-          <select
-            value={warehouseId}
-            onChange={(e) => setWarehouseId(e.target.value)}
-            className={inputCls}
-            disabled={!canManage && linked}
-          >
-            <option value="">{locale === "en" ? "Select warehouse…" : "اختر مخزناً…"}</option>
-            {warehouses.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.code} — {locale === "en" && w.nameEn ? w.nameEn : w.name}
-                {w.sector ? ` (${w.sector})` : ""}
-              </option>
-            ))}
-          </select>
-          <p className="text-[11px] text-slate-500">{t.warehouseBindHint}</p>
-        </label>
-
-        {linked ? (
-          <>
+          <div className={panel}>
+            <label className="block space-y-1 mb-3">
+              <span className="text-xs text-slate-400">{t.warehouseLabel}</span>
+              <select
+                value={warehouseId}
+                onChange={(e) => setWarehouseId(e.target.value)}
+                className={inputCls}
+                disabled={!canManage}
+              >
+                <option value="">{locale === "en" ? "Select warehouse…" : "اختر مخزناً…"}</option>
+                {warehouses.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.code} — {locale === "en" && w.nameEn ? w.nameEn : w.name}
+                    {w.sector ? ` (${w.sector})` : ""}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[11px] text-slate-500">{t.warehouseBindHint}</p>
+            </label>
             {canManage ? (
               <button
                 type="button"
@@ -264,75 +173,7 @@ export function PosLinkSettings({
                 {t.warehouseSave}
               </button>
             ) : null}
-            <button
-            type="button"
-            disabled={busy || (!isAdmin && user?.role !== "MANAGER")}
-            onClick={deactivate}
-            className={
-              isAccounting
-                ? "w-full h-10 rounded-lg border border-rose-500/40 bg-rose-500/10 font-semibold text-rose-200 hover:bg-rose-500/20 disabled:opacity-50"
-                : "w-full h-11 rounded-xl border border-rose-500/40 bg-rose-500/10 font-bold text-rose-200 hover:bg-rose-500/20 disabled:opacity-50"
-            }
-          >
-            {t.unlinkSystems}
-          </button>
-          </>
-        ) : (
-          <button type="button" disabled={busy} onClick={activate} className={btnPrimary}>
-            {t.activateLink}
-          </button>
-        )}
-
-        {isAdmin ? (
-          <>
-            <button type="button" disabled={busy} onClick={generate} className={btnSky}>
-              <KeyRound className="w-4 h-4" />
-              {t.generateKey}
-            </button>
-            {generatedKey && (
-              <div
-                className={cn(
-                  "rounded-xl p-3 text-xs break-all space-y-2",
-                  isAccounting ? "bg-slate-950/80" : "bg-black/40",
-                )}
-              >
-                <p className="text-amber-200">{t.keyHint}</p>
-                <p className="font-mono text-sky-200">{generatedKey}</p>
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-1 text-slate-300"
-                  onClick={() => {
-                    navigator.clipboard.writeText(generatedKey);
-                    toast.success(t.copied);
-                  }}
-                >
-                  <Copy className="w-3.5 h-3.5" />
-                  {t.copy}
-                </button>
-              </div>
-            )}
-            <div className="pt-1 space-y-2">
-              <label className="text-xs text-slate-400">{t.pasteKey}</label>
-              <input
-                value={pasteKey}
-                onChange={(e) => setPasteKey(e.target.value)}
-                className={inputCls}
-                placeholder="hpos_…"
-              />
-              <button
-                type="button"
-                disabled={busy || !pasteKey.trim()}
-                onClick={confirmKey}
-                className={secondaryBtn}
-              >
-                {t.saveKey}
-              </button>
-            </div>
-          </>
-        ) : (
-          <p className="text-xs text-slate-500">{t.adminOnlyKeys}</p>
-        )}
-      </div>
+          </div>
         </>
       )}
     </div>

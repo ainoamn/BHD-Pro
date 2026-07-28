@@ -26,6 +26,7 @@ import { RestoGuestNotifyService } from '../notifications/resto-guest-notify.ser
 import { InvoicesService } from '../invoices/invoices.service';
 import { DualApprovalDto } from '../dual-control/dto/approval.dto';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
+import { ensureCompanyAppsLinked } from '../common/company-apps-link';
 import {
   dialCodeForCountry,
   isValidMobileE164,
@@ -159,6 +160,7 @@ export class RestoService {
   }
 
   async getLinkStatus(companyId: string) {
+    await ensureCompanyAppsLinked(this.prisma, companyId);
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
       select: {
@@ -181,13 +183,14 @@ export class RestoService {
     });
     if (!company) throw new NotFoundException('Company not found');
     return {
-      linked: !!company.restoLinkedAt,
+      linked: true,
+      alwaysLinked: true,
       companyId: company.id,
       companyName: company.name,
       keyPrefix: company.restoIntegrationKeyPrefix,
       warehouseId: company.restoWarehouseId,
       warehouse: company.restoWarehouse,
-      posLinked: !!company.posLinkedAt,
+      posLinked: true,
       apps: { accounting: true, pos: true, resto: true },
     };
   }
@@ -232,14 +235,14 @@ export class RestoService {
     };
   }
 
-  /** Same-login SSO: mark Accounting/POS ↔ Restaurants as linked */
+  /** Apps are always unified — ensure timestamps and optional warehouse. */
   async activateLink(companyId: string, warehouseId?: string) {
+    await ensureCompanyAppsLinked(this.prisma, companyId);
     if (warehouseId) {
       return this.setWarehouse(companyId, warehouseId);
     }
-    const company = await this.prisma.company.update({
+    const company = await this.prisma.company.findUnique({
       where: { id: companyId },
-      data: { restoLinkedAt: new Date() },
       select: {
         id: true,
         name: true,
@@ -256,8 +259,10 @@ export class RestoService {
         },
       },
     });
+    if (!company) throw new NotFoundException('Company not found');
     return {
       linked: true,
+      alwaysLinked: true,
       companyId: company.id,
       companyName: company.name,
       linkedAt: company.restoLinkedAt,
@@ -267,23 +272,22 @@ export class RestoService {
     };
   }
 
+  /** Unlink disabled — keep apps unified; gate via subscription later. */
   async deactivateLink(companyId: string) {
-    const company = await this.prisma.company.update({
+    await ensureCompanyAppsLinked(this.prisma, companyId);
+    const company = await this.prisma.company.findUnique({
       where: { id: companyId },
-      data: {
-        restoLinkedAt: null,
-        restoIntegrationKeyHash: null,
-        restoIntegrationKeyPrefix: null,
-        restoWarehouseId: null,
-      },
       select: { id: true, name: true, restoLinkedAt: true },
     });
+    if (!company) throw new NotFoundException('Company not found');
     return {
-      linked: false,
+      linked: true,
+      alwaysLinked: true,
       companyId: company.id,
       companyName: company.name,
-      linkedAt: null,
-      warehouseId: null,
+      linkedAt: company.restoLinkedAt,
+      message:
+        'Apps stay linked for this company. Turn modules off via subscription/plan later.',
     };
   }
 
@@ -6049,9 +6053,10 @@ export class RestoService {
         },
       },
     });
-    if (!table || !table.company.restoLinkedAt) {
+    if (!table) {
       throw new NotFoundException('Table menu not available');
     }
+    await ensureCompanyAppsLinked(this.prisma, table.companyId);
     return table;
   }
 

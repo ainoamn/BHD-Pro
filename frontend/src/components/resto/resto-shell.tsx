@@ -77,7 +77,7 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
           api.getCurrentSubscription().catch(() => null),
         ]);
         if (!cancelled) {
-          setLinked(!!linkRes.data.linked);
+          setLinked(true);
           setLinkLoadError(false);
           const features = (subRes?.data as { features?: Record<string, boolean> })
             ?.features;
@@ -292,7 +292,7 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
             <ShellThemeToggle tone="resto" />
             <ShellAlertsBell
               tone="resto"
-              hasAlert={linked === false || linkLoadError}
+              hasAlert={linkLoadError}
               title={t.alertsTitle}
               emptyLabel={t.alertsEmpty}
               items={[
@@ -304,17 +304,6 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
                         message: t.retry,
                         href: "/resto/settings",
                         tone: "error" as const,
-                      },
-                    ]
-                  : []),
-                ...(linked === false
-                  ? [
-                      {
-                        id: "resto-unlinked",
-                        title: t.unlinkedTitle,
-                        message: t.linkBanner,
-                        href: "/resto/settings",
-                        tone: "warning" as const,
                       },
                     ]
                   : []),

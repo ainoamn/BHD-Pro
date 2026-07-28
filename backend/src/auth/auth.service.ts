@@ -367,6 +367,8 @@ export class AuthService {
         language: 'ar',
         country: 'OM',
         timezone: 'Asia/Muscat',
+        posLinkedAt: new Date(),
+        restoLinkedAt: new Date(),
       },
     });
 
@@ -504,6 +506,8 @@ export class AuthService {
         country: 'OM',
         timezone: 'Asia/Muscat',
         logo: avatar,
+        posLinkedAt: new Date(),
+        restoLinkedAt: new Date(),
       },
     });
 

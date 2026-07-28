@@ -31,6 +31,8 @@ async function main() {
         currency: 'OMR',
         language: 'ar',
         timezone: 'Asia/Muscat',
+        posLinkedAt: new Date(),
+        restoLinkedAt: new Date(),
       },
     });
 
