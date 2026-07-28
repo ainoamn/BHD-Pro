@@ -12,6 +12,7 @@ import { JournalModule } from '../journal/journal.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { PaymentsModule } from '../payments/payments.module';
 import { AuditModule } from '../audit/audit.module';
+import { RedisModule } from '../redis/redis.module';
 import { PlanFeatureGuard } from '../common/guards/plan-feature.guard';
 import { ModulePermissionGuard } from '../common/guards/module-permission.guard';
 
@@ -26,6 +27,7 @@ import { ModulePermissionGuard } from '../common/guards/module-permission.guard'
     NotificationsModule,
     PaymentsModule,
     AuditModule,
+    RedisModule,
   ],
   controllers: [PosController],
   providers: [

@@ -37,6 +37,10 @@ export class HealthController {
       commit: process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || null,
       sentry: !!(process.env.SENTRY_DSN || '').trim(),
       redisConfigured: this.redis.isConfigured(),
+      posCatalogCache: this.redis.isConfigured(),
+      posCatalogCacheTtlSec: this.redis.isConfigured()
+        ? this.redis.posCatalogTtlSec()
+        : null,
       attachmentStorage: storage.driver,
       s3Configured: storage.s3Configured,
       emailConfigured: this.email.isConfigured(),

@@ -15,6 +15,7 @@ import { DualControlService } from '../dual-control/dual-control.service';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { ManagementAlertsService } from '../management-alerts/management-alerts.service';
+import { RedisService } from '../redis/redis.service';
 
 const warehouseStockInclude = {
   warehouseStocks: {
@@ -31,8 +32,12 @@ export class ProductsService {
     private dualControl: DualControlService,
     private subscriptions: SubscriptionsService,
     private managementAlerts: ManagementAlertsService,
+    private redis: RedisService,
   ) {}
 
+  private bumpPosCatalog(companyId: string) {
+    void this.redis.invalidatePosCatalog(companyId).catch(() => undefined);
+  }
   async findAll(companyId: string) {
     return this.prisma.product.findMany({
       where: { companyId },
@@ -226,7 +231,7 @@ export class ProductsService {
       .filter(Boolean)
       .slice(0, 8);
 
-    return this.prisma.$transaction(async (tx) => {
+    const created = await this.prisma.$transaction(async (tx) => {
       const product = await tx.product.create({
         data: {
           ...rest,
@@ -256,6 +261,8 @@ export class ProductsService {
         include: warehouseStockInclude,
       });
     });
+    this.bumpPosCatalog(companyId);
+    return created;
   }
 
   async update(companyId: string, id: string, dto: UpdateProductDto) {
@@ -279,7 +286,7 @@ export class ProductsService {
             .filter(Boolean)
             .slice(0, 8);
 
-    return this.prisma.product.update({
+    const updated = await this.prisma.product.update({
       where: { id },
       data: {
         ...rest,
@@ -292,6 +299,8 @@ export class ProductsService {
       },
       include: warehouseStockInclude,
     });
+    this.bumpPosCatalog(companyId);
+    return updated;
   }
 
   async findOne(companyId: string, id: string) {
@@ -305,7 +314,12 @@ export class ProductsService {
 
   async remove(companyId: string, id: string) {
     await this.findOne(companyId, id);
-    return this.prisma.product.update({ where: { id }, data: { isActive: false } });
+    const removed = await this.prisma.product.update({
+      where: { id },
+      data: { isActive: false },
+    });
+    this.bumpPosCatalog(companyId);
+    return removed;
   }
 
   /**
@@ -447,7 +461,7 @@ export class ProductsService {
       }
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const adjusted = await this.prisma.$transaction(async (tx) => {
       await tx.warehouseStock.upsert({
         where: {
           productId_warehouseId: { productId: id, warehouseId: warehouseId! },
@@ -518,6 +532,8 @@ export class ProductsService {
 
       return this.syncProductQuantity(tx, id, warehouseId!);
     });
+    this.bumpPosCatalog(companyId);
+    return adjusted;
   }
 
   async reverseLastAdjust(
@@ -687,7 +703,7 @@ export class ProductsService {
       throw new BadRequestException('Warehouse not found');
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const transferred = await this.prisma.$transaction(async (tx) => {
       await tx.warehouseStock.upsert({
         where: {
           productId_warehouseId: {
@@ -775,6 +791,8 @@ export class ProductsService {
         include: warehouseStockInclude,
       });
     });
+    this.bumpPosCatalog(companyId);
+    return transferred;
   }
 
   async reverseLastTransfer(

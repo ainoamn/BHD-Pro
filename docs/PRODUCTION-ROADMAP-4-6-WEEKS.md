@@ -54,7 +54,7 @@
 | البند | الحالة |
 |-------|--------|
 | Redis اختياري throttle/health | **منجز اختيارياً** (Wave BA) — فعّل `REDIS_URL` |
-| كاش منتجات/Dashboard كامل | **ناقص** |
+| كاش منتجات/Dashboard كامل | **جزئي** — كتالوج POS عبر Redis (Wave BU)؛ Dashboard لاحقاً |
 | Prisma N+1 / indexes | **جزئي** — مراجعة لاحقة |
 
 ---
@@ -99,6 +99,6 @@
 ## الخطوة التالية المقترحة
 
 1. **أنت اليوم:** Cloudflare §1.1 + تدوير أسرار + لصق Sentry DSN.  
-2. **الكود (Wave BT — منجز):** صدق وضع mock للواتساب/البريد/SMS — [`HISABY-WAVE-BT-MESSAGING-MOCK-HONESTY-2026-07-28.md`](./HISABY-WAVE-BT-MESSAGING-MOCK-HONESTY-2026-07-28.md).  
-3. على Render (اختياري): `WHATSAPP_OTP_TEMPLATE` بعد موافقة Meta.  
-4. لاحقاً: كاش Redis لكتالوج POS · أرشفة docs.
+2. **الكود (Wave BU — منجز):** كاش Redis اختياري لكتالوج POS — [`HISABY-WAVE-BU-POS-CATALOG-REDIS-2026-07-28.md`](./HISABY-WAVE-BU-POS-CATALOG-REDIS-2026-07-28.md).  
+3. على Render (اختياري): `REDIS_URL` + `POS_CATALOG_CACHE_TTL_SEC`؛ و`WHATSAPP_OTP_TEMPLATE` بعد موافقة Meta.  
+4. لاحقاً: كاش لوحة التحكم · أرشفة docs.

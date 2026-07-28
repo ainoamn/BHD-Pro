@@ -49,6 +49,7 @@ import {
 } from '../common/pos-plu';
 import { AuditService } from '../audit/audit.service';
 import { ensureCompanyAppsLinked } from '../common/company-apps-link';
+import { RedisService } from '../redis/redis.service';
 
 const WALK_IN_NAME = 'POS Walk-in / نقدي';
 const POS_REPRINT_ACTION = 'POS_RECEIPT_REPRINT';
@@ -69,7 +70,12 @@ export class PosService {
     private emailNotify: EmailNotifyService,
     private incentives: PosIncentivesService,
     private audit: AuditService,
+    private redis: RedisService,
   ) {}
+
+  private bumpCatalogCache(companyId: string) {
+    void this.redis.invalidatePosCatalog(companyId).catch(() => undefined);
+  }
 
   private hashKey(secret: string) {
     return createHash('sha256').update(secret).digest('hex');
@@ -476,6 +482,30 @@ export class PosService {
 
   async syncCatalog(companyId: string, warehouseId?: string) {
     const scopeWh = await this.resolvePosWarehouseId(companyId, warehouseId);
+    const cacheKey = this.redis.posCatalogKey(companyId, scopeWh);
+    type CatalogPayload = {
+      warehouseId: string | null;
+      syncedAt: string | Date;
+      count: number;
+      products: unknown[];
+      full: true;
+      needsWarehouse: boolean;
+      cached?: boolean;
+    };
+
+    if (this.redis.isConfigured()) {
+      const hit = await this.redis.getJson<CatalogPayload>(cacheKey);
+      if (hit && Array.isArray(hit.products)) {
+        return {
+          ...hit,
+          warehouseId: hit.warehouseId ?? scopeWh ?? null,
+          syncedAt: new Date(hit.syncedAt),
+          full: true as const,
+          cached: true,
+        };
+      }
+    }
+
     const products = await this.prisma.product.findMany({
       where: scopeWh
         ? productWhereForWarehouse(companyId, scopeWh)
@@ -497,14 +527,23 @@ export class PosService {
       },
     });
     const withStock = await this.applyWarehouseQuantity(products, scopeWh || undefined);
-    return {
+    const payload = {
       warehouseId: scopeWh || null,
       syncedAt: new Date(),
       count: withStock.length,
       products: withStock,
-      full: true,
+      full: true as const,
       needsWarehouse: !scopeWh,
+      cached: false,
     };
+
+    if (this.redis.isConfigured()) {
+      void this.redis
+        .setJson(cacheKey, { ...payload, syncedAt: payload.syncedAt.toISOString() }, this.redis.posCatalogTtlSec())
+        .catch(() => undefined);
+    }
+
+    return payload;
   }
 
   /**
@@ -587,7 +626,7 @@ export class PosService {
   ) {
     await this.periods.assertOpen(companyId, new Date());
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const product = await tx.product.findFirst({
         where: { id: productId, companyId },
       });
@@ -681,6 +720,8 @@ export class PosService {
 
       return { productId, reserved: true as const, qty, warehouseId: whId! };
     });
+    if (result.reserved) this.bumpCatalogCache(companyId);
+    return result;
   }
 
   /** Public stock OUT for restaurant recipe components (and similar) */
@@ -739,6 +780,7 @@ export class PosService {
         },
       });
     });
+    this.bumpCatalogCache(companyId);
   }
 
   /** Units already returned to stock for this sale (refunds / prior voids). */
