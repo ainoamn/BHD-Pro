@@ -85,6 +85,7 @@ export class MessagingController {
         posCatalogCacheTtlSec: redisOn ? this.redis.posCatalogTtlSec() : null,
         dashboardCache: redisOn,
         dashboardCacheTtlSec: redisOn ? this.redis.dashboardStatsTtlSec() : null,
+        throttleStorage: redisOn ? ('redis' as const) : ('memory' as const),
       },
       payments: {
         thawani: !!(process.env.THAWANI_SECRET_KEY || process.env.THAWANI_PUBLISHABLE_KEY),
@@ -156,7 +157,8 @@ export class MessagingController {
             'ضع REDIS_URL على Render (Upstash أو Render Redis).',
             'اختياري: POS_CATALOG_CACHE_TTL_SEC (افتراضي 60) و DASHBOARD_CACHE_TTL_SEC (افتراضي 30).',
             'بدون Redis يعمل النظام كما هو؛ مع Redis تتسارع مزامنة الكتالوج وإحصاءات اللوحة مع إبطال عند البيع/المخزون.',
-            'تحقق: صفحة الربط → بطاقة Redis، أو /api/health → redisConfigured / posCatalogCache / dashboardCache.',
+            'مع REDIS_URL يصبح حدّ معدل الطلبات (throttle) موزّعاً بين النسخ؛ بدونها الذاكرة المحلية لكل instance.',
+            'تحقق: صفحة الربط → بطاقة Redis، أو /api/health → redisConfigured / throttleStorage.',
           ],
         },
         {

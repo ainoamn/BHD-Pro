@@ -38,6 +38,7 @@ type MessagingStatus = {
     posCatalogCacheTtlSec?: number | null;
     dashboardCache?: boolean;
     dashboardCacheTtlSec?: number | null;
+    throttleStorage?: "redis" | "memory";
   };
   payments: {
     thawani: boolean;
@@ -185,7 +186,9 @@ export default function IntegrationsPage() {
         icon: Database,
         title: t("redis"),
         tone: status.redis?.configured ? ("live" as const) : ("off" as const),
-        detail: status.redis?.configured ? "REDIS_URL" : "off",
+        detail: status.redis?.configured
+          ? `throttle:${status.redis.throttleStorage || "redis"}`
+          : "off",
         warn: status.redis?.configured
           ? t("redisHint", {
               posTtl: status.redis.posCatalogCacheTtlSec ?? 60,

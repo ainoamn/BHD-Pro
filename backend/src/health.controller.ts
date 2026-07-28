@@ -45,6 +45,7 @@ export class HealthController {
       dashboardCacheTtlSec: this.redis.isConfigured()
         ? this.redis.dashboardStatsTtlSec()
         : null,
+      throttleStorage: this.redis.isConfigured() ? 'redis' : 'memory',
       attachmentStorage: storage.driver,
       s3Configured: storage.s3Configured,
       emailConfigured: this.email.isConfigured(),
@@ -96,6 +97,7 @@ export class HealthController {
       redis,
       sentry: !!(process.env.SENTRY_DSN || '').trim(),
       redisConfigured: this.redis.isConfigured(),
+      throttleStorage: this.redis.isConfigured() ? 'redis' : 'memory',
       attachmentStorage: storage.driver,
       s3Configured: storage.s3Configured,
       emailConfigured: this.email.isConfigured(),

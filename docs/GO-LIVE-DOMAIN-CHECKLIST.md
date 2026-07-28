@@ -146,9 +146,10 @@ Project `bhd-pro` → **Settings → Environment Variables** (Production):
 ### Redis (إن فعّلت أكثر من instance لاحقاً)
 - [ ] Upstash أو Render Redis → `REDIS_URL` على Render.
 - [ ] اختياري: `POS_CATALOG_CACHE_TTL_SEC=60` (5–600) · `DASHBOARD_CACHE_TTL_SEC=30` (5–120).
-- [ ] `/api/health` → `"redisConfigured": true` و`"posCatalogCache": true` و`"dashboardCache": true`.
+- [ ] `/api/health` → `"redisConfigured": true` و`"posCatalogCache": true` و`"dashboardCache": true` و`"throttleStorage":"redis"`.
 - [ ] `/api/health/ready` → `"redis":"ok"`.
 - [ ] بعد جرد/تعديل مخزون: لوحة التحكم لا تبقى على `lowStockCount` قديم أكثر من ثوانٍ (إبطال فوري مع Redis).
+- [ ] بدون Redis: `"throttleStorage":"memory"` — الحدود محلية لكل instance.
 
 ### مرفقات S3 / R2
 - [ ] `ATTACHMENT_STORAGE=s3` + `S3_BUCKET` + المفاتيح على Render.
