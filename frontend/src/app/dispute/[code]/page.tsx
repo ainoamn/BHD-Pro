@@ -9,6 +9,41 @@ const API_PUBLIC_ORIGIN = (
   "https://hisaby-api.onrender.com"
 ).replace(/\/$/, "");
 
+type CompanyNotify = {
+  status?: "ok" | "mock" | "fail" | "skipped";
+  targets?: number;
+};
+
+function notifyCopy(status: CompanyNotify["status"]) {
+  switch (status) {
+    case "ok":
+      return {
+        ar: "تم إشعار التاجر عبر واتساب.",
+        en: "The merchant was notified via WhatsApp.",
+      };
+    case "mock":
+      return {
+        ar: "البلاغ محفوظ — إشعار التاجر في وضع اختبار (لم يُسلَّم).",
+        en: "Report saved — merchant notify is in mock mode (not delivered).",
+      };
+    case "fail":
+      return {
+        ar: "البلاغ محفوظ — تعذّر إشعار التاجر عبر واتساب الآن.",
+        en: "Report saved — could not notify the merchant on WhatsApp right now.",
+      };
+    case "skipped":
+      return {
+        ar: "البلاغ محفوظ — لم يُضبط واتساب للتاجر بعد؛ سيظهر في لوحة البلاغات.",
+        en: "Report saved — merchant WhatsApp is not configured; it will appear in their dispute inbox.",
+      };
+    default:
+      return {
+        ar: "البلاغ محفوظ لدى التاجر.",
+        en: "Your report was saved for the merchant.",
+      };
+  }
+}
+
 export default function DisputePage({ params }: { params: { code: string } }) {
   const code = params.code;
   const [reason, setReason] = useState("");
@@ -18,6 +53,7 @@ export default function DisputePage({ params }: { params: { code: string } }) {
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [invoiceNumber, setInvoiceNumber] = useState<string | null>(null);
+  const [companyNotify, setCompanyNotify] = useState<CompanyNotify | null>(null);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -43,6 +79,7 @@ export default function DisputePage({ params }: { params: { code: string } }) {
       const data = (await res.json().catch(() => ({}))) as {
         ok?: boolean;
         invoiceNumber?: string;
+        companyNotify?: CompanyNotify;
         message?: string | string[];
       };
       if (!res.ok) {
@@ -52,6 +89,7 @@ export default function DisputePage({ params }: { params: { code: string } }) {
         throw new Error(msg);
       }
       setInvoiceNumber(data.invoiceNumber || null);
+      setCompanyNotify(data.companyNotify || null);
       setDone(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Submit failed");
@@ -59,6 +97,20 @@ export default function DisputePage({ params }: { params: { code: string } }) {
       setSubmitting(false);
     }
   };
+
+  const copy = notifyCopy(companyNotify?.status);
+  const borderTone =
+    companyNotify?.status === "ok"
+      ? "border-emerald-500/30 bg-emerald-500/10"
+      : companyNotify?.status === "mock"
+        ? "border-amber-500/30 bg-amber-500/10"
+        : "border-sky-500/30 bg-sky-500/10";
+  const titleTone =
+    companyNotify?.status === "ok"
+      ? "text-emerald-200"
+      : companyNotify?.status === "mock"
+        ? "text-amber-200"
+        : "text-sky-200";
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white px-4 py-10">
@@ -72,12 +124,14 @@ export default function DisputePage({ params }: { params: { code: string } }) {
         </div>
 
         {done ? (
-          <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-5 space-y-2">
-            <p className="font-semibold text-emerald-200">تم استلام البلاغ</p>
+          <div className={`rounded-2xl border p-5 space-y-2 ${borderTone}`}>
+            <p className={`font-semibold ${titleTone}`}>تم استلام البلاغ</p>
             <p className="text-sm text-slate-300">
               Your report was submitted
-              {invoiceNumber ? ` (invoice ${invoiceNumber})` : ""}. The merchant will be notified.
+              {invoiceNumber ? ` (invoice ${invoiceNumber})` : ""}.
             </p>
+            <p className="text-sm text-slate-200">{copy.ar}</p>
+            <p className="text-sm text-slate-400">{copy.en}</p>
           </div>
         ) : (
           <form

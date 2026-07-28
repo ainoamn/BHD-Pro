@@ -411,7 +411,11 @@ export class CustomerNotifyService {
       },
     });
 
-    // Best-effort company notify
+    // Best-effort company notify — report honesty to the public form
+    let companyNotify: {
+      status: 'ok' | 'mock' | 'fail' | 'skipped';
+      targets: number;
+    } = { status: 'skipped', targets: 0 };
     try {
       const cfg = this.parseSecurity(invoice.company.securityConfig);
       const dial = dialCodeForCountry(invoice.company.country);
@@ -434,12 +438,21 @@ export class CustomerNotifyService {
         .filter(Boolean)
         .join('\n');
 
-      if (this.whatsapp.isConfigured()) {
-        for (const phone of phones) {
-          await this.whatsapp.sendText(phone, alertBody);
-        }
+      if (!this.whatsapp.isConfigured() || phones.size === 0) {
+        companyNotify = { status: 'skipped', targets: phones.size };
+      } else {
+        const results = await Promise.all(
+          [...phones].map((phone) => this.whatsapp.sendText(phone, alertBody)),
+        );
+        const anyLive = results.some((r) => r.ok && !r.mock);
+        const anyMock = results.some((r) => r.ok && !!r.mock);
+        companyNotify = {
+          status: anyLive ? 'ok' : anyMock ? 'mock' : 'fail',
+          targets: phones.size,
+        };
       }
     } catch (err) {
+      companyNotify = { status: 'fail', targets: 0 };
       this.logger.warn(
         `Dispute company notify failed: ${err instanceof Error ? err.message : err}`,
       );
@@ -449,6 +462,7 @@ export class CustomerNotifyService {
       ok: true,
       id: dispute.id,
       invoiceNumber: invoice.number,
+      companyNotify,
     };
   }
 }
