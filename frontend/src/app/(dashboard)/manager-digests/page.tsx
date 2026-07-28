@@ -63,7 +63,41 @@ export default function ManagerDigestsPage() {
 
   const sendNowMutation = useMutation({
     mutationFn: () => api.sendManagerReportNow(),
-    onSuccess: () => toast.success(en ? "Digest queued" : "تم تشغيل التقرير الآن"),
+    onSuccess: (res) => {
+      const data = (res?.data || res) as {
+        count?: number;
+        emailLive?: number;
+        emailMock?: number;
+        whatsappLive?: number;
+        whatsappMock?: number;
+        inApp?: number;
+      };
+      const mock =
+        (data.emailMock || 0) > 0 || (data.whatsappMock || 0) > 0;
+      const live =
+        (data.emailLive || 0) > 0 || (data.whatsappLive || 0) > 0;
+      if (mock && !live) {
+        toast(
+          en
+            ? `Digest ran (${data.count || 0}) — channel mock (not delivered)`
+            : `تم تشغيل التقرير (${data.count || 0}) — قناة mock (لم يُسلَّم)`,
+          { icon: "🧪" },
+        );
+      } else if (mock && live) {
+        toast(
+          en
+            ? `Digest sent with some mock channels (${data.count || 0})`
+            : `أُرسل التقرير مع قنوات mock جزئياً (${data.count || 0})`,
+          { icon: "🧪" },
+        );
+      } else {
+        toast.success(
+          en
+            ? `Digest sent (${data.count || 0})`
+            : `تم إرسال التقرير (${data.count || 0})`,
+        );
+      }
+    },
     onError: () => toast.error(en ? "Could not send now" : "تعذر التشغيل الفوري"),
   });
 
@@ -78,8 +112,8 @@ export default function ManagerDigestsPage() {
         title={en ? "Manager digests" : "تقارير المدير الدورية"}
         subtitle={
           en
-            ? "Choose recipients, frequency, and channels. In-app works now; email and WhatsApp auto-send when configured."
-            : "اختر المستلمين والتواتر والقنوات. الإشعار الداخلي يعمل الآن، والبريد وواتساب يرسلان تلقائياً عند ضبط الإعدادات."
+            ? "Choose recipients, frequency, and channels. Mock email/WhatsApp modes are reported honestly on Send now."
+            : "اختر المستلمين والتواتر والقنوات. أوضاع mock للبريد/واتساب تُعرض بصدق عند «إرسال الآن»."
         }
         action={
           <div className="flex gap-2">

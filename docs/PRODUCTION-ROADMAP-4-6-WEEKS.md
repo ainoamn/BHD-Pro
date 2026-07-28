@@ -99,6 +99,6 @@
 ## الخطوة التالية المقترحة
 
 1. **أنت اليوم:** Cloudflare §1.1 + تدوير أسرار + لصق Sentry DSN.  
-2. **الكود (Wave CM — منجز):** صدق سجل تذكيرات الاشتراك live/mock — [`HISABY-WAVE-CM-SUBSCRIPTION-REMINDER-MOCK-2026-07-28.md`](./HISABY-WAVE-CM-SUBSCRIPTION-REMINDER-MOCK-2026-07-28.md).  
+2. **الكود (Wave CO — منجز):** صدق mock لتقارير المدير — [`HISABY-WAVE-CO-MANAGER-DIGEST-MOCK-HONESTY-2026-07-28.md`](./HISABY-WAVE-CO-MANAGER-DIGEST-MOCK-HONESTY-2026-07-28.md) · قبله CN إرسال فاتورة بالبريد.  
 3. على Render: `REDIS_URL` اختياري؛ قالب OTP واتساب؛ `REQUIRE_2FA_HARD_AFTER_GRACE=1` عند الرغبة بقفل التعديلات.  
 4. لاحقاً: أرشفة docs.

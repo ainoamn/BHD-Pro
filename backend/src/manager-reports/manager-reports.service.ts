@@ -118,10 +118,28 @@ export class ManagerReportsService {
         company: { select: { id: true, name: true } },
       },
     });
+    let emailLive = 0;
+    let emailMock = 0;
+    let whatsappLive = 0;
+    let whatsappMock = 0;
+    let inApp = 0;
     for (const row of rows) {
-      await this.dispatchOne(companyId, row.userId, row.id);
+      const result = await this.dispatchOne(companyId, row.userId, row.id);
+      emailLive += result.emailLive;
+      emailMock += result.emailMock;
+      whatsappLive += result.whatsappLive;
+      whatsappMock += result.whatsappMock;
+      inApp += result.inApp;
     }
-    return { ok: true, count: rows.length };
+    return {
+      ok: true,
+      count: rows.length,
+      emailLive,
+      emailMock,
+      whatsappLive,
+      whatsappMock,
+      inApp,
+    };
   }
 
   private readChannels(raw: unknown): Required<Channels> {
@@ -144,6 +162,13 @@ export class ManagerReportsService {
   }
 
   private async dispatchOne(companyId: string, userId: string, subscriptionId: string) {
+    const empty = {
+      emailLive: 0,
+      emailMock: 0,
+      whatsappLive: 0,
+      whatsappMock: 0,
+      inApp: 0,
+    };
     const subscription = await this.prisma.managerReportSubscription.findFirst({
       where: { id: subscriptionId, companyId, userId, isActive: true },
       include: {
@@ -151,10 +176,11 @@ export class ManagerReportsService {
         company: { select: { id: true, name: true } },
       },
     });
-    if (!subscription) return;
+    if (!subscription) return empty;
     const channels = this.readChannels(subscription.channelsJson);
     const summary = await this.buildSummary(companyId, subscription.company.name);
     const title = `ملخص الإدارة الدوري — ${subscription.company.name}`;
+    const result = { ...empty };
     if (channels.inApp) {
       await this.alerts.createAlert({
         companyId,
@@ -164,22 +190,41 @@ export class ManagerReportsService {
         message: summary.text,
         payloadJson: { subscriptionId, frequency: subscription.frequency },
       });
+      result.inApp = 1;
     }
     if (channels.email && subscription.user.email) {
-      await this.email.sendText({
+      const mail = await this.email.sendText({
         to: subscription.user.email,
         subject: title,
         text: summary.text,
         html: `<pre>${summary.text}</pre>`,
       });
+      if (mail.ok && mail.mock) result.emailMock = 1;
+      else if (mail.ok) result.emailLive = 1;
+      else {
+        this.logger.warn(
+          `Manager digest email failed for ${subscription.user.email}: ${mail.error || 'unknown'}`,
+        );
+      }
     }
     if (channels.whatsapp && subscription.user.phone) {
-      await this.whatsapp.sendText(subscription.user.phone, summary.shortText);
+      const wa = await this.whatsapp.sendText(
+        subscription.user.phone,
+        summary.shortText,
+      );
+      if (wa.ok && wa.mock) result.whatsappMock = 1;
+      else if (wa.ok) result.whatsappLive = 1;
+      else {
+        this.logger.warn(
+          `Manager digest WhatsApp failed: ${wa.error || 'unknown'}`,
+        );
+      }
     }
     await this.prisma.managerReportSubscription.update({
       where: { id: subscriptionId },
       data: { lastSentAt: new Date() },
     });
+    return result;
   }
 
   private async buildSummary(companyId: string, companyName: string) {

@@ -16,7 +16,9 @@ import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { PeriodsService } from '../periods/periods.service';
 import { ManagementAlertsService } from '../management-alerts/management-alerts.service';
 import { CustomerNotifyService } from '../notifications/customer-notify.service';
+import { EmailNotifyService } from '../notifications/email-notify.service';
 import { RedisService } from '../redis/redis.service';
+import { DocumentShareService } from './document-share.service';
 
 const OMAN_VAT_RATE = 5;
 
@@ -31,6 +33,8 @@ export class InvoicesService {
     private periods: PeriodsService,
     private managementAlerts: ManagementAlertsService,
     private customerNotify: CustomerNotifyService,
+    private emailNotify: EmailNotifyService,
+    private documentShare: DocumentShareService,
     private redis: RedisService,
   ) {}
 
@@ -1019,7 +1023,7 @@ export class InvoicesService {
 
   async send(companyId: string, userId: string, id: string, email?: string) {
     const invoice = await this.findOne(companyId, id);
-    const recipient = email || invoice.contact.email;
+    const recipient = (email || invoice.contact.email || '').trim() || null;
 
     const updated = await this.prisma.invoice.update({
       where: { id },
@@ -1035,15 +1039,81 @@ export class InvoicesService {
         success: true,
         message: `Invoice ${invoice.number} marked as sent (no email on file)`,
         email: null,
+        emailSent: false,
+        emailMock: false,
         invoiceNumber: invoice.number,
         total: invoice.total,
       };
     }
 
+    if (!this.emailNotify.isConfigured()) {
+      return {
+        success: true,
+        message: `Invoice ${invoice.number} marked as sent (email not configured)`,
+        email: recipient,
+        emailSent: false,
+        emailMock: false,
+        emailSkipped: true,
+        invoiceNumber: invoice.number,
+        total: invoice.total,
+      };
+    }
+
+    let emailSent = false;
+    let emailMock = false;
+    let emailError: string | undefined;
+    try {
+      const company = await this.prisma.company.findUnique({
+        where: { id: companyId },
+        select: { name: true },
+      });
+      const share = await this.documentShare.createShareLink(
+        companyId,
+        id,
+        'invoice',
+      );
+      const viewUrl = share.shareUrl;
+      const totalStr = `${Number(invoice.total).toFixed(3)} OMR`;
+      const subject = `فاتورة ${invoice.number} — ${company?.name || 'Hisaby'}`;
+      const text = [
+        `مرحباً ${invoice.contact.name}،`,
+        ``,
+        `فاتورة من ${company?.name || 'Hisaby'}`,
+        `رقم الفاتورة: ${invoice.number}`,
+        `المبلغ: ${totalStr}`,
+        `عرض الفاتورة: ${viewUrl}`,
+        ``,
+        `— ${company?.name || 'Hisaby'}`,
+      ].join('\n');
+      const mail = await this.emailNotify.sendText({
+        to: recipient,
+        subject,
+        text,
+        html: `<pre style="font-family:sans-serif;white-space:pre-wrap">${text.replace(/</g, '&lt;')}</pre>`,
+      });
+      emailMock = !!mail.mock;
+      emailSent = !!mail.ok && !emailMock;
+      emailError = mail.error;
+    } catch (err) {
+      emailError = err instanceof Error ? err.message : 'email failed';
+      this.logger.warn(`Invoice email failed for ${invoice.number}: ${emailError}`);
+    }
+
+    const message = emailSent
+      ? `Invoice ${invoice.number} emailed to ${recipient}`
+      : emailMock
+        ? `Invoice ${invoice.number} marked as sent — email mock (not delivered) to ${recipient}`
+        : `Invoice ${invoice.number} marked as sent (email not delivered${
+            emailError ? `: ${emailError}` : ''
+          })`;
+
     return {
       success: true,
-      message: `Invoice ${invoice.number} sent to ${recipient}`,
+      message,
       email: recipient,
+      emailSent,
+      emailMock,
+      ...(emailError && !emailSent ? { emailError } : {}),
       invoiceNumber: invoice.number,
       total: invoice.total,
     };
