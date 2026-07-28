@@ -187,6 +187,7 @@ export class UsersService {
     });
     const inviteUrl = this.inviteUrl(inviteToken);
     let emailSent = false;
+    let emailMock = false;
     let emailError: string | undefined;
     try {
       const mail = await this.sendInviteEmail({
@@ -196,7 +197,8 @@ export class UsersService {
         inviteUrl,
         username,
       });
-      emailSent = !!mail?.ok;
+      emailMock = !!mail?.mock;
+      emailSent = !!mail?.ok && !emailMock;
       emailError = mail?.error;
     } catch (err) {
       emailError = err instanceof Error ? err.message : 'email failed';
@@ -207,6 +209,7 @@ export class UsersService {
       inviteStatus: 'pending',
       modulePermissions: resolveModulePermissions(user.role, user.permissions),
       emailSent,
+      emailMock,
       ...(emailError && !emailSent ? { emailError } : {}),
     };
   }
@@ -317,6 +320,7 @@ export class UsersService {
     });
     const inviteUrl = this.inviteUrl(inviteToken);
     let emailSent = false;
+    let emailMock = false;
     let emailError: string | undefined;
     try {
       const mail = await this.sendInviteEmail({
@@ -326,7 +330,8 @@ export class UsersService {
         inviteUrl,
         username: updated.username || (await this.nextUsername(companyId)),
       });
-      emailSent = !!mail?.ok;
+      emailMock = !!mail?.mock;
+      emailSent = !!mail?.ok && !emailMock;
       emailError = mail?.error;
     } catch (err) {
       emailError = err instanceof Error ? err.message : 'email failed';
@@ -337,6 +342,7 @@ export class UsersService {
       inviteStatus: 'pending',
       modulePermissions: resolveModulePermissions(updated.role, updated.permissions),
       emailSent,
+      emailMock,
       ...(emailError && !emailSent ? { emailError } : {}),
     };
   }

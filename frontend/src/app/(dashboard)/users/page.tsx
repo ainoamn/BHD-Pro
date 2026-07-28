@@ -106,6 +106,7 @@ export default function UsersPage() {
       queryClient.invalidateQueries({ queryKey: ["users"] });
       const data = (res?.data || res) as {
         emailSent?: boolean;
+        emailMock?: boolean;
         inviteUrl?: string;
         emailError?: string;
       };
@@ -120,10 +121,14 @@ export default function UsersPage() {
           }
         }
         toast(
-          en
-            ? `User created — email not sent${data.inviteUrl ? "; invite link copied" : ""}${data.emailError ? ` (${data.emailError})` : ""}`
-            : `تم إنشاء المستخدم — لم يُرسل البريد${data.inviteUrl ? "؛ تم نسخ رابط الدعوة" : ""}${data.emailError ? ` (${data.emailError})` : ""}`,
-          { icon: "⚠️", duration: 6000 },
+          data.emailMock
+            ? en
+              ? `User created — email mock (not delivered)${data.inviteUrl ? "; invite link copied" : ""}`
+              : `تم إنشاء المستخدم — بريد mock (لم يُسلَّم)${data.inviteUrl ? "؛ تم نسخ رابط الدعوة" : ""}`
+            : en
+              ? `User created — email not sent${data.inviteUrl ? "; invite link copied" : ""}${data.emailError ? ` (${data.emailError})` : ""}`
+              : `تم إنشاء المستخدم — لم يُرسل البريد${data.inviteUrl ? "؛ تم نسخ رابط الدعوة" : ""}${data.emailError ? ` (${data.emailError})` : ""}`,
+          { icon: "🧪", duration: 6000 },
         );
       }
       setModalOpen(false);
@@ -224,6 +229,7 @@ export default function UsersPage() {
       queryClient.invalidateQueries({ queryKey: ["users"] });
       const data = (res?.data || res) as {
         emailSent?: boolean;
+        emailMock?: boolean;
         inviteUrl?: string;
         emailError?: string;
       };
@@ -238,10 +244,14 @@ export default function UsersPage() {
           }
         }
         toast(
-          en
-            ? `Invite refreshed — email not sent${data.inviteUrl ? "; link copied" : ""}`
-            : `تم تحديث الدعوة — لم يُرسل البريد${data.inviteUrl ? "؛ تم نسخ الرابط" : ""}`,
-          { icon: "⚠️", duration: 6000 },
+          data.emailMock
+            ? en
+              ? `Invite refreshed — email mock (not delivered)${data.inviteUrl ? "; link copied" : ""}`
+              : `تم تحديث الدعوة — بريد mock (لم يُسلَّم)${data.inviteUrl ? "؛ تم نسخ الرابط" : ""}`
+            : en
+              ? `Invite refreshed — email not sent${data.inviteUrl ? "; link copied" : ""}`
+              : `تم تحديث الدعوة — لم يُرسل البريد${data.inviteUrl ? "؛ تم نسخ الرابط" : ""}`,
+          { icon: data.emailMock ? "🧪" : "⚠️", duration: 6000 },
         );
       }
     },
