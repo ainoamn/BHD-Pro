@@ -14,6 +14,8 @@ type TakeawayOrder = {
   status: string;
   guests: number;
   notes: string | null;
+  guestName?: string | null;
+  guestPhone?: string | null;
   createdAt: string;
   itemCount: number;
   total: number;
@@ -28,6 +30,8 @@ export default function RestoTakeawayPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [guestName, setGuestName] = useState("");
+  const [guestPhone, setGuestPhone] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -56,7 +60,11 @@ export default function RestoTakeawayPage() {
       const res = await api.openRestoOrder({
         channel: "TAKEAWAY",
         guests: 1,
+        guestName: guestName.trim() || undefined,
+        guestPhone: guestPhone.trim() || undefined,
       });
+      setGuestName("");
+      setGuestPhone("");
       router.push(`/resto/orders/${res.data.id}`);
     } catch {
       toast.error(t.actionFail);
@@ -73,6 +81,28 @@ export default function RestoTakeawayPage() {
             {t.takeawayTitle}
           </h1>
           <p className="text-sm text-stone-400 mt-1">{t.takeawaySub}</p>
+          <p className="text-[11px] text-stone-500 mt-2 leading-relaxed">
+            {locale === "en"
+              ? "Add a guest phone to auto-notify when the kitchen marks the order ready."
+              : "أضف هاتف الضيف لإشعاره تلقائياً عندما يعلّم المطبخ الطلب جاهزاً."}
+          </p>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 space-y-2">
+        <div className="grid sm:grid-cols-2 gap-2">
+          <input
+            value={guestName}
+            onChange={(e) => setGuestName(e.target.value)}
+            placeholder={t.guestName}
+            className="h-10 rounded-xl bg-[#1a1614] border border-white/10 px-3 text-sm"
+          />
+          <input
+            value={guestPhone}
+            onChange={(e) => setGuestPhone(e.target.value)}
+            placeholder={t.guestPhone}
+            className="h-10 rounded-xl bg-[#1a1614] border border-white/10 px-3 text-sm"
+          />
         </div>
         <button
           type="button"
@@ -123,6 +153,8 @@ export default function RestoTakeawayPage() {
                       )}
                       {" · "}
                       {o.itemCount} · {o.status}
+                      {o.guestName ? ` · ${o.guestName}` : ""}
+                      {o.guestPhone ? ` · ${o.guestPhone}` : ""}
                     </p>
                     {o.notes ? (
                       <p className="text-xs text-amber-200/80 mt-1">{o.notes}</p>

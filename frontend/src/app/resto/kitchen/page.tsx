@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChefHat, Loader2, RefreshCw, Volume2, VolumeX } from "lucide-react";
+import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
 import { restoCopy } from "@/lib/resto-copy";
@@ -183,7 +184,22 @@ export default function RestoKitchenPage() {
   ) => {
     setBusyId(itemId);
     try {
-      await api.setRestoKitchenItemStatus(itemId, status);
+      const res = await api.setRestoKitchenItemStatus(itemId, status);
+      const notify = res.data?.notify;
+      if (notify?.ok) {
+        if (notify.mock || notify.mode === "mock") {
+          toast(
+            `${t.notifySentMock}${notify.channel ? ` · ${notify.channel}` : ""}`,
+            { icon: "🧪" },
+          );
+        } else {
+          toast.success(
+            `${t.notifySent}${notify.channel ? ` · ${notify.channel}` : ""}`,
+          );
+        }
+      } else if (notify && !notify.ok && notify.error && notify.error !== "no_phone") {
+        toast.error(t.notifyFail);
+      }
       await load();
     } catch {
       setError(t.actionFail);

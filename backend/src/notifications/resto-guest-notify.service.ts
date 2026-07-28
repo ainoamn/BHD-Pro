@@ -15,7 +15,8 @@ export type RestoGuestNotifyKind =
   | 'RESERVATION_REMIND'
   | 'RESERVATION_TABLE_READY'
   | 'DELIVERY_OUT'
-  | 'DELIVERY_DONE';
+  | 'DELIVERY_DONE'
+  | 'TAKEAWAY_READY';
 
 @Injectable()
 export class RestoGuestNotifyService {
@@ -102,6 +103,11 @@ export class RestoGuestNotifyService {
         ? `مرحباً ${guestName}، تم تسليم طلبكم من ${companyName}. نتمنى أن تستمتعوا.`
         : `Hi ${guestName}, your order from ${companyName} was delivered. Enjoy!`;
     }
+    if (kind === 'TAKEAWAY_READY') {
+      return ar
+        ? `مرحباً ${guestName}، طلبكم للاستلام من ${companyName} جاهز. تفضلوا بالاستلام.`
+        : `Hi ${guestName}, your takeaway order from ${companyName} is ready for pickup.`;
+    }
     return ar
       ? `مرحباً ${guestName}، طاولتكم للحجز جاهزة في ${companyName}${opts.tableCode ? ` (${opts.tableCode})` : ''}.`
       : `Hi ${guestName}, your reserved table is ready at ${companyName}${opts.tableCode ? ` (${opts.tableCode})` : ''}.`;
@@ -171,9 +177,13 @@ export class RestoGuestNotifyService {
                     ? opts.locale === 'en'
                       ? 'Delivered'
                       : 'تم التسليم'
-                    : opts.locale === 'en'
-                      ? 'Reserved table ready'
-                      : 'طاولة الحجز جاهزة';
+                    : opts.kind === 'TAKEAWAY_READY'
+                      ? opts.locale === 'en'
+                        ? 'Takeaway ready'
+                        : 'جاهز للاستلام'
+                      : opts.locale === 'en'
+                        ? 'Reserved table ready'
+                        : 'طاولة الحجز جاهزة';
         const detailParts = [
           opts.tableCode ? `table ${opts.tableCode}` : '',
           opts.quotedMinutes != null ? `${opts.quotedMinutes} min` : '',

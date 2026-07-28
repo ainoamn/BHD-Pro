@@ -2581,7 +2581,17 @@ class ApiClient {
     itemId: string,
     status: 'PREPARING' | 'READY' | 'SERVED',
   ) {
-    return this.post(`/resto/kitchen/items/${itemId}/status`, { status });
+    return this.post<
+      RestoOrderPayload & {
+        notify?: {
+          ok: boolean;
+          channel: string | null;
+          error?: string;
+          mock?: boolean;
+          mode?: string;
+        } | null;
+      }
+    >(`/resto/kitchen/items/${itemId}/status`, { status });
   }
 
   setRestoKitchenRush(itemId: string, rush: boolean) {

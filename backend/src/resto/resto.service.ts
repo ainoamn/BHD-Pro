@@ -2946,6 +2946,17 @@ export class RestoService {
   ) {
     const item = await this.prisma.restoOrderItem.findFirst({
       where: { id: itemId, order: { companyId } },
+      include: {
+        order: {
+          select: {
+            id: true,
+            channel: true,
+            guestName: true,
+            guestPhone: true,
+            number: true,
+          },
+        },
+      },
     });
     if (!item) throw new NotFoundException('Item not found');
 
@@ -2965,7 +2976,40 @@ export class RestoService {
     });
     await this.refreshOrderStatus(companyId, item.orderId);
     this.notifyKitchen(companyId);
-    return this.getOrder(companyId, item.orderId);
+
+    let notify: {
+      ok: boolean;
+      channel: string | null;
+      error?: string;
+      mock?: boolean;
+      mode?: string;
+    } | null = null;
+
+    if (
+      status === 'READY' &&
+      item.order.channel === RestoOrderChannel.TAKEAWAY &&
+      item.order.guestPhone?.trim()
+    ) {
+      const stillCooking = await this.prisma.restoOrderItem.count({
+        where: {
+          orderId: item.orderId,
+          status: {
+            in: [RestoOrderItemStatus.SENT, RestoOrderItemStatus.PREPARING],
+          },
+        },
+      });
+      if (stillCooking === 0) {
+        notify = await this.guestNotify.notifyGuest({
+          companyId,
+          phone: item.order.guestPhone,
+          guestName: item.order.guestName || item.order.number || 'Guest',
+          kind: 'TAKEAWAY_READY',
+        });
+      }
+    }
+
+    const order = await this.getOrder(companyId, item.orderId);
+    return { ...order, notify };
   }
 
   async setKitchenItemRush(
