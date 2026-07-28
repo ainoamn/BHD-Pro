@@ -4877,7 +4877,9 @@ export class RestoService {
         );
       }
     }
-    const status = dto.status || 'PENDING';
+    const status =
+      dto.status ||
+      (dto.source === 'GUEST' ? 'PENDING' : 'CONFIRMED');
     const created = await this.prisma.restoReservation.create({
       data: {
         companyId,
@@ -4917,7 +4919,49 @@ export class RestoService {
         });
       }
     }
-    return this.mapReservation(created);
+
+    let notify: {
+      ok: boolean;
+      channel: string | null;
+      error?: string;
+      mock?: boolean;
+      mode?: string;
+    } | null = null;
+    if (
+      status === 'CONFIRMED' &&
+      created.phone?.trim() &&
+      (dto.source || 'STAFF') !== 'GUEST'
+    ) {
+      const company = await this.prisma.company.findUnique({
+        where: { id: companyId },
+        select: { restoConfig: true },
+      });
+      const autoNotify =
+        this.parseRestoConfig(company?.restoConfig).booking.autoNotify !== false;
+      if (autoNotify) {
+        try {
+          const n = await this.notifyReservationGuest(
+            companyId,
+            created.id,
+            'CONFIRM',
+          );
+          notify = n.notify;
+        } catch {
+          notify = { ok: false, channel: null, error: 'notify_failed' };
+        }
+      }
+    } else if (
+      status === 'CONFIRMED' &&
+      (dto.source || 'STAFF') !== 'GUEST' &&
+      !created.phone?.trim()
+    ) {
+      notify = { ok: false, channel: null, error: 'no_phone' };
+    }
+
+    return {
+      ...this.mapReservation(created),
+      notify,
+    };
   }
 
   private async findTableReservationConflict(

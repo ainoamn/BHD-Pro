@@ -99,6 +99,6 @@
 ## الخطوة التالية المقترحة
 
 1. **أنت اليوم:** Cloudflare §1.1 + تدوير أسرار + لصق Sentry DSN.  
-2. **الكود (Wave DQ — منجز):** صدق إشعار إلغاء قائمة الانتظار — [`HISABY-WAVE-DQ-WAITLIST-CANCEL-NOTIFY-HONESTY-2026-07-28.md`](./HISABY-WAVE-DQ-WAITLIST-CANCEL-NOTIFY-HONESTY-2026-07-28.md) · قبله DP إلغاء حجز.  
+2. **الكود (Wave DR — منجز):** صدق إشعار إنشاء حجز الطاقم — [`HISABY-WAVE-DR-STAFF-RESERVATION-CREATE-NOTIFY-HONESTY-2026-07-28.md`](./HISABY-WAVE-DR-STAFF-RESERVATION-CREATE-NOTIFY-HONESTY-2026-07-28.md) · قبله DQ إلغاء انتظار.  
 3. على Render: `prisma migrate deploy` (يشمل أعمدة إشعار الحجوزات) · `REDIS_URL` اختياري؛ قالب OTP واتساب؛ `REQUIRE_2FA_HARD_AFTER_GRACE=1` عند الرغبة بقفل التعديلات.  
 4. لاحقاً: أرشفة docs.

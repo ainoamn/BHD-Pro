@@ -123,7 +123,7 @@ export default function RestoReservationsPage() {
     if (!form.guestName.trim() || !form.reservedAt) return;
     setBusy(true);
     try {
-      await api.createRestoReservation({
+      const res = await api.createRestoReservation({
         guestName: form.guestName.trim(),
         phone: form.phone.trim() || undefined,
         guests: Number(form.guests) || 2,
@@ -139,7 +139,8 @@ export default function RestoReservationsPage() {
         tableId: "",
         notes: "",
       });
-      toast.success(t.reservationOk);
+      toast.success(t.reservationConfirmed);
+      toastNotify(res.data.notify ?? undefined);
       await load();
     } catch {
       toast.error(t.actionFail);

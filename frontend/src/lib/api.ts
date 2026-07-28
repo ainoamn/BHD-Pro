@@ -1927,7 +1927,17 @@ class ApiClient {
     tableId?: string;
     notes?: string;
   }) {
-    return this.post('/resto/reservations', data);
+    return this.post<{
+      id: string;
+      status: string;
+      notify?: {
+        ok: boolean;
+        channel: string | null;
+        error?: string;
+        mock?: boolean;
+        mode?: string;
+      } | null;
+    }>('/resto/reservations', data);
   }
 
   updateRestoReservationStatus(
