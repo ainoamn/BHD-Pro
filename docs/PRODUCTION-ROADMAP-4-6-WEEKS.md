@@ -99,6 +99,6 @@
 ## الخطوة التالية المقترحة
 
 1. **أنت اليوم:** Cloudflare §1.1 + تدوير أسرار + لصق Sentry DSN.  
-2. **الكود (Wave CF — منجز):** صدق throttle Redis vs memory — [`HISABY-WAVE-CF-THROTTLE-REDIS-HONESTY-2026-07-28.md`](./HISABY-WAVE-CF-THROTTLE-REDIS-HONESTY-2026-07-28.md).  
+2. **الكود (Wave CG — منجز):** صدق حالة OTA mock/sandbox/live — [`HISABY-WAVE-CG-OTA-STATUS-HONESTY-2026-07-28.md`](./HISABY-WAVE-CG-OTA-STATUS-HONESTY-2026-07-28.md).  
 3. على Render: `REDIS_URL` اختياري؛ قالب OTP واتساب؛ `REQUIRE_2FA_HARD_AFTER_GRACE=1` عند الرغبة بقفل التعديلات.  
 4. لاحقاً: أرشفة docs.

@@ -3,12 +3,20 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { FileText, Send, Loader2, CheckCircle, Settings2 } from "lucide-react";
+import { FileText, Send, Loader2, CheckCircle, AlertTriangle, Clock, Settings2 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { cn, formatMoney, formatDate, apiErrorMessage } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth";
 import { PageHeader, EmptyState, LoadingSpinner, QueryError, GlassCard } from "@/components/ui/page-shell";
+
+type OtaStatus =
+  | "CLEARED"
+  | "SANDBOX_ACCEPTED"
+  | "LIVE_PENDING"
+  | "LIVE_REJECTED"
+  | string
+  | null;
 
 interface VatInvoice {
   id: string;
@@ -17,7 +25,11 @@ interface VatInvoice {
   total: number;
   taxAmount: number;
   status: string;
-  vatUuid?: string;
+  vatUuid?: string | null;
+  clearedAt?: string | null;
+  otaStatus?: OtaStatus;
+  otaMode?: string | null;
+  otaMessage?: string | null;
   contact?: { name: string; taxId?: string };
 }
 
@@ -25,6 +37,9 @@ interface VatStats {
   submitted: number;
   pending: number;
   total: number;
+  cleared?: number;
+  awaitingSubmit?: number;
+  awaitingAuthority?: number;
 }
 
 type OtaConfig = {
@@ -34,6 +49,13 @@ type OtaConfig = {
   taxpayerTin?: string;
   hasLiveCredentials?: boolean;
 };
+
+function resolveOtaStatus(inv: VatInvoice): OtaStatus {
+  if (inv.otaStatus) return inv.otaStatus;
+  if (!inv.vatUuid) return null;
+  if (inv.clearedAt) return "CLEARED";
+  return "LIVE_PENDING";
+}
 
 export default function VatPage() {
   const t = useTranslations("vat");
@@ -95,10 +117,30 @@ export default function VatPage() {
 
   const submitMutation = useMutation({
     mutationFn: (invoiceId: string) => api.submitVatInvoice(invoiceId),
-    onSuccess: () => {
+    onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ["vat-invoices"] });
       queryClient.invalidateQueries({ queryKey: ["vat-stats"] });
-      toast.success(t("submitted"));
+      const data = res.data as {
+        otaStatus?: OtaStatus;
+        otaMode?: string;
+        otaMessage?: string;
+      };
+      const st = data.otaStatus || "";
+      if (st === "SANDBOX_ACCEPTED" || data.otaMode === "sandbox") {
+        toast(t("submittedSandbox"), { icon: "🧪" });
+      } else if (st === "LIVE_PENDING") {
+        toast(t("submittedLivePending"), { icon: "⏳" });
+      } else if (st === "LIVE_REJECTED") {
+        toast.error(data.otaMessage || t("submittedLiveRejected"));
+      } else if (data.otaMode === "mock" || st === "CLEARED") {
+        if (data.otaMode === "mock") {
+          toast(t("submittedMock"), { icon: "🧪" });
+        } else {
+          toast.success(t("submittedToast"));
+        }
+      } else {
+        toast.success(t("submittedToast"));
+      }
     },
     onError: (err: { response?: { data?: { message?: string } } }) => {
       toast.error(apiErrorMessage(err, t("submitError")));
@@ -123,6 +165,49 @@ export default function VatPage() {
       OVERDUE: tStatus("overdue"),
     };
     return map[status] || status;
+  };
+
+  const otaBadge = (inv: VatInvoice) => {
+    const st = resolveOtaStatus(inv);
+    if (!st) return null;
+    if (st === "CLEARED" && inv.otaMode === "mock") {
+      return {
+        className: "text-amber-300",
+        icon: AlertTriangle,
+        label: t("otaMock"),
+        title: inv.otaMessage || undefined,
+      };
+    }
+    if (st === "SANDBOX_ACCEPTED" || (st === "CLEARED" && inv.otaMode === "sandbox")) {
+      return {
+        className: "text-amber-300",
+        icon: AlertTriangle,
+        label: t("otaSandbox"),
+        title: inv.otaMessage || undefined,
+      };
+    }
+    if (st === "LIVE_PENDING") {
+      return {
+        className: "text-amber-300",
+        icon: Clock,
+        label: t("otaLivePending"),
+        title: inv.otaMessage || undefined,
+      };
+    }
+    if (st === "LIVE_REJECTED") {
+      return {
+        className: "text-rose-400",
+        icon: AlertTriangle,
+        label: t("otaLiveRejected"),
+        title: inv.otaMessage || undefined,
+      };
+    }
+    return {
+      className: "text-emerald-400",
+      icon: CheckCircle,
+      label: t("cleared"),
+      title: inv.otaMessage || undefined,
+    };
   };
 
   return (
@@ -202,7 +287,11 @@ export default function VatPage() {
         ) : (
           [
             { label: t("totalInvoices"), value: stats?.total ?? 0 },
-            { label: t("submitted"), value: stats?.submitted ?? 0, color: "text-emerald-400" },
+            {
+              label: t("submitted"),
+              value: stats?.cleared ?? stats?.submitted ?? 0,
+              color: "text-emerald-400",
+            },
             { label: t("pending"), value: stats?.pending ?? 0, color: "text-amber-400" },
           ].map((s) => (
             <div key={s.label} className="glass rounded-xl p-4">
@@ -235,43 +324,70 @@ export default function VatPage() {
                 </tr>
               </thead>
               <tbody>
-                {invoices.map((inv) => (
-                  <tr key={inv.id} className="border-b border-slate-800/50 hover:bg-slate-800/30">
-                    <td className="p-4 text-white font-medium">{inv.number}</td>
-                    <td className="p-4 text-slate-300">{inv.contact?.name || "—"}</td>
-                    <td className="p-4 text-slate-400">{formatDate(inv.date)}</td>
-                    <td className="p-4 text-white">{formatMoney(Number(inv.total), currency)}</td>
-                    <td className="p-4 text-slate-300">{formatMoney(Number(inv.taxAmount), currency)}</td>
-                    <td className="p-4">
-                      <span className={cn("px-2 py-1 rounded-full text-xs font-medium", statusColor(inv.status))}>
-                        {statusLabel(inv.status)}
-                      </span>
-                    </td>
-                    <td className="p-4">
-                      {inv.vatUuid ? (
-                        <span className="flex items-center gap-1 text-emerald-400 text-xs">
-                          <CheckCircle className="w-4 h-4" />
-                          {t("cleared")}
+                {invoices.map((inv) => {
+                  const badge = otaBadge(inv);
+                  const st = resolveOtaStatus(inv);
+                  const canRetry =
+                    st === "LIVE_PENDING" || st === "LIVE_REJECTED";
+                  return (
+                    <tr key={inv.id} className="border-b border-slate-800/50 hover:bg-slate-800/30">
+                      <td className="p-4 text-white font-medium">{inv.number}</td>
+                      <td className="p-4 text-slate-300">{inv.contact?.name || "—"}</td>
+                      <td className="p-4 text-slate-400">{formatDate(inv.date)}</td>
+                      <td className="p-4 text-white">{formatMoney(Number(inv.total), currency)}</td>
+                      <td className="p-4 text-slate-300">{formatMoney(Number(inv.taxAmount), currency)}</td>
+                      <td className="p-4">
+                        <span className={cn("px-2 py-1 rounded-full text-xs font-medium", statusColor(inv.status))}>
+                          {statusLabel(inv.status)}
                         </span>
-                      ) : inv.status !== "DRAFT" ? (
-                        <button
-                          onClick={() => submitMutation.mutate(inv.id)}
-                          disabled={submitMutation.isPending}
-                          className="flex items-center gap-1 px-3 py-1.5 bg-emerald-600/20 text-emerald-400 rounded-lg text-xs hover:bg-emerald-600/30 disabled:opacity-50"
-                        >
-                          {submitMutation.isPending ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          ) : (
-                            <Send className="w-3.5 h-3.5" />
-                          )}
-                          {t("submitOta")}
-                        </button>
-                      ) : (
-                        <span className="text-slate-500 text-xs">{t("sendFirst")}</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="p-4">
+                        {badge ? (
+                          <div className="flex flex-col gap-1 items-start">
+                            <span
+                              className={cn("flex items-center gap-1 text-xs", badge.className)}
+                              title={badge.title}
+                            >
+                              <badge.icon className="w-4 h-4" />
+                              {badge.label}
+                            </span>
+                            {canRetry ? (
+                              <button
+                                type="button"
+                                onClick={() => submitMutation.mutate(inv.id)}
+                                disabled={submitMutation.isPending}
+                                className="flex items-center gap-1 px-2 py-1 bg-amber-600/20 text-amber-300 rounded-lg text-xs hover:bg-amber-600/30 disabled:opacity-50"
+                              >
+                                {submitMutation.isPending ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <Send className="w-3.5 h-3.5" />
+                                )}
+                                {t("retryOta")}
+                              </button>
+                            ) : null}
+                          </div>
+                        ) : inv.status !== "DRAFT" ? (
+                          <button
+                            type="button"
+                            onClick={() => submitMutation.mutate(inv.id)}
+                            disabled={submitMutation.isPending}
+                            className="flex items-center gap-1 px-3 py-1.5 bg-emerald-600/20 text-emerald-400 rounded-lg text-xs hover:bg-emerald-600/30 disabled:opacity-50"
+                          >
+                            {submitMutation.isPending ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Send className="w-3.5 h-3.5" />
+                            )}
+                            {t("submitOta")}
+                          </button>
+                        ) : (
+                          <span className="text-slate-500 text-xs">{t("sendFirst")}</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

@@ -61,10 +61,36 @@ export class VatService {
   }
 
   async listEInvoices(companyId: string) {
-    return this.prisma.invoice.findMany({
+    const rows = await this.prisma.invoice.findMany({
       where: { companyId, type: 'SALES' },
       include: { contact: { select: { name: true, taxId: true } } },
       orderBy: { date: 'desc' },
+    });
+    return rows.map((inv) => {
+      const fields =
+        inv.customFieldsJson &&
+        typeof inv.customFieldsJson === 'object' &&
+        !Array.isArray(inv.customFieldsJson)
+          ? (inv.customFieldsJson as Record<string, unknown>)
+          : {};
+      const otaStatus =
+        typeof fields.otaStatus === 'string'
+          ? fields.otaStatus
+          : inv.vatUuid
+            ? inv.clearedAt
+              ? 'CLEARED'
+              : 'LIVE_PENDING'
+            : null;
+      const otaMode =
+        typeof fields.otaMode === 'string' ? fields.otaMode : null;
+      const otaMessage =
+        typeof fields.otaMessage === 'string' ? fields.otaMessage : null;
+      return {
+        ...inv,
+        otaStatus,
+        otaMode,
+        otaMessage,
+      };
     });
   }
 
@@ -191,7 +217,7 @@ export class VatService {
         ? (invoice.customFieldsJson as Record<string, unknown>)
         : {};
 
-    return this.prisma.invoice.update({
+    const updated = await this.prisma.invoice.update({
       where: { id: invoiceId },
       data: {
         vatUuid,
@@ -209,15 +235,61 @@ export class VatService {
         } as Prisma.InputJsonValue,
       },
     });
+
+    return {
+      ...updated,
+      otaMode: mode,
+      otaStatus,
+      otaMessage,
+    };
   }
 
   getStats(companyId: string) {
-    return Promise.all([
-      this.prisma.invoice.count({ where: { companyId, vatUuid: { not: null } } }),
-      this.prisma.invoice.count({
-        where: { companyId, vatUuid: null, status: { not: 'DRAFT' }, type: 'SALES' },
-      }),
-      this.prisma.invoice.count({ where: { companyId, type: 'SALES' } }),
-    ]).then(([submitted, pending, total]) => ({ submitted, pending, total }));
+    return this.prisma.invoice
+      .findMany({
+        where: { companyId, type: 'SALES' },
+        select: {
+          vatUuid: true,
+          clearedAt: true,
+          status: true,
+          customFieldsJson: true,
+        },
+      })
+      .then((rows) => {
+        let cleared = 0;
+        let awaitingSubmit = 0;
+        let awaitingAuthority = 0;
+        for (const row of rows) {
+          if (!row.vatUuid) {
+            if (row.status !== 'DRAFT') awaitingSubmit += 1;
+            continue;
+          }
+          const fields =
+            row.customFieldsJson &&
+            typeof row.customFieldsJson === 'object' &&
+            !Array.isArray(row.customFieldsJson)
+              ? (row.customFieldsJson as Record<string, unknown>)
+              : {};
+          const st = String(fields.otaStatus || '');
+          if (
+            row.clearedAt ||
+            st === 'CLEARED' ||
+            st === 'SANDBOX_ACCEPTED'
+          ) {
+            cleared += 1;
+          } else {
+            awaitingAuthority += 1;
+          }
+        }
+        return {
+          total: rows.length,
+          /** Honest clearance / sandbox accept — not merely "has UUID" */
+          submitted: cleared,
+          cleared,
+          pending: awaitingSubmit + awaitingAuthority,
+          awaitingSubmit,
+          awaitingAuthority,
+        };
+      });
   }
 }
