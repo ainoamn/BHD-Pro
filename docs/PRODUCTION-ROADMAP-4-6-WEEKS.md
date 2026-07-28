@@ -99,6 +99,6 @@
 ## الخطوة التالية المقترحة
 
 1. **أنت اليوم:** Cloudflare §1.1 + تدوير أسرار + لصق Sentry DSN.  
-2. **الكود (Wave EJ — منجز):** صدق ربط الولاء من QR الضيف — [`HISABY-WAVE-EJ-PUBLIC-LOYALTY-ATTACH-HONESTY-2026-07-28.md`](./HISABY-WAVE-EJ-PUBLIC-LOYALTY-ATTACH-HONESTY-2026-07-28.md) · قبله EI تعليق السلة.  
+2. **الكود (Wave EK — منجز):** صدق تنبيه فتح الدرج بلا بيع — [`HISABY-WAVE-EK-NOSALE-STAFF-NOTIFY-HONESTY-2026-07-28.md`](./HISABY-WAVE-EK-NOSALE-STAFF-NOTIFY-HONESTY-2026-07-28.md) · قبله EJ ولاء QR.  
 3. على Render: `prisma migrate deploy` (يشمل أعمدة إشعار الحجوزات) · `REDIS_URL` اختياري؛ قالب OTP واتساب؛ `REQUIRE_2FA_HARD_AFTER_GRACE=1` عند الرغبة بقفل التعديلات.  
 4. لاحقاً: أرشفة docs.

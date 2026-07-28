@@ -2643,10 +2643,21 @@ export class PosService {
       include: { createdBy: { select: { id: true, name: true } } },
     });
 
+    const whLabel = shift.warehouse
+      ? `${shift.warehouse.code || ''} ${shift.warehouse.name || ''}`.trim()
+      : 'default';
+    const staffNotify = await this.notifyStaffWhatsAppAlert(companyId, [
+      `فتح درج بلا بيع · ${whLabel}`,
+      `No-sale drawer open · ${whLabel}`,
+      `السبب / reason: ${reason}`,
+      `بواسطة / by: ${movement.createdBy?.name || actor.email}`,
+    ]);
+
     return {
       movement,
       cashMovements,
       shift: { id: shift.id },
+      staffNotify,
     };
   }
 

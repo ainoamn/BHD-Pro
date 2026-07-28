@@ -3310,6 +3310,10 @@ class ApiClient {
       };
       cashMovements?: unknown[];
       shift?: { id: string };
+      staffNotify?: {
+        status?: 'ok' | 'mock' | 'fail' | 'skipped';
+        targets?: number;
+      };
     }>('/pos/shifts/current/no-sale', data);
   }
 

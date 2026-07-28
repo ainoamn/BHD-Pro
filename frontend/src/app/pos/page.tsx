@@ -2857,7 +2857,7 @@ export default function PosCheckoutPage() {
     }
     setNoSaleBusy(true);
     try {
-      await api.createPosNoSale({
+      const res = await api.createPosNoSale({
         reason,
         warehouseId: warehouseId || undefined,
         approval,
@@ -2869,14 +2869,25 @@ export default function PosCheckoutPage() {
         /* drawer optional */
       }
       toast.success(t.noSaleOk);
+      const sn = (
+        res.data as {
+          staffNotify?: {
+            status?: "ok" | "mock" | "fail" | "skipped";
+          };
+        }
+      )?.staffNotify;
+      if (sn?.status === "ok") toast.success(t.noSaleStaffNotifyOk);
+      else if (sn?.status === "mock")
+        toast(t.noSaleStaffNotifyMock, { icon: "🧪" });
+      else if (sn?.status === "fail") toast.error(t.noSaleStaffNotifyFail);
+      else if (sn?.status === "skipped")
+        toast(t.noSaleStaffNotifySkipped, { icon: "⚠️" });
       setNoSaleOpen(false);
       setNoSaleAwaitingApproval(false);
       setNoSaleReason("");
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response
-        ?.data?.message;
-      const text = typeof msg === "string" ? msg : t.saleFail;
-      if (/open shift|وردية/i.test(text)) {
+      const text = apiErrorMessage(err, t.saleFail);
+      if (/open shift|وردية|no open shift/i.test(text)) {
         toast.error(t.noSaleNeedShift);
       } else {
         toast.error(text);
