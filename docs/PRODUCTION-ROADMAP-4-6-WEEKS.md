@@ -45,7 +45,7 @@
 | `ci.yml` build/typecheck/audit/smoke | **منجز** (Waves AZ/BA) |
 | Dependabot | **منجز** (شهري) |
 | Jest تغطية 70% + Playwright كامل | **ناقص** — smoke login موجود؛ التوسع موجات لاحقة |
-| deploy-staging / deploy-prod workflows | **جزئي** — النشر push→Vercel/Render؛ `staging-smoke.yml` يدوي ضد URL |
+| deploy-staging / deploy-prod workflows | **جزئي** — النشر push→Vercel/Render؛ `staging-smoke.yml` يفحص ready ثم Playwright (Wave BW) |
 
 ---
 
@@ -99,6 +99,6 @@
 ## الخطوة التالية المقترحة
 
 1. **أنت اليوم:** Cloudflare §1.1 + تدوير أسرار + لصق Sentry DSN.  
-2. **الكود (Wave BV — منجز):** كاش Redis اختياري للوحة التحكم — [`HISABY-WAVE-BV-DASHBOARD-REDIS-2026-07-28.md`](./HISABY-WAVE-BV-DASHBOARD-REDIS-2026-07-28.md).  
-3. على Render (اختياري): `REDIS_URL` + `POS_CATALOG_CACHE_TTL_SEC` / `DASHBOARD_CACHE_TTL_SEC`؛ و`WHATSAPP_OTP_TEMPLATE`.  
-4. لاحقاً: أرشفة docs · تحسينات smoke.
+2. **الكود (Wave BW — منجز):** smoke جاهزية API (`/health` + `/health/ready`) — [`HISABY-WAVE-BW-API-READY-SMOKE-2026-07-28.md`](./HISABY-WAVE-BW-API-READY-SMOKE-2026-07-28.md).  
+3. على Render (اختياري): `REDIS_URL` + TTLs للكاش؛ و`WHATSAPP_OTP_TEMPLATE`.  
+4. لاحقاً: فهارس Prisma مركّبة · أرشفة docs.

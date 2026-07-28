@@ -1,4 +1,5 @@
 # Keep Render free-tier API awake (cold starts otherwise take 10–50s).
+# Also asserts /health/ready so DB/Redis/S3 misconfig fails the job.
 name: Keep warm API
 
 on:
@@ -10,13 +11,12 @@ jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping health endpoint
+      - uses: actions/checkout@v4
+      - name: Ping liveness + readiness
         run: |
+          chmod +x scripts/api-ready-smoke.sh
           URL="${{ secrets.API_HEALTH_URL }}"
           if [ -z "$URL" ]; then
             URL="https://hisaby-api.onrender.com/api/health"
           fi
-          echo "Pinging $URL"
-          curl -fsS --retry 2 --retry-delay 3 --max-time 30 "$URL"
-          echo
-          echo "OK"
+          ./scripts/api-ready-smoke.sh "$URL"

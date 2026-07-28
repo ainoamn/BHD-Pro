@@ -1,4 +1,4 @@
-# Staging smoke — run Playwright against a deployed URL (manual)
+# Staging smoke — API readiness + Playwright against a deployed URL (manual)
 name: Staging smoke
 
 on:
@@ -8,14 +8,30 @@ on:
         description: "Frontend base URL (e.g. https://hisaby.pro or a Vercel preview)"
         required: true
         type: string
+      api_health_url:
+        description: "API liveness URL (default production Render health)"
+        required: false
+        default: "https://hisaby-api.onrender.com/api/health"
+        type: string
 
 concurrency:
   group: staging-smoke
   cancel-in-progress: true
 
 jobs:
+  api-ready:
+    name: API health + ready
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assert API live and ready
+        run: |
+          chmod +x scripts/api-ready-smoke.sh
+          ./scripts/api-ready-smoke.sh "${{ inputs.api_health_url }}"
+
   smoke:
     name: Playwright against staging URL
+    needs: api-ready
     runs-on: ubuntu-latest
     defaults:
       run:
