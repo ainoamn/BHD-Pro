@@ -158,6 +158,39 @@ type RecentCashSale = {
   reprintCount?: number;
 };
 
+type CustomerNotifySummary = {
+  whatsapp?: string;
+  email?: string;
+  sms?: string;
+} | null | undefined;
+
+function toastPosCustomerNotify(
+  notify: CustomerNotifySummary,
+  copy: {
+    saleNotifyOk: string;
+    saleNotifyMock: string;
+    saleNotifyPartial: string;
+    saleNotifyFail: string;
+  },
+) {
+  if (!notify) return;
+  const statuses = ["whatsapp", "email", "sms"].map(
+    (c) => notify[c as "whatsapp" | "email" | "sms"] || "skipped",
+  );
+  const live = statuses.filter((s) => s === "ok").length;
+  const mock = statuses.filter((s) => s === "mock").length;
+  const fail = statuses.filter((s) => s === "fail").length;
+  if (mock > 0 && live === 0) {
+    toast(copy.saleNotifyMock, { icon: "🧪", duration: 6000 });
+  } else if (fail > 0 && live === 0 && mock === 0) {
+    toast(copy.saleNotifyFail, { icon: "⚠️", duration: 6000 });
+  } else if (mock > 0 || fail > 0) {
+    toast(copy.saleNotifyPartial, { icon: "🧪", duration: 6000 });
+  } else if (live > 0) {
+    toast.success(copy.saleNotifyOk, { duration: 4000 });
+  }
+}
+
 export default function PosCheckoutPage() {
   const locale = useLocaleStore((s) => s.locale);
   const company = useAuthStore((s) => s.company);
@@ -2118,13 +2151,18 @@ export default function PosCheckoutPage() {
         setRefundAwaitingApproval(false);
         return;
       }
-      await api.refundPosSale(refundTarget.id, {
+      const refundRes = await api.refundPosSale(refundTarget.id, {
         items,
         reason: refundReason.trim() || undefined,
         refundMethod,
         approval,
       });
       toast.success(t.refundOk);
+      toastPosCustomerNotify(
+        (refundRes.data as { customerNotify?: CustomerNotifySummary })
+          ?.customerNotify,
+        t,
+      );
       setRefundTarget(null);
       setRefundAwaitingApproval(false);
       await loadRecentSales();
@@ -2210,8 +2248,13 @@ export default function PosCheckoutPage() {
         setVoidTarget(null);
         return;
       }
-      await api.voidPosSale(voidTarget.id, { approval });
+      const voidRes = await api.voidPosSale(voidTarget.id, { approval });
       toast.success(t.voidOk);
+      toastPosCustomerNotify(
+        (voidRes.data as { customerNotify?: CustomerNotifySummary })
+          ?.customerNotify,
+        t,
+      );
       setLastInvoice((prev) => (prev?.number === voidTarget.number ? null : prev));
       setVoidTarget(null);
       await loadRecentSales();
@@ -2662,24 +2705,7 @@ export default function PosCheckoutPage() {
       writeLastSaleFingerprint(fp);
       clearActiveCartSession();
       toast.success(isPartner ? t.partnerPayPending : t.saleOk);
-      if (!isPartner && inv.customerNotify) {
-        const statuses = ["whatsapp", "email", "sms"].map(
-          (c) =>
-            inv.customerNotify?.[c as "whatsapp" | "email" | "sms"] || "skipped",
-        );
-        const live = statuses.filter((s) => s === "ok").length;
-        const mock = statuses.filter((s) => s === "mock").length;
-        const fail = statuses.filter((s) => s === "fail").length;
-        if (mock > 0 && live === 0) {
-          toast(t.saleNotifyMock, { icon: "🧪", duration: 6000 });
-        } else if (fail > 0 && live === 0 && mock === 0) {
-          toast(t.saleNotifyFail, { icon: "⚠️", duration: 6000 });
-        } else if (mock > 0 || fail > 0) {
-          toast(t.saleNotifyPartial, { icon: "🧪", duration: 6000 });
-        } else if (live > 0) {
-          toast.success(t.saleNotifyOk, { duration: 4000 });
-        }
-      }
+      if (!isPartner) toastPosCustomerNotify(inv.customerNotify, t);
       void maybeKickDrawer(
         effectivePayments?.some((p) => p.method === "CASH") ? "CASH" : method,
       );

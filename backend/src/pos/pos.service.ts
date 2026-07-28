@@ -979,7 +979,12 @@ export class PosService {
       }
     }
 
-    this.fireCustomerNotify('void', companyId, invoiceId, invoice.contactId);
+    const customerNotify = await this.awaitCustomerNotify(
+      'void',
+      companyId,
+      invoiceId,
+      invoice.contactId,
+    );
 
     try {
       await this.incentives.reverseOnVoid(
@@ -995,27 +1000,11 @@ export class PosService {
     return {
       voided: true,
       invoice: cancelled,
+      customerNotify: customerNotify ?? null,
     };
   }
 
-  private fireCustomerNotify(
-    kind: 'sale' | 'void' | 'refund',
-    companyId: string,
-    invoiceId: string,
-    contactId: string | null | undefined,
-    creditNoteId?: string,
-  ) {
-    if (!contactId) return;
-    void this.awaitCustomerNotify(
-      kind,
-      companyId,
-      invoiceId,
-      contactId,
-      creditNoteId,
-    );
-  }
-
-  /** Awaited notify for sale checkout honesty; never throws. */
+  /** Awaited notify for sale/void/refund honesty; never throws. */
   private async awaitCustomerNotify(
     kind: 'sale' | 'void' | 'refund',
     companyId: string,
@@ -1037,16 +1026,18 @@ export class PosService {
         );
       }
       if (kind === 'void') {
-        await this.customerNotify.notifyPosVoid(companyId, invoiceId, contactId);
-        return null;
+        return await this.customerNotify.notifyPosVoid(
+          companyId,
+          invoiceId,
+          contactId,
+        );
       }
-      await this.customerNotify.notifyPosRefund(
+      return await this.customerNotify.notifyPosRefund(
         companyId,
         invoiceId,
         contactId,
         creditNoteId,
       );
-      return null;
     } catch {
       return null;
     }
@@ -3870,7 +3861,7 @@ export class PosService {
       /* ignore */
     }
 
-    this.fireCustomerNotify(
+    const customerNotify = await this.awaitCustomerNotify(
       'refund',
       companyId,
       invoice.id,
@@ -3883,6 +3874,7 @@ export class PosService {
       creditNote,
       originalInvoiceId: invoice.id,
       originalNumber: invoice.number,
+      customerNotify: customerNotify ?? null,
     };
   }
 

@@ -144,13 +144,19 @@ export class CustomerNotifyService {
     companyId: string,
     invoiceId: string,
     contactId: string,
-  ): Promise<void> {
+  ): Promise<{ whatsapp?: string; email?: string; sms?: string } | null> {
     try {
-      await this.sendCustomerPosMessage(companyId, invoiceId, contactId, 'void');
+      return await this.sendCustomerPosMessage(
+        companyId,
+        invoiceId,
+        contactId,
+        'void',
+      );
     } catch (err) {
       this.logger.warn(
         `notifyPosVoid failed: ${err instanceof Error ? err.message : err}`,
       );
+      return null;
     }
   }
 
@@ -159,9 +165,9 @@ export class CustomerNotifyService {
     invoiceId: string,
     contactId: string,
     creditNoteId?: string,
-  ): Promise<void> {
+  ): Promise<{ whatsapp?: string; email?: string; sms?: string } | null> {
     try {
-      await this.sendCustomerPosMessage(
+      return await this.sendCustomerPosMessage(
         companyId,
         invoiceId,
         contactId,
@@ -172,6 +178,7 @@ export class CustomerNotifyService {
       this.logger.warn(
         `notifyPosRefund failed: ${err instanceof Error ? err.message : err}`,
       );
+      return null;
     }
   }
 
