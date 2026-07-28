@@ -128,7 +128,7 @@ export default function UsersPage() {
             : en
               ? `User created — email not sent${data.inviteUrl ? "; invite link copied" : ""}${data.emailError ? ` (${data.emailError})` : ""}`
               : `تم إنشاء المستخدم — لم يُرسل البريد${data.inviteUrl ? "؛ تم نسخ رابط الدعوة" : ""}${data.emailError ? ` (${data.emailError})` : ""}`,
-          { icon: "🧪", duration: 6000 },
+          { icon: data.emailMock ? "🧪" : "⚠️", duration: 6000 },
         );
       }
       setModalOpen(false);
