@@ -326,11 +326,18 @@ export default function GuestOrderPage() {
         },
       );
       if (!res.ok) throw new Error("fail");
+      const data = (await res.json().catch(() => ({}))) as {
+        firedToKitchen?: boolean;
+      };
       setCart([]);
       setOkMsg(
         locale === "en"
-          ? "Order sent to kitchen."
-          : "أُرسل الطلب مباشرة إلى المطبخ.",
+          ? data.firedToKitchen === false
+            ? "Added to your check — kitchen may still be catching up."
+            : "Order sent to kitchen."
+          : data.firedToKitchen === false
+            ? "أُضيف للفاتورة — قد يتأخر إرسال المطبخ قليلاً."
+            : "أُرسل الطلب مباشرة إلى المطبخ.",
       );
       await load();
     } catch {
@@ -400,15 +407,39 @@ export default function GuestOrderPage() {
         },
       );
       if (!res.ok) throw new Error("fail");
-      setOkMsg(
-        locale === "en"
-          ? "Staff notified."
-          : type === "CHECK"
-            ? "طُلبت الفاتورة — النادل في الطريق."
-            : type === "WATER"
-              ? "طُلب الماء — النادل في الطريق."
-              : "طُلب النادل.",
-      );
+      const data = (await res.json()) as {
+        staffNotify?: { status?: string; targets?: number };
+      };
+      const wa = data.staffNotify?.status;
+      const baseEn =
+        type === "CHECK"
+          ? "Check requested — shown on the staff floor map."
+          : type === "WATER"
+            ? "Water requested — shown on the staff floor map."
+            : "Waiter requested — shown on the staff floor map.";
+      const baseAr =
+        type === "CHECK"
+          ? "طُلبت الفاتورة — تظهر على خريطة الطاولات للطاقم."
+          : type === "WATER"
+            ? "طُلب الماء — يظهر على خريطة الطاولات للطاقم."
+            : "طُلب النادل — يظهر على خريطة الطاولات للطاقم.";
+      const waEn =
+        wa === "ok"
+          ? " Staff WhatsApp sent."
+          : wa === "mock"
+            ? " WhatsApp is in mock mode (not delivered)."
+            : wa === "fail"
+              ? " Staff WhatsApp could not be sent."
+              : "";
+      const waAr =
+        wa === "ok"
+          ? " وأُرسل واتساب للطاقم."
+          : wa === "mock"
+            ? " واتساب في وضع mock (لم يُسلَّم)."
+            : wa === "fail"
+              ? " تعذّر إرسال واتساب للطاقم."
+              : "";
+      setOkMsg(locale === "en" ? `${baseEn}${waEn}` : `${baseAr}${waAr}`);
     } catch {
       setError(locale === "en" ? "Call failed." : "تعذر استدعاء النادل.");
     } finally {

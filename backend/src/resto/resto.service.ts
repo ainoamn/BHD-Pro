@@ -23,6 +23,7 @@ import { PosService } from '../pos/pos.service';
 import { PosIncentivesService } from '../pos/pos-incentives.service';
 import { DualControlService } from '../dual-control/dual-control.service';
 import { RestoGuestNotifyService } from '../notifications/resto-guest-notify.service';
+import { WhatsappNotifyService } from '../notifications/whatsapp-notify.service';
 import { InvoicesService } from '../invoices/invoices.service';
 import { DualApprovalDto } from '../dual-control/dto/approval.dto';
 import { TokenPayload } from '../auth/interfaces/token-payload.interface';
@@ -105,6 +106,7 @@ export class RestoService {
     private readonly dualControl: DualControlService,
     private readonly guestNotify: RestoGuestNotifyService,
     private readonly invoices: InvoicesService,
+    private readonly whatsapp: WhatsappNotifyService,
   ) {}
 
   private kitchenBus(companyId: string) {
@@ -6371,12 +6373,16 @@ export class RestoService {
       });
     }
     // World-class: guest lines fire to KDS immediately
+    let firedToKitchen = false;
     try {
       await this.sendToKitchen(table.companyId, order.id);
+      firedToKitchen = true;
     } catch {
       /* no pending left / race — still return order */
     }
-    this.notifyKitchen(table.companyId);
+    if (firedToKitchen) {
+      this.notifyKitchen(table.companyId);
+    }
     const mapped = await this.getOrder(table.companyId, order.id);
     return {
       ok: true,
@@ -6387,8 +6393,10 @@ export class RestoService {
         items: mapped.items,
         subtotal: mapped.subtotal,
       },
-      message: 'Sent to kitchen',
-      firedToKitchen: true,
+      message: firedToKitchen
+        ? 'Sent to kitchen'
+        : 'Added to check — kitchen fire pending',
+      firedToKitchen,
     };
   }
 
@@ -6401,12 +6409,85 @@ export class RestoService {
         guestCallType: dto.type,
       },
     });
+
+    const staffNotify = await this.notifyFloorStaffOfGuestCall(
+      table.companyId,
+      table.code,
+      dto.type,
+    );
+
     return {
       ok: true,
       type: dto.type,
       tableCode: table.code,
-      message: 'Staff notified',
+      floorFlag: true,
+      staffNotify,
+      message:
+        staffNotify.status === 'ok'
+          ? 'Floor alert shown and staff WhatsApp sent'
+          : staffNotify.status === 'mock'
+            ? 'Floor alert shown — WhatsApp mock (not delivered)'
+            : 'Floor alert shown on staff map',
     };
+  }
+
+  /** Best-effort WhatsApp ping to dual-control notify phones (never throws). */
+  private async notifyFloorStaffOfGuestCall(
+    companyId: string,
+    tableCode: string,
+    callType: string,
+  ): Promise<{
+    status: 'ok' | 'mock' | 'fail' | 'skipped';
+    targets: number;
+  }> {
+    try {
+      if (!this.whatsapp.isConfigured()) {
+        return { status: 'skipped', targets: 0 };
+      }
+      const company = await this.prisma.company.findUnique({
+        where: { id: companyId },
+        select: { phone: true, name: true, securityConfig: true },
+      });
+      const cfg =
+        company?.securityConfig &&
+        typeof company.securityConfig === 'object' &&
+        !Array.isArray(company.securityConfig)
+          ? (company.securityConfig as { whatsappNotifyPhones?: string[] })
+          : {};
+      let targets = (cfg.whatsappNotifyPhones || [])
+        .map((p) => String(p).replace(/[^\d]/g, ''))
+        .filter((p) => p.length >= 8);
+      if (!targets.length) {
+        const fallback = company?.phone?.replace(/[^\d]/g, '') || '';
+        if (fallback.length >= 8) targets = [fallback];
+      }
+      if (!targets.length) {
+        return { status: 'skipped', targets: 0 };
+      }
+
+      const kindLabel =
+        callType === 'CHECK'
+          ? 'طلب فاتورة'
+          : callType === 'WATER'
+            ? 'طلب ماء'
+            : 'طلب نادل';
+      const body = [
+        `Hisaby · ${company?.name || 'Restaurant'}`,
+        `طاولة ${tableCode}: ${kindLabel}`,
+        `Table ${tableCode}: guest call (${callType})`,
+        `افتح خريطة الطاولات /resto`,
+      ].join('\n');
+
+      const results = await Promise.all(
+        targets.map((to) => this.whatsapp.sendText(to, body)),
+      );
+      const anyLive = results.some((r) => r.ok && !r.mock);
+      const anyMock = results.some((r) => r.ok && !!r.mock);
+      const status = anyLive ? 'ok' : anyMock ? 'mock' : 'fail';
+      return { status, targets: targets.length };
+    } catch {
+      return { status: 'fail', targets: 0 };
+    }
   }
 
   private mapRecipe(r: {
