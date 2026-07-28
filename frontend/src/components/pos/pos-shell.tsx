@@ -26,6 +26,7 @@ import { posCopy } from "@/lib/pos-copy";
 import { canAccessModule, moduleForPosPath, canOpenAccountingApp, canOpenRestoApp, type ModuleKey } from "@/lib/module-permissions";
 import { homePathForUser } from "@/lib/user-home";
 import { flushPendingPosSales, pendingAllCount, quarantinedAllCount, discardAllQuarantined } from "@/lib/pos-offline-sync";
+import { toastFlushCustomerNotify } from "@/lib/pos-notify-toast";
 import {
   listPendingOps,
   listPendingSales,
@@ -129,8 +130,10 @@ export function PosShell({ children }: { children: React.ReactNode }) {
         if (queueOpen) await loadQueueDetail();
         if (result.synced > 0 && result.remaining === 0 && result.quarantined === 0) {
           toast.success(t.syncOk);
+          toastFlushCustomerNotify(result.notifyAgg, t);
         } else if (result.synced > 0 && (result.remaining > 0 || result.quarantined > 0)) {
           if (!silent) toast.error(t.syncPartial);
+          toastFlushCustomerNotify(result.notifyAgg, t);
         } else if (result.failed && !silent) {
           toast.error(t.syncFail);
         }

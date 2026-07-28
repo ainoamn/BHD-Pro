@@ -64,6 +64,11 @@ import {
   DEFAULT_DIAL_CODE,
 } from "@/lib/phone";
 import { ContactSearchSelect } from "@/components/contacts/contact-search-select";
+import {
+  toastFlushCustomerNotify,
+  toastPosCustomerNotify,
+  type CustomerNotifySummary,
+} from "@/lib/pos-notify-toast";
 
 const POS_WAREHOUSE_KEY = "hisaby-pos-warehouse-id";
 
@@ -157,39 +162,6 @@ type RecentCashSale = {
   payments?: { method?: string; amount?: number | string }[];
   reprintCount?: number;
 };
-
-type CustomerNotifySummary = {
-  whatsapp?: string;
-  email?: string;
-  sms?: string;
-} | null | undefined;
-
-function toastPosCustomerNotify(
-  notify: CustomerNotifySummary,
-  copy: {
-    saleNotifyOk: string;
-    saleNotifyMock: string;
-    saleNotifyPartial: string;
-    saleNotifyFail: string;
-  },
-) {
-  if (!notify) return;
-  const statuses = ["whatsapp", "email", "sms"].map(
-    (c) => notify[c as "whatsapp" | "email" | "sms"] || "skipped",
-  );
-  const live = statuses.filter((s) => s === "ok").length;
-  const mock = statuses.filter((s) => s === "mock").length;
-  const fail = statuses.filter((s) => s === "fail").length;
-  if (mock > 0 && live === 0) {
-    toast(copy.saleNotifyMock, { icon: "🧪", duration: 6000 });
-  } else if (fail > 0 && live === 0 && mock === 0) {
-    toast(copy.saleNotifyFail, { icon: "⚠️", duration: 6000 });
-  } else if (mock > 0 || fail > 0) {
-    toast(copy.saleNotifyPartial, { icon: "🧪", duration: 6000 });
-  } else if (live > 0) {
-    toast.success(copy.saleNotifyOk, { duration: 4000 });
-  }
-}
 
 export default function PosCheckoutPage() {
   const locale = useLocaleStore((s) => s.locale);
@@ -1100,6 +1072,7 @@ export default function PosCheckoutPage() {
         if (cancelled) return;
         if (result.synced > 0) {
           toast.success(t.syncOk);
+          toastFlushCustomerNotify(result.notifyAgg, t);
           await loadRecentSales();
           await loadOpsStrip();
           await loadCatalog(search, warehouseId || undefined);
