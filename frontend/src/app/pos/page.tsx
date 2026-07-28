@@ -2202,7 +2202,7 @@ export default function PosCheckoutPage() {
     }
     setBlindBusy(true);
     try {
-      await api.blindPosReturn({
+      const blindRes = await api.blindPosReturn({
         items,
         reason: blindReason.trim(),
         refundMethod: blindMethod,
@@ -2211,6 +2211,11 @@ export default function PosCheckoutPage() {
         approval,
       });
       toast.success(t.blindReturnOk);
+      toastPosCustomerNotify(
+        (blindRes.data as { customerNotify?: CustomerNotifySummary })
+          ?.customerNotify,
+        t,
+      );
       setBlindReturnOpen(false);
       setBlindAwaitingApproval(false);
       setBlindLines([]);

@@ -182,11 +182,32 @@ export class CustomerNotifyService {
     }
   }
 
+  /** Blind / no-receipt return — notify about the credit note document. */
+  async notifyPosBlindReturn(
+    companyId: string,
+    creditNoteId: string,
+    contactId: string,
+  ): Promise<{ whatsapp?: string; email?: string; sms?: string } | null> {
+    try {
+      return await this.sendCustomerPosMessage(
+        companyId,
+        creditNoteId,
+        contactId,
+        'blind_return',
+      );
+    } catch (err) {
+      this.logger.warn(
+        `notifyPosBlindReturn failed: ${err instanceof Error ? err.message : err}`,
+      );
+      return null;
+    }
+  }
+
   private async sendCustomerPosMessage(
     companyId: string,
     invoiceId: string,
     contactId: string,
-    kind: 'sale' | 'void' | 'refund',
+    kind: 'sale' | 'void' | 'refund' | 'blind_return',
     creditNoteId?: string,
     force = false,
   ): Promise<{
@@ -269,6 +290,15 @@ export class CustomerNotifyService {
       body = [
         `مرحباً ${contact.name}،`,
         `تم إلغاء فاتورة ${invoice.number} لدى ${company.name}`,
+        `المبلغ: ${totalStr}`,
+        `عرض المستند: ${viewUrl}`,
+        `للإبلاغ: ${disputeUrl}`,
+      ].join('\n');
+    } else if (kind === 'blind_return') {
+      body = [
+        `مرحباً ${contact.name}،`,
+        `تم تسجيل إرجاع بضاعة لدى ${company.name}`,
+        `إشعار دائن: ${invoice.number}`,
         `المبلغ: ${totalStr}`,
         `عرض المستند: ${viewUrl}`,
         `للإبلاغ: ${disputeUrl}`,

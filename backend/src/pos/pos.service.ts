@@ -1004,9 +1004,9 @@ export class PosService {
     };
   }
 
-  /** Awaited notify for sale/void/refund honesty; never throws. */
+  /** Awaited notify for sale/void/refund/blind-return honesty; never throws. */
   private async awaitCustomerNotify(
-    kind: 'sale' | 'void' | 'refund',
+    kind: 'sale' | 'void' | 'refund' | 'blind_return',
     companyId: string,
     invoiceId: string,
     contactId: string | null | undefined,
@@ -1027,6 +1027,13 @@ export class PosService {
       }
       if (kind === 'void') {
         return await this.customerNotify.notifyPosVoid(
+          companyId,
+          invoiceId,
+          contactId,
+        );
+      }
+      if (kind === 'blind_return') {
+        return await this.customerNotify.notifyPosBlindReturn(
           companyId,
           invoiceId,
           contactId,
@@ -4046,10 +4053,18 @@ export class PosService {
       /* ignore */
     }
 
+    const customerNotify = await this.awaitCustomerNotify(
+      'blind_return',
+      companyId,
+      creditNote.id,
+      contact.id,
+    );
+
     return {
       refunded: true,
       blind: true,
       creditNote,
+      customerNotify: customerNotify ?? null,
     };
   }
 

@@ -99,6 +99,6 @@
 ## الخطوة التالية المقترحة
 
 1. **أنت اليوم:** Cloudflare §1.1 + تدوير أسرار + لصق Sentry DSN.  
-2. **الكود (Wave DE — منجز):** صدق إشعار إلغاء/استرجاع الكاشير — [`HISABY-WAVE-DE-POS-VOID-REFUND-NOTIFY-HONESTY-2026-07-28.md`](./HISABY-WAVE-DE-POS-VOID-REFUND-NOTIFY-HONESTY-2026-07-28.md) · قبله DD إشعار إيصال البيع.  
+2. **الكود (Wave DF — منجز):** صدق إشعار إرجاع بدون إيصال — [`HISABY-WAVE-DF-POS-BLIND-RETURN-NOTIFY-HONESTY-2026-07-28.md`](./HISABY-WAVE-DF-POS-BLIND-RETURN-NOTIFY-HONESTY-2026-07-28.md) · قبله DE إلغاء/استرجاع.  
 3. على Render: `prisma migrate deploy` (يشمل أعمدة إشعار الحجوزات) · `REDIS_URL` اختياري؛ قالب OTP واتساب؛ `REQUIRE_2FA_HARD_AFTER_GRACE=1` عند الرغبة بقفل التعديلات.  
 4. لاحقاً: أرشفة docs.
