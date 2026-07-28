@@ -26,5 +26,6 @@ COPY --from=build /app/dist ./dist
 COPY --from=build /app/src/prisma ./src/prisma
 COPY package.json ./
 EXPOSE 3001
-# Migration history is incomplete vs schema; db push syncs the full schema on empty Neon.
-CMD ["sh", "-c", "npx prisma db push --accept-data-loss && node dist/main"]
+# Client already generated at image build — skip generate on boot (OOM on 512Mi).
+# Prefer migrate deploy; fall back to db push only if _prisma_migrations is empty/broken.
+CMD ["sh", "-c", "npx prisma migrate deploy --skip-generate || npx prisma db push --accept-data-loss --skip-generate; node --max-old-space-size=384 dist/main"]
