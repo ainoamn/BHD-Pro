@@ -8,6 +8,12 @@ import api from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
 import { useAuthStore } from "@/store/auth";
 import { restoCopy } from "@/lib/resto-copy";
+import { apiErrorMessage } from "@/lib/utils";
+
+type StaffNotify = {
+  status?: "ok" | "mock" | "fail" | "skipped";
+  targets?: number;
+};
 
 type MenuItem = {
   id: string;
@@ -159,6 +165,19 @@ function DayPartPriceEditor({
 export default function RestoMenuPage() {
   const locale = useLocaleStore((s) => s.locale);
   const t = restoCopy[locale === "en" ? "en" : "ar"];
+
+  const toastStaffNotify = (notify?: StaffNotify | null) => {
+    if (!notify?.status) return;
+    if (notify.status === "ok") {
+      toast.success(t.menu86StaffNotifyOk);
+    } else if (notify.status === "mock") {
+      toast(t.menu86StaffNotifyMock, { icon: "🧪" });
+    } else if (notify.status === "fail") {
+      toast.error(t.menu86StaffNotifyFail);
+    } else if (notify.status === "skipped") {
+      toast(t.menu86StaffNotifySkipped, { icon: "⚠️" });
+    }
+  };
   const user = useAuthStore((s) => s.user);
   const canManage =
     user?.role === "ADMIN" ||
@@ -404,12 +423,13 @@ export default function RestoMenuPage() {
   const mark86 = async (productId: string) => {
     setBusyId(productId);
     try {
-      await api.setRestoMenu86({ productId });
+      const res = await api.setRestoMenu86({ productId });
       setItems((prev) => prev.filter((it) => it.id !== productId));
       await load86();
       toast.success(t.menu86Mark);
-    } catch {
-      toast.error(t.actionFail);
+      toastStaffNotify(res.data?.staffNotify);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, t.actionFail));
     } finally {
       setBusyId(null);
     }
@@ -418,13 +438,14 @@ export default function RestoMenuPage() {
   const clear86 = async (productId: string) => {
     setBusyId(productId);
     try {
-      await api.clearRestoMenu86(productId);
+      const res = await api.clearRestoMenu86(productId);
       await load86();
-      const res = await api.getRestoMenu(q.trim() || undefined);
-      setItems(res.data.items || []);
+      const menuRes = await api.getRestoMenu(q.trim() || undefined);
+      setItems(menuRes.data.items || []);
       toast.success(t.menu86Clear);
-    } catch {
-      toast.error(t.actionFail);
+      toastStaffNotify(res.data?.staffNotify);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, t.actionFail));
     } finally {
       setBusyId(null);
     }

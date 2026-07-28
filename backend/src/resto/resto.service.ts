@@ -6632,7 +6632,7 @@ export class RestoService {
   async setMenu86(companyId: string, dto: SetRestoMenu86Dto) {
     const product = await this.prisma.product.findFirst({
       where: { id: dto.productId, companyId },
-      select: { id: true },
+      select: { id: true, name: true, nameEn: true, sku: true },
     });
     if (!product) throw new NotFoundException('Product not found');
     const note = dto.note?.trim() || null;
@@ -6653,20 +6653,39 @@ export class RestoService {
       update: { note: safeNote },
     });
     this.notifyKitchen(companyId);
+    const label = product.name || product.nameEn || product.sku || product.id;
+    const staffNotify = await this.notifyFloorStaffAlert(companyId, [
+      `86: نفد «${label}» من القائمة`,
+      `86: "${label}" marked unavailable`,
+      safeNote ? `Note: ${safeNote}` : '',
+      `افتح /resto/menu`,
+    ]);
     return {
       id: row.id,
       productId: row.productId,
       note: row.note,
       auto: false,
+      staffNotify,
     };
   }
 
   async clearMenu86(companyId: string, productId: string) {
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, companyId },
+      select: { id: true, name: true, nameEn: true, sku: true },
+    });
     await this.prisma.restoMenu86.deleteMany({
       where: { companyId, productId },
     });
     this.notifyKitchen(companyId);
-    return { ok: true, productId };
+    const label =
+      product?.name || product?.nameEn || product?.sku || productId;
+    const staffNotify = await this.notifyFloorStaffAlert(companyId, [
+      `86: عاد «${label}» للتوفر`,
+      `86: "${label}" available again`,
+      `افتح /resto/menu`,
+    ]);
+    return { ok: true, productId, staffNotify };
   }
 
   /** Ensure every table has a guest QR token; return staff QR list */

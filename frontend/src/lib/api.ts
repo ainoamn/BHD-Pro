@@ -2387,11 +2387,27 @@ class ApiClient {
   }
 
   setRestoMenu86(data: { productId: string; note?: string }) {
-    return this.post('/resto/menu/86', data);
+    return this.post<{
+      id: string;
+      productId: string;
+      note: string | null;
+      auto: boolean;
+      staffNotify?: {
+        status: 'ok' | 'mock' | 'fail' | 'skipped';
+        targets: number;
+      };
+    }>('/resto/menu/86', data);
   }
 
   clearRestoMenu86(productId: string) {
-    return this.delete(`/resto/menu/86/${productId}`);
+    return this.delete<{
+      ok: boolean;
+      productId: string;
+      staffNotify?: {
+        status: 'ok' | 'mock' | 'fail' | 'skipped';
+        targets: number;
+      };
+    }>(`/resto/menu/86/${productId}`);
   }
 
   reconcileRestoMenu86() {
