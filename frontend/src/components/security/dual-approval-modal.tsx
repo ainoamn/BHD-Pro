@@ -92,6 +92,10 @@ const copy = {
     rejected: "رُفض الطلب",
     expired: "انتهت صلاحية الطلب",
     requestFail: "تعذر إنشاء طلب الموافقة",
+    managerNotifyOk: "تم إشعار المديرين عبر واتساب",
+    managerNotifyMock: "طلب جاهز — إشعار المديرين mock (لم يُسلَّم)",
+    managerNotifyFail: "طلب جاهز — تعذّر إشعار المديرين عبر واتساب",
+    managerNotifySkipped: "طلب جاهز — لا أرقام واتساب للمديرين أو القناة غير مضبوطة",
   },
   en: {
     title: "Dual control",
@@ -125,6 +129,11 @@ const copy = {
     rejected: "Request was rejected",
     expired: "Request expired",
     requestFail: "Could not create approval request",
+    managerNotifyOk: "Managers notified via WhatsApp",
+    managerNotifyMock: "Request ready — manager notify mock (not delivered)",
+    managerNotifyFail: "Request ready — could not notify managers on WhatsApp",
+    managerNotifySkipped:
+      "Request ready — no manager WhatsApp numbers or channel not configured",
   },
 };
 
@@ -287,6 +296,14 @@ export function DualApprovalModal({
         setRequestId(res.data.id);
         setRequestExpiresAt(res.data.expiresAt || null);
         setWaitMode("waiting");
+        const mn = res.data.managerNotify;
+        if (mn?.status === "ok") toast.success(t.managerNotifyOk);
+        else if (mn?.status === "mock")
+          toast(t.managerNotifyMock, { icon: "🧪", duration: 7000 });
+        else if (mn?.status === "fail")
+          toast(t.managerNotifyFail, { icon: "⚠️", duration: 7000 });
+        else if (mn?.status === "skipped")
+          toast(t.managerNotifySkipped, { icon: "⚠️", duration: 7000 });
       } catch {
         toast.error(t.requestFail);
       } finally {

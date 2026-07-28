@@ -99,6 +99,6 @@
 ## الخطوة التالية المقترحة
 
 1. **أنت اليوم:** Cloudflare §1.1 + تدوير أسرار + لصق Sentry DSN.  
-2. **الكود (Wave CV — منجز):** صدق بريد الفواتير المجدولة — [`HISABY-WAVE-CV-SCHEDULED-INVOICE-EMAIL-HONESTY-2026-07-28.md`](./HISABY-WAVE-CV-SCHEDULED-INVOICE-EMAIL-HONESTY-2026-07-28.md) · قبله CU إرسال فاتورة من الخادم.  
+2. **الكود (Wave CW — منجز):** صدق إشعار مديري الموافقة المزدوجة — [`HISABY-WAVE-CW-DUAL-MANAGER-NOTIFY-HONESTY-2026-07-28.md`](./HISABY-WAVE-CW-DUAL-MANAGER-NOTIFY-HONESTY-2026-07-28.md) · قبله CV بريد الفواتير المجدولة.  
 3. على Render: `prisma migrate deploy` (يشمل أعمدة إشعار الحجوزات) · `REDIS_URL` اختياري؛ قالب OTP واتساب؛ `REQUIRE_2FA_HARD_AFTER_GRACE=1` عند الرغبة بقفل التعديلات.  
 4. لاحقاً: أرشفة docs.

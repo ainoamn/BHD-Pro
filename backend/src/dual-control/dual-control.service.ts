@@ -331,9 +331,14 @@ export class DualControlService {
     });
 
     // Best-effort manager WhatsApp ping — never fail request creation
-    void this.notifyManagersOfApprovalRequest(companyId, actor, action, row.id);
+    const managerNotify = await this.notifyManagersOfApprovalRequest(
+      companyId,
+      actor,
+      action,
+      row.id,
+    );
 
-    return this.serializeApproval(row);
+    return { ...this.serializeApproval(row), managerNotify };
   }
 
   /** Resolve notify phones (config → company phone) and send a short bilingual alert. */
@@ -342,9 +347,14 @@ export class DualControlService {
     actor: DualControlActor,
     action: DualControlAction,
     approvalRequestId: string,
-  ) {
+  ): Promise<{
+    status: 'ok' | 'mock' | 'fail' | 'skipped';
+    targets: number;
+  }> {
     try {
-      if (!this.whatsapp.isConfigured()) return;
+      if (!this.whatsapp.isConfigured()) {
+        return { status: 'skipped', targets: 0 };
+      }
 
       const config = await this.loadConfig(companyId);
       const phones = (config.whatsappNotifyPhones || [])
@@ -360,27 +370,34 @@ export class DualControlService {
         const fallback = company?.phone?.replace(/[^\d]/g, '') || '';
         if (fallback.length >= 8) targets = [fallback];
       }
-      if (!targets.length) return;
+      if (!targets.length) {
+        return { status: 'skipped', targets: 0 };
+      }
 
       const actorEmail = actor.email || actor.sub;
       const body = `Hisaby: موافقة مطلوبة — ${action} من ${actorEmail}. افتح /pos/approvals\nHisaby: Approval needed — ${action} by ${actorEmail}. Open /pos/approvals`;
       const results = await Promise.all(targets.map((to) => this.whatsapp.sendText(to, body)));
-      const anyOk = results.some((r) => r.ok);
-      if (!anyOk) return;
+      const anyLive = results.some((r) => r.ok && !r.mock);
+      const anyMock = results.some((r) => r.ok && !!r.mock);
+      const status = anyLive ? 'ok' : anyMock ? 'mock' : 'fail';
 
       await this.writeAudit({
         companyId,
         userId: actor.sub,
         action: 'APPROVAL_REQUEST_NOTIFIED',
-        success: true,
+        success: status === 'ok',
         details: {
           approvalRequestId,
           dualAction: action,
           targets: targets.length,
+          notifyStatus: status,
+          mock: status === 'mock',
         },
       });
+
+      return { status, targets: targets.length };
     } catch {
-      /* ignore — notification must not block approval creation */
+      return { status: 'fail', targets: 0 };
     }
   }
 

@@ -1530,6 +1530,10 @@ class ApiClient {
       status: string;
       expiresAt: string;
       summary?: string | null;
+      managerNotify?: {
+        status: 'ok' | 'mock' | 'fail' | 'skipped';
+        targets: number;
+      };
     }>('/dual-control/requests', data);
   }
 
