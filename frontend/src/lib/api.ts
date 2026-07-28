@@ -3272,6 +3272,10 @@ class ApiClient {
       cashMovements?: unknown[];
       journalId?: string | null;
       postedToGl?: boolean;
+      staffNotify?: {
+        status?: 'ok' | 'mock' | 'fail' | 'skipped';
+        targets?: number;
+      };
     }>('/pos/shifts/current/cash-movements', data);
   }
 
@@ -3284,6 +3288,10 @@ class ApiClient {
       movementId: string;
       live?: Record<string, unknown>;
       cashMovements?: unknown[];
+      staffNotify?: {
+        status?: 'ok' | 'mock' | 'fail' | 'skipped';
+        targets?: number;
+      };
     }>(`/pos/shifts/current/cash-movements/${id}/reverse`, data || {});
   }
 

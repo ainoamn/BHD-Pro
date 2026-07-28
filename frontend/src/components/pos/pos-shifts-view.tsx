@@ -492,7 +492,14 @@ export function PosShiftsView({
         approval,
       }),
     onSuccess: (res) => {
-      const posted = (res.data as { postedToGl?: boolean })?.postedToGl;
+      const payload = res.data as {
+        postedToGl?: boolean;
+        staffNotify?: {
+          status?: "ok" | "mock" | "fail" | "skipped";
+          targets?: number;
+        };
+      };
+      const posted = payload?.postedToGl;
       toast.success(
         posted
           ? `${cashType === "IN" ? t.cashInOk : t.cashOutOk} · ${t.cashPostedToGl}`
@@ -500,6 +507,13 @@ export function PosShiftsView({
             ? t.cashInOk
             : t.cashOutOk,
       );
+      const sn = payload?.staffNotify;
+      if (sn?.status === "ok") toast.success(t.cashStaffNotifyOk);
+      else if (sn?.status === "mock")
+        toast(t.cashStaffNotifyMock, { icon: "🧪" });
+      else if (sn?.status === "fail") toast.error(t.cashStaffNotifyFail);
+      else if (sn?.status === "skipped")
+        toast(t.cashStaffNotifySkipped, { icon: "⚠️" });
       setCashAmount("");
       setCashReason("");
       setCashApprovalOpen(false);
@@ -528,8 +542,22 @@ export function PosShiftsView({
       id: string;
       approval?: DualApprovalPayload;
     }) => api.reversePosCashMovement(id, { approval }),
-    onSuccess: () => {
+    onSuccess: (res) => {
       toast.success(t.cashReverseOk);
+      const sn = (
+        res.data as {
+          staffNotify?: {
+            status?: "ok" | "mock" | "fail" | "skipped";
+            targets?: number;
+          };
+        }
+      )?.staffNotify;
+      if (sn?.status === "ok") toast.success(t.cashStaffNotifyOk);
+      else if (sn?.status === "mock")
+        toast(t.cashStaffNotifyMock, { icon: "🧪" });
+      else if (sn?.status === "fail") toast.error(t.cashStaffNotifyFail);
+      else if (sn?.status === "skipped")
+        toast(t.cashStaffNotifySkipped, { icon: "⚠️" });
       setReverseCashId(null);
       setCashApprovalOpen(false);
       qc.invalidateQueries({ queryKey: ["pos-shift-current"] });

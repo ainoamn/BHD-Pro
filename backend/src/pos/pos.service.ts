@@ -2504,6 +2504,20 @@ export class PosService {
       orderBy: { createdAt: 'desc' },
       include: { createdBy: { select: { id: true, name: true } } },
     });
+    const whLabel = shift.warehouse
+      ? `${shift.warehouse.code || ''} ${shift.warehouse.name || ''}`.trim()
+      : 'default';
+    const staffNotify = await this.notifyStaffWhatsAppAlert(companyId, [
+      dto.type === 'OUT'
+        ? `صرف نقد من الصندوق · ${whLabel}`
+        : `إيداع نقد للصندوق · ${whLabel}`,
+      dto.type === 'OUT'
+        ? `Cash OUT · ${whLabel}`
+        : `Cash IN · ${whLabel}`,
+      `المبلغ / amount: ${amount.toFixed(3)}`,
+      reason ? `السبب / reason: ${reason}` : '',
+      `بواسطة / by: ${movement.createdBy?.name || actor.email}`,
+    ]);
     return {
       movement,
       live,
@@ -2511,6 +2525,7 @@ export class PosService {
       shift: { id: shift.id },
       journalId: movement.journalId || null,
       postedToGl: !!movement.journalId,
+      staffNotify,
     };
   }
 
@@ -2522,7 +2537,13 @@ export class PosService {
   ) {
     const movement = await this.prisma.posCashMovement.findFirst({
       where: { id: movementId, companyId },
-      include: { shift: true },
+      include: {
+        shift: {
+          include: {
+            warehouse: { select: { code: true, name: true } },
+          },
+        },
+      },
     });
     if (!movement) throw new NotFoundException('Cash movement not found');
     if (movement.shift.closedAt) {
@@ -2562,12 +2583,23 @@ export class PosService {
       orderBy: { createdAt: 'desc' },
       include: { createdBy: { select: { id: true, name: true } } },
     });
+    const whLabel = movement.shift.warehouse
+      ? `${movement.shift.warehouse.code || ''} ${movement.shift.warehouse.name || ''}`.trim()
+      : 'default';
+    const staffNotify = await this.notifyStaffWhatsAppAlert(companyId, [
+      `عكس حركة نقد · ${whLabel}`,
+      `Cash movement reversed · ${whLabel}`,
+      `الأصل / was: ${movement.type} ${Number(movement.amount).toFixed(3)}`,
+      movement.reason ? `السبب / reason: ${movement.reason}` : '',
+      `بواسطة / by: ${actor.email}`,
+    ]);
     return {
       reversed: true,
       movementId: movement.id,
       live,
       cashMovements,
       shift: { id: movement.shiftId },
+      staffNotify,
     };
   }
 

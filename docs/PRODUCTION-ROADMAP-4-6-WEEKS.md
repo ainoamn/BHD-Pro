@@ -99,6 +99,6 @@
 ## الخطوة التالية المقترحة
 
 1. **أنت اليوم:** Cloudflare §1.1 + تدوير أسرار + لصق Sentry DSN.  
-2. **الكود (Wave EG — منجز):** صدق تنبيه فتح/إغلاق الوردية — [`HISABY-WAVE-EG-SHIFT-STAFF-NOTIFY-HONESTY-2026-07-28.md`](./HISABY-WAVE-EG-SHIFT-STAFF-NOTIFY-HONESTY-2026-07-28.md) · قبله EF مستعجل/تعليق المطبخ.  
+2. **الكود (Wave EH — منجز):** صدق تنبيه إيداع/صرف/عكس نقد الصندوق — [`HISABY-WAVE-EH-CASH-MOVEMENT-STAFF-NOTIFY-HONESTY-2026-07-28.md`](./HISABY-WAVE-EH-CASH-MOVEMENT-STAFF-NOTIFY-HONESTY-2026-07-28.md) · قبله EG فتح/إغلاق الوردية.  
 3. على Render: `prisma migrate deploy` (يشمل أعمدة إشعار الحجوزات) · `REDIS_URL` اختياري؛ قالب OTP واتساب؛ `REQUIRE_2FA_HARD_AFTER_GRACE=1` عند الرغبة بقفل التعديلات.  
 4. لاحقاً: أرشفة docs.
