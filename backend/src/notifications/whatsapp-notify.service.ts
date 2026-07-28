@@ -417,7 +417,7 @@ export class WhatsappNotifyService {
     toE164: string,
     code: string,
     purpose = 'verification',
-  ): Promise<{ ok: boolean; error?: string; via?: 'template' | 'text' }> {
+  ): Promise<{ ok: boolean; error?: string; via?: 'template' | 'text'; mock?: boolean }> {
     const template = this.otpTemplateName();
     if (template) {
       const result = await this.sendTemplate(
@@ -426,12 +426,22 @@ export class WhatsappNotifyService {
         [String(code)],
         this.otpTemplateLang(),
       );
-      if (result.ok) return { ...result, via: 'template' };
+      if (result.ok) {
+        return {
+          ...result,
+          via: 'template',
+          mock: !!(result as { mock?: boolean }).mock,
+        };
+      }
       this.logger.warn(`OTP template failed, trying session text: ${result.error}`);
     }
 
     const body = `Hisaby OTP: ${code}\nPurpose: ${purpose}\nValid 10 minutes.\nDo not share this code.`;
     const text = await this.sendText(toE164, body);
-    return { ...text, via: 'text' };
+    return {
+      ...text,
+      via: 'text',
+      mock: !!(text as { mock?: boolean }).mock,
+    };
   }
 }

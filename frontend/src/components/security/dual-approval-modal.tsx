@@ -78,6 +78,7 @@ const copy = {
     otp: "رمز واتساب (6 أرقام)",
     sendOtp: "إرسال الرمز",
     otpSent: "تم إرسال الرمز عبر واتساب",
+    otpSentMock: "وضع mock — الرمز لم يُرسل للواتساب (راجع سجلات الخادم)",
     otpFail: "تعذر إرسال رمز واتساب",
     reason: "سبب الموافقة",
     reasonHint: "مطلوب للتدقيق (3 أحرف على الأقل)",
@@ -110,6 +111,7 @@ const copy = {
     otp: "WhatsApp code (6 digits)",
     sendOtp: "Send code",
     otpSent: "Code sent via WhatsApp",
+    otpSentMock: "Mock mode — code was not delivered to WhatsApp (see server logs)",
     otpFail: "Could not send WhatsApp code",
     reason: "Approval reason",
     reasonHint: "Required for audit (min 3 characters)",
@@ -329,8 +331,13 @@ export function DualApprovalModal({
     if (!action || otpBusy) return;
     setOtpBusy(true);
     try {
-      await api.requestWhatsappOtp(action);
-      toast.success(t.otpSent);
+      const res = await api.requestWhatsappOtp(action);
+      const data = res.data as { mock?: boolean; mode?: string } | undefined;
+      if (data?.mock || data?.mode === "mock") {
+        toast(t.otpSentMock, { icon: "🧪" });
+      } else {
+        toast.success(t.otpSent);
+      }
     } catch {
       toast.error(t.otpFail);
     } finally {

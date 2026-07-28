@@ -1016,18 +1016,22 @@ export class DualControlService {
     if (!anyOk) {
       throw new BadRequestException(results[0]?.error || 'Failed to send WhatsApp OTP');
     }
+    const mock = results.some((r) => r.ok && r.mock);
 
     await this.writeAudit({
       companyId,
       userId: actor.sub,
       action: 'WHATSAPP_OTP_SENT',
       success: true,
-      details: { dualAction: action, targets: targets.length },
+      details: { dualAction: action, targets: targets.length, mock },
     });
 
     return {
       sent: true,
+      mock,
+      mode: mock ? ('mock' as const) : this.whatsapp.mode(),
       expiresAt,
+      expiresInSec: Math.floor(OTP_TTL_MS / 1000),
       maskedTo: targets.map((p) => p.replace(/\d(?=\d{4})/g, '*')),
       remainingRequests: Math.max(0, 3 - recent - 1),
     };
