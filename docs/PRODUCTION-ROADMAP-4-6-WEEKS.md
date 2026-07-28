@@ -99,6 +99,6 @@
 ## الخطوة التالية المقترحة
 
 1. **أنت اليوم:** Cloudflare §1.1 + تدوير أسرار + لصق Sentry DSN.  
-2. **الكود (Wave EN — منجز):** صدق أخطاء حذف/تعديل السلات المعلّقة — [`HISABY-WAVE-EN-POS-PARKED-EDIT-ERROR-HONESTY-2026-07-28.md`](./HISABY-WAVE-EN-POS-PARKED-EDIT-ERROR-HONESTY-2026-07-28.md) · قبله EM إعدادات المطعم.  
+2. **الكود (Wave EO — منجز):** صدق أخطاء خريطة الطاولات المتبقية + تحميل KDS — [`HISABY-WAVE-EO-FLOOR-REMAINING-ERROR-HONESTY-2026-07-28.md`](./HISABY-WAVE-EO-FLOOR-REMAINING-ERROR-HONESTY-2026-07-28.md) · قبله EN سلات معلّقة.  
 3. على Render: `prisma migrate deploy` (يشمل أعمدة إشعار الحجوزات) · `REDIS_URL` اختياري؛ قالب OTP واتساب؛ `REQUIRE_2FA_HARD_AFTER_GRACE=1` عند الرغبة بقفل التعديلات.  
 4. لاحقاً: أرشفة docs.

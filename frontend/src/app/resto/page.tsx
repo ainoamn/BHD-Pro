@@ -152,8 +152,8 @@ export default function RestoFloorPage() {
       setCompanyName(res.data.companyName);
       setZones(res.data.zones || []);
       setEmpty(!!res.data.empty);
-    } catch {
-      setError(t.actionFail);
+    } catch (err) {
+      setError(apiErrorMessage(err, t.actionFail));
     } finally {
       setLoading(false);
     }
@@ -269,8 +269,8 @@ export default function RestoFloorPage() {
     try {
       await api.seedRestoFloor(8);
       await loadFloor();
-    } catch {
-      setError(t.actionFail);
+    } catch (err) {
+      setError(apiErrorMessage(err, t.actionFail));
     } finally {
       setSeeding(false);
     }
@@ -346,8 +346,8 @@ export default function RestoFloorPage() {
       setItemNote("");
       setSelectedMods([]);
       await loadFloor();
-    } catch {
-      setError(t.actionFail);
+    } catch (err) {
+      setError(apiErrorMessage(err, t.actionFail));
     } finally {
       setBusy(false);
     }
@@ -443,8 +443,8 @@ export default function RestoFloorPage() {
     try {
       const res = await api.updateRestoOrderItem(order.id, itemId, { qty });
       setOrder(res.data);
-    } catch {
-      setError(t.actionFail);
+    } catch (err) {
+      setError(apiErrorMessage(err, t.actionFail));
     } finally {
       setBusy(false);
     }
@@ -456,8 +456,8 @@ export default function RestoFloorPage() {
     try {
       const res = await api.updateRestoOrderItem(order.id, itemId, { notes });
       setOrder(res.data);
-    } catch {
-      setError(t.actionFail);
+    } catch (err) {
+      setError(apiErrorMessage(err, t.actionFail));
     } finally {
       setBusy(false);
     }
@@ -507,8 +507,8 @@ export default function RestoFloorPage() {
       const res = await api.removeRestoOrderItem(order.id, itemId);
       setOrder(res.data);
       await loadFloor();
-    } catch {
-      setError(t.actionFail);
+    } catch (err) {
+      setError(apiErrorMessage(err, t.actionFail));
     } finally {
       setBusy(false);
     }
@@ -687,8 +687,8 @@ export default function RestoFloorPage() {
       setTipAmount("");
       setCashPart("");
       await loadFloor();
-    } catch {
-      setError(t.actionFail);
+    } catch (err) {
+      setError(apiErrorMessage(err, t.actionFail));
     } finally {
       setBusy(false);
     }
@@ -741,8 +741,8 @@ export default function RestoFloorPage() {
       setTipAmount("");
       setCashPart("");
       await loadFloor();
-    } catch {
-      setError(t.actionFail);
+    } catch (err) {
+      setError(apiErrorMessage(err, t.actionFail));
     } finally {
       setBusy(false);
     }
@@ -964,9 +964,7 @@ export default function RestoFloorPage() {
       setCancelDualOpen(false);
       await loadFloor();
     } catch (err) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response
-        ?.data?.message;
-      setError(typeof msg === "string" ? msg : t.actionFail);
+      setError(apiErrorMessage(err, t.actionFail));
     } finally {
       setBusy(false);
     }
@@ -981,8 +979,8 @@ export default function RestoFloorPage() {
         guests: 1,
       });
       setOrder(res.data);
-    } catch {
-      setError(t.actionFail);
+    } catch (err) {
+      setError(apiErrorMessage(err, t.actionFail));
     } finally {
       setBusy(false);
     }

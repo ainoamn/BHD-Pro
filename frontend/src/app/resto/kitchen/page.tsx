@@ -112,8 +112,8 @@ export default function RestoKitchenPage() {
       setItems(next);
       setStations(res.data.stations || []);
       setError("");
-    } catch {
-      setError(t.actionFail);
+    } catch (err) {
+      setError(apiErrorMessage(err, t.actionFail));
     } finally {
       setLoading(false);
     }

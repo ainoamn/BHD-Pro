@@ -212,6 +212,9 @@ export function apiErrorMessage(err: unknown, fallback = "Error"): string {
   if (lower.includes("reservation is closed")) {
     return "الحجز مغلق";
   }
+  if (lower.includes("tableid is required for dine-in")) {
+    return "الطاولة مطلوبة لطلب الصالة";
+  }
   // Honesty: surface Nest message rather than a generic fail when unmapped
   return raw;
 }
