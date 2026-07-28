@@ -147,7 +147,7 @@ export default function RestoWaitlistPage() {
 
   const setStatus = async (
     id: string,
-    status: "CANCELLED" | "SEATED",
+    status: "CANCELLED" | "SEATED" | "NO_SHOW",
     seatTableId?: string,
   ) => {
     setBusy(true);
@@ -165,6 +165,9 @@ export default function RestoWaitlistPage() {
       }
       if (status === "CANCELLED") {
         toast.success(t.waitlistCancelledOk);
+        toastNotify(res.data?.notify);
+      } else if (status === "NO_SHOW") {
+        toast.success(t.waitlistNoShowOk);
         toastNotify(res.data?.notify);
       }
       setSeatFor(null);
@@ -315,6 +318,14 @@ export default function RestoWaitlistPage() {
                     className="rounded-lg border border-rose-500/35 text-rose-200 px-2.5 py-1.5 text-[11px] font-bold"
                   >
                     {t.waitlistCancel}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void setStatus(e.id, "NO_SHOW")}
+                    className="rounded-lg border border-white/15 text-stone-300 px-2.5 py-1.5 text-[11px] font-bold hover:bg-white/5"
+                  >
+                    {t.waitlistNoShow}
                   </button>
                 </div>
               </div>

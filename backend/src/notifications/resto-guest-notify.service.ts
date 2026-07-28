@@ -12,6 +12,7 @@ import {
 export type RestoGuestNotifyKind =
   | 'WAITLIST_READY'
   | 'WAITLIST_CANCELLED'
+  | 'WAITLIST_NO_SHOW'
   | 'RESERVATION_CONFIRM'
   | 'RESERVATION_REMIND'
   | 'RESERVATION_TABLE_READY'
@@ -95,6 +96,11 @@ export class RestoGuestNotifyService {
       return ar
         ? `مرحباً ${guestName}، أُزيل طلب الانتظار في ${companyName}. نأمل خدمتكم قريباً.`
         : `Hi ${guestName}, your waitlist entry at ${companyName} was cancelled. We hope to serve you soon.`;
+    }
+    if (kind === 'WAITLIST_NO_SHOW') {
+      return ar
+        ? `مرحباً ${guestName}، سُجّل عدم حضوركم في قائمة انتظار ${companyName}. للتواصل مع المطعم عند الحاجة.`
+        : `Hi ${guestName}, you were marked no-show on the waitlist at ${companyName}. Contact the restaurant if needed.`;
     }
     if (kind === 'RESERVATION_CONFIRM') {
       return ar
@@ -207,6 +213,7 @@ export class RestoGuestNotifyService {
         const titlesAr: Record<RestoGuestNotifyKind, string> = {
           WAITLIST_READY: 'الطاولة جاهزة',
           WAITLIST_CANCELLED: 'إلغاء الانتظار',
+          WAITLIST_NO_SHOW: 'عدم حضور الانتظار',
           RESERVATION_CONFIRM: 'تأكيد الحجز',
           RESERVATION_REMIND: 'تذكير بالحجز',
           RESERVATION_TABLE_READY: 'طاولة الحجز جاهزة',
@@ -224,6 +231,7 @@ export class RestoGuestNotifyService {
         const titlesEn: Record<RestoGuestNotifyKind, string> = {
           WAITLIST_READY: 'Table ready',
           WAITLIST_CANCELLED: 'Waitlist cancelled',
+          WAITLIST_NO_SHOW: 'Waitlist no-show',
           RESERVATION_CONFIRM: 'Reservation confirmed',
           RESERVATION_REMIND: 'Reservation reminder',
           RESERVATION_TABLE_READY: 'Reserved table ready',
