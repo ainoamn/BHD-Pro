@@ -461,6 +461,8 @@ export const posCopy = {
       "القالب غير جاهز بعد: انتظر موافقة Meta على pos_receipt ثم ضع WHATSAPP_RECEIPT_TEMPLATE على Render",
     shareWhatsAppTemplatePending:
       "القالب قيد المراجعة في Meta — الإرسال التلقائي يعمل بعد أن يصبح نشطاً وضبط Render",
+    shareWhatsAppTemplateMismatch:
+      "رفض Meta قالب الإيصال — طابق نص pos_receipt مع 5 متغيرات {{1}}…{{5}} واللغة ar",
     partnerPay: "دفع شريك (بطاقة/محفظة)",
     partnerPayHint: "يفتح بوابة ثواني/Stripe/PayPal — ليس شارة NFC",
     partnerPayOpened: "تم فتح صفحة دفع الشريك",
@@ -1084,6 +1086,8 @@ export const posCopy = {
       "Template not ready: wait for Meta to approve pos_receipt, then set WHATSAPP_RECEIPT_TEMPLATE on Render",
     shareWhatsAppTemplatePending:
       "Template is under Meta review — auto-send works after it becomes Active and Render is configured",
+    shareWhatsAppTemplateMismatch:
+      "Meta rejected the receipt template — match pos_receipt body to 5 vars {{1}}…{{5}} and language ar",
     partnerPay: "Partner pay (card/wallet)",
     partnerPayHint: "Opens Thawani/Stripe/PayPal — not the NFC approval badge",
     partnerPayOpened: "Partner checkout opened",

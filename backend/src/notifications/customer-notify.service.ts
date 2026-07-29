@@ -413,6 +413,11 @@ export class CustomerNotifyService {
         let waOk = false;
         let waMock = false;
         let waError: string | undefined;
+        let waVia: 'template' | 'text' | undefined;
+        let waMessageId: string | undefined;
+        const waPhoneMasked = digits
+          ? `${'*'.repeat(Math.max(0, digits.length - 4))}${digits.slice(-4)}`
+          : undefined;
         if (isValidMobileE164(digits) && this.whatsapp.isConfigured()) {
           const result = await this.whatsapp.sendPosReceipt(digits, {
             customerName: contact.name,
@@ -425,6 +430,8 @@ export class CustomerNotifyService {
           waOk = result.ok;
           waMock = !!result.mock || this.whatsapp.mode() === 'mock';
           waError = result.error;
+          waVia = result.via;
+          waMessageId = result.messageId;
           if (!this.whatsapp.receiptTemplateName() && !waOk) {
             waError = `${waError || 'send failed'} — اضبط WHATSAPP_RECEIPT_TEMPLATE على Render بعد اعتماد قالب Meta`;
           }
@@ -434,7 +441,7 @@ export class CustomerNotifyService {
         } else {
           waError = 'no phone on contact';
         }
-        return { waOk, waMock, waError };
+        return { waOk, waMock, waError, waVia, waMessageId, waPhoneMasked };
       })(),
       (async () => {
         let emailStatus: 'ok' | 'mock' | 'fail' | 'skipped' = 'skipped';
@@ -470,7 +477,7 @@ export class CustomerNotifyService {
       })(),
     ]);
 
-    const { waOk, waMock, waError } = waResult;
+    const { waOk, waMock, waError, waVia, waMessageId, waPhoneMasked } = waResult;
     const { emailStatus, emailError } = emailResult;
     const { smsStatus, smsError } = smsResult;
 
@@ -481,7 +488,11 @@ export class CustomerNotifyService {
       ...(waError ? { whatsappError: waError } : {}),
       ...(emailError ? { emailError } : {}),
       ...(smsError ? { smsError } : {}),
+      ...(waVia ? { whatsappVia: waVia } : {}),
+      ...(waMessageId ? { whatsappMessageId: waMessageId } : {}),
+      ...(waPhoneMasked ? { whatsappTo: waPhoneMasked } : {}),
       receiptTemplate: this.whatsapp.receiptTemplateName(),
+      receiptTemplateLang: this.whatsapp.receiptTemplateLang(),
     };
 
     try {

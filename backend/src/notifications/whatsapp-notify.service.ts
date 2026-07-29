@@ -73,7 +73,27 @@ export class WhatsappNotifyService {
     }
   }
 
-  async sendText(toE164: string, body: string): Promise<{ ok: boolean; error?: string; mock?: boolean }> {
+  private async parseMetaMessageId(res: Response): Promise<string | undefined> {
+    try {
+      const json = (await res.json()) as {
+        messages?: Array<{ id?: string }>;
+      };
+      return json?.messages?.[0]?.id || undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private maskPhone(phone: string): string {
+    const d = phone.replace(/\D/g, '');
+    if (d.length < 4) return '****';
+    return `${'*'.repeat(Math.max(0, d.length - 4))}${d.slice(-4)}`;
+  }
+
+  async sendText(
+    toE164: string,
+    body: string,
+  ): Promise<{ ok: boolean; error?: string; mock?: boolean; messageId?: string }> {
     if (!this.isConfigured()) {
       return { ok: false, error: 'WhatsApp is not configured on the server' };
     }
@@ -84,7 +104,7 @@ export class WhatsappNotifyService {
     }
 
     if (this.mode() === 'mock') {
-      this.logger.log(`[mock-whatsapp] to=${phone} body=${body.slice(0, 240)}`);
+      this.logger.log(`[mock-whatsapp] to=${this.maskPhone(phone)} body=${body.slice(0, 240)}`);
       return { ok: true, mock: true };
     }
 
@@ -108,10 +128,14 @@ export class WhatsappNotifyService {
       });
       if (!res.ok) {
         const err = await this.parseMetaError(res);
-        this.logger.warn(`WhatsApp send failed: ${err}`);
+        this.logger.warn(`WhatsApp send failed to=${this.maskPhone(phone)}: ${err}`);
         return { ok: false, error: err };
       }
-      return { ok: true };
+      const messageId = await this.parseMetaMessageId(res);
+      this.logger.log(
+        `WhatsApp text accepted to=${this.maskPhone(phone)} id=${messageId || 'n/a'}`,
+      );
+      return { ok: true, messageId };
     } catch (err) {
       const message =
         err instanceof Error && err.name === 'AbortError'
@@ -135,7 +159,7 @@ export class WhatsappNotifyService {
     bodyParams: string[],
     lang?: string,
     paramNames?: string[],
-  ): Promise<{ ok: boolean; error?: string; mock?: boolean }> {
+  ): Promise<{ ok: boolean; error?: string; mock?: boolean; messageId?: string }> {
     if (!this.isConfigured()) {
       return { ok: false, error: 'WhatsApp is not configured on the server' };
     }
@@ -145,7 +169,7 @@ export class WhatsappNotifyService {
     }
     if (this.mode() === 'mock') {
       this.logger.log(
-        `[mock-whatsapp-template] to=${phone} name=${templateName} params=${bodyParams.join('|')}`,
+        `[mock-whatsapp-template] to=${this.maskPhone(phone)} name=${templateName} params=${bodyParams.length}`,
       );
       return { ok: true, mock: true };
     }
@@ -196,10 +220,16 @@ export class WhatsappNotifyService {
       });
       if (!res.ok) {
         const err = await this.parseMetaError(res);
-        this.logger.warn(`WhatsApp template failed: ${err}`);
+        this.logger.warn(
+          `WhatsApp template failed name=${templateName} lang=${language.code} to=${this.maskPhone(phone)} params=${bodyParams.length} named=${useNamed}: ${err}`,
+        );
         return { ok: false, error: err };
       }
-      return { ok: true };
+      const messageId = await this.parseMetaMessageId(res);
+      this.logger.log(
+        `WhatsApp template accepted name=${templateName} lang=${language.code} to=${this.maskPhone(phone)} id=${messageId || 'n/a'}`,
+      );
+      return { ok: true, messageId };
     } catch (err) {
       const message =
         err instanceof Error && err.name === 'AbortError'
@@ -218,13 +248,15 @@ export class WhatsappNotifyService {
     link: string,
     caption: string,
     filename = 'document.pdf',
-  ): Promise<{ ok: boolean; error?: string; mock?: boolean }> {
+  ): Promise<{ ok: boolean; error?: string; mock?: boolean; messageId?: string }> {
     if (!this.isConfigured()) {
       return { ok: false, error: 'WhatsApp is not configured on the server' };
     }
     const phone = toE164.replace(/[^\d]/g, '');
     if (this.mode() === 'mock') {
-      this.logger.log(`[mock-whatsapp-doc] to=${phone} link=${link} caption=${caption}`);
+      this.logger.log(
+        `[mock-whatsapp-doc] to=${this.maskPhone(phone)} link=${link} caption=${caption.slice(0, 80)}`,
+      );
       return { ok: true, mock: true };
     }
 
@@ -251,7 +283,8 @@ export class WhatsappNotifyService {
         this.logger.warn(`WhatsApp document failed: ${err}`);
         return this.sendText(toE164, `${caption}\n${link}`);
       }
-      return { ok: true };
+      const messageId = await this.parseMetaMessageId(res);
+      return { ok: true, messageId };
     } catch (err) {
       const message =
         err instanceof Error && err.name === 'AbortError'
@@ -316,7 +349,15 @@ export class WhatsappNotifyService {
       viewUrl: string;
       fullBody: string;
     },
-  ): Promise<{ ok: boolean; error?: string; via?: 'template' | 'text'; mock?: boolean }> {
+  ): Promise<{
+    ok: boolean;
+    error?: string;
+    via?: 'template' | 'text';
+    mock?: boolean;
+    messageId?: string;
+    /** Meta template error when session fallback was used instead. */
+    templateError?: string;
+  }> {
     const template = this.receiptTemplateName();
     if (template) {
       const result = await this.sendTemplate(
@@ -332,8 +373,25 @@ export class WhatsappNotifyService {
         this.receiptTemplateLang(),
         this.receiptParamNames(),
       );
-      if (result.ok) return { ...result, via: 'template', mock: !!(result as { mock?: boolean }).mock };
-      this.logger.warn(`Receipt template failed, trying session text: ${result.error}`);
+      if (result.ok) {
+        return {
+          ok: true,
+          via: 'template',
+          mock: !!result.mock,
+          messageId: result.messageId,
+        };
+      }
+      this.logger.warn(
+        `Receipt template failed — not treating session fallback as full success: ${result.error}`,
+      );
+      // Session text only works inside the 24h window and hides template misconfig.
+      // Prefer surfacing the Meta template error so cashiers can fix pos_receipt.
+      return {
+        ok: false,
+        error: result.error || 'template send failed',
+        via: 'template',
+        templateError: result.error,
+      };
     }
 
     const text = await this.sendDocumentLink(
@@ -342,12 +400,18 @@ export class WhatsappNotifyService {
       opts.fullBody.slice(0, 900),
       `${opts.invoiceNumber || 'receipt'}.pdf`,
     );
-    if (text.ok) return { ...text, via: 'text', mock: !!(text as { mock?: boolean }).mock };
+    if (text.ok) {
+      return {
+        ok: true,
+        via: 'text',
+        mock: !!text.mock,
+        messageId: text.messageId,
+      };
+    }
 
-    const hint =
-      !template && /24|window|template|re-engage|131047|131026/i.test(text.error || '')
-        ? ' — أنشئ قالباً معتمداً واضبط WHATSAPP_RECEIPT_TEMPLATE'
-        : '';
+    const hint = /24|window|template|re-engage|131047|131026/i.test(text.error || '')
+      ? ' — أنشئ قالباً معتمداً واضبط WHATSAPP_RECEIPT_TEMPLATE'
+      : '';
     return {
       ok: false,
       error: `${text.error || 'send failed'}${hint}`,

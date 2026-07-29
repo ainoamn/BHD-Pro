@@ -4508,6 +4508,7 @@ export default function PosCheckoutPage() {
                       const waOk = wa === "ok";
                       const waMock = wa === "mock";
                       const waError = String(res.data?.delivery?.whatsappError || "");
+                      const waTo = String(res.data?.delivery?.whatsappTo || "");
                       toast.dismiss(toastId);
                       if (waMock) {
                         toast(t.shareWhatsAppMock || t.shareWhatsAppPartial, {
@@ -4517,20 +4518,26 @@ export default function PosCheckoutPage() {
                         return;
                       }
                       if (waOk) {
-                        toast.success(t.shareWhatsAppPdfOk);
+                        toast.success(
+                          waTo
+                            ? `${t.shareWhatsAppPdfOk} (${waTo})`
+                            : t.shareWhatsAppPdfOk,
+                        );
                         return;
                       }
                       const pending =
-                        /template|131047|24|WHATSAPP_RECEIPT|not configured|قيد/i.test(
+                        /template|131047|24|WHATSAPP_RECEIPT|not configured|قيد|132000|132001|132012|133010/i.test(
                           waError,
                         ) || !res.data?.delivery?.receiptTemplate;
                       toast.error(
                         pending
-                          ? t.shareWhatsAppTemplatePending || t.shareWhatsAppNeedTemplate
+                          ? waError
+                            ? `${t.shareWhatsAppTemplateMismatch || t.shareWhatsAppTemplatePending}: ${waError.slice(0, 180)}`
+                            : t.shareWhatsAppTemplatePending || t.shareWhatsAppNeedTemplate
                           : waError
-                            ? `${t.shareWhatsAppPartial}: ${waError.slice(0, 160)}`
+                            ? `${t.shareWhatsAppPartial}: ${waError.slice(0, 180)}`
                             : t.shareWhatsAppPartial,
-                        { duration: 9000 },
+                        { duration: 12000 },
                       );
                     } catch (err: unknown) {
                       toast.dismiss(toastId);
