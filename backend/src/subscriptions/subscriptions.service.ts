@@ -38,7 +38,27 @@ export class SubscriptionsService {
     }));
   }
 
-  async getCurrent(companyId: string) {
+  async getCurrent(companyId: string, opts?: { light?: boolean }) {
+    if (opts?.light) {
+      const company = await this.prisma.company.findUnique({
+        where: { id: companyId },
+        select: {
+          plan: true,
+          planExpiry: true,
+          currency: true,
+        },
+      });
+      if (!company) throw new NotFoundException('Company not found');
+      const features = await this.plans.featuresFor(company.plan);
+      return {
+        plan: company.plan,
+        features,
+        planExpiry: company.planExpiry,
+        currency: company.currency,
+        light: true,
+      };
+    }
+
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
       include: {

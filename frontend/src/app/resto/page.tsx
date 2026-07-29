@@ -144,8 +144,8 @@ export default function RestoFloorPage() {
   const [shiftOpen, setShiftOpen] = useState<boolean | null>(null);
   const [shiftStatusError, setShiftStatusError] = useState(false);
 
-  const loadFloor = useCallback(async () => {
-    setLoading(true);
+  const loadFloor = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
     setError("");
     try {
       const res = await api.getRestoFloor();
@@ -155,7 +155,7 @@ export default function RestoFloorPage() {
     } catch (err) {
       setError(apiErrorMessage(err, t.actionFail));
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
   }, [t.actionFail]);
 
@@ -172,12 +172,29 @@ export default function RestoFloorPage() {
 
   useEffect(() => {
     void loadFloor();
-    void loadStaff();
     void (async () => {
       try {
-        const link = await api.getRestoLinkStatus();
-        const wh = link.data.warehouseId || undefined;
-        const shift = await api.getCurrentPosShift(wh, { light: true });
+        let wh = "";
+        try {
+          wh =
+            sessionStorage.getItem("hisaby-resto-warehouse-id") ||
+            localStorage.getItem("hisaby-pos-warehouse-id") ||
+            "";
+        } catch {
+          /* ignore */
+        }
+        if (!wh) {
+          const link = await api.getRestoLinkStatus();
+          wh = link.data.warehouseId || "";
+          try {
+            if (wh) sessionStorage.setItem("hisaby-resto-warehouse-id", wh);
+          } catch {
+            /* ignore */
+          }
+        }
+        const shift = await api.getCurrentPosShift(wh || undefined, {
+          light: true,
+        });
         setShiftOpen(!!(shift.data as { shift?: unknown })?.shift);
         setShiftStatusError(false);
       } catch {
@@ -185,7 +202,7 @@ export default function RestoFloorPage() {
         setShiftStatusError(true);
       }
     })();
-  }, [loadFloor, loadStaff]);
+  }, [loadFloor]);
 
   useEffect(() => {
     if (!order) {
@@ -222,9 +239,12 @@ export default function RestoFloorPage() {
     }
   }, []);
 
+  // Staff / stations / modifiers only needed when an order panel is open
   useEffect(() => {
+    if (!order) return;
+    void loadStaff();
     void loadOpsExtras();
-  }, [loadOpsExtras]);
+  }, [order?.id, loadStaff, loadOpsExtras]);
 
   useEffect(() => {
     if (!order) return;
@@ -268,7 +288,7 @@ export default function RestoFloorPage() {
     setError("");
     try {
       await api.seedRestoFloor(8);
-      await loadFloor();
+      await loadFloor({ silent: true });
     } catch (err) {
       setError(apiErrorMessage(err, t.actionFail));
     } finally {
@@ -307,7 +327,7 @@ export default function RestoFloorPage() {
         if (!res.data.guestPhone?.trim()) {
           toast(t.guestPhoneHint, { icon: "ℹ️", duration: 4500 });
         }
-        await loadFloor();
+        await loadFloor({ silent: true });
       }
     } catch (err) {
       setError(apiErrorMessage(err, t.actionFail));
@@ -319,7 +339,7 @@ export default function RestoFloorPage() {
   const refreshOrder = async (id: string) => {
     const res = await api.getRestoOrder(id);
     setOrder(res.data);
-    await loadFloor();
+    await loadFloor({ silent: true });
   };
 
   const addProduct = async (productId: string, defaultStationId?: string | null) => {
@@ -345,7 +365,7 @@ export default function RestoFloorPage() {
       setOrder(res.data);
       setItemNote("");
       setSelectedMods([]);
-      await loadFloor();
+      await loadFloor({ silent: true });
     } catch (err) {
       setError(apiErrorMessage(err, t.actionFail));
     } finally {
@@ -381,7 +401,7 @@ export default function RestoFloorPage() {
       setOpsMode("none");
       setOpsTableId("");
       toast.success(t.transferOk);
-      await loadFloor();
+      await loadFloor({ silent: true });
     } catch (err) {
       setError(apiErrorMessage(err, t.actionFail));
     } finally {
@@ -400,7 +420,7 @@ export default function RestoFloorPage() {
       setOpsMode("none");
       setOpsTargetOrderId("");
       toast.success(t.mergeOk);
-      await loadFloor();
+      await loadFloor({ silent: true });
     } catch (err) {
       setError(apiErrorMessage(err, t.actionFail));
     } finally {
@@ -423,7 +443,7 @@ export default function RestoFloorPage() {
       setSplitItemIds([]);
       setOpsTableId("");
       toast.success(t.splitOk);
-      await loadFloor();
+      await loadFloor({ silent: true });
     } catch (err) {
       setError(apiErrorMessage(err, t.actionFail));
     } finally {
@@ -506,7 +526,7 @@ export default function RestoFloorPage() {
     try {
       const res = await api.removeRestoOrderItem(order.id, itemId);
       setOrder(res.data);
-      await loadFloor();
+      await loadFloor({ silent: true });
     } catch (err) {
       setError(apiErrorMessage(err, t.actionFail));
     } finally {
@@ -537,7 +557,7 @@ export default function RestoFloorPage() {
       setOrder(res.data);
       setVoidReason("");
       setVoidTarget(null);
-      await loadFloor();
+      await loadFloor({ silent: true });
     } catch (err) {
       setError(apiErrorMessage(err, t.actionFail));
     } finally {
@@ -554,7 +574,7 @@ export default function RestoFloorPage() {
       const res = await api.sendRestoOrder(order.id, fireCourse);
       setOrder(res.data);
       toast.success(t.sendOk);
-      await loadFloor();
+      await loadFloor({ silent: true });
     } catch (err) {
       setError(apiErrorMessage(err, t.actionFail));
     } finally {
@@ -686,7 +706,7 @@ export default function RestoFloorPage() {
       }
       setTipAmount("");
       setCashPart("");
-      await loadFloor();
+      await loadFloor({ silent: true });
     } catch (err) {
       setError(apiErrorMessage(err, t.actionFail));
     } finally {
@@ -740,7 +760,7 @@ export default function RestoFloorPage() {
       setOrder(null);
       setTipAmount("");
       setCashPart("");
-      await loadFloor();
+      await loadFloor({ silent: true });
     } catch (err) {
       setError(apiErrorMessage(err, t.actionFail));
     } finally {
@@ -856,7 +876,7 @@ export default function RestoFloorPage() {
       setLoyaltyPhone("");
       setLoyaltyName("");
       setLoyaltyRedeem("");
-      await loadFloor();
+      await loadFloor({ silent: true });
     } catch (err) {
       const raw = (err as { response?: { data?: { message?: string | string[] } } })
         ?.response?.data?.message;
@@ -884,7 +904,7 @@ export default function RestoFloorPage() {
       });
       if (res.data.alreadyPaid) {
         setOrder(null);
-        await loadFloor();
+        await loadFloor({ silent: true });
         return;
       }
       if (res.data.payUrl && typeof navigator !== "undefined" && navigator.clipboard) {
@@ -962,7 +982,7 @@ export default function RestoFloorPage() {
       }
       setOrder(null);
       setCancelDualOpen(false);
-      await loadFloor();
+      await loadFloor({ silent: true });
     } catch (err) {
       setError(apiErrorMessage(err, t.actionFail));
     } finally {
@@ -1201,7 +1221,7 @@ export default function RestoFloorPage() {
                                 onClick={() =>
                                   void api
                                     .clearRestoGuestCall(table.id)
-                                    .then(() => loadFloor())
+                                    .then(() => loadFloor({ silent: true }))
                                 }
                               >
                                 {t.guestCallClear}

@@ -338,7 +338,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
       try {
         const [linkRes, subRes] = await Promise.all([
           api.getPosLinkStatus(),
-          api.getCurrentSubscription().catch(() => null),
+          api.getCurrentSubscription({ light: true }).catch(() => null),
         ]);
         if (!cancelled) {
           setLinked(true);

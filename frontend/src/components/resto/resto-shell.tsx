@@ -74,7 +74,7 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
       try {
         const [linkRes, subRes] = await Promise.all([
           api.getRestoLinkStatus(),
-          api.getCurrentSubscription().catch(() => null),
+          api.getCurrentSubscription({ light: true }).catch(() => null),
         ]);
         if (!cancelled) {
           setLinked(true);
@@ -82,6 +82,15 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
           const features = (subRes?.data as { features?: Record<string, boolean> })
             ?.features;
           setPlanOk(features?.resto !== false);
+          try {
+            const wh = (linkRes.data as { warehouseId?: string | null })
+              ?.warehouseId;
+            if (wh) {
+              sessionStorage.setItem("hisaby-resto-warehouse-id", wh);
+            }
+          } catch {
+            /* ignore */
+          }
         }
       } catch (err: unknown) {
         const code = (err as { response?: { data?: { code?: string } } })?.response

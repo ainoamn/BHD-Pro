@@ -1073,12 +1073,29 @@ export class RestoService {
         dayPartPrices: true,
       },
       orderBy: { name: 'asc' },
-      take: 500,
+      take: 120,
     });
-    const eightySixed = await this.prisma.restoMenu86.findMany({
-      where: { companyId },
-      select: { productId: true, note: true },
-    });
+    const productIds = products.map((p) => p.id);
+    const [eightySixed, routes, recipes] = await Promise.all([
+      this.prisma.restoMenu86.findMany({
+        where: { companyId },
+        select: { productId: true, note: true },
+      }),
+      productIds.length
+        ? this.prisma.restoProductStation.findMany({
+            where: { companyId, productId: { in: productIds } },
+            include: {
+              station: { select: { id: true, name: true, nameEn: true } },
+            },
+          })
+        : Promise.resolve([]),
+      productIds.length
+        ? this.prisma.restoRecipe.findMany({
+            where: { companyId, productId: { in: productIds } },
+            select: { productId: true },
+          })
+        : Promise.resolve([]),
+    ]);
     const eightySixMap = new Map(
       eightySixed.map((r) => [r.productId, r.note || true]),
     );
@@ -1088,22 +1105,6 @@ export class RestoService {
         this.productAvailableInDayPart(p.dayParts, dayPart!),
       );
     }
-    const routes = await this.prisma.restoProductStation.findMany({
-      where: {
-        companyId,
-        productId: { in: available.map((p) => p.id) },
-      },
-      include: {
-        station: { select: { id: true, name: true, nameEn: true } },
-      },
-    });
-    const recipes = await this.prisma.restoRecipe.findMany({
-      where: {
-        companyId,
-        productId: { in: available.map((p) => p.id) },
-      },
-      select: { productId: true },
-    });
     const byProduct = new Map(routes.map((r) => [r.productId, r]));
     const withRecipe = new Set(recipes.map((r) => r.productId));
     const priceDayPart = dayPart || resolved.dayPart;
@@ -1322,31 +1323,24 @@ export class RestoService {
     });
     if (!company) throw new NotFoundException('Company not found');
 
-    const [zones, activeAssignments] = await Promise.all([
+    // Light floor: zones/tables + open orders without nested line items.
+    // Item totals come from one aggregate query (was nested items per table).
+    const [zones, activeAssignments, openOrders] = await Promise.all([
       this.prisma.restoZone.findMany({
         where: { companyId },
         orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
         include: {
           tables: {
             orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
-            include: {
-              orders: {
-                where: { status: { in: ACTIVE_ORDER } },
-                orderBy: { createdAt: 'desc' },
-                take: 1,
-                include: {
-                  items: {
-                    where: { status: { not: RestoOrderItemStatus.CANCELLED } },
-                    select: {
-                      id: true,
-                      qty: true,
-                      unitPrice: true,
-                      status: true,
-                      source: true,
-                    },
-                  },
-                },
-              },
+            select: {
+              id: true,
+              code: true,
+              name: true,
+              seats: true,
+              status: true,
+              guestToken: true,
+              guestCallAt: true,
+              guestCallType: true,
             },
           },
         },
@@ -1357,7 +1351,61 @@ export class RestoService {
           user: { select: { id: true, name: true, email: true } },
         },
       }),
+      this.prisma.restoOrder.findMany({
+        where: {
+          companyId,
+          status: { in: ACTIVE_ORDER },
+          tableId: { not: null },
+        },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          number: true,
+          status: true,
+          guests: true,
+          createdAt: true,
+          tableId: true,
+        },
+      }),
     ]);
+
+    const openByTable = new Map<string, (typeof openOrders)[0]>();
+    for (const o of openOrders) {
+      if (!o.tableId) continue;
+      if (!openByTable.has(o.tableId)) openByTable.set(o.tableId, o);
+    }
+
+    const openOrderIds = [...openByTable.values()].map((o) => o.id);
+    const totalsByOrder = new Map<
+      string,
+      { itemCount: number; total: number; guestItemCount: number }
+    >();
+
+    if (openOrderIds.length) {
+      const itemRows = await this.prisma.restoOrderItem.findMany({
+        where: {
+          orderId: { in: openOrderIds },
+          status: { not: RestoOrderItemStatus.CANCELLED },
+        },
+        select: {
+          orderId: true,
+          qty: true,
+          unitPrice: true,
+          source: true,
+        },
+      });
+      for (const it of itemRows) {
+        const prev = totalsByOrder.get(it.orderId) || {
+          itemCount: 0,
+          total: 0,
+          guestItemCount: 0,
+        };
+        prev.itemCount += 1;
+        prev.total += Number(it.qty) * Number(it.unitPrice);
+        if (it.source === 'GUEST') prev.guestItemCount += 1;
+        totalsByOrder.set(it.orderId, prev);
+      }
+    }
 
     const serverByZone = new Map(
       activeAssignments.map((a) => [
@@ -1378,12 +1426,8 @@ export class RestoService {
         nameEn: z.nameEn,
         sectionServer,
         tables: z.tables.map((t) => {
-          const open = t.orders[0] ?? null;
-          const items = open?.items ?? [];
-          const total = items.reduce(
-            (sum, it) => sum + Number(it.qty) * Number(it.unitPrice),
-            0,
-          );
+          const open = openByTable.get(t.id) ?? null;
+          const agg = open ? totalsByOrder.get(open.id) : undefined;
           const occupiedMinutes = open
             ? Math.max(
                 0,
@@ -1392,9 +1436,6 @@ export class RestoService {
                 ),
               )
             : 0;
-          const guestItemCount = items.filter(
-            (it) => it.source === 'GUEST',
-          ).length;
           return {
             id: t.id,
             code: t.code,
@@ -1410,11 +1451,11 @@ export class RestoService {
                   number: open.number,
                   status: open.status,
                   guests: open.guests,
-                  itemCount: items.length,
-                  total,
+                  itemCount: agg?.itemCount ?? 0,
+                  total: Number((agg?.total ?? 0).toFixed(3)),
                   createdAt: open.createdAt,
                   occupiedMinutes,
-                  guestItemCount,
+                  guestItemCount: agg?.guestItemCount ?? 0,
                 }
               : null,
           };

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { UserRole } from '@prisma/client';
@@ -32,9 +32,18 @@ export class SubscriptionsController {
   }
 
   @Get('current')
-  @ApiOperation({ summary: 'Current company subscription' })
-  getCurrent(@CurrentUser() user: TokenPayload) {
-    return this.subscriptionsService.getCurrent(user.companyId);
+  @ApiOperation({
+    summary: 'Current company subscription. Pass light=1 for features-only (shell gates).',
+  })
+  getCurrent(
+    @CurrentUser() user: TokenPayload,
+    @Query('light') light?: string,
+  ) {
+    const lightMode =
+      light === '1' || light === 'true' || light === 'yes';
+    return this.subscriptionsService.getCurrent(user.companyId, {
+      light: lightMode,
+    });
   }
 
   @Post('upgrade')

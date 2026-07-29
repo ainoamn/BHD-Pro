@@ -590,8 +590,9 @@ class ApiClient {
     return this.get('/subscriptions/plans');
   }
 
-  getCurrentSubscription() {
-    return this.get('/subscriptions/current');
+  getCurrentSubscription(opts?: { light?: boolean }) {
+    const q = opts?.light ? '?light=1' : '';
+    return this.get(`/subscriptions/current${q}`);
   }
 
   upgradeSubscription(plan: string, billing: 'monthly' | 'yearly') {
