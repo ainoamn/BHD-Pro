@@ -108,7 +108,7 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [hydrated, isAuthenticated, isLogin, router, pathname]);
+  }, [hydrated, isAuthenticated, isLogin, router]);
 
   const canModule = (module: ModuleKey, needed: "view" | "edit" = "view") =>
     isAdmin || canAccessModule(perms, module, needed);

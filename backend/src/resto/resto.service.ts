@@ -134,7 +134,7 @@ export class RestoService {
     return merge(
       of(null),
       this.kitchenBus(companyId),
-      interval(35000),
+      interval(45000),
     ).pipe(
       switchMap(() =>
         from(this.getKitchenQueue(companyId, stationId)).pipe(
@@ -149,7 +149,7 @@ export class RestoService {
     return merge(
       of(null),
       this.kitchenBus(companyId),
-      interval(25000),
+      interval(45000),
     ).pipe(
       switchMap(() =>
         from(this.getExpoQueue(companyId)).pipe(map((data) => ({ data }))),
@@ -166,16 +166,15 @@ export class RestoService {
   }
 
   async getLinkStatus(companyId: string) {
-    await ensureCompanyAppsLinked(this.prisma, companyId);
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
       select: {
         id: true,
         name: true,
         restoLinkedAt: true,
+        posLinkedAt: true,
         restoIntegrationKeyPrefix: true,
         restoWarehouseId: true,
-        posLinkedAt: true,
         restoWarehouse: {
           select: {
             id: true,
@@ -188,6 +187,10 @@ export class RestoService {
       },
     });
     if (!company) throw new NotFoundException('Company not found');
+    // Only write when still unlinked (rare after first login)
+    if (!company.restoLinkedAt || !company.posLinkedAt) {
+      await ensureCompanyAppsLinked(this.prisma, companyId);
+    }
     return {
       linked: true,
       alwaysLinked: true,
@@ -1030,7 +1033,15 @@ export class RestoService {
     q?: string,
     opts?: { dayPart?: string | null },
   ) {
-    const warehouseId = await this.resolveWarehouseId(companyId);
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: {
+        restoWarehouseId: true,
+        timezone: true,
+        restoConfig: true,
+      },
+    });
+    const warehouseId = company?.restoWarehouseId ?? null;
     if (!warehouseId) {
       return {
         items: [],
@@ -1043,10 +1054,13 @@ export class RestoService {
       };
     }
 
-    const resolved = await this.resolveDayPartForCompany(companyId);
+    const timezone = company?.timezone || 'Asia/Muscat';
+    const parsed = this.parseRestoConfig(company?.restoConfig);
+    const hour = this.hourInZone(timezone);
+    const resolvedDayPart = this.resolveDayPart(hour, parsed.dayParts);
     let dayPart: string | null = null;
     if (opts?.dayPart === 'now' || opts?.dayPart === 'auto') {
-      dayPart = resolved.dayPart;
+      dayPart = resolvedDayPart;
     } else if (
       opts?.dayPart &&
       (RESTO_DAY_PARTS as readonly string[]).includes(opts.dayPart)
@@ -1107,7 +1121,7 @@ export class RestoService {
     }
     const byProduct = new Map(routes.map((r) => [r.productId, r]));
     const withRecipe = new Set(recipes.map((r) => r.productId));
-    const priceDayPart = dayPart || resolved.dayPart;
+    const priceDayPart = dayPart || resolvedDayPart;
     return {
       items: available.map((p) => {
         const route = byProduct.get(p.id);
@@ -1204,11 +1218,18 @@ export class RestoService {
   }
 
   async listStations(companyId: string) {
-    await this.ensureStation(companyId);
     const stations = await this.prisma.restoStation.findMany({
       where: { companyId },
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
     });
+    if (stations.length === 0) {
+      await this.ensureStation(companyId);
+      const seeded = await this.prisma.restoStation.findMany({
+        where: { companyId },
+        orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+      });
+      return { stations: seeded, count: seeded.length };
+    }
     return { stations, count: stations.length };
   }
 
@@ -1317,15 +1338,12 @@ export class RestoService {
   }
 
   async getFloor(companyId: string) {
-    const company = await this.prisma.company.findUnique({
-      where: { id: companyId },
-      select: { id: true, name: true, restoLinkedAt: true },
-    });
-    if (!company) throw new NotFoundException('Company not found');
-
-    // Light floor: zones/tables + open orders without nested line items.
-    // Item totals come from one aggregate query (was nested items per table).
-    const [zones, activeAssignments, openOrders] = await Promise.all([
+    // Light floor: one parallel wave for company + zones + open orders.
+    const [company, zones, activeAssignments, openOrders] = await Promise.all([
+      this.prisma.company.findUnique({
+        where: { id: companyId },
+        select: { id: true, name: true, restoLinkedAt: true },
+      }),
       this.prisma.restoZone.findMany({
         where: { companyId },
         orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
@@ -1358,6 +1376,7 @@ export class RestoService {
           tableId: { not: null },
         },
         orderBy: { createdAt: 'desc' },
+        take: 200,
         select: {
           id: true,
           number: true,
@@ -1368,6 +1387,7 @@ export class RestoService {
         },
       }),
     ]);
+    if (!company) throw new NotFoundException('Company not found');
 
     const openByTable = new Map<string, (typeof openOrders)[0]>();
     for (const o of openOrders) {
@@ -1475,6 +1495,52 @@ export class RestoService {
       tables,
       empty: tables.length === 0,
       needsSetup: tables.length === 0,
+    };
+  }
+
+  /** Free tables only — for waitlist seat picker (avoids full floor every poll). */
+  async listFreeTables(companyId: string) {
+    const occupiedIds = (
+      await this.prisma.restoOrder.findMany({
+        where: {
+          companyId,
+          status: { in: ACTIVE_ORDER },
+          tableId: { not: null },
+        },
+        select: { tableId: true },
+        take: 300,
+      })
+    )
+      .map((o) => o.tableId)
+      .filter((id): id is string => !!id);
+
+    const tables = await this.prisma.restoTable.findMany({
+      where: {
+        companyId,
+        id: occupiedIds.length ? { notIn: occupiedIds } : undefined,
+        status: { notIn: [RestoTableStatus.OCCUPIED, RestoTableStatus.BILLING] },
+      },
+      orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
+      take: 100,
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        seats: true,
+        status: true,
+      },
+    });
+
+    return {
+      tables: tables.map((t) => ({
+        id: t.id,
+        code: t.code,
+        name: t.name,
+        seats: t.seats,
+        status: t.status,
+        openOrder: null,
+      })),
+      count: tables.length,
     };
   }
 
@@ -2700,58 +2766,67 @@ export class RestoService {
 
   /** Expo / runner pass — READY tickets awaiting SERVED */
   async getExpoQueue(companyId: string) {
-    const company = await this.prisma.company.findUnique({
-      where: { id: companyId },
-      select: { restoConfig: true },
-    });
+    const [company, openOrders] = await Promise.all([
+      this.prisma.company.findUnique({
+        where: { id: companyId },
+        select: { restoConfig: true },
+      }),
+      this.prisma.restoOrder.findMany({
+        where: { companyId, status: { in: ACTIVE_ORDER } },
+        select: {
+          id: true,
+          number: true,
+          channel: true,
+          guestName: true,
+          table: { select: { id: true, code: true, name: true } },
+        },
+        take: 300,
+      }),
+    ]);
     const sla = this.parseRestoConfig(company?.restoConfig).kitchenSla;
+    const orderIds = openOrders.map((o) => o.id);
+    if (!orderIds.length) {
+      return { count: 0, sla: { expoWarnMinutes: sla.expoWarnMinutes }, items: [] };
+    }
+    const orderById = new Map(openOrders.map((o) => [o.id, o]));
     const items = await this.prisma.restoOrderItem.findMany({
       where: {
+        orderId: { in: orderIds },
         status: RestoOrderItemStatus.READY,
-        order: {
-          companyId,
-          status: { in: ACTIVE_ORDER },
-        },
       },
       orderBy: [{ readyAt: 'asc' }, { sentAt: 'asc' }],
       include: {
         station: { select: { id: true, name: true, nameEn: true } },
-        order: {
-          select: {
-            id: true,
-            number: true,
-            channel: true,
-            guestName: true,
-            table: { select: { id: true, code: true, name: true } },
-          },
-        },
       },
       take: 100,
     });
-    const mapped = items.map((it) => ({
-      id: it.id,
-      name: it.name,
-      qty: Number(it.qty),
-      notes: it.notes,
-      course: it.course ?? 1,
-      status: it.status,
-      isRush: !!it.isRush,
-      heldAt: it.heldAt,
-      readyAt: it.readyAt,
-      sentAt: it.sentAt,
-      stationName: it.station?.name ?? null,
-      orderId: it.order.id,
-      orderNumber: it.order.number,
-      channel: it.order.channel,
-      guestName: it.order.guestName,
-      table: it.order.table
-        ? {
-            id: it.order.table.id,
-            code: it.order.table.code,
-            name: it.order.table.name,
-          }
-        : null,
-    }));
+    const mapped = items.map((it) => {
+      const order = orderById.get(it.orderId)!;
+      return {
+        id: it.id,
+        name: it.name,
+        qty: Number(it.qty),
+        notes: it.notes,
+        course: it.course ?? 1,
+        status: it.status,
+        isRush: !!it.isRush,
+        heldAt: it.heldAt,
+        readyAt: it.readyAt,
+        sentAt: it.sentAt,
+        stationName: it.station?.name ?? null,
+        orderId: order.id,
+        orderNumber: order.number,
+        channel: order.channel,
+        guestName: order.guestName,
+        table: order.table
+          ? {
+              id: order.table.id,
+              code: order.table.code,
+              name: order.table.name,
+            }
+          : null,
+      };
+    });
     mapped.sort((a, b) => {
       if (a.isRush !== b.isRush) return a.isRush ? -1 : 1;
       const ta = a.readyAt ? new Date(a.readyAt).getTime() : 0;
@@ -2953,20 +3028,49 @@ export class RestoService {
   }
 
   async getKitchenQueue(companyId: string, stationId?: string) {
-    await this.ensureStation(companyId);
-    const company = await this.prisma.company.findUnique({
-      where: { id: companyId },
-      select: { restoConfig: true },
-    });
+    // Order-first: use [companyId, status] index, then items by orderId (not nested join).
+    const [company, stations, openOrders] = await Promise.all([
+      this.prisma.company.findUnique({
+        where: { id: companyId },
+        select: { restoConfig: true },
+      }),
+      this.prisma.restoStation.findMany({
+        where: { companyId, isActive: true },
+        orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+        select: { id: true, name: true, nameEn: true, sortOrder: true },
+      }),
+      this.prisma.restoOrder.findMany({
+        where: { companyId, status: { in: ACTIVE_ORDER } },
+        select: {
+          id: true,
+          number: true,
+          notes: true,
+          guestName: true,
+          channel: true,
+          table: { select: { id: true, code: true, name: true } },
+        },
+        take: 300,
+      }),
+    ]);
     const sla = this.parseRestoConfig(company?.restoConfig).kitchenSla;
-    const stations = await this.prisma.restoStation.findMany({
-      where: { companyId, isActive: true },
-      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
-      select: { id: true, name: true, nameEn: true, sortOrder: true },
-    });
+    const orderIds = openOrders.map((o) => o.id);
+    if (!orderIds.length) {
+      return {
+        count: 0,
+        stations,
+        stationId: stationId || null,
+        sla: {
+          warnMinutes: sla.warnMinutes,
+          criticalMinutes: sla.criticalMinutes,
+        },
+        items: [],
+      };
+    }
+    const orderById = new Map(openOrders.map((o) => [o.id, o]));
 
     const items = await this.prisma.restoOrderItem.findMany({
       where: {
+        orderId: { in: orderIds },
         status: {
           in: [
             RestoOrderItemStatus.SENT,
@@ -2975,24 +3079,10 @@ export class RestoService {
           ],
         },
         ...(stationId ? { stationId } : {}),
-        order: {
-          companyId,
-          status: { in: ACTIVE_ORDER },
-        },
       },
       orderBy: [{ sentAt: 'asc' }, { createdAt: 'asc' }],
       include: {
         station: { select: { id: true, name: true, nameEn: true } },
-        order: {
-          select: {
-            id: true,
-            number: true,
-            notes: true,
-            guestName: true,
-            channel: true,
-            table: { select: { id: true, code: true, name: true } },
-          },
-        },
       },
       take: 200,
     });
@@ -3018,40 +3108,46 @@ export class RestoService {
       products.map((p) => [p.id, p.nameEn || null]),
     );
 
-    const mapped = items.map((it) => ({
-      id: it.id,
-      name: it.name,
-      nameEn: it.productId
-        ? nameEnByProduct.get(it.productId) || null
-        : null,
-      qty: Number(it.qty),
-      notes: it.notes,
-      course: it.course ?? 1,
-      seat: it.seat ?? null,
-      source: it.source === 'GUEST' ? 'GUEST' : 'STAFF',
-      status: it.status,
-      isRush: !!it.isRush,
-      heldAt: it.heldAt,
-      sentAt: it.sentAt,
-      readyAt: it.readyAt,
-      stationId: it.stationId,
-      stationName: it.station?.name ?? null,
-      allergens: it.productId
-        ? allergenByProduct.get(it.productId) || []
-        : [],
-      orderId: it.order.id,
-      orderNumber: it.order.number,
-      orderNotes: it.order.notes,
-      guestName: it.order.guestName,
-      channel: it.order.channel,
-      table: it.order.table
-        ? {
-            id: it.order.table.id,
-            code: it.order.table.code,
-            name: it.order.table.name,
-          }
-        : null,
-    }));
+    const mapped = items
+      .map((it) => {
+        const order = orderById.get(it.orderId);
+        if (!order) return null;
+        return {
+          id: it.id,
+          name: it.name,
+          nameEn: it.productId
+            ? nameEnByProduct.get(it.productId) || null
+            : null,
+          qty: Number(it.qty),
+          notes: it.notes,
+          course: it.course ?? 1,
+          seat: it.seat ?? null,
+          source: it.source === 'GUEST' ? 'GUEST' : 'STAFF',
+          status: it.status,
+          isRush: !!it.isRush,
+          heldAt: it.heldAt,
+          sentAt: it.sentAt,
+          readyAt: it.readyAt,
+          stationId: it.stationId,
+          stationName: it.station?.name ?? null,
+          allergens: it.productId
+            ? allergenByProduct.get(it.productId) || []
+            : [],
+          orderId: order.id,
+          orderNumber: order.number,
+          orderNotes: order.notes,
+          guestName: order.guestName,
+          channel: order.channel,
+          table: order.table
+            ? {
+                id: order.table.id,
+                code: order.table.code,
+                name: order.table.name,
+              }
+            : null,
+        };
+      })
+      .filter((row): row is NonNullable<typeof row> => !!row);
 
     mapped.sort((a, b) => {
       const aHeld = !!a.heldAt;

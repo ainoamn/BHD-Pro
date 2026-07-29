@@ -2054,7 +2054,7 @@ class ApiClient {
           } | null;
         }>;
       }>;
-      tables: Array<{
+      tables?: Array<{
         id: string;
         code: string;
         name: string | null;
@@ -2071,6 +2071,20 @@ class ApiClient {
         } | null;
       }>;
     }>('/resto/floor');
+  }
+
+  getRestoFreeTables() {
+    return this.get<{
+      tables: Array<{
+        id: string;
+        code: string;
+        name: string | null;
+        seats?: number;
+        status: string;
+        openOrder: null;
+      }>;
+      count: number;
+    }>('/resto/tables/free');
   }
 
   seedRestoFloor(tableCount?: number) {

@@ -180,6 +180,13 @@ export class RestoController {
     return this.resto.getFloor(user.companyId);
   }
 
+  @Get('tables/free')
+  @Roles(...RESTO_STAFF)
+  @ApiOperation({ summary: 'Free tables only (waitlist seat picker)' })
+  freeTables(@CurrentUser() user: TokenPayload) {
+    return this.resto.listFreeTables(user.companyId);
+  }
+
   @Post('floor/seed')
   @Roles(...RESTO_FLOOR_MGR)
   @Throttle({ default: { limit: 5, ttl: 60000 } })

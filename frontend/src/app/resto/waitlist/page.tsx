@@ -79,22 +79,12 @@ export default function RestoWaitlistPage() {
 
   const load = useCallback(async () => {
     try {
-      const [wl, floor] = await Promise.all([
+      const [wl, free] = await Promise.all([
         api.getRestoWaitlist(),
-        api.getRestoFloor(),
+        api.getRestoFreeTables(),
       ]);
       setEntries(wl.data.entries || []);
-      const tables = (floor.data.zones || []).flatMap(
-        (z: { tables: FloorTable[] }) => z.tables || [],
-      );
-      setFreeTables(
-        tables.filter(
-          (tb) =>
-            !tb.openOrder &&
-            tb.status !== "OCCUPIED" &&
-            tb.status !== "BILLING",
-        ),
-      );
+      setFreeTables(free.data.tables || []);
       setLoadError(false);
     } catch (err) {
       setEntries([]);

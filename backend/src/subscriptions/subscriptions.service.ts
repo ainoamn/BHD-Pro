@@ -111,18 +111,45 @@ export class SubscriptionsService {
     };
   }
 
+  /** Short TTL cache so PlanFeatureGuard does not hit Neon on every resto/POS call. */
+  private readonly featureAssertCache = new Map<
+    string,
+    { ok: true; expires: number } | { ok: false; error: unknown; expires: number }
+  >();
+  private static readonly FEATURE_ASSERT_TTL_MS = 45_000;
+
   async assertFeature(companyId: string, feature: PlanFeatureKey) {
-    const company = await this.assertSubscriptionActive(companyId);
-    const features = await this.plans.featuresFor(company.plan);
-    if (!features[feature]) {
-      throw new ForbiddenException({
-        statusCode: 403,
-        code: 'PLAN_FEATURE_REQUIRED',
-        feature,
-        plan: company.plan,
-        message: `Feature "${feature}" requires a higher plan. Upgrade from Subscription.`,
-        upgradePath: '/subscription',
+    const key = `${companyId}:${feature}`;
+    const hit = this.featureAssertCache.get(key);
+    if (hit && hit.expires > Date.now()) {
+      if (hit.ok) return;
+      throw hit.error;
+    }
+    try {
+      const company = await this.assertSubscriptionActive(companyId);
+      const features = await this.plans.featuresFor(company.plan);
+      if (!features[feature]) {
+        const err = new ForbiddenException({
+          statusCode: 403,
+          code: 'PLAN_FEATURE_REQUIRED',
+          feature,
+          plan: company.plan,
+          message: `Feature "${feature}" requires a higher plan. Upgrade from Subscription.`,
+          upgradePath: '/subscription',
+        });
+        this.featureAssertCache.set(key, {
+          ok: false,
+          error: err,
+          expires: Date.now() + 10_000,
+        });
+        throw err;
+      }
+      this.featureAssertCache.set(key, {
+        ok: true,
+        expires: Date.now() + SubscriptionsService.FEATURE_ASSERT_TTL_MS,
       });
+    } catch (err) {
+      throw err;
     }
   }
 

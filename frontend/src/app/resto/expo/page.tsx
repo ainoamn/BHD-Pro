@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { BellRing, Loader2 } from "lucide-react";
 import api from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
@@ -32,6 +32,7 @@ export default function RestoExpoPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [expoWarn, setExpoWarn] = useState(5);
+  const sseLive = useRef(false);
 
   const load = useCallback(async () => {
     try {
@@ -48,23 +49,38 @@ export default function RestoExpoPage() {
     }
   }, [t.actionFail]);
 
+  const refreshAfterMutation = useCallback(async () => {
+    if (sseLive.current) return;
+    await load();
+  }, [load]);
+
   useEffect(() => {
     setLoading(true);
+    sseLive.current = false;
     let es: EventSource | null = null;
     let pollId: number | undefined;
     let usePoll = false;
+    let gotSse = false;
+    let connectTimer: number | undefined;
 
     const startPoll = () => {
       if (usePoll) return;
       usePoll = true;
+      sseLive.current = false;
       void load();
-      pollId = window.setInterval(() => void load(), 5000);
+      pollId = window.setInterval(() => void load(), 12000);
     };
 
     try {
       es = new EventSource(api.restoExpoStreamUrl(), { withCredentials: true });
       es.onmessage = (ev) => {
         try {
+          gotSse = true;
+          sseLive.current = true;
+          if (connectTimer) {
+            window.clearTimeout(connectTimer);
+            connectTimer = undefined;
+          }
           const payload = JSON.parse(ev.data) as {
             items?: ExpoItem[];
             sla?: { expoWarnMinutes: number };
@@ -82,9 +98,12 @@ export default function RestoExpoPage() {
       es.onerror = () => {
         es?.close();
         es = null;
+        sseLive.current = false;
         startPoll();
       };
-      void load();
+      connectTimer = window.setTimeout(() => {
+        if (!gotSse) void load();
+      }, 2500);
     } catch {
       startPoll();
     }
@@ -92,6 +111,7 @@ export default function RestoExpoPage() {
     return () => {
       es?.close();
       if (pollId) window.clearInterval(pollId);
+      if (connectTimer) window.clearTimeout(connectTimer);
     };
   }, [load]);
 
@@ -99,7 +119,7 @@ export default function RestoExpoPage() {
     setBusyId(itemId);
     try {
       await api.setRestoKitchenItemStatus(itemId, "SERVED");
-      await load();
+      await refreshAfterMutation();
     } catch (err) {
       setError(apiErrorMessage(err, t.actionFail));
     } finally {
@@ -111,7 +131,7 @@ export default function RestoExpoPage() {
     setBusyId(itemId);
     try {
       await api.recallRestoKitchenItem(itemId, "PREPARING");
-      await load();
+      await refreshAfterMutation();
     } catch (err) {
       setError(apiErrorMessage(err, t.actionFail));
     } finally {
