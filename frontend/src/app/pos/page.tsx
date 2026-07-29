@@ -149,6 +149,9 @@ type RecentCashSale = {
   createdAt?: string;
   notes?: string | null;
   status?: string;
+  kind?: "SALE" | "REFUND";
+  voided?: boolean;
+  refunded?: boolean;
   contact?: { id?: string; name?: string; phone?: string | null } | null;
   items?: {
     productId?: string | null;
@@ -162,6 +165,21 @@ type RecentCashSale = {
   payments?: { method?: string; amount?: number | string }[];
   reprintCount?: number;
 };
+
+function isSaleVoided(sale: RecentCashSale) {
+  if (sale.voided === true) return true;
+  return String(sale.status || "").toUpperCase() === "CANCELLED";
+}
+
+function isSaleRefunded(sale: RecentCashSale) {
+  if (sale.refunded === true || sale.kind === "REFUND") return true;
+  const notes = String(sale.notes || "");
+  return /\[Refunded\b/i.test(notes) || notes.includes("Hisaby POS refund");
+}
+
+function isRefundDocument(sale: RecentCashSale) {
+  return sale.kind === "REFUND";
+}
 
 export default function PosCheckoutPage() {
   const locale = useLocaleStore((s) => s.locale);
@@ -670,9 +688,7 @@ export default function PosCheckoutPage() {
         const { loadRecentSalesCache } = await import("@/lib/pos-recent-sales-cache");
         const cached = loadRecentSalesCache(wh) as RecentCashSale[];
         if (cached.length) {
-          setRecentSales(
-            cached.filter((inv) => String(inv.status || "").toUpperCase() !== "CANCELLED"),
-          );
+          setRecentSales(cached);
         }
       } catch {
         /* ignore */
@@ -685,9 +701,7 @@ export default function PosCheckoutPage() {
         warehouseId: wh,
         q: q?.trim() || undefined,
       });
-      const rows = ((res.data as RecentCashSale[]) || []).filter(
-        (inv) => String(inv.status || "").toUpperCase() !== "CANCELLED",
-      );
+      const rows = (res.data as RecentCashSale[]) || [];
       // Never wipe a non-empty strip with an empty API response (stale filter / race).
       if (rows.length || q?.trim()) {
         setRecentSales(rows);
@@ -2058,10 +2072,22 @@ export default function PosCheckoutPage() {
   };
 
   const voidSale = (sale: RecentCashSale) => {
+    if (isSaleVoided(sale) || isRefundDocument(sale)) {
+      toast.error(isRefundDocument(sale) ? t.refundDisabledCreditNote : t.voidDisabledVoided);
+      return;
+    }
     setVoidTarget(sale);
   };
 
   const openRefund = async (sale: RecentCashSale) => {
+    if (isSaleVoided(sale)) {
+      toast.error(t.refundDisabledVoided);
+      return;
+    }
+    if (isRefundDocument(sale)) {
+      toast.error(t.refundDisabledCreditNote);
+      return;
+    }
     let detail = sale;
     const missingIds = !(sale.items || []).some((i) => i.productId);
     if (missingIds) {
@@ -2140,6 +2166,11 @@ export default function PosCheckoutPage() {
       );
       setRefundTarget(null);
       setRefundAwaitingApproval(false);
+      setRecentSales((prev) =>
+        prev.map((s) =>
+          s.id === refundTarget.id ? { ...s, refunded: true } : s,
+        ),
+      );
       void Promise.all([
         loadRecentSales(),
         loadOpsStrip(),
@@ -2239,6 +2270,13 @@ export default function PosCheckoutPage() {
       );
       setLastInvoice((prev) => (prev?.number === voidTarget.number ? null : prev));
       setVoidTarget(null);
+      setRecentSales((prev) =>
+        prev.map((s) =>
+          s.id === voidTarget.id
+            ? { ...s, status: "CANCELLED", voided: true }
+            : s,
+        ),
+      );
       void Promise.all([
         loadRecentSales(),
         loadOpsStrip(),
@@ -3596,13 +3634,20 @@ export default function PosCheckoutPage() {
               {recentSales.map((sale) => {
                 const paySummary = salePaymentSummary(sale);
                 const selected = lastInvoice?.id === sale.id;
+                const voided = isSaleVoided(sale);
+                const refunded = isSaleRefunded(sale);
+                const refundDoc = isRefundDocument(sale);
                 return (
                 <div
                   key={sale.id}
                   className={`shrink-0 rounded-xl border px-3 py-2 text-start min-w-[10.5rem] space-y-1.5 ${
-                    selected
-                      ? "border-emerald-400/50 bg-emerald-500/10"
-                      : "border-white/10 bg-black/20"
+                    voided
+                      ? "border-rose-500/40 bg-rose-500/10 opacity-90"
+                      : refunded
+                        ? "border-amber-500/40 bg-amber-500/10"
+                      : selected
+                        ? "border-emerald-400/50 bg-emerald-500/10"
+                        : "border-white/10 bg-black/20"
                   }`}
                 >
                   <button
@@ -3612,6 +3657,17 @@ export default function PosCheckoutPage() {
                     title={t.receiptActions}
                   >
                     <p className="text-xs font-bold text-white truncate">{sale.number}</p>
+                    {(voided || refunded) ? (
+                      <p className="text-[10px] font-bold mt-0.5">
+                        {voided ? (
+                          <span className="text-rose-300">{t.saleVoidedBadge}</span>
+                        ) : refundDoc ? (
+                          <span className="text-amber-200">{t.saleRefundDocBadge}</span>
+                        ) : (
+                          <span className="text-amber-200">{t.saleRefundedBadge}</span>
+                        )}
+                      </p>
+                    ) : null}
                     <p className="text-[11px] text-sky-300 font-semibold mt-0.5">
                       {formatMoney(Number(sale.total), currency)}
                     </p>
@@ -3640,20 +3696,24 @@ export default function PosCheckoutPage() {
                     <Printer className="w-3 h-3" />
                     {t.reprint}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => voidSale(sale)}
-                    className="w-full h-7 rounded-lg border border-rose-500/30 text-[10px] font-semibold text-rose-300 hover:bg-rose-500/15 transition"
-                  >
-                    {t.voidSale}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => openRefund(sale)}
-                    className="w-full h-7 rounded-lg border border-amber-500/30 text-[10px] font-semibold text-amber-200 hover:bg-amber-500/15 transition"
-                  >
-                    {t.refundSale}
-                  </button>
+                  {!voided && !refundDoc ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => voidSale(sale)}
+                        className="w-full h-7 rounded-lg border border-rose-500/30 text-[10px] font-semibold text-rose-300 hover:bg-rose-500/15 transition"
+                      >
+                        {t.voidSale}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openRefund(sale)}
+                        className="w-full h-7 rounded-lg border border-amber-500/30 text-[10px] font-semibold text-amber-200 hover:bg-amber-500/15 transition"
+                      >
+                        {t.refundSale}
+                      </button>
+                    </>
+                  ) : null}
                 </div>
                 );
               })}
@@ -5677,13 +5737,20 @@ export default function PosCheckoutPage() {
                   {recentSales.map((sale) => {
                     const paySummary = salePaymentSummary(sale);
                     const selected = lastInvoice?.id === sale.id;
+                    const voided = isSaleVoided(sale);
+                    const refunded = isSaleRefunded(sale);
+                    const refundDoc = isRefundDocument(sale);
                     return (
                   <div
                     key={sale.id}
                     className={`rounded-xl border px-3 py-2.5 space-y-2 ${
-                      selected
-                        ? "border-emerald-400/50 bg-emerald-500/10"
-                        : "border-white/10 bg-black/25"
+                      voided
+                        ? "border-rose-500/40 bg-rose-500/10"
+                        : refunded
+                          ? "border-amber-500/35 bg-amber-500/10"
+                        : selected
+                          ? "border-emerald-400/50 bg-emerald-500/10"
+                          : "border-white/10 bg-black/25"
                     }`}
                   >
                     <button
@@ -5697,6 +5764,17 @@ export default function PosCheckoutPage() {
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <p className="font-bold text-white truncate">{sale.number}</p>
+                          {(voided || refunded) ? (
+                            <p className="text-[11px] font-bold mt-0.5">
+                              {voided ? (
+                                <span className="text-rose-300">{t.saleVoidedBadge}</span>
+                              ) : refundDoc ? (
+                                <span className="text-amber-200">{t.saleRefundDocBadge}</span>
+                              ) : (
+                                <span className="text-amber-200">{t.saleRefundedBadge}</span>
+                              )}
+                            </p>
+                          ) : null}
                           <p className="text-[11px] text-slate-500">
                             {sale.createdAt
                               ? new Date(sale.createdAt).toLocaleString()
@@ -5759,26 +5837,30 @@ export default function PosCheckoutPage() {
                       >
                         {t.giftReceipt}
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          voidSale(sale);
-                          setReceiptsOpen(false);
-                        }}
-                        className="h-8 px-2.5 rounded-lg border border-rose-500/30 text-[11px] font-semibold text-rose-300 hover:bg-rose-500/15"
-                      >
-                        {t.voidSale}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void openRefund(sale);
-                          setReceiptsOpen(false);
-                        }}
-                        className="h-8 px-2.5 rounded-lg border border-amber-500/30 text-[11px] font-semibold text-amber-200 hover:bg-amber-500/15"
-                      >
-                        {t.refundSale}
-                      </button>
+                      {!voided && !refundDoc ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              voidSale(sale);
+                              setReceiptsOpen(false);
+                            }}
+                            className="h-8 px-2.5 rounded-lg border border-rose-500/30 text-[11px] font-semibold text-rose-300 hover:bg-rose-500/15"
+                          >
+                            {t.voidSale}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void openRefund(sale);
+                              setReceiptsOpen(false);
+                            }}
+                            className="h-8 px-2.5 rounded-lg border border-amber-500/30 text-[11px] font-semibold text-amber-200 hover:bg-amber-500/15"
+                          >
+                            {t.refundSale}
+                          </button>
+                        </>
+                      ) : null}
                     </div>
                   </div>
                     );

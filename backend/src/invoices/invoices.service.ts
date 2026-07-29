@@ -449,9 +449,9 @@ export class InvoicesService {
         return invoice;
       }
       await this.clearPaymentsForLifecycle(companyId, userId, invoice);
-      const fresh = await this.findOne(companyId, id);
-      await this.glPosting.reverseInvoiceEntry(companyId, userId, fresh);
-      await this.unwindCreditNoteSideEffects(companyId, fresh);
+      // Prefer already-loaded invoice for GL reverse (avoids a second full findOne).
+      await this.glPosting.reverseInvoiceEntry(companyId, userId, invoice);
+      await this.unwindCreditNoteSideEffects(companyId, invoice);
       const cancelled = await this.prisma.invoice.update({
         where: { id },
         data: {
@@ -462,7 +462,7 @@ export class InvoicesService {
         include: { contact: true, items: true, payments: true },
       });
       this.bumpDashboard(companyId);
-      if (fresh.type === InvoiceType.CREDIT_NOTE) {
+      if (invoice.type === InvoiceType.CREDIT_NOTE) {
         this.bumpPosCatalog(companyId);
       }
       return cancelled;
@@ -554,10 +554,12 @@ export class InvoicesService {
     invoice: Awaited<ReturnType<InvoicesService['findOne']>>,
   ) {
     if (!invoice.payments.length && Number(invoice.paidAmount) <= 0.0005) return;
-    for (const pay of invoice.payments) {
-      await this.glPosting.reversePaymentEntry(companyId, userId, pay, invoice);
-    }
     if (invoice.payments.length) {
+      await Promise.all(
+        invoice.payments.map((pay) =>
+          this.glPosting.reversePaymentEntry(companyId, userId, pay, invoice),
+        ),
+      );
       await this.prisma.payment.deleteMany({ where: { invoiceId: invoice.id } });
     }
   }

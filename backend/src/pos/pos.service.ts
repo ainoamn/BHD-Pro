@@ -882,11 +882,8 @@ export class PosService {
       select: { id: true },
     });
 
-    const hasPaid =
-      Number(invoice.paidAmount) > 0.0005 || (invoice.payments?.length ?? 0) > 0;
-    if (hasPaid) {
-      await this.invoices.reverseAllPayments(companyId, userId, invoiceId);
-    }
+    // Do NOT reverseAllPayments here — updateStatus(CANCELLED) already
+    // clears payments + reverses invoice GL. Doing both doubled Neon/GL latency.
 
     if (!alreadyRestored) {
       const restoredByProduct = await this.stockAlreadyRestoredByProduct(
@@ -911,22 +908,26 @@ export class PosService {
       let restoredStock = false;
 
       if (outMoves.length) {
+        const jobs: Promise<void>[] = [];
         for (const m of outMoves) {
           const already = restoredByProduct.get(m.productId) || 0;
           const need = Number((Number(m.quantity) - already).toFixed(3));
           if (need <= 0.0005) continue;
-          await this.releaseStockIn(
-            companyId,
-            m.productId,
-            need,
-            m.warehouseId,
-            `${invoice.number}-VOID`,
-            'POS sale void',
-            stockOpts,
-          );
-          restoredStock = true;
           restoredByProduct.set(m.productId, already + need);
+          restoredStock = true;
+          jobs.push(
+            this.releaseStockIn(
+              companyId,
+              m.productId,
+              need,
+              m.warehouseId,
+              `${invoice.number}-VOID`,
+              'POS sale void',
+              stockOpts,
+            ),
+          );
         }
+        if (jobs.length) await Promise.all(jobs);
       } else {
         // Fallback if movement refs were not renamed after sale
         for (const item of invoice.items) {
@@ -1007,15 +1008,10 @@ export class PosService {
       invoice.contactId,
     );
 
-    try {
-      await this.incentives.reverseOnVoid(
-        companyId,
-        invoiceId,
-        invoice.createdById,
-      );
-    } catch {
-      /* never fail void */
-    }
+    // Loyalty/commission reverse must not block cashier UX
+    void this.incentives
+      .reverseOnVoid(companyId, invoiceId, invoice.createdById)
+      .catch(() => undefined);
 
     this.bumpDashboardCache(companyId);
     return {
@@ -2830,40 +2826,92 @@ export class PosService {
         ]
       : undefined;
 
-    const sales = await this.prisma.invoice.findMany({
-      where: {
-        companyId,
-        type: InvoiceType.SALES,
-        isCash: true,
-        notes: { contains: 'Hisaby POS' },
-        ...(warehouseOr && searchOr
-          ? { AND: [{ OR: warehouseOr }, { OR: searchOr }] }
-          : warehouseOr
-            ? { OR: warehouseOr }
-            : searchOr
-              ? { OR: searchOr }
-              : {}),
-      },
-      orderBy: { createdAt: 'desc' },
-      take,
-      include: {
-        items: {
-          include: {
-            product: { select: { id: true, sku: true, barcode: true } },
-          },
+    const baseWhereExtra =
+      warehouseOr && searchOr
+        ? { AND: [{ OR: warehouseOr }, { OR: searchOr }] }
+        : warehouseOr
+          ? { OR: warehouseOr }
+          : searchOr
+            ? { OR: searchOr }
+            : {};
+
+    const [sales, refundDocs] = await Promise.all([
+      this.prisma.invoice.findMany({
+        where: {
+          companyId,
+          type: InvoiceType.SALES,
+          isCash: true,
+          notes: { contains: 'Hisaby POS' },
+          ...baseWhereExtra,
         },
-        payments: { select: { method: true, amount: true } },
-        contact: { select: { id: true, name: true, phone: true } },
-        posShift: { select: { warehouseId: true } },
-      },
-    });
+        orderBy: { createdAt: 'desc' },
+        take,
+        include: {
+          items: {
+            include: {
+              product: { select: { id: true, sku: true, barcode: true } },
+            },
+          },
+          payments: { select: { method: true, amount: true } },
+          contact: { select: { id: true, name: true, phone: true } },
+          posShift: { select: { warehouseId: true } },
+        },
+      }),
+      this.prisma.invoice.findMany({
+        where: {
+          companyId,
+          type: InvoiceType.CREDIT_NOTE,
+          isCash: true,
+          notes: { contains: 'Hisaby POS refund' },
+          status: { not: InvoiceStatus.CANCELLED },
+          ...baseWhereExtra,
+        },
+        orderBy: { createdAt: 'desc' },
+        take: Math.min(take, 15),
+        include: {
+          items: {
+            include: {
+              product: { select: { id: true, sku: true, barcode: true } },
+            },
+          },
+          payments: { select: { method: true, amount: true } },
+          contact: { select: { id: true, name: true, phone: true } },
+          posShift: { select: { warehouseId: true } },
+        },
+      }),
+    ]);
 
     const reprintCounts = await this.getReprintCounts(
       companyId,
-      sales.map((s) => s.id),
+      [...sales, ...refundDocs].map((s) => s.id),
     );
 
-    return sales.map((inv) => ({
+    const mappedSales = sales.map((inv) => {
+      const notes = String(inv.notes || '');
+      const voided = inv.status === InvoiceStatus.CANCELLED;
+      const refunded =
+        /\[Refunded\b/i.test(notes) ||
+        notes.includes('Hisaby POS refund of');
+      return {
+        id: inv.id,
+        number: inv.number,
+        total: inv.total,
+        date: inv.date,
+        createdAt: inv.createdAt,
+        status: inv.status,
+        notes: inv.notes,
+        kind: 'SALE' as const,
+        voided,
+        refunded,
+        warehouseId: inv.posWarehouseId || inv.posShift?.warehouseId || null,
+        contact: inv.contact,
+        items: inv.items,
+        payments: inv.payments,
+        reprintCount: reprintCounts[inv.id] || 0,
+      };
+    });
+
+    const mappedRefunds = refundDocs.map((inv) => ({
       id: inv.id,
       number: inv.number,
       total: inv.total,
@@ -2871,12 +2919,22 @@ export class PosService {
       createdAt: inv.createdAt,
       status: inv.status,
       notes: inv.notes,
+      kind: 'REFUND' as const,
+      voided: false,
+      refunded: true,
       warehouseId: inv.posWarehouseId || inv.posShift?.warehouseId || null,
       contact: inv.contact,
       items: inv.items,
       payments: inv.payments,
       reprintCount: reprintCounts[inv.id] || 0,
     }));
+
+    return [...mappedSales, ...mappedRefunds]
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      )
+      .slice(0, take);
   }
 
   /** Log audited receipt reprint; returns updated reprint count for the sale. */

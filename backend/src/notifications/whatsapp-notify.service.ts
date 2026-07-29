@@ -41,8 +41,8 @@ export class WhatsappNotifyService {
   }
 
   private metaFetchTimeoutMs(): number {
-    const n = Number(process.env.WHATSAPP_FETCH_TIMEOUT_MS || 12000);
-    return Number.isFinite(n) && n >= 3000 ? n : 12000;
+    const n = Number(process.env.WHATSAPP_FETCH_TIMEOUT_MS || 8000);
+    return Number.isFinite(n) && n >= 3000 ? n : 8000;
   }
 
   private async metaFetch(
