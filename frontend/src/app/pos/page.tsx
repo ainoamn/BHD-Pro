@@ -2140,10 +2140,11 @@ export default function PosCheckoutPage() {
       );
       setRefundTarget(null);
       setRefundAwaitingApproval(false);
-      await loadRecentSales();
-      await loadOpsStrip();
-      await loadCatalog(search, warehouseId || undefined);
-      focusScan();
+      void Promise.all([
+        loadRecentSales(),
+        loadOpsStrip(),
+        loadCatalog(search, warehouseId || undefined),
+      ]).then(() => focusScan());
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       toast.error(typeof msg === "string" ? msg : t.refundFail);
@@ -2194,9 +2195,10 @@ export default function PosCheckoutPage() {
       setBlindReturnOpen(false);
       setBlindAwaitingApproval(false);
       setBlindLines([]);
-      await loadOpsStrip();
-      await loadCatalog(search, warehouseId || undefined);
-      focusScan();
+      void Promise.all([
+        loadOpsStrip(),
+        loadCatalog(search, warehouseId || undefined),
+      ]).then(() => focusScan());
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response
         ?.data?.message;
@@ -2237,10 +2239,11 @@ export default function PosCheckoutPage() {
       );
       setLastInvoice((prev) => (prev?.number === voidTarget.number ? null : prev));
       setVoidTarget(null);
-      await loadRecentSales();
-      await loadOpsStrip();
-      await loadCatalog(search, warehouseId || undefined);
-      focusScan();
+      void Promise.all([
+        loadRecentSales(),
+        loadOpsStrip(),
+        loadCatalog(search, warehouseId || undefined),
+      ]).then(() => focusScan());
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       toast.error(typeof msg === "string" ? msg : t.voidFail);

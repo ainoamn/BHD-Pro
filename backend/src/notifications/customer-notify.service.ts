@@ -404,60 +404,75 @@ export class CustomerNotifyService {
 
     const dial = dialCodeForCountry(company.country);
     const digits = toE164Digits(contact.phone, dial);
-    let waOk = false;
-    let waMock = false;
-    let waError: string | undefined;
-    if (isValidMobileE164(digits) && this.whatsapp.isConfigured()) {
-      const result = await this.whatsapp.sendPosReceipt(digits, {
-        customerName: contact.name,
-        companyName: company.name,
-        invoiceNumber: String(invoice.number || ''),
-        amount: totalStr,
-        viewUrl,
-        fullBody: body,
-      });
-      waOk = result.ok;
-      waMock = !!result.mock || this.whatsapp.mode() === 'mock';
-      waError = result.error;
-      if (!this.whatsapp.receiptTemplateName() && !waOk) {
-        waError = `${waError || 'send failed'} — اضبط WHATSAPP_RECEIPT_TEMPLATE على Render بعد اعتماد قالب Meta`;
-      }
-    } else if (contact.phone?.trim()) {
-      waError = `invalid phone (normalized=${digits || 'empty'}) or WhatsApp not configured`;
-      this.logger.warn(`WhatsApp skipped: ${waError}`);
-    } else {
-      waError = 'no phone on contact';
-    }
 
-    let emailStatus: 'ok' | 'mock' | 'fail' | 'skipped' = 'skipped';
-    let emailError: string | undefined;
     const emailAllowed = force || cfg.autoSendPosReceiptEmail !== false;
-    if (emailAllowed && contact.email?.trim() && this.email.isConfigured()) {
-      const subject =
-        kind === 'sale'
-          ? `إيصال ${invoice.number} — ${company.name}`
-          : kind === 'void'
-            ? `إلغاء فاتورة ${invoice.number} — ${company.name}`
-            : `استرداد فاتورة ${invoice.number} — ${company.name}`;
-      const mail = await this.email.sendText({
-        to: contact.email.trim(),
-        subject,
-        text: body,
-        html: `<pre style="font-family:sans-serif;white-space:pre-wrap">${body.replace(/</g, '&lt;')}</pre>`,
-      });
-      emailStatus = mail.ok ? (mail.mode === 'mock' || mail.mock ? 'mock' : 'ok') : 'fail';
-      emailError = mail.error;
-    }
-
-    let smsStatus: 'ok' | 'mock' | 'fail' | 'skipped' = 'skipped';
-    let smsError: string | undefined;
     const smsAllowed = force || cfg.autoSendPosReceiptSms !== false;
-    if (smsAllowed && isValidMobileE164(digits) && this.sms.isConfigured()) {
-      const smsBody = body.slice(0, 600);
-      const sms = await this.sms.sendText({ to: digits, body: smsBody });
-      smsStatus = sms.ok ? (sms.mode === 'mock' || sms.mock ? 'mock' : 'ok') : 'fail';
-      smsError = sms.error;
-    }
+
+    const [waResult, emailResult, smsResult] = await Promise.all([
+      (async () => {
+        let waOk = false;
+        let waMock = false;
+        let waError: string | undefined;
+        if (isValidMobileE164(digits) && this.whatsapp.isConfigured()) {
+          const result = await this.whatsapp.sendPosReceipt(digits, {
+            customerName: contact.name,
+            companyName: company.name,
+            invoiceNumber: String(invoice.number || ''),
+            amount: totalStr,
+            viewUrl,
+            fullBody: body,
+          });
+          waOk = result.ok;
+          waMock = !!result.mock || this.whatsapp.mode() === 'mock';
+          waError = result.error;
+          if (!this.whatsapp.receiptTemplateName() && !waOk) {
+            waError = `${waError || 'send failed'} — اضبط WHATSAPP_RECEIPT_TEMPLATE على Render بعد اعتماد قالب Meta`;
+          }
+        } else if (contact.phone?.trim()) {
+          waError = `invalid phone (normalized=${digits || 'empty'}) or WhatsApp not configured`;
+          this.logger.warn(`WhatsApp skipped: ${waError}`);
+        } else {
+          waError = 'no phone on contact';
+        }
+        return { waOk, waMock, waError };
+      })(),
+      (async () => {
+        let emailStatus: 'ok' | 'mock' | 'fail' | 'skipped' = 'skipped';
+        let emailError: string | undefined;
+        if (emailAllowed && contact.email?.trim() && this.email.isConfigured()) {
+          const subject =
+            kind === 'sale'
+              ? `إيصال ${invoice.number} — ${company.name}`
+              : kind === 'void'
+                ? `إلغاء فاتورة ${invoice.number} — ${company.name}`
+                : `استرداد فاتورة ${invoice.number} — ${company.name}`;
+          const mail = await this.email.sendText({
+            to: contact.email.trim(),
+            subject,
+            text: body,
+            html: `<pre style="font-family:sans-serif;white-space:pre-wrap">${body.replace(/</g, '&lt;')}</pre>`,
+          });
+          emailStatus = mail.ok ? (mail.mode === 'mock' || mail.mock ? 'mock' : 'ok') : 'fail';
+          emailError = mail.error;
+        }
+        return { emailStatus, emailError };
+      })(),
+      (async () => {
+        let smsStatus: 'ok' | 'mock' | 'fail' | 'skipped' = 'skipped';
+        let smsError: string | undefined;
+        if (smsAllowed && isValidMobileE164(digits) && this.sms.isConfigured()) {
+          const smsBody = body.slice(0, 600);
+          const sms = await this.sms.sendText({ to: digits, body: smsBody });
+          smsStatus = sms.ok ? (sms.mode === 'mock' || sms.mock ? 'mock' : 'ok') : 'fail';
+          smsError = sms.error;
+        }
+        return { smsStatus, smsError };
+      })(),
+    ]);
+
+    const { waOk, waMock, waError } = waResult;
+    const { emailStatus, emailError } = emailResult;
+    const { smsStatus, smsError } = smsResult;
 
     const delivery = {
       whatsapp: waOk ? (waMock ? ('mock' as const) : ('ok' as const)) : ('fail' as const),

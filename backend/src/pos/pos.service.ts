@@ -762,6 +762,7 @@ export class PosService {
     warehouseId: string,
     reference: string,
     notes = 'POS sale rollback',
+    opts?: { skipCatalogBump?: boolean },
   ) {
     if (qty <= 0.0005) return;
     await this.prisma.$transaction(async (tx) => {
@@ -792,7 +793,9 @@ export class PosService {
         },
       });
     });
-    this.bumpCatalogCache(companyId);
+    if (!opts?.skipCatalogBump) {
+      this.bumpCatalogCache(companyId);
+    }
   }
 
   /** Units already returned to stock for this sale (refunds / prior voids). */
@@ -904,6 +907,9 @@ export class PosService {
         },
       });
 
+      const stockOpts = { skipCatalogBump: true as const };
+      let restoredStock = false;
+
       if (outMoves.length) {
         for (const m of outMoves) {
           const already = restoredByProduct.get(m.productId) || 0;
@@ -916,7 +922,9 @@ export class PosService {
             m.warehouseId,
             `${invoice.number}-VOID`,
             'POS sale void',
+            stockOpts,
           );
+          restoredStock = true;
           restoredByProduct.set(m.productId, already + need);
         }
       } else {
@@ -949,9 +957,15 @@ export class PosService {
             whId,
             `${invoice.number}-VOID`,
             'POS sale void',
+            stockOpts,
           );
+          restoredStock = true;
           restoredByProduct.set(product.id, already + need);
         }
+      }
+
+      if (restoredStock) {
+        this.bumpCatalogCache(companyId);
       }
     }
 
@@ -986,7 +1000,7 @@ export class PosService {
       }
     }
 
-    const customerNotify = await this.awaitCustomerNotify(
+    const customerNotify = this.scheduleCustomerNotify(
       'void',
       companyId,
       invoiceId,
@@ -1062,6 +1076,28 @@ export class PosService {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * Fire customer notify without blocking void/refund/cancel UX.
+   * WhatsApp/email can take 10–30s; cashier should not wait.
+   */
+  private scheduleCustomerNotify(
+    kind: 'void' | 'refund' | 'blind_return' | 'fulfill',
+    companyId: string,
+    invoiceId: string,
+    contactId: string | null | undefined,
+    creditNoteId?: string,
+  ): { pending: true } | null {
+    if (!contactId) return null;
+    void this.awaitCustomerNotify(
+      kind,
+      companyId,
+      invoiceId,
+      contactId,
+      creditNoteId,
+    ).catch(() => null);
+    return { pending: true };
   }
 
   private async resolveSaleContact(companyId: string, contactId?: string) {
@@ -3924,6 +3960,8 @@ export class PosService {
     );
 
     const refundRef = `${invoice.number}-REFUND-${Date.now()}`;
+    const stockOpts = { skipCatalogBump: true as const };
+    let restoredStock = false;
     for (const item of cnItems) {
       const product = await this.prisma.product.findFirst({
         where: { id: item.productId, companyId },
@@ -3945,7 +3983,12 @@ export class PosService {
         whId,
         refundRef,
         `POS refund of ${invoice.number}`,
+        stockOpts,
       );
+      restoredStock = true;
+    }
+    if (restoredStock) {
+      this.bumpCatalogCache(companyId);
     }
 
     const reason = dto.reason?.trim();
@@ -4055,7 +4098,7 @@ export class PosService {
       /* ignore */
     }
 
-    const customerNotify = await this.awaitCustomerNotify(
+    const customerNotify = this.scheduleCustomerNotify(
       'refund',
       companyId,
       invoice.id,
@@ -4240,7 +4283,7 @@ export class PosService {
       /* ignore */
     }
 
-    const customerNotify = await this.awaitCustomerNotify(
+    const customerNotify = this.scheduleCustomerNotify(
       'blind_return',
       companyId,
       creditNote.id,
