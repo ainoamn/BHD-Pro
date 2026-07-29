@@ -4,7 +4,8 @@ name: Keep warm API
 
 on:
   schedule:
-    - cron: "*/10 * * * *"
+    # Every 5 minutes — Free tier can sleep before a 10-minute gap
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 jobs:

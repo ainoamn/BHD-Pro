@@ -1157,9 +1157,9 @@ export class RestoService {
       warehouseId,
       needsWarehouse: false,
       dayPart,
-      currentDayPart: resolved.dayPart,
-      timezone: resolved.timezone,
-      dayPartSchedule: resolved.dayParts,
+      currentDayPart: resolvedDayPart,
+      timezone,
+      dayPartSchedule: parsed.dayParts,
     };
   }
 

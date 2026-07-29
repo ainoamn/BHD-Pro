@@ -49,10 +49,14 @@ export class SubscriptionsService {
         },
       });
       if (!company) throw new NotFoundException('Company not found');
-      const features = await this.plans.featuresFor(company.plan);
+      const [features, modules] = await Promise.all([
+        this.plans.featuresFor(company.plan),
+        this.plans.modulesFor(company.plan),
+      ]);
       return {
         plan: company.plan,
         features,
+        modules,
         planExpiry: company.planExpiry,
         currency: company.currency,
         light: true,
@@ -123,7 +127,7 @@ export class SubscriptionsService {
     const hit = this.featureAssertCache.get(key);
     if (hit && hit.expires > Date.now()) {
       if (hit.ok) return;
-      throw hit.error;
+      throw (hit as { ok: false; error: unknown }).error;
     }
     try {
       const company = await this.assertSubscriptionActive(companyId);

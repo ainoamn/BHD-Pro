@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
+import { wakeApi } from "@/lib/wake-api";
 import { useAuthStore } from "@/store/auth";
 import { useLocaleStore } from "@/store/locale";
 import { posCopy } from "@/lib/pos-copy";
@@ -172,6 +173,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
   );
   useEffect(() => {
     setHydrated(true);
+    wakeApi();
   }, []);
 
   useEffect(() => {

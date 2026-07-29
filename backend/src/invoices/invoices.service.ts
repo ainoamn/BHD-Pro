@@ -89,9 +89,11 @@ export class InvoicesService {
       status?: InvoiceStatus;
       paymentStatus?: PaymentStatus;
       q?: string;
+      take?: number;
     },
   ) {
     const q = filters?.q?.trim();
+    const take = Math.min(Math.max(filters?.take ?? 80, 1), 200);
     return this.prisma.invoice.findMany({
       where: {
         companyId,
@@ -135,6 +137,7 @@ export class InvoicesService {
         createdBy: { select: { id: true, name: true } },
       },
       orderBy: { createdAt: 'desc' },
+      take,
     });
   }
 
@@ -1174,7 +1177,8 @@ export class InvoicesService {
   }
 
   async getStats(companyId: string, type?: InvoiceType) {
-    await this.syncPaymentStatus(companyId);
+    // Do not block stats on payment sync — that was adding multi-second Neon writes
+    void this.syncPaymentStatus(companyId).catch(() => undefined);
 
     const typeFilter = type
       ? { type }

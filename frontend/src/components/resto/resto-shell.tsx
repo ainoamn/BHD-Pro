@@ -24,6 +24,7 @@ import {
   X,
 } from "lucide-react";
 import api from "@/lib/api";
+import { wakeApi } from "@/lib/wake-api";
 import { useAuthStore } from "@/store/auth";
 import { useLocaleStore } from "@/store/locale";
 import { restoCopy } from "@/lib/resto-copy";
@@ -58,6 +59,7 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     setHydrated(true);
+    wakeApi();
   }, []);
 
   useEffect(() => {

@@ -49,6 +49,7 @@ export class InvoicesController {
   @ApiQuery({ name: 'status', required: false, enum: InvoiceStatus })
   @ApiQuery({ name: 'paymentStatus', required: false, enum: PaymentStatus })
   @ApiQuery({ name: 'q', required: false, description: 'Search number or contact name' })
+  @ApiQuery({ name: 'take', required: false, type: Number })
   findAll(
     @CurrentUser() user: TokenPayload,
     @Query('isCash') isCash?: string,
@@ -56,6 +57,7 @@ export class InvoicesController {
     @Query('status') status?: InvoiceStatus,
     @Query('paymentStatus') paymentStatus?: PaymentStatus,
     @Query('q') q?: string,
+    @Query('take') take?: string,
   ) {
     const cashFilter =
       isCash === 'true' || isCash === '1'
@@ -63,12 +65,14 @@ export class InvoicesController {
         : isCash === 'false' || isCash === '0'
           ? false
           : undefined;
+    const takeN = take ? Number(take) : undefined;
     return this.invoicesService.findAll(user.companyId, {
       isCash: cashFilter,
       type,
       status,
       paymentStatus,
       q,
+      take: Number.isFinite(takeN) ? takeN : undefined,
     });
   }
 

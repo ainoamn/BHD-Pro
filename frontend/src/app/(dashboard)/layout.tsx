@@ -17,6 +17,7 @@ import {
   moduleForDashboardPath,
 } from "@/lib/module-permissions";
 import { homePathForUser } from "@/lib/user-home";
+import { wakeApi } from "@/lib/wake-api";
 
 export default function DashboardLayout({
   children,
@@ -31,6 +32,7 @@ export default function DashboardLayout({
 
   useEffect(() => {
     setHydrated(true);
+    wakeApi();
   }, []);
 
   // Validate session; keep UI if we already have auth from a fresh login.

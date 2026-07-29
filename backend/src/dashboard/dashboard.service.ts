@@ -5,6 +5,13 @@ import { RedisService } from '../redis/redis.service';
 
 @Injectable()
 export class DashboardService {
+  /** In-process TTL when Redis is off — cuts repeat Neon load within a shift. */
+  private readonly memCache = new Map<
+    string,
+    { expires: number; payload: Record<string, unknown> }
+  >();
+  private static readonly MEM_TTL_MS = 30_000;
+
   constructor(
     private prisma: PrismaService,
     private redis: RedisService,
@@ -17,6 +24,11 @@ export class DashboardService {
       if (hit && typeof hit === 'object') {
         return { ...hit, cached: true };
       }
+    } else {
+      const mem = this.memCache.get(companyId);
+      if (mem && mem.expires > Date.now()) {
+        return { ...mem.payload, cached: true, cache: 'memory' };
+      }
     }
 
     const stats = await this.computeStats(companyId);
@@ -25,6 +37,11 @@ export class DashboardService {
       void this.redis
         .setJson(cacheKey, payload, this.redis.dashboardStatsTtlSec())
         .catch(() => undefined);
+    } else {
+      this.memCache.set(companyId, {
+        expires: Date.now() + DashboardService.MEM_TTL_MS,
+        payload,
+      });
     }
     return payload;
   }
@@ -33,35 +50,8 @@ export class DashboardService {
     const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
     const sixMonthsAgo = new Date(Date.now() - 180 * 86400000);
 
-    // Sync paid invoices (legacy fix) — only on cache miss
-    const stalePaid = await this.prisma.invoice.findMany({
-      where: {
-        companyId,
-        status: InvoiceStatus.PAID,
-        NOT: { paymentStatus: PaymentStatus.PAID },
-      },
-      select: { id: true, total: true },
-    });
-    await Promise.all(
-      stalePaid.map(async (inv) => {
-        const count = await this.prisma.payment.count({ where: { invoiceId: inv.id } });
-        if (count === 0) {
-          await this.prisma.payment.create({
-            data: {
-              invoiceId: inv.id,
-              amount: inv.total,
-              method: PaymentMethod.OTHER,
-              date: new Date(),
-              notes: 'Marked as paid',
-            },
-          });
-        }
-        await this.prisma.invoice.update({
-          where: { id: inv.id },
-          data: { paymentStatus: PaymentStatus.PAID, paidAmount: inv.total },
-        });
-      }),
-    );
+    // Legacy paid-row repair runs in background — never block dashboard first paint
+    void this.repairStalePaidRows(companyId).catch(() => undefined);
 
     const notCancelled = { companyId, status: { not: InvoiceStatus.CANCELLED as InvoiceStatus } };
 
@@ -351,5 +341,39 @@ export class DashboardService {
       })),
       cashFlow,
     };
+  }
+
+  private async repairStalePaidRows(companyId: string) {
+    const stalePaid = await this.prisma.invoice.findMany({
+      where: {
+        companyId,
+        status: InvoiceStatus.PAID,
+        NOT: { paymentStatus: PaymentStatus.PAID },
+      },
+      select: { id: true, total: true },
+      take: 50,
+    });
+    await Promise.all(
+      stalePaid.map(async (inv) => {
+        const count = await this.prisma.payment.count({
+          where: { invoiceId: inv.id },
+        });
+        if (count === 0) {
+          await this.prisma.payment.create({
+            data: {
+              invoiceId: inv.id,
+              amount: inv.total,
+              method: PaymentMethod.OTHER,
+              date: new Date(),
+              notes: 'Marked as paid',
+            },
+          });
+        }
+        await this.prisma.invoice.update({
+          where: { id: inv.id },
+          data: { paymentStatus: PaymentStatus.PAID, paidAmount: inv.total },
+        });
+      }),
+    );
   }
 }

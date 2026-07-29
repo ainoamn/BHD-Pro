@@ -92,7 +92,7 @@ export default function DashboardPage() {
   } = useQuery({
     queryKey: ["subscription-modules"],
     queryFn: async () => {
-      const res = await api.getCurrentSubscription();
+      const res = await api.getCurrentSubscription({ light: true });
       return (res.data as { modules?: Record<string, PlanModuleGrant> }).modules || null;
     },
   });

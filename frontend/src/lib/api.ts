@@ -452,6 +452,7 @@ class ApiClient {
     status?: string;
     paymentStatus?: string;
     q?: string;
+    take?: number;
   }) {
     return this.get('/invoices', {
       params: {
@@ -460,6 +461,7 @@ class ApiClient {
         ...(params?.status ? { status: params.status } : {}),
         ...(params?.paymentStatus ? { paymentStatus: params.paymentStatus } : {}),
         ...(params?.q ? { q: params.q } : {}),
+        take: String(params?.take ?? 80),
       },
     });
   }

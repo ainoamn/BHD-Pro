@@ -232,7 +232,7 @@ export function Sidebar() {
     if (!user) return;
     (async () => {
       try {
-        const res = await api.getCurrentSubscription();
+        const res = await api.getCurrentSubscription({ light: true });
         const data = res.data as {
           features?: Record<string, boolean>;
           modules?: Record<string, PlanModuleGrant>;
@@ -282,7 +282,7 @@ export function Sidebar() {
     return () => {
       cancelled = true;
     };
-  }, [user?.id, pathname]);
+  }, [user?.id]);
 
   const closeMobile = () => {
     if (typeof window !== "undefined" && window.innerWidth < 1024) {
