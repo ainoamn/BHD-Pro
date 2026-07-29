@@ -366,7 +366,9 @@ export function PosShell({ children }: { children: React.ReactNode }) {
         } catch {
           /* ignore */
         }
-        const shiftRes = await api.getCurrentPosShift(wh || undefined);
+        const shiftRes = await api.getCurrentPosShift(wh || undefined, {
+          light: true,
+        });
         if (!cancelled) setShiftOpen(!!shiftRes.data.shift);
       } catch {
         /* keep prior shiftOpen — do not pretend the drawer is closed */

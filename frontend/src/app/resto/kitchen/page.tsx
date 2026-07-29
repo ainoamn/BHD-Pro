@@ -119,20 +119,30 @@ export default function RestoKitchenPage() {
     }
   }, [stationId, t.actionFail]);
 
+  const sseLive = useRef(false);
+  const refreshAfterMutation = useCallback(async () => {
+    if (sseLive.current) return;
+    await load();
+  }, [load]);
+
   useEffect(() => {
     setLoading(true);
     primed.current = false;
     knownIds.current = new Set();
+    sseLive.current = false;
 
     let es: EventSource | null = null;
     let pollId: number | undefined;
     let usePoll = false;
+    let gotSse = false;
+    let connectTimer: number | undefined;
 
     const startPoll = () => {
       if (usePoll) return;
       usePoll = true;
+      sseLive.current = false;
       void load();
-      pollId = window.setInterval(() => void load(), 5000);
+      pollId = window.setInterval(() => void load(), 12000);
     };
 
     try {
@@ -141,6 +151,12 @@ export default function RestoKitchenPage() {
       });
       es.onmessage = (ev) => {
         try {
+          gotSse = true;
+          sseLive.current = true;
+          if (connectTimer) {
+            window.clearTimeout(connectTimer);
+            connectTimer = undefined;
+          }
           const payload = JSON.parse(ev.data) as {
             items?: KitchenItem[];
             stations?: Station[];
@@ -165,10 +181,13 @@ export default function RestoKitchenPage() {
       es.onerror = () => {
         es?.close();
         es = null;
+        sseLive.current = false;
         startPoll();
       };
-      // Initial fetch while SSE connects
-      void load();
+      // Only fall back to REST if SSE never delivers (slow/proxy issues)
+      connectTimer = window.setTimeout(() => {
+        if (!gotSse) void load();
+      }, 2500);
     } catch {
       startPoll();
     }
@@ -176,6 +195,7 @@ export default function RestoKitchenPage() {
     return () => {
       es?.close();
       if (pollId) window.clearInterval(pollId);
+      if (connectTimer) window.clearTimeout(connectTimer);
     };
   }, [load, stationId]);
 
@@ -204,7 +224,7 @@ export default function RestoKitchenPage() {
       } else if (notify && !notify.ok && notify.error) {
         toast.error(t.notifyFail);
       }
-      await load();
+      await refreshAfterMutation();
     } catch (err) {
       const msg = apiErrorMessage(err, t.actionFail);
       setError(msg);
@@ -221,7 +241,7 @@ export default function RestoKitchenPage() {
     try {
       await api.setRestoKitchenRush(it.id, next);
       toast.success(next ? t.kdsRushSet : t.kdsRushCleared);
-      await load();
+      await refreshAfterMutation();
     } catch (err) {
       const msg = apiErrorMessage(err, t.actionFail);
       setError(msg);
@@ -238,7 +258,7 @@ export default function RestoKitchenPage() {
     try {
       await api.setRestoKitchenHold(it.id, next);
       toast.success(next ? t.kdsHoldSet : t.kdsHoldCleared);
-      await load();
+      await refreshAfterMutation();
     } catch (err) {
       const msg = apiErrorMessage(err, t.actionFail);
       setError(msg);
@@ -254,7 +274,7 @@ export default function RestoKitchenPage() {
     try {
       await api.recallRestoKitchenItem(itemId, to);
       toast.success(t.kdsRecallOk);
-      await load();
+      await refreshAfterMutation();
     } catch (err) {
       const msg = apiErrorMessage(err, t.actionFail);
       setError(msg);

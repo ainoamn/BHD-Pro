@@ -551,12 +551,20 @@ export class PosController {
 
   @Get('shifts/current')
   @Roles(...POS_STAFF)
-  @ApiOperation({ summary: 'Get open POS shift + live Z totals (per warehouse)' })
+  @ApiOperation({
+    summary:
+      'Get open POS shift (+ live Z totals). Pass light=1 to skip Z-report for open checks.',
+  })
   currentShift(
     @CurrentUser() user: TokenPayload,
     @Query('warehouseId') warehouseId?: string,
+    @Query('light') light?: string,
   ) {
-    return this.pos.getCurrentShift(user.companyId, warehouseId || null);
+    const lightMode =
+      light === '1' || light === 'true' || light === 'yes';
+    return this.pos.getCurrentShift(user.companyId, warehouseId || null, {
+      light: lightMode,
+    });
   }
 
   @Post('idle-unlock')

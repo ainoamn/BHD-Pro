@@ -177,7 +177,7 @@ export default function RestoFloorPage() {
       try {
         const link = await api.getRestoLinkStatus();
         const wh = link.data.warehouseId || undefined;
-        const shift = await api.getCurrentPosShift(wh);
+        const shift = await api.getCurrentPosShift(wh, { light: true });
         setShiftOpen(!!(shift.data as { shift?: unknown })?.shift);
         setShiftStatusError(false);
       } catch {
@@ -1043,7 +1043,9 @@ export default function RestoFloorPage() {
                 try {
                   const link = await api.getRestoLinkStatus();
                   const wh = link.data.warehouseId || undefined;
-                  const shift = await api.getCurrentPosShift(wh);
+                  const shift = await api.getCurrentPosShift(wh, {
+                    light: true,
+                  });
                   setShiftOpen(!!(shift.data as { shift?: unknown })?.shift);
                   setShiftStatusError(false);
                 } catch {

@@ -58,18 +58,24 @@ export class ContactsService {
           : {}),
       },
       orderBy: { name: 'asc' },
-      take: term ? 40 : undefined,
+      // Always cap — unbounded lists + company-wide open invoices crushed POS boot.
+      take: term ? 40 : 80,
     });
 
-    const openInvoices = await this.prisma.invoice.findMany({
-      where: {
-        companyId,
-        type: { notIn: ['QUOTATION'] },
-        paymentStatus: { in: [PaymentStatus.UNPAID, PaymentStatus.PARTIAL] },
-        status: { not: InvoiceStatus.CANCELLED },
-      },
-      select: { contactId: true, type: true, total: true, paidAmount: true },
-    });
+    const contactIds = contacts.map((c) => c.id);
+    const openInvoices =
+      contactIds.length === 0
+        ? []
+        : await this.prisma.invoice.findMany({
+            where: {
+              companyId,
+              contactId: { in: contactIds },
+              type: { notIn: ['QUOTATION'] },
+              paymentStatus: { in: [PaymentStatus.UNPAID, PaymentStatus.PARTIAL] },
+              status: { not: InvoiceStatus.CANCELLED },
+            },
+            select: { contactId: true, type: true, total: true, paidAmount: true },
+          });
 
     type BalanceAgg = { receivable: number; payable: number };
     const balanceMap = new Map<string, BalanceAgg>();

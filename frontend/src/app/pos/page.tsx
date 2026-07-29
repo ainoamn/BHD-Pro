@@ -625,7 +625,7 @@ export default function PosCheckoutPage() {
     const wh = warehouseId || undefined;
     try {
       const [shiftRes, statsRes] = await Promise.all([
-        api.getCurrentPosShift(wh),
+        api.getCurrentPosShift(wh, { light: true }),
         api.getPosTodayStats(wh),
       ]);
       setShiftOpen(!!shiftRes.data?.shift);

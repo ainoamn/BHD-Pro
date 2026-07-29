@@ -2146,7 +2146,33 @@ export class PosService {
     };
   }
 
-  async getCurrentShift(companyId: string, warehouseId?: string | null) {
+  async getCurrentShift(
+    companyId: string,
+    warehouseId?: string | null,
+    opts?: { light?: boolean },
+  ) {
+    if (opts?.light) {
+      const shift = await this.prisma.posShift.findFirst({
+        where: {
+          companyId,
+          status: 'OPEN',
+          warehouseId: warehouseId ? warehouseId : null,
+        },
+        orderBy: { openedAt: 'desc' },
+        select: {
+          id: true,
+          openedAt: true,
+          openingFloat: true,
+          warehouseId: true,
+          status: true,
+          notes: true,
+          warehouse: { select: { id: true, name: true, code: true } },
+          openedBy: { select: { id: true, name: true, email: true } },
+        },
+      });
+      if (!shift) return { shift: null };
+      return { shift, live: null, cashMovements: [] };
+    }
     const shift = await this.findOpenShift(companyId, warehouseId);
     if (!shift) return { shift: null };
     const live = await this.buildZReport(
@@ -2205,18 +2231,19 @@ export class PosService {
       ...warehouseFilter,
     };
 
-    const [storeSales, mySales, storeRefundCount, myRefundCount] =
+    const [storeAgg, storeVoidCount, storeRefundCount, myAgg, myVoidCount, myRefundCount] =
       await Promise.all([
-        this.prisma.invoice.findMany({
-          where: baseWhere,
-          select: { id: true, total: true, status: true, createdById: true },
+        this.prisma.invoice.aggregate({
+          where: {
+            ...baseWhere,
+            status: { not: InvoiceStatus.CANCELLED },
+          },
+          _count: { id: true },
+          _sum: { total: true },
         }),
-        cashierId
-          ? this.prisma.invoice.findMany({
-              where: { ...baseWhere, createdById: cashierId },
-              select: { id: true, total: true, status: true },
-            })
-          : Promise.resolve([] as { id: string; total: unknown; status: InvoiceStatus }[]),
+        this.prisma.invoice.count({
+          where: { ...baseWhere, status: InvoiceStatus.CANCELLED },
+        }),
         this.prisma.invoice.count({
           where: {
             companyId,
@@ -2226,6 +2253,26 @@ export class PosService {
             ...warehouseFilter,
           },
         }),
+        cashierId
+          ? this.prisma.invoice.aggregate({
+              where: {
+                ...baseWhere,
+                createdById: cashierId,
+                status: { not: InvoiceStatus.CANCELLED },
+              },
+              _count: { id: true },
+              _sum: { total: true },
+            })
+          : Promise.resolve(null),
+        cashierId
+          ? this.prisma.invoice.count({
+              where: {
+                ...baseWhere,
+                createdById: cashierId,
+                status: InvoiceStatus.CANCELLED,
+              },
+            })
+          : Promise.resolve(0),
         cashierId
           ? this.prisma.invoice.count({
               where: {
@@ -2240,32 +2287,19 @@ export class PosService {
           : Promise.resolve(0),
       ]);
 
-    const summarize = (
-      rows: { total: unknown; status: InvoiceStatus }[],
-      refundCount: number,
-    ) => {
-      let salesCount = 0;
-      let salesTotal = 0;
-      let voidCount = 0;
-      for (const inv of rows) {
-        if (inv.status === InvoiceStatus.CANCELLED) {
-          voidCount += 1;
-          continue;
-        }
-        salesCount += 1;
-        salesTotal += Number(inv.total);
-      }
-      return {
-        salesCount,
-        salesTotal: Number(salesTotal.toFixed(3)),
-        refundCount,
-        voidCount,
-      };
+    const store = {
+      salesCount: storeAgg._count.id || 0,
+      salesTotal: Number(Number(storeAgg._sum.total || 0).toFixed(3)),
+      refundCount: storeRefundCount,
+      voidCount: storeVoidCount,
     };
-
-    const store = summarize(storeSales, storeRefundCount);
     const mine = cashierId
-      ? summarize(mySales, myRefundCount)
+      ? {
+          salesCount: myAgg?._count.id || 0,
+          salesTotal: Number(Number(myAgg?._sum.total || 0).toFixed(3)),
+          refundCount: myRefundCount,
+          voidCount: myVoidCount,
+        }
       : store;
 
     return {

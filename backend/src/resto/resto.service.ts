@@ -134,7 +134,7 @@ export class RestoService {
     return merge(
       of(null),
       this.kitchenBus(companyId),
-      interval(25000),
+      interval(35000),
     ).pipe(
       switchMap(() =>
         from(this.getKitchenQueue(companyId, stationId)).pipe(

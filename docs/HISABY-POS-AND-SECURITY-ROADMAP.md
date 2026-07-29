@@ -89,6 +89,7 @@ Public flags: `asyncApprovals: true`, `nfcBadgesConfigured`, `shiftVarianceLimit
 - [x] Parked cart notes (`pos_drafts.notes`, park/edit/recall → sale notes prefix)
 - [x] Tip on sale (`tipAmount` → tax-free Tip / بقشيش line; presets 0 / 5% / 10% / custom)
 - [x] **Cashier commission + customer loyalty points** (`incentives_config`, ledgers, compact header chip, `/pos/settings` toggles; accrue on sale / reverse on void)
+- [x] **Kitchen + POS load perf** (`light` shift check, aggregate today-stats, capped contacts, SSE-first KDS) — [`HISABY-FIX-KITCHEN-POS-PERF-2026-07-29.md`](./HISABY-FIX-KITCHEN-POS-PERF-2026-07-29.md)
 
 ### Planned
 - [ ] Hardware NFC tap-to-pay terminal (beyond hosted gateway checkout)

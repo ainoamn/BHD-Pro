@@ -3230,8 +3230,11 @@ class ApiClient {
     }>('/pos/returns/blind', body);
   }
 
-  getCurrentPosShift(warehouseId?: string) {
-    const q = warehouseId ? `?warehouseId=${encodeURIComponent(warehouseId)}` : "";
+  getCurrentPosShift(warehouseId?: string, opts?: { light?: boolean }) {
+    const params = new URLSearchParams();
+    if (warehouseId) params.set("warehouseId", warehouseId);
+    if (opts?.light) params.set("light", "1");
+    const q = params.toString() ? `?${params.toString()}` : "";
     return this.get<{
       shift: {
         id: string;
@@ -3242,7 +3245,7 @@ class ApiClient {
         openedBy?: { name: string };
         warehouse?: { id: string; name: string; code: string } | null;
       } | null;
-      live?: Record<string, number | string | null | unknown>;
+      live?: Record<string, number | string | null | unknown> | null;
       cashMovements?: {
         id: string;
         type: string;

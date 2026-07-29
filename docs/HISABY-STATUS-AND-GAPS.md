@@ -1,9 +1,10 @@
 # تقرير حالة Hisaby — منجز، فجوات، وخطة
 
-**التاريخ:** 26 يوليو 2026  
+**التاريخ:** 29 يوليو 2026  
 **المستودع:** https://github.com/ainoamn/BHD-Pro  
 **للمزامنة:** `git pull origin main`  
 **خرائط تفصيلية:** [`HISABY-POS-AND-SECURITY-ROADMAP.md`](./HISABY-POS-AND-SECURITY-ROADMAP.md)  
+**إصلاح بطء مطبخ/كاشير:** [`HISABY-FIX-KITCHEN-POS-PERF-2026-07-29.md`](./HISABY-FIX-KITCHEN-POS-PERF-2026-07-29.md)  
 **لوحة المنصة / الباقات / التسعير:** [`HISABY-ADMIN-PLANS-USERS-PRICING-2026-07-26.md`](./HISABY-ADMIN-PLANS-USERS-PRICING-2026-07-26.md)  
 **مقارنة الباقات في الصفحة الرئيسية:** [`HISABY-LANDING-PLAN-COMPARE-2026-07-26.md`](./HISABY-LANDING-PLAN-COMPARE-2026-07-26.md)  
 **موجة H جزئية (أمن + UX):** [`HISABY-WAVE-H-SECURITY-UX-2026-07-26.md`](./HISABY-WAVE-H-SECURITY-UX-2026-07-26.md)  
@@ -177,6 +178,7 @@
 - مخزون ومستودعات، تقارير وتصدير، إقفال فترات، أصول ثابتة، مراكز تكلفة
 - كاشير: بيع، ورديات X/Z، باركود، موافقات، أوفلاين، طباعة Serial، ولاء، دفع شريك
 - مطاعم: صالة، KDS، حجوزات، سفري، BOM، فصل مخزن المطاعم
+- **أداء مطبخ/كاشير (29 يوليو):** وردية خفيفة `light=1`، إحصائيات اليوم بـ aggregate، حد جهات اتصال، KDS يعتمد SSE أولاً — [`HISABY-FIX-KITCHEN-POS-PERF-2026-07-29.md`](./HISABY-FIX-KITCHEN-POS-PERF-2026-07-29.md)
 - منصة: اشتراكات، باقات حية، صلاحيات هرمية، مقارنة عميل/مشرف، 2FA سياسة
 
 ---
