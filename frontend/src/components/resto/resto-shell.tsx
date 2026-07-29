@@ -115,25 +115,6 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
     router.push("/resto/login");
   };
 
-  if (isLogin) {
-    return (
-      <div className="min-h-screen bg-[#14110f] text-stone-100 relative" dir={locale === "en" ? "ltr" : "rtl"}>
-        <div className="absolute top-3 end-3 z-50">
-          <ShellThemeToggle tone="resto" />
-        </div>
-        {children}
-      </div>
-    );
-  }
-
-  if (!hydrated) {
-    return (
-      <div className="min-h-screen bg-[#14110f] flex items-center justify-center text-stone-400 text-sm">
-        …
-      </div>
-    );
-  }
-
   /** Internal sections — not peer buttons next to Accounting/POS */
   const sections = [
     {
@@ -244,6 +225,25 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
     if (!hydrated || isLogin || !blockedByPerm) return;
     router.replace(homePathForUser(user));
   }, [hydrated, isLogin, blockedByPerm, router, user]);
+
+  if (isLogin) {
+    return (
+      <div className="min-h-screen bg-[#14110f] text-stone-100 relative" dir={locale === "en" ? "ltr" : "rtl"}>
+        <div className="absolute top-3 end-3 z-50">
+          <ShellThemeToggle tone="resto" />
+        </div>
+        {children}
+      </div>
+    );
+  }
+
+  if (!hydrated) {
+    return (
+      <div className="min-h-screen bg-[#14110f] flex items-center justify-center text-stone-400 text-sm">
+        …
+      </div>
+    );
+  }
 
   if (!planOk && !isLogin) {
     return (

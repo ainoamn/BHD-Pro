@@ -99,6 +99,6 @@
 ## الخطوة التالية المقترحة
 
 1. **أنت اليوم:** Cloudflare §1.1 + تدوير أسرار + لصق Sentry DSN.  
-2. **الكود (إصلاح إنتاج — منجز):** إصلاح فشل بناء Vercel (`toast.message`) + حد رفع JSON 4mb — [`HISABY-FIX-VERCEL-BUILD-UPLOAD-2026-07-29.md`](./HISABY-FIX-VERCEL-BUILD-UPLOAD-2026-07-29.md).  
-3. على Render: أعد نشر الـ API لحد الرفع · `prisma migrate deploy` عند الحاجة · `REDIS_URL` اختياري؛ قالب OTP واتساب.  
+2. **الكود (إصلاح React #310 — منجز):** نقل hooks قبل الـ returns في أصداف POS/المطعم — [`HISABY-FIX-REACT-310-SHELL-HOOKS-2026-07-29.md`](./HISABY-FIX-REACT-310-SHELL-HOOKS-2026-07-29.md). قبله إصلاح بناء Vercel + حد الرفع.  
+3. على Render: أعد نشر الـ API لحد الرفع · `prisma migrate deploy` عند الحاجة.  
 4. لاحقاً: أرشفة docs.

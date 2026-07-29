@@ -148,6 +148,7 @@
 **موجة EP (صدق أخطاء موافقة مزدوجة وإرسال مستندات):** [`HISABY-WAVE-EP-DUAL-SEND-DOC-ERROR-HONESTY-2026-07-28.md`](./HISABY-WAVE-EP-DUAL-SEND-DOC-ERROR-HONESTY-2026-07-28.md)
 **موجة EQ (صدق حالة الولاء على الصالة + خرائط Dual):** [`HISABY-WAVE-EQ-FLOOR-LOYALTY-STATUS-HONESTY-2026-07-28.md`](./HISABY-WAVE-EQ-FLOOR-LOYALTY-STATUS-HONESTY-2026-07-28.md)
 **إصلاح إنتاج (فشل Vercel + رفع ملفات):** [`HISABY-FIX-VERCEL-BUILD-UPLOAD-2026-07-29.md`](./HISABY-FIX-VERCEL-BUILD-UPLOAD-2026-07-29.md)
+**إصلاح React #310 (انهيار /pos و /resto):** [`HISABY-FIX-REACT-310-SHELL-HOOKS-2026-07-29.md`](./HISABY-FIX-REACT-310-SHELL-HOOKS-2026-07-29.md)
 
 ---
 

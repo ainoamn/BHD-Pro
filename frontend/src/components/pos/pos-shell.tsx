@@ -396,6 +396,15 @@ export function PosShell({ children }: { children: React.ReactNode }) {
     router.push("/pos/books");
   };
 
+  const currentModule = moduleForPosPath(pathname);
+  const blockedByPerm =
+    !!currentModule && !isCustomerDisplay && !canModule(currentModule, "view");
+
+  useEffect(() => {
+    if (!hydrated || bareShell || !blockedByPerm) return;
+    router.replace(homePathForUser(user));
+  }, [hydrated, bareShell, blockedByPerm, router, user]);
+
   if (bareShell) {
       return (
       <div className="min-h-screen bg-[#0b1220] text-slate-100 relative" dir={locale === "en" ? "ltr" : "rtl"}>
@@ -435,15 +444,6 @@ export function PosShell({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
-
-  const currentModule = moduleForPosPath(pathname);
-  const blockedByPerm =
-    !!currentModule && !isCustomerDisplay && !canModule(currentModule, "view");
-
-  useEffect(() => {
-    if (!hydrated || bareShell || !blockedByPerm) return;
-    router.replace(homePathForUser(user));
-  }, [hydrated, bareShell, blockedByPerm, router, user]);
 
   return (
     <div className="min-h-screen bg-[#0b1220] text-slate-100" dir={locale === "en" ? "ltr" : "rtl"}>
