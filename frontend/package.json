@@ -80,5 +80,11 @@
     "prettier": "^3.3.3",
     "prettier-plugin-tailwindcss": "^0.6.5",
     "ts-jest": "^29.2.3"
+  },
+  "jest": {
+    "passWithNoTests": true,
+    "testPathIgnorePatterns": [
+      "<rootDir>/e2e/"
+    ]
   }
 }
