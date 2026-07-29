@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { InvoiceStatus, PaymentStatus, PaymentMethod } from '@prisma/client';
+import {
+  InvoiceStatus,
+  PaymentStatus,
+  PaymentMethod,
+  Prisma,
+} from '@prisma/client';
 import { RedisService } from '../redis/redis.service';
 
 @Injectable()
@@ -67,14 +72,13 @@ export class DashboardService {
       contacts,
       products,
       recentInvoices,
-      salesByMonth,
-      purchasesByMonth,
+      cashFlowRows,
       todayPayments,
       pendingCollection,
       todaySalesAgg,
       overdueSales,
       overdueAmountAgg,
-      lowStockProducts,
+      lowStockRows,
       vatPending,
       hasLogo,
       pendingApprovals,
@@ -103,14 +107,25 @@ export class DashboardService {
         orderBy: { createdAt: 'desc' },
         take: 5,
       }),
-      this.prisma.invoice.findMany({
-        where: { ...notCancelled, type: 'SALES', date: { gte: sixMonthsAgo } },
-        select: { date: true, total: true },
-      }),
-      this.prisma.invoice.findMany({
-        where: { ...notCancelled, type: 'PURCHASE', date: { gte: sixMonthsAgo } },
-        select: { date: true, total: true },
-      }),
+      this.prisma.$queryRaw<
+        Array<{
+          month: Date;
+          type: string;
+          total: Prisma.Decimal | number | string;
+        }>
+      >(Prisma.sql`
+        SELECT
+          DATE_TRUNC('month', "date") AS "month",
+          "type"::text AS "type",
+          COALESCE(SUM("total"), 0) AS "total"
+        FROM "invoices"
+        WHERE "company_id" = ${companyId}
+          AND "status"::text <> ${InvoiceStatus.CANCELLED}
+          AND "type"::text IN ('SALES', 'PURCHASE')
+          AND "date" >= ${sixMonthsAgo}
+        GROUP BY DATE_TRUNC('month', "date"), "type"
+        ORDER BY DATE_TRUNC('month', "date") ASC
+      `),
       this.prisma.payment.findMany({
         where: {
           date: { gte: startOfDay, lte: endOfDay },
@@ -165,10 +180,13 @@ export class DashboardService {
         },
         _sum: { total: true, paidAmount: true },
       }),
-      this.prisma.product.findMany({
-        where: { companyId, isActive: true },
-        select: { id: true, quantity: true, minQuantity: true },
-      }),
+      this.prisma.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`
+        SELECT COUNT(*)::bigint AS "count"
+        FROM "products"
+        WHERE "company_id" = ${companyId}
+          AND "is_active" = true
+          AND "quantity" <= "min_quantity"
+      `),
       this.prisma.invoice.count({
         where: {
           companyId,
@@ -258,25 +276,18 @@ export class DashboardService {
       0,
       Number(overdueAmountAgg._sum.total || 0) - Number(overdueAmountAgg._sum.paidAmount || 0),
     );
-    const lowStockCount = lowStockProducts.filter(
-      (p) => Number(p.quantity) <= Number(p.minQuantity),
-    ).length;
+    const lowStockCount = Number(lowStockRows[0]?.count || 0);
 
     const monthKey = (d: Date) =>
       `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 
     const bucket = new Map<string, { revenue: number; expenses: number }>();
 
-    for (const inv of salesByMonth) {
-      const key = monthKey(new Date(inv.date));
+    for (const row of cashFlowRows) {
+      const key = monthKey(new Date(row.month));
       const cur = bucket.get(key) || { revenue: 0, expenses: 0 };
-      cur.revenue += Number(inv.total);
-      bucket.set(key, cur);
-    }
-    for (const inv of purchasesByMonth) {
-      const key = monthKey(new Date(inv.date));
-      const cur = bucket.get(key) || { revenue: 0, expenses: 0 };
-      cur.expenses += Number(inv.total);
+      if (row.type === 'SALES') cur.revenue += Number(row.total);
+      if (row.type === 'PURCHASE') cur.expenses += Number(row.total);
       bucket.set(key, cur);
     }
 

@@ -2165,6 +2165,7 @@ model RestoOrder {
   @@unique([companyId, number])
   @@unique([companyId, externalChannel, externalOrderId])
   @@index([companyId, status, createdAt])
+  @@index([companyId, status, closedAt])
   @@index([companyId, tableId])
   @@index([invoiceId])
   @@index([companyId, tipAssigneeId])

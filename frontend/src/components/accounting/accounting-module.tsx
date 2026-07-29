@@ -141,6 +141,7 @@ interface Invoice {
   costCenter?: { id: string; code: string; name: string } | null;
   project?: { id: string; code: string; name: string } | null;
   payments?: { id: string }[];
+  paymentCount?: number;
   contact: Contact;
   items: InvoiceItem[];
 }
@@ -262,6 +263,15 @@ export function AccountingModule() {
   const [statusFilter, setStatusFilter] = useState("");
   const [paymentFilter, setPaymentFilter] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
+
+  useEffect(() => {
+    const timer = window.setTimeout(
+      () => setDebouncedSearchQuery(searchQuery.trim()),
+      300,
+    );
+    return () => window.clearTimeout(timer);
+  }, [searchQuery]);
 
   const baseCurrency = company?.currency || "OMR";
   const defaultDial =
@@ -409,16 +419,24 @@ export function AccountingModule() {
             : undefined;
 
   const { data: invoices = [], isLoading, isError, refetch } = useQuery({
-    queryKey: ["invoices", listTypeFilter, statusFilter, paymentFilter, searchQuery],
+    queryKey: [
+      "invoices",
+      listTypeFilter,
+      statusFilter,
+      paymentFilter,
+      debouncedSearchQuery,
+    ],
     queryFn: async () => {
       const res = await api.getInvoices({
         type: listTypeFilter,
         status: statusFilter || undefined,
         paymentStatus: paymentFilter || undefined,
-        q: searchQuery.trim() || undefined,
+        q: debouncedSearchQuery || undefined,
+        summary: true,
       });
       return res.data as Invoice[];
     },
+    enabled: hubTab !== "overview",
   });
 
   const filteredInvoices = invoices;
@@ -436,6 +454,7 @@ export function AccountingModule() {
         isActive: boolean;
       }[];
     },
+    enabled: hubTab !== "overview" || modalOpen || printInvoice !== null,
   });
 
   const resolveDocTemplate = (invoiceType: string, variant: "invoice" | "receipt") => {
@@ -473,6 +492,7 @@ export function AccountingModule() {
       const res = await api.getContacts(contactsQueryType);
       return res.data as Contact[];
     },
+    enabled: modalOpen,
   });
 
   const { data: costCenters = [] } = useQuery({
@@ -481,6 +501,7 @@ export function AccountingModule() {
       const res = await api.getCostCenters();
       return res.data as { id: string; code: string; name: string }[];
     },
+    enabled: modalOpen,
   });
 
   const { data: projects = [] } = useQuery({
@@ -489,6 +510,7 @@ export function AccountingModule() {
       const res = await api.getProjects();
       return res.data as { id: string; code: string; name: string; costCenterId?: string | null }[];
     },
+    enabled: modalOpen,
   });
 
   const { data: invoiceFields = [] } = useQuery({
@@ -497,6 +519,7 @@ export function AccountingModule() {
       const res = await api.getCustomFields("INVOICE");
       return res.data as CustomFieldDef[];
     },
+    enabled: modalOpen,
   });
 
   const contactType = invoiceType === "SALES" ? "CUSTOMER" : "SUPPLIER";
@@ -520,37 +543,45 @@ export function AccountingModule() {
     setQuickCustomerName("");
   };
 
-  const openEdit = (inv: Invoice) => {
+  const openEdit = async (inv: Invoice) => {
     if (!canEditInvoice(inv.status, Number(inv.paidAmount || 0), inv.paymentStatus)) {
       toast.error(
         Number(inv.paidAmount || 0) > 0 ? t("cannotEditWithPayments") : t("cannotEditPaid")
       );
       return;
     }
-    setEditingId(inv.id);
-    setInvoiceType(inv.type as InvoiceType);
-    setContactId(inv.contact?.id || "");
-    setCostCenterId(inv.costCenterId || inv.costCenter?.id || "");
-    setProjectId(inv.projectId || inv.project?.id || "");
-    setDate(inv.date.split("T")[0]);
-    setDueDate(inv.dueDate.split("T")[0]);
-    setNotes(inv.notes || "");
-    setCustomFields(inv.customFieldsJson || {});
-    const rate = Number(inv.exchangeRate || 1) || 1;
-    const invCurrency = (inv.currency || company?.currency || "OMR").toUpperCase();
+    let full: Invoice;
+    try {
+      const res = await api.getInvoice(inv.id);
+      full = res.data as Invoice;
+    } catch (err) {
+      toast.error(apiErrorMessage(err, t("actionError")));
+      return;
+    }
+    setEditingId(full.id);
+    setInvoiceType(full.type as InvoiceType);
+    setContactId(full.contact?.id || "");
+    setCostCenterId(full.costCenterId || full.costCenter?.id || "");
+    setProjectId(full.projectId || full.project?.id || "");
+    setDate(full.date.split("T")[0]);
+    setDueDate(full.dueDate.split("T")[0]);
+    setNotes(full.notes || "");
+    setCustomFields(full.customFieldsJson || {});
+    const rate = Number(full.exchangeRate || 1) || 1;
+    const invCurrency = (full.currency || company?.currency || "OMR").toUpperCase();
     setDocCurrency(invCurrency);
     setExchangeRate(rate);
     const base = (company?.currency || "OMR").toUpperCase();
     const discountDoc =
       invCurrency !== base && rate > 0
-        ? Number((Number(inv.discount) / rate).toFixed(3))
-        : Number(inv.discount);
+        ? Number((Number(full.discount) / rate).toFixed(3))
+        : Number(full.discount);
     setDiscount(discountDoc);
-    const invTaxRate = Number(inv.taxRate ?? 0);
+    const invTaxRate = Number(full.taxRate ?? 0);
     setDocApplyVat(invTaxRate > 0);
     setDocTaxRate(invTaxRate > 0 ? invTaxRate : companyVatRate);
     setLines(
-      inv.items.map((i) => ({
+      full.items.map((i) => ({
         description: i.description,
         quantity: Number(i.quantity),
         unitPrice: Number(i.unitPrice),
@@ -636,12 +667,11 @@ export function AccountingModule() {
 
   const openDocument = async (inv: Invoice, variant: "invoice" | "receipt" = "invoice") => {
     setDocumentVariant(variant);
-    setPrintInvoice(inv);
     try {
       const res = await api.getInvoice(inv.id);
       setPrintInvoice(res.data as Invoice);
-    } catch {
-      // keep list snapshot if refresh fails
+    } catch (err) {
+      toast.error(apiErrorMessage(err, t("actionError")));
     }
   };
 
@@ -841,9 +871,7 @@ export function AccountingModule() {
     unsendMutation.isPending ||
     convertQuotationMutation.isPending;
 
-  const activeDocumentInvoice = printInvoice
-    ? invoices.find((i) => i.id === printInvoice.id) ?? printInvoice
-    : null;
+  const activeDocumentInvoice = printInvoice;
 
   const statusColor = (status: string) => {
     const map: Record<string, string> = {
@@ -1379,7 +1407,7 @@ export function AccountingModule() {
                   status={inv.status}
                   paymentStatus={inv.paymentStatus}
                   paidAmount={Number(inv.paidAmount || 0)}
-                  paymentCount={inv.payments?.length ?? 0}
+                  paymentCount={inv.paymentCount ?? inv.payments?.length ?? 0}
                   invoiceType={inv.type}
                   disabled={actionsBusy}
                   onView={() => openDocument(inv, "invoice")}
@@ -1460,7 +1488,7 @@ export function AccountingModule() {
                         status={inv.status}
                         paymentStatus={inv.paymentStatus}
                         paidAmount={Number(inv.paidAmount || 0)}
-                  paymentCount={inv.payments?.length ?? 0}
+                        paymentCount={inv.paymentCount ?? inv.payments?.length ?? 0}
                         invoiceType={inv.type}
                         disabled={actionsBusy}
                         onView={() => openDocument(inv, "invoice")}

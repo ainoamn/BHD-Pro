@@ -4750,7 +4750,7 @@ export class RestoService {
     const businessDayFrom = this.startOfDayInZone(timezone);
     const asOf = new Date();
 
-    const [zones, assignments, openOrders, closedToday] = await Promise.all([
+    const [zones, assignments, openOrders, closedTodayRows] = await Promise.all([
       this.prisma.restoZone.findMany({
         where: { companyId },
         orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
@@ -4793,25 +4793,91 @@ export class RestoService {
         },
         take: 500,
       }),
-      this.prisma.restoOrder.findMany({
-        where: {
-          companyId,
-          status: RestoOrderStatus.CLOSED,
-          invoiceId: { not: null },
-          closedAt: { gte: businessDayFrom },
-        },
-        include: {
-          table: { select: { id: true, code: true, zoneId: true } },
-          items: {
-            where: {
-              status: { not: RestoOrderItemStatus.CANCELLED },
-              isComp: false,
-            },
-            select: { qty: true, unitPrice: true },
-          },
-        },
-        take: 3000,
-      }),
+      this.prisma.$queryRaw<
+        Array<{
+          zoneId: string | null;
+          orders: bigint;
+          covers: bigint;
+          revenue: Prisma.Decimal | number | string;
+          tips: Prisma.Decimal | number | string;
+        }>
+      >(Prisma.sql`
+        WITH "order_totals" AS (
+          SELECT
+            o."id",
+            o."invoice_id" AS "invoiceId",
+            o."guests",
+            t."zone_id" AS "zoneId",
+            COALESCE(
+              SUM(
+                CASE
+                  WHEN oi."status"::text <> ${RestoOrderItemStatus.CANCELLED}
+                    AND oi."is_comp" = false
+                  THEN oi."qty" * oi."unit_price"
+                  ELSE 0
+                END
+              ),
+              0
+            ) AS "revenue"
+          FROM "resto_orders" o
+          LEFT JOIN "resto_tables" t ON t."id" = o."table_id"
+          LEFT JOIN "resto_order_items" oi ON oi."order_id" = o."id"
+          WHERE o."company_id" = ${companyId}
+            AND o."status"::text = ${RestoOrderStatus.CLOSED}
+            AND o."invoice_id" IS NOT NULL
+            AND o."closed_at" >= ${businessDayFrom}
+          GROUP BY o."id", o."invoice_id", o."guests", t."zone_id"
+        ),
+        "tip_lines" AS (
+          SELECT
+            ii."invoice_id" AS "invoiceId",
+            COALESCE(
+              SUM(
+                CASE
+                  WHEN LOWER(COALESCE(ii."description", '')) LIKE '%tip%'
+                    OR COALESCE(ii."description", '') LIKE '%بقشيش%'
+                  THEN ii."unit_price" * ii."quantity"
+                  ELSE 0
+                END
+              ),
+              0
+            ) AS "tip"
+          FROM "invoice_items" ii
+          INNER JOIN "order_totals" ot ON ot."invoiceId" = ii."invoice_id"
+          GROUP BY ii."invoice_id"
+        ),
+        "invoice_tips" AS (
+          SELECT
+            ids."invoiceId",
+            CASE
+              WHEN (
+                CASE
+                  WHEN COALESCE(inv."custom_fields_json" ->> 'tipAmount', '')
+                    ~ '^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)$'
+                  THEN (inv."custom_fields_json" ->> 'tipAmount')::numeric
+                  ELSE 0
+                END
+              ) > 0.0005
+              THEN (inv."custom_fields_json" ->> 'tipAmount')::numeric
+              ELSE COALESCE(tl."tip", 0)
+            END AS "tip"
+          FROM (
+            SELECT DISTINCT "invoiceId"
+            FROM "order_totals"
+          ) ids
+          INNER JOIN "invoices" inv ON inv."id" = ids."invoiceId"
+          LEFT JOIN "tip_lines" tl ON tl."invoiceId" = ids."invoiceId"
+        )
+        SELECT
+          ot."zoneId",
+          COUNT(*)::bigint AS "orders",
+          COALESCE(SUM(ot."guests"), 0)::bigint AS "covers",
+          COALESCE(SUM(ot."revenue"), 0) AS "revenue",
+          COALESCE(SUM(it."tip"), 0) AS "tips"
+        FROM "order_totals" ot
+        LEFT JOIN "invoice_tips" it ON it."invoiceId" = ot."invoiceId"
+        GROUP BY ot."zoneId"
+      `),
     ]);
 
     const serverByZone = new Map(
@@ -4823,36 +4889,6 @@ export class RestoService {
         },
       ]),
     );
-
-    const invoiceIds = closedToday
-      .map((o) => o.invoiceId)
-      .filter((id): id is string => !!id);
-    const invoices =
-      invoiceIds.length > 0
-        ? await this.prisma.invoice.findMany({
-            where: { companyId, id: { in: invoiceIds } },
-            select: {
-              id: true,
-              customFieldsJson: true,
-              items: {
-                select: { description: true, unitPrice: true, quantity: true },
-              },
-            },
-          })
-        : [];
-    const tipByInvoice = new Map<string, number>();
-    for (const inv of invoices) {
-      const fields =
-        inv.customFieldsJson &&
-        typeof inv.customFieldsJson === 'object' &&
-        !Array.isArray(inv.customFieldsJson)
-          ? (inv.customFieldsJson as Record<string, unknown>)
-          : {};
-      tipByInvoice.set(
-        inv.id,
-        this.tipFromInvoiceFields(fields, inv.items || []),
-      );
-    }
 
     type SectionAcc = {
       zoneId: string;
@@ -4950,33 +4986,28 @@ export class RestoService {
     let houseRevenue = 0;
     let houseTips = 0;
 
-    for (const order of closedToday) {
-      const rev = order.items.reduce(
-        (s, i) => s + Number(i.qty) * Number(i.unitPrice),
-        0,
-      );
-      const tip = order.invoiceId
-        ? tipByInvoice.get(order.invoiceId) || 0
-        : 0;
-      const covers = order.guests || 0;
-      houseClosedOrders += 1;
+    for (const row of closedTodayRows) {
+      const orders = Number(row.orders);
+      const covers = Number(row.covers);
+      const revenue = Number(row.revenue);
+      const tips = Number(row.tips);
+      houseClosedOrders += orders;
       houseClosedCovers += covers;
-      houseRevenue += rev;
-      houseTips += tip;
+      houseRevenue += revenue;
+      houseTips += tips;
 
-      const zoneId = order.table?.zoneId;
+      const zoneId = row.zoneId;
       if (zoneId && sections.has(zoneId)) {
         const sec = sections.get(zoneId)!;
-        sec.closedOrders += 1;
+        sec.closedOrders += orders;
         sec.closedCovers += covers;
-        sec.closedRevenue += rev;
-        // Attribute tip to zone of the table (section board view)
-        sec.tips += tip;
+        sec.closedRevenue += revenue;
+        sec.tips += tips;
       } else {
-        offFloor.closedOrders += 1;
+        offFloor.closedOrders += orders;
         offFloor.closedCovers += covers;
-        offFloor.closedRevenue += rev;
-        offFloor.tips += tip;
+        offFloor.closedRevenue += revenue;
+        offFloor.tips += tips;
       }
     }
 

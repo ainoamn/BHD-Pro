@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Delete, Body, Param, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { JournalService } from './journal.service';
@@ -23,8 +32,12 @@ export class JournalController {
   }
 
   @Get()
-  findAll(@CurrentUser() user: TokenPayload) {
-    return this.journalService.findAll(user.companyId);
+  findAll(@CurrentUser() user: TokenPayload, @Query('take') take?: string) {
+    const requestedTake = take ? Number(take) : undefined;
+    return this.journalService.findAll(
+      user.companyId,
+      Number.isFinite(requestedTake) ? requestedTake : undefined,
+    );
   }
 
   @Get(':id')
