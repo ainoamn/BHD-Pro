@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { createHash } from 'crypto';
 import helmet from 'helmet';
@@ -13,7 +14,14 @@ async function bootstrap() {
   assertProductionSecrets();
   await initSentry();
 
-  const app = await NestFactory.create(AppModule, { rawBody: true });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    rawBody: true,
+  });
+
+  // Attachments / company logo travel as base64 data URLs (~2MB ceiling → ~2.8MB JSON).
+  // Keep rawBody for payment webhooks via Nest's useBodyParser.
+  app.useBodyParser('json', { limit: '4mb' });
+  app.useBodyParser('urlencoded', { limit: '4mb', extended: true });
 
   app.use(
     helmet({

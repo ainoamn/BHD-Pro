@@ -99,6 +99,6 @@
 ## الخطوة التالية المقترحة
 
 1. **أنت اليوم:** Cloudflare §1.1 + تدوير أسرار + لصق Sentry DSN.  
-2. **الكود (Wave EQ — منجز):** صدق حالة الولاء على الصالة + خرائط Dual/OTP — [`HISABY-WAVE-EQ-FLOOR-LOYALTY-STATUS-HONESTY-2026-07-28.md`](./HISABY-WAVE-EQ-FLOOR-LOYALTY-STATUS-HONESTY-2026-07-28.md) · قبله EP موافقة/مستندات.  
-3. على Render: `prisma migrate deploy` (يشمل أعمدة إشعار الحجوزات) · `REDIS_URL` اختياري؛ قالب OTP واتساب؛ `REQUIRE_2FA_HARD_AFTER_GRACE=1` عند الرغبة بقفل التعديلات.  
+2. **الكود (إصلاح إنتاج — منجز):** إصلاح فشل بناء Vercel (`toast.message`) + حد رفع JSON 4mb — [`HISABY-FIX-VERCEL-BUILD-UPLOAD-2026-07-29.md`](./HISABY-FIX-VERCEL-BUILD-UPLOAD-2026-07-29.md).  
+3. على Render: أعد نشر الـ API لحد الرفع · `prisma migrate deploy` عند الحاجة · `REDIS_URL` اختياري؛ قالب OTP واتساب.  
 4. لاحقاً: أرشفة docs.
