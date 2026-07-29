@@ -27,5 +27,5 @@ COPY --from=build /app/src/prisma ./src/prisma
 COPY package.json ./
 EXPOSE 3001
 # Client already generated at image build — skip generate on boot (OOM on 512Mi).
-# Prefer migrate deploy; fall back to db push only if _prisma_migrations is empty/broken.
-CMD ["sh", "-c", "npx prisma migrate deploy --skip-generate || npx prisma db push --accept-data-loss --skip-generate; node --max-old-space-size=384 dist/main"]
+# Never start against an un-migrated schema and never mutate production with db push.
+CMD ["sh", "-c", "npx prisma migrate deploy --skip-generate && exec node --max-old-space-size=384 dist/main"]
