@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Calculator,
@@ -622,8 +623,13 @@ export function PosShell({ children }: { children: React.ReactNode }) {
           </div>
         ) : null}
 
-        {menuOpen ? (
-          <div className="lg:hidden fixed inset-0 z-50">
+        {menuOpen && typeof document !== "undefined" ? createPortal(
+          <div
+            className="fixed inset-0 z-50 lg:hidden"
+            role="dialog"
+            aria-modal="true"
+            aria-label={locale === "en" ? "POS navigation" : "قائمة الكاشير"}
+          >
             <button
               type="button"
               className="absolute inset-0 bg-black/60"
@@ -738,7 +744,8 @@ export function PosShell({ children }: { children: React.ReactNode }) {
                 </button>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body,
         ) : null}
 
       </header>

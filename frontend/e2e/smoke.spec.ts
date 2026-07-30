@@ -125,4 +125,30 @@ test.describe("mobile app switcher", () => {
       ).toHaveAttribute("aria-current", "page");
     });
   }
+
+  for (const [path, drawerName, sectionHref] of [
+    ["/pos", /POS navigation|قائمة الكاشير/i, "/pos/inventory"],
+    ["/resto", /Restaurant navigation|قائمة المطعم/i, "/resto/takeaway"],
+  ] as const) {
+    test(`opens the full-screen navigation drawer on ${path}`, async ({
+      page,
+    }) => {
+      await page.goto(path, { waitUntil: "domcontentloaded" });
+      const menuButton = page.getByRole("button", { name: "Menu" });
+      await expect(menuButton).toBeVisible({ timeout: 30_000 });
+      await menuButton.click();
+
+      const drawer = page.getByRole("dialog", { name: drawerName });
+      await expect(drawer).toBeVisible();
+      await expect(
+        drawer.locator(`a[href="${sectionHref}"]`).first(),
+      ).toBeVisible();
+
+      const box = await drawer.boundingBox();
+      expect(box?.height).toBeGreaterThan(800);
+
+      await drawer.getByRole("button", { name: "Close" }).click();
+      await expect(drawer).toBeHidden();
+    });
+  }
 });
