@@ -90,27 +90,56 @@ export class InvoicesService {
       paymentStatus?: PaymentStatus;
       q?: string;
       take?: number;
+      summary?: boolean;
     },
   ) {
     const q = filters?.q?.trim();
     const take = Math.min(Math.max(filters?.take ?? 80, 1), 200);
+    const where = {
+      companyId,
+      ...(filters?.isCash != null ? { isCash: filters.isCash } : {}),
+      ...(filters?.type ? { type: filters.type } : {}),
+      ...(filters?.status ? { status: filters.status } : {}),
+      ...(filters?.paymentStatus ? { paymentStatus: filters.paymentStatus } : {}),
+      ...(q
+        ? {
+            OR: [
+              { number: { contains: q, mode: 'insensitive' as const } },
+              { contact: { name: { contains: q, mode: 'insensitive' as const } } },
+              { contact: { nameEn: { contains: q, mode: 'insensitive' as const } } },
+            ],
+          }
+        : {}),
+    };
+
+    if (filters?.summary) {
+      const rows = await this.prisma.invoice.findMany({
+        where,
+        include: {
+          contact: {
+            select: {
+              id: true,
+              name: true,
+              nameEn: true,
+              email: true,
+              phone: true,
+              address: true,
+              city: true,
+            },
+          },
+          _count: { select: { payments: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take,
+      });
+      return rows.map(({ _count, ...invoice }) => ({
+        ...invoice,
+        paymentCount: _count.payments,
+      }));
+    }
+
     return this.prisma.invoice.findMany({
-      where: {
-        companyId,
-        ...(filters?.isCash != null ? { isCash: filters.isCash } : {}),
-        ...(filters?.type ? { type: filters.type } : {}),
-        ...(filters?.status ? { status: filters.status } : {}),
-        ...(filters?.paymentStatus ? { paymentStatus: filters.paymentStatus } : {}),
-        ...(q
-          ? {
-              OR: [
-                { number: { contains: q, mode: 'insensitive' as const } },
-                { contact: { name: { contains: q, mode: 'insensitive' as const } } },
-                { contact: { nameEn: { contains: q, mode: 'insensitive' as const } } },
-              ],
-            }
-          : {}),
-      },
+      where,
       include: {
         contact: {
           select: {
@@ -1248,7 +1277,12 @@ export class InvoicesService {
     };
   }
 
-  async listPayments(companyId: string, invoiceType?: 'SALES' | 'PURCHASE') {
+  async listPayments(
+    companyId: string,
+    invoiceType?: 'SALES' | 'PURCHASE',
+    requestedTake?: number,
+  ) {
+    const take = Math.min(Math.max(requestedTake || 200, 1), 500);
     const types = invoiceType
       ? invoiceType === 'SALES'
         ? (['SALES', 'CREDIT_NOTE'] as const)
@@ -1273,6 +1307,7 @@ export class InvoicesService {
         },
       },
       orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+      take,
     });
 
     return payments.map((p) => ({

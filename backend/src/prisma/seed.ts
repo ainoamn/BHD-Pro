@@ -4,6 +4,12 @@ import * as bcrypt from 'bcrypt';
 const prisma = new PrismaClient();
 
 async function main() {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'Demo seed is disabled in production because it creates known credentials and sample data.',
+    );
+  }
+
   const oldUser = await prisma.user.findUnique({ where: { email: 'admin@qootk.com' } });
   if (oldUser) {
     await prisma.user.update({

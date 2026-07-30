@@ -10,12 +10,18 @@ import {
 } from './dto/attachment.dto';
 import { StorageService } from '../storage/storage.service';
 
-const ALLOWED_MIME_PREFIXES = [
-  'image/',
+const ALLOWED_MIME_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+  'image/heic',
+  'image/heif',
   'application/pdf',
   'application/msword',
-  'application/vnd.openxmlformats-officedocument',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'text/plain',
   'text/csv',
 ];
@@ -72,13 +78,9 @@ export class AttachmentsService {
     if (dto.sizeBytes != null && dto.sizeBytes > 2_000_000) {
       throw new BadRequestException('Attachment exceeds maximum size (2 MB)');
     }
-    if (dto.mimeType) {
-      const ok = ALLOWED_MIME_PREFIXES.some(
-        (p) => dto.mimeType === p || dto.mimeType!.startsWith(p),
-      );
-      if (!ok) {
-        throw new BadRequestException('Attachment MIME type is not allowed');
-      }
+    const mimeType = dto.mimeType.trim().toLowerCase();
+    if (!ALLOWED_MIME_TYPES.includes(mimeType)) {
+      throw new BadRequestException('Attachment MIME type is not allowed');
     }
   }
 }

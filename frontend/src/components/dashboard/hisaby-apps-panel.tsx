@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import {
   Calculator,
@@ -30,34 +31,27 @@ export function HisabyAppsPanel({ className }: { className?: string }) {
   const t = useTranslations("dashboard");
   const user = useAuthStore((s) => s.user);
   const perms = user?.modulePermissions;
-  const [loadError, setLoadError] = useState(false);
-  const [planFeatures, setPlanFeatures] = useState<Record<string, boolean>>(
-    () => featuresFromPlanId(user?.company?.plan),
+  const {
+    data: subscription,
+    isError: loadError,
+    refetch,
+  } = useQuery({
+    queryKey: ["subscription-modules"],
+    queryFn: async () => {
+      const res = await api.getCurrentSubscription({ light: true });
+      return res.data as {
+        features?: Record<string, boolean>;
+        plan?: string;
+      };
+    },
+  });
+  const planFeatures = useMemo(
+    () => ({
+      ...featuresFromPlanId(subscription?.plan || user?.company?.plan),
+      ...(subscription?.features || {}),
+    }),
+    [subscription?.features, subscription?.plan, user?.company?.plan],
   );
-
-  const refresh = useCallback(async () => {
-    setLoadError(false);
-    try {
-      const [sub] = await Promise.all([
-        api.getCurrentSubscription().catch(() => null),
-        api.getPosLinkStatus().catch(() => null),
-        api.getRestoLinkStatus().catch(() => null),
-      ]);
-      const data = sub?.data as
-        | { features?: Record<string, boolean>; plan?: string }
-        | undefined;
-      const fromPlan = featuresFromPlanId(data?.plan || user?.company?.plan);
-      setPlanFeatures({ ...fromPlan, ...(data?.features || {}) });
-      setLoadError(false);
-    } catch {
-      setLoadError(true);
-      setPlanFeatures(featuresFromPlanId(user?.company?.plan));
-    }
-  }, [user?.company?.plan]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
 
   const apps = useMemo(() => {
     const all = [
@@ -122,7 +116,7 @@ export function HisabyAppsPanel({ className }: { className?: string }) {
           <p className="text-sm text-rose-300">{t("appsLoadFailed")}</p>
           <button
             type="button"
-            onClick={() => void refresh()}
+            onClick={() => void refetch()}
             className="rounded-lg bg-amber-500 px-3 py-1 text-xs font-bold text-slate-950"
           >
             {t("appsRetry")}

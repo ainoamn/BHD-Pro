@@ -18,6 +18,9 @@ const spaceGrotesk = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_APP_URL || "https://hisaby.pro",
+  ),
   title: "حسابي Hisaby — محاسبة سحابية لأعمال الخليج والمنطقة",
   description:
     "حسابي (Hisaby) منصة محاسبة سحابية للشركات في الخليج والمنطقة: فواتير، مخزون، ضريبة، وتقارير. مطوّر ومشغّل بواسطة شركة بن حمود للتطوير.",

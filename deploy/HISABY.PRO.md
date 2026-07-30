@@ -118,9 +118,10 @@ NEXT_PUBLIC_API_URL=/backend-api
 بعد النشر / سحب الكود:
 
 ```bash
-docker compose -f docker-compose.prod.yml --env-file .env.production exec backend npx prisma db push
-# أو: npx prisma migrate deploy
+docker compose -f docker-compose.prod.yml --env-file .env.production exec backend npx prisma migrate deploy
 ```
+
+لا تستخدم `prisma db push` أو `--accept-data-loss` على قاعدة بيانات الإنتاج.
 
 تحقق من `/pos` وتوليد مفتاح الربط من **إعدادات الشركة** أو `/pos/settings`.
 

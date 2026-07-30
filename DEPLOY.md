@@ -19,7 +19,10 @@
 | `CORS_ORIGIN` | `https://hisaby.pro` |
 | `FRONTEND_URL` | `https://hisaby.pro` |
 | `API_PUBLIC_URL` | `https://hisaby.pro` |
-| `PLATFORM_ADMIN_EMAILS` | اختياري — مشرفون إضافيون. الافتراضي: `admin@bhd.om`, `admin@hisaby.pro`. يمكن التعيين أيضاً من `/admin/operators` |
+| `PLATFORM_ADMIN_EMAILS` | إلزامي في الإنتاج — عناوين المشغلين الموثوقين فقط |
+| `PLATFORM_OWNER_EMAIL` | المالك المحمي الوحيد للمنصة |
+| `ALLOW_PUBLIC_REGISTRATION` | اتركه `false` حتى اعتماد الإطلاق العام |
+| `REDIS_URL` | إلزامي للتقييد والكاش الموزع عند تعدد النسخ |
 
 ## الأمان (الإنتاج)
 
@@ -47,8 +50,7 @@
 # من مجلد backend (أو داخل حاوية الـ API) — المفضّل على الإنتاج:
 npx prisma migrate deploy
 
-# بديل فقط للبيئات التجريبية بدون جدول _prisma_migrations:
-# npx prisma db push
+# لا تستخدم prisma db push أو --accept-data-loss في الإنتاج.
 ```
 
 Migration ذات الصلة: `20260723183000_pos_link_and_product_uniques`  

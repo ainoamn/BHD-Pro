@@ -453,6 +453,7 @@ class ApiClient {
     paymentStatus?: string;
     q?: string;
     take?: number;
+    summary?: boolean;
   }) {
     return this.get('/invoices', {
       params: {
@@ -461,6 +462,7 @@ class ApiClient {
         ...(params?.status ? { status: params.status } : {}),
         ...(params?.paymentStatus ? { paymentStatus: params.paymentStatus } : {}),
         ...(params?.q ? { q: params.q } : {}),
+        ...(params?.summary != null ? { summary: String(params.summary) } : {}),
         take: String(params?.take ?? 80),
       },
     });
@@ -867,8 +869,8 @@ class ApiClient {
   }
 
   // Journal
-  getJournals() {
-    return this.get('/journal');
+  getJournals(take = 200) {
+    return this.get('/journal', { params: { take: String(take) } });
   }
 
   getJournalAccounts() {
@@ -3214,6 +3216,7 @@ class ApiClient {
         email?: string;
         sms?: string;
         whatsappError?: string;
+        whatsappTo?: string;
         receiptTemplate?: string | null;
       };
     }>(`/pos/sales/${id}/notify`);

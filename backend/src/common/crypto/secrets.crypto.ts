@@ -79,6 +79,8 @@ export function assertProductionSecrets() {
     'qootk-dev-refresh-secret',
     'change-me',
     'secret',
+    'REPLACE_WITH',
+    'CHANGE_ME',
   ];
 
   if (jwt.length < 32 || weak.some((w) => jwt.includes(w))) {
@@ -94,12 +96,42 @@ export function assertProductionSecrets() {
   if (jwt === refresh) {
     throw new Error('FATAL: JWT_SECRET and JWT_REFRESH_SECRET must differ');
   }
-  if (!process.env.PAYMENT_SECRETS_KEY || process.env.PAYMENT_SECRETS_KEY.length < 32) {
+  const paymentSecretsKey = process.env.PAYMENT_SECRETS_KEY || '';
+  if (
+    paymentSecretsKey.length < 32 ||
+    weak.some((w) => paymentSecretsKey.includes(w))
+  ) {
     throw new Error(
       'FATAL: PAYMENT_SECRETS_KEY (≥32 chars) required in production to encrypt gateway secrets',
     );
   }
-  if (!process.env.CORS_ORIGIN || process.env.CORS_ORIGIN.includes('localhost')) {
-    throw new Error('FATAL: CORS_ORIGIN must be set to your HTTPS frontend origin in production');
+
+  const corsOrigins = (process.env.CORS_ORIGIN || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  if (
+    !corsOrigins.length ||
+    corsOrigins.includes('*') ||
+    corsOrigins.some((origin) => {
+      try {
+        return new URL(origin).protocol !== 'https:';
+      } catch {
+        return true;
+      }
+    })
+  ) {
+    throw new Error(
+      'FATAL: CORS_ORIGIN must contain only explicit HTTPS origins in production',
+    );
+  }
+
+  for (const key of ['FRONTEND_URL', 'API_PUBLIC_URL']) {
+    const value = process.env[key] || '';
+    try {
+      if (new URL(value).protocol !== 'https:') throw new Error();
+    } catch {
+      throw new Error(`FATAL: ${key} must be an absolute HTTPS URL`);
+    }
   }
 }

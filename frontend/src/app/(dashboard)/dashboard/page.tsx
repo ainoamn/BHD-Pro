@@ -85,17 +85,18 @@ export default function DashboardPage() {
     },
   });
 
-  const {
-    data: modules,
-    isLoading: modulesLoading,
-    isFetched: modulesFetched,
-  } = useQuery({
+  const { data: subscription } = useQuery({
     queryKey: ["subscription-modules"],
     queryFn: async () => {
       const res = await api.getCurrentSubscription({ light: true });
-      return (res.data as { modules?: Record<string, PlanModuleGrant> }).modules || null;
+      return res.data as {
+        modules?: Record<string, PlanModuleGrant>;
+        features?: Record<string, boolean>;
+        plan?: string;
+      };
     },
   });
+  const modules = subscription?.modules;
 
   const grant = (child: string) =>
     isChildGranted(modules || undefined, "dashboard", child);
@@ -120,8 +121,7 @@ export default function DashboardPage() {
     enabled: collectOpen,
   });
 
-  /** Wait for modules + stats so LockedHint cards don't flash/scatter for 10–20s. */
-  const bootLoading = isLoading || modulesLoading || !modulesFetched;
+  const bootLoading = isLoading;
 
   return (
     <div className="space-y-5 sm:space-y-6">

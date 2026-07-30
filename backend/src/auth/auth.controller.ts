@@ -35,8 +35,15 @@ export class AuthController {
   @ApiOperation({ summary: 'Login with email and password' })
   @ApiResponse({ status: 200, description: 'Login successful' })
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
-  async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
-    const result = await this.authService.login(dto);
+  async login(
+    @Body() dto: LoginDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.login(dto, {
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
     if ('requires2fa' in result && result.requires2fa) {
       return result;
     }
@@ -55,9 +62,17 @@ export class AuthController {
   @ApiOperation({ summary: 'Complete login with TOTP code' })
   async verify2faLogin(
     @Body() dto: Verify2faLoginDto,
+    @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const result = await this.authService.verify2faLogin(dto.tempToken, dto.code);
+    const result = await this.authService.verify2faLogin(
+      dto.tempToken,
+      dto.code,
+      {
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      },
+    );
     setAuthCookies(res, {
       accessToken: result.accessToken,
       refreshToken: result.refreshToken,

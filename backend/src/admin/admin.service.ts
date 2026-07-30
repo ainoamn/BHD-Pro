@@ -38,7 +38,16 @@ export class AdminService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    for (const email of getBootstrapAdminEmails()) {
+    const bootstrapAdmins = getBootstrapAdminEmails();
+    if (
+      process.env.NODE_ENV === 'production' &&
+      bootstrapAdmins.length === 0
+    ) {
+      throw new Error(
+        'PLATFORM_ADMIN_EMAILS or PLATFORM_OWNER_EMAIL must be configured in production.',
+      );
+    }
+    for (const email of bootstrapAdmins) {
       const isOwner = isProtectedPlatformAdminEmail(email);
       await this.prisma.platformOperator.upsert({
         where: { email },
@@ -184,7 +193,7 @@ export class AdminService implements OnModuleInit {
     if (isProtectedPlatformAdminEmail(existing.email)) {
       if (data.isActive === false) {
         throw new BadRequestException(
-          'Cannot deactivate the primary platform owner account (admin@hisaby.pro)',
+          'Cannot deactivate the configured primary platform owner account.',
         );
       }
       if (data.permissions !== undefined) {
@@ -1325,6 +1334,7 @@ export class AdminService implements OnModuleInit {
       this.prisma.$queryRaw<Array<{ path: string; count: bigint }>>`
         SELECT path, COUNT(*)::bigint AS count
         FROM site_visits
+        WHERE created_at >= NOW() - INTERVAL '30 days'
         GROUP BY path
         ORDER BY count DESC
         LIMIT 15
@@ -1333,6 +1343,7 @@ export class AdminService implements OnModuleInit {
         SELECT country, COUNT(*)::bigint AS count
         FROM site_visits
         WHERE country IS NOT NULL
+          AND created_at >= NOW() - INTERVAL '30 days'
         GROUP BY country
         ORDER BY count DESC
         LIMIT 15

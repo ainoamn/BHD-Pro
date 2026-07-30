@@ -1,5 +1,5 @@
 import { Injectable, UnauthorizedException, ForbiddenException, Logger, BadRequestException } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
+import { JwtService, JwtSignOptions } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { OAuth2Client } from 'google-auth-library';
@@ -25,6 +25,7 @@ import {
   parseRequire2faGraceDays,
   resolveTwoFactorGraceStart,
 } from './two-factor-policy';
+import { assertPublicRegistrationAllowed } from './registration-policy';
 
 @Injectable()
 export class AuthService {
@@ -88,7 +89,10 @@ export class AuthService {
     return result;
   }
 
-  async login(dto: LoginDto) {
+  async login(
+    dto: LoginDto,
+    meta: { ipAddress?: string; userAgent?: string } = {},
+  ) {
     try {
       const user = await this.validateUser(dto.email, dto.password);
 
@@ -108,21 +112,27 @@ export class AuthService {
         userId: user.id,
         action: 'LOGIN_OK',
         email: user.email,
-        ipAddress: dto.ipAddress,
-        userAgent: dto.userAgent,
+        ipAddress: meta.ipAddress,
+        userAgent: meta.userAgent,
       });
 
-      return this.issueSession(user, {
-        ipAddress: dto.ipAddress,
-        userAgent: dto.userAgent,
-      });
+      return this.issueSession(user, meta);
     } catch (err) {
-      await this.auditFailedLogin(dto.email, dto.ipAddress, dto.userAgent, err);
+      await this.auditFailedLogin(
+        dto.email,
+        meta.ipAddress,
+        meta.userAgent,
+        err,
+      );
       throw err;
     }
   }
 
-  async verify2faLogin(tempToken: string, code: string) {
+  async verify2faLogin(
+    tempToken: string,
+    code: string,
+    meta: { ipAddress?: string; userAgent?: string } = {},
+  ) {
     let payload: { sub?: string; purpose?: string };
     try {
       payload = this.jwtService.verify(tempToken, {
@@ -160,7 +170,7 @@ export class AuthService {
     });
 
     const { password: _, twoFactorSecret: __, ...safe } = user;
-    return this.issueSession(safe, {});
+    return this.issueSession(safe, meta);
   }
 
   async get2faStatus(userId: string) {
@@ -370,6 +380,7 @@ export class AuthService {
   }
 
   async register(dto: RegisterDto) {
+    assertPublicRegistrationAllowed();
     const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (existing) {
       throw new ForbiddenException('Email already registered');
@@ -513,6 +524,7 @@ export class AuthService {
       return this.issueSession(safe, {});
     }
 
+    assertPublicRegistrationAllowed();
     const company = await this.prisma.company.create({
       data: {
         name: (companyName || `شركة ${name}`).trim(),
@@ -782,11 +794,15 @@ export class AuthService {
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(payload, {
         secret: this.config.get<string>('jwt.secret'),
-        expiresIn: this.config.get<string>('jwt.expiration'),
+        expiresIn: this.config.get<string>(
+          'jwt.expiration',
+        ) as JwtSignOptions['expiresIn'],
       }),
       this.jwtService.signAsync(payload, {
         secret: this.config.get<string>('jwt.refreshSecret'),
-        expiresIn: this.config.get<string>('jwt.refreshExpiration'),
+        expiresIn: this.config.get<string>(
+          'jwt.refreshExpiration',
+        ) as JwtSignOptions['expiresIn'],
       }),
     ]);
 

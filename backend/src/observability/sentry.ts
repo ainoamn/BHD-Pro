@@ -21,6 +21,19 @@ export async function initSentry(): Promise<boolean> {
       release: process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || undefined,
       tracesSampleRate: Number(process.env.SENTRY_TRACES_SAMPLE_RATE || 0.1),
       enabled: process.env.SENTRY_ENABLED !== 'false',
+      sendDefaultPii: false,
+      beforeSend(event) {
+        if (event.request?.headers) {
+          delete event.request.headers.authorization;
+          delete event.request.headers.Authorization;
+          delete event.request.headers.cookie;
+          delete event.request.headers.Cookie;
+        }
+        if (event.user) {
+          delete event.user.ip_address;
+        }
+        return event;
+      },
     });
     logger.log('Sentry initialized');
     return true;

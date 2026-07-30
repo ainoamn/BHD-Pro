@@ -48,33 +48,56 @@ export class ProductsService {
   }
 
   async getStats(companyId: string) {
-    const products = await this.prisma.product.findMany({
-      where: { companyId, isActive: true },
-      select: {
-        id: true,
-        name: true,
-        sku: true,
-        quantity: true,
-        minQuantity: true,
-        costPrice: true,
-        isTracked: true,
-        unit: true,
-      },
-    });
-
-    const lowStockItems = products.filter(
-      (p) => p.isTracked && Number(p.quantity) <= Number(p.minQuantity),
-    );
-
-    const totalValue = products.reduce(
-      (s, p) => s + Number(p.quantity) * Number(p.costPrice),
-      0,
-    );
+    const [aggregateRows, lowStockItems] = await Promise.all([
+      this.prisma.$queryRaw<
+        Array<{
+          total: bigint;
+          totalValue: Prisma.Decimal | number | string;
+        }>
+      >(Prisma.sql`
+        SELECT
+          COUNT(*)::bigint AS "total",
+          COALESCE(SUM("quantity" * "cost_price"), 0) AS "totalValue"
+        FROM "products"
+        WHERE "company_id" = ${companyId}
+          AND "is_active" = true
+      `),
+      this.prisma.$queryRaw<
+        Array<{
+          id: string;
+          name: string;
+          sku: string;
+          quantity: Prisma.Decimal;
+          minQuantity: Prisma.Decimal;
+          costPrice: Prisma.Decimal;
+          isTracked: boolean;
+          unit: string;
+        }>
+      >(Prisma.sql`
+        SELECT
+          "id",
+          "name",
+          "sku",
+          "quantity",
+          "min_quantity" AS "minQuantity",
+          "cost_price" AS "costPrice",
+          "is_tracked" AS "isTracked",
+          "unit"
+        FROM "products"
+        WHERE "company_id" = ${companyId}
+          AND "is_active" = true
+          AND "is_tracked" = true
+          AND "quantity" <= "min_quantity"
+        ORDER BY "quantity" ASC
+        LIMIT 200
+      `),
+    ]);
+    const aggregate = aggregateRows[0];
 
     return {
-      total: products.length,
+      total: Number(aggregate?.total || 0),
       lowStock: lowStockItems.length,
-      totalValue,
+      totalValue: Number(aggregate?.totalValue || 0),
       lowStockItems,
     };
   }

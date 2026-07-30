@@ -26,7 +26,8 @@ export class JournalService {
     });
   }
 
-  async findAll(companyId: string) {
+  async findAll(companyId: string, requestedTake?: number) {
+    const take = Math.min(Math.max(requestedTake || 200, 1), 500);
     return this.prisma.journal.findMany({
       where: { companyId },
       include: {
@@ -40,6 +41,7 @@ export class JournalService {
         createdBy: { select: { name: true } },
       },
       orderBy: { date: 'desc' },
+      take,
     });
   }
 
@@ -73,32 +75,42 @@ export class JournalService {
       throw new BadRequestException(`Journal not balanced: debit=${totalDebit}, credit=${totalCredit}`);
     }
 
-    for (const line of dto.lines) {
-      const account = await this.prisma.account.findFirst({
-        where: { id: line.accountId, companyId },
-      });
-      if (!account) throw new BadRequestException(`Account ${line.accountId} not found`);
-
-      if (line.costCenterId) {
-        const cc = await this.prisma.costCenter.findFirst({
-          where: { id: line.costCenterId, companyId },
-        });
-        if (!cc) throw new BadRequestException('Cost center not found');
-      }
-      if (line.projectId) {
-        const project = await this.prisma.project.findFirst({
-          where: { id: line.projectId, companyId },
-        });
-        if (!project) throw new BadRequestException('Project not found');
-      }
-    }
-
     const number = await this.generateNumber(companyId);
-
     const accountIds = [...new Set(dto.lines.map((l) => l.accountId))];
-    const accountRows = await this.prisma.account.findMany({
-      where: { companyId, id: { in: accountIds } },
-    });
+    const costCenterIds = [
+      ...new Set(dto.lines.map((l) => l.costCenterId).filter((id): id is string => !!id)),
+    ];
+    const projectIds = [
+      ...new Set(dto.lines.map((l) => l.projectId).filter((id): id is string => !!id)),
+    ];
+    const [accountRows, costCenterRows, projectRows] = await Promise.all([
+      this.prisma.account.findMany({
+        where: { companyId, id: { in: accountIds } },
+      }),
+      costCenterIds.length
+        ? this.prisma.costCenter.findMany({
+            where: { companyId, id: { in: costCenterIds } },
+            select: { id: true },
+          })
+        : [],
+      projectIds.length
+        ? this.prisma.project.findMany({
+            where: { companyId, id: { in: projectIds } },
+            select: { id: true },
+          })
+        : [],
+    ]);
+    const foundAccountIds = new Set(accountRows.map((row) => row.id));
+    const missingAccount = accountIds.find((id) => !foundAccountIds.has(id));
+    if (missingAccount) {
+      throw new BadRequestException(`Account ${missingAccount} not found`);
+    }
+    if (costCenterRows.length !== costCenterIds.length) {
+      throw new BadRequestException('Cost center not found');
+    }
+    if (projectRows.length !== projectIds.length) {
+      throw new BadRequestException('Project not found');
+    }
     const typeMap = new Map(accountRows.map((a) => [a.id, a.type]));
 
     return this.prisma.$transaction(async (tx) => {

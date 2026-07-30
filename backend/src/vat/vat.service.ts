@@ -60,11 +60,24 @@ export class VatService {
     return this.getOtaConfig(companyId);
   }
 
-  async listEInvoices(companyId: string) {
+  async listEInvoices(companyId: string, requestedTake?: number) {
+    const take = Math.min(Math.max(requestedTake || 150, 1), 500);
     const rows = await this.prisma.invoice.findMany({
       where: { companyId, type: 'SALES' },
-      include: { contact: { select: { name: true, taxId: true } } },
+      select: {
+        id: true,
+        number: true,
+        date: true,
+        total: true,
+        taxAmount: true,
+        status: true,
+        vatUuid: true,
+        clearedAt: true,
+        customFieldsJson: true,
+        contact: { select: { name: true, taxId: true } },
+      },
       orderBy: { date: 'desc' },
+      take,
     });
     return rows.map((inv) => {
       const fields =
@@ -244,52 +257,51 @@ export class VatService {
     };
   }
 
-  getStats(companyId: string) {
-    return this.prisma.invoice
-      .findMany({
-        where: { companyId, type: 'SALES' },
-        select: {
-          vatUuid: true,
-          clearedAt: true,
-          status: true,
-          customFieldsJson: true,
-        },
-      })
-      .then((rows) => {
-        let cleared = 0;
-        let awaitingSubmit = 0;
-        let awaitingAuthority = 0;
-        for (const row of rows) {
-          if (!row.vatUuid) {
-            if (row.status !== 'DRAFT') awaitingSubmit += 1;
-            continue;
-          }
-          const fields =
-            row.customFieldsJson &&
-            typeof row.customFieldsJson === 'object' &&
-            !Array.isArray(row.customFieldsJson)
-              ? (row.customFieldsJson as Record<string, unknown>)
-              : {};
-          const st = String(fields.otaStatus || '');
-          if (
-            row.clearedAt ||
-            st === 'CLEARED' ||
-            st === 'SANDBOX_ACCEPTED'
-          ) {
-            cleared += 1;
-          } else {
-            awaitingAuthority += 1;
-          }
-        }
-        return {
-          total: rows.length,
-          /** Honest clearance / sandbox accept — not merely "has UUID" */
-          submitted: cleared,
-          cleared,
-          pending: awaitingSubmit + awaitingAuthority,
-          awaitingSubmit,
-          awaitingAuthority,
-        };
-      });
+  async getStats(companyId: string) {
+    const [row] = await this.prisma.$queryRaw<
+      Array<{
+        total: bigint;
+        cleared: bigint;
+        awaitingSubmit: bigint;
+        awaitingAuthority: bigint;
+      }>
+    >(Prisma.sql`
+      SELECT
+        COUNT(*)::bigint AS "total",
+        COUNT(*) FILTER (
+          WHERE "vat_uuid" IS NOT NULL
+            AND (
+              "cleared_at" IS NOT NULL
+              OR "custom_fields_json" ->> 'otaStatus' IN ('CLEARED', 'SANDBOX_ACCEPTED')
+            )
+        )::bigint AS "cleared",
+        COUNT(*) FILTER (
+          WHERE "vat_uuid" IS NULL
+            AND "status"::text <> 'DRAFT'
+        )::bigint AS "awaitingSubmit",
+        COUNT(*) FILTER (
+          WHERE "vat_uuid" IS NOT NULL
+            AND "cleared_at" IS NULL
+            AND COALESCE("custom_fields_json" ->> 'otaStatus', '') NOT IN (
+              'CLEARED',
+              'SANDBOX_ACCEPTED'
+            )
+        )::bigint AS "awaitingAuthority"
+      FROM "invoices"
+      WHERE "company_id" = ${companyId}
+        AND "type"::text = 'SALES'
+    `);
+    const total = Number(row?.total || 0);
+    const cleared = Number(row?.cleared || 0);
+    const awaitingSubmit = Number(row?.awaitingSubmit || 0);
+    const awaitingAuthority = Number(row?.awaitingAuthority || 0);
+    return {
+      total,
+      submitted: cleared,
+      cleared,
+      pending: awaitingSubmit + awaitingAuthority,
+      awaitingSubmit,
+      awaitingAuthority,
+    };
   }
 }

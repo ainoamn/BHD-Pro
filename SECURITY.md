@@ -2,7 +2,7 @@
 
 ## Status
 
-After the hardening commit, the app is **closer to production-ready** for a controlled SaaS launch, but you must still configure secrets and HTTPS correctly before going live.
+The codebase is hardened for a controlled production launch. Deployment must still fail closed unless the required secrets, HTTPS origins, platform owner, database migrations, Redis, S3, and monitoring settings are configured.
 
 ## Required before production
 
@@ -10,11 +10,13 @@ After the hardening commit, the app is **closer to production-ready** for a cont
 2. Generate secrets (never use `.env.example` values):
    - `JWT_SECRET` / `JWT_REFRESH_SECRET` / `PAYMENT_SECRETS_KEY` via `openssl rand -base64 48`
 3. Set `CORS_ORIGIN` and `FRONTEND_URL` to your **HTTPS** frontend origin
-4. Set `PLATFORM_ADMIN_EMAILS` to the operator email(s) that may manage platform payment gateways
+4. Set `PLATFORM_ADMIN_EMAILS` and one `PLATFORM_OWNER_EMAIL`; production has no hardcoded fallback administrators
 5. Configure payment webhook secrets (Stripe / Thawani / PayPal) — webhooks fail closed without them
 6. Terminate TLS at a reverse proxy (Nginx / Caddy / Cloudflare) — do not expose Nest/Next on plain HTTP
 7. Do not publish Postgres/Redis ports publicly; use private network + strong DB password
-8. Do not run `prisma:seed` against production (demo admin credentials)
+8. Do not run `prisma:seed` against production (the command now fails in production)
+9. Keep `ALLOW_PUBLIC_REGISTRATION=false` until public onboarding is explicitly approved
+10. Apply migrations with `prisma migrate deploy` only; never use `db push --accept-data-loss`
 
 ## What was hardened
 
@@ -30,11 +32,13 @@ After the hardening commit, the app is **closer to production-ready** for a cont
 | Webhooks | Stripe skew + Thawani/PayPal signature verification |
 | Gateway secrets | AES-256-GCM at rest when `PAYMENT_SECRETS_KEY` set; admin UI masks secrets |
 | Platform gateways | Restricted to `PLATFORM_ADMIN_EMAILS` |
-| Registration | Always STARTER; stronger password policy |
+| Registration | Disabled by default in production; when enabled it always starts on STARTER |
 | API keys | ADMIN only; API keys cannot create more keys |
 | Cookies httpOnly | Access + refresh in `bhd_access` / `bhd_refresh`; not stored in localStorage |
 | Next.js | Security headers + `poweredByHeader: false` + `/backend-api` rewrite for cookie auth |
-| Docker | Bind DB/Redis to `127.0.0.1` |
+| Docker | Node 24, non-root app users, localhost-bound app ports, Redis and health checks |
+| Dependencies | Production npm audits are enforced by CI and must report zero advisories |
+| Attachments | MIME is required; active SVG is rejected |
 
 ## Remaining (recommended next)
 
@@ -45,7 +49,7 @@ After the hardening commit, the app is **closer to production-ready** for a cont
 - ~~Object storage (S3) for attachments~~ — **done (Wave BB):** `ATTACHMENT_STORAGE=s3` + delete on remove; falls back to dataurl/local
 - Playwright login smoke in CI — **done (Wave BA):** `frontend/e2e/smoke.spec.ts`
 - Narrow API-key scopes below full ACCOUNTANT where possible
-- Penetration testing before open registration
+- External penetration testing before changing `ALLOW_PUBLIC_REGISTRATION=true`
 
 ## Hardening — 27 Jul 2026 (Wave AZ)
 
@@ -72,8 +76,8 @@ After the hardening commit, the app is **closer to production-ready** for a cont
 | Area | Change |
 |------|--------|
 | CORS | No default `*.vercel.app`; opt-in via `CORS_ALLOW_VERCEL_PREVIEWS=1` |
-| Platform admins | Production uses **only** `PLATFORM_ADMIN_EMAILS` (no hardcoded personal emails) |
-| Attachments | Max ~2MB + MIME allowlist on create |
+| Platform admins | Production uses only environment-configured owner/operators |
+| Attachments | Max ~2MB + mandatory explicit MIME allowlist; SVG is denied |
 | Next Permissions-Policy | `camera=(self)` so POS barcode works |
 
 - Browser sessions use **httpOnly** cookies (`bhd_access`, `bhd_refresh`).

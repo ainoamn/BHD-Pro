@@ -338,11 +338,8 @@ export class PublicVisitsController {
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
   @ApiOperation({ summary: 'Record anonymous site visit (analytics)' })
   record(@Req() req: Request, @Body() body: { path?: string; referrer?: string; country?: string; city?: string }) {
-    const forwarded = (req.headers['x-forwarded-for'] as string) || '';
     const ip =
-      forwarded.split(',')[0]?.trim() ||
-      req.ip ||
-      (req.socket as { remoteAddress?: string })?.remoteAddress;
+      req.ip || (req.socket as { remoteAddress?: string })?.remoteAddress;
 
     const headerCountry =
       (req.headers['cf-ipcountry'] as string) ||

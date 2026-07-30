@@ -17,6 +17,13 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     rawBody: true,
   });
+  const trustProxyHops = Number(
+    process.env.TRUST_PROXY_HOPS ||
+      (process.env.NODE_ENV === 'production' ? '1' : '0'),
+  );
+  if (Number.isInteger(trustProxyHops) && trustProxyHops > 0) {
+    app.set('trust proxy', trustProxyHops);
+  }
 
   // Attachments / company logo travel as base64 data URLs (~2MB ceiling → ~2.8MB JSON).
   // Keep rawBody for payment webhooks via Nest's useBodyParser.
@@ -50,7 +57,8 @@ async function bootstrap() {
         !origin ||
         allowed.includes('*') ||
         allowed.includes(origin) ||
-        (allowVercelPreviews && /\.vercel\.app$/i.test(origin))
+        (allowVercelPreviews &&
+          /^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(origin))
       ) {
         callback(null, true);
         return;

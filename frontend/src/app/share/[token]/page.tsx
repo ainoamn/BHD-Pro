@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
+import { useParams } from "next/navigation";
 import { Download, Loader2, Printer, ShieldCheck } from "lucide-react";
 import axios from "axios";
 import { InvoiceDocument, InvoiceDocumentData } from "@/components/invoices/invoice-document";
@@ -62,7 +63,8 @@ function mapPublicDocument(payload: Record<string, unknown>): {
   };
 }
 
-export default function ShareDocumentPage({ params }: { params: { token: string } }) {
+export default function ShareDocumentPage() {
+  const { token } = useParams<{ token: string }>();
   const t = useTranslations("invoices");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -70,13 +72,13 @@ export default function ShareDocumentPage({ params }: { params: { token: string 
   const [showDocument, setShowDocument] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const verifyUrl =
-    typeof window !== "undefined" ? `${window.location.origin}/share/${params.token}` : null;
+    typeof window !== "undefined" ? `${window.location.origin}/share/${token}` : null;
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await axios.get(`${API_URL}/public/documents/${params.token}`);
+        const res = await axios.get(`${API_URL}/public/documents/${token}`);
         if (cancelled) return;
         const mapped = mapPublicDocument(res.data as Record<string, unknown>);
         setDoc(mapped);
@@ -93,7 +95,7 @@ export default function ShareDocumentPage({ params }: { params: { token: string 
     return () => {
       cancelled = true;
     };
-  }, [params.token, t]);
+  }, [token, t]);
 
   useEffect(() => {
     if (!verifyUrl) return;
