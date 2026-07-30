@@ -283,9 +283,8 @@ export class AdminService implements OnModuleInit {
     return data;
   }
 
-  /** Active plans for landing-page pricing (monthly / yearly). Always fresh from DB. */
+  /** Active plans for landing-page pricing; mutations invalidate the catalog cache. */
   async publicPlans() {
-    this.planCatalog.invalidate();
     const rows = await this.planCatalog.listAll(false);
     return rows.map((p) => ({
       id: p.code,
