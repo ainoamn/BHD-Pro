@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { Loader2, ShieldAlert } from "lucide-react";
+import { useParams } from "next/navigation";
 
 const API_PUBLIC_ORIGIN = (
   process.env.NEXT_PUBLIC_API_PUBLIC_URL ||
@@ -44,8 +45,8 @@ function notifyCopy(status: CompanyNotify["status"]) {
   }
 }
 
-export default function DisputePage({ params }: { params: { code: string } }) {
-  const code = params.code;
+export default function DisputePage() {
+  const { code } = useParams<{ code: string }>();
   const [reason, setReason] = useState("");
   const [reporterName, setReporterName] = useState("");
   const [reporterPhone, setReporterPhone] = useState("");
