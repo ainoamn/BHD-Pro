@@ -25,6 +25,20 @@ async function ensureSentry(): Promise<boolean> {
             process.env.NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE || 0.1,
           ),
           enabled: process.env.NEXT_PUBLIC_SENTRY_ENABLED !== "false",
+          sendDefaultPii: false,
+          beforeSend(event) {
+            if (event.request?.url) {
+              try {
+                const url = new URL(event.request.url);
+                url.search = "";
+                url.hash = "";
+                event.request.url = url.toString();
+              } catch {
+                event.request.url = undefined;
+              }
+            }
+            return event;
+          },
         });
         return true;
       } catch {

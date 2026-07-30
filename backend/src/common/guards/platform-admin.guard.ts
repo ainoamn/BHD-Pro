@@ -7,18 +7,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { PrismaService } from '../../prisma/prisma.service';
 
-/**
- * Hardcoded seed emails always get an operator row on boot.
- * PLATFORM_ADMIN_EMAILS env is merged for emergency access.
- */
-const DEFAULT_PLATFORM_ADMINS = [
-  'admin@bhd.om',
-  'admin@hisaby.pro',
-  'ammar89555200@gmail.com',
-];
-
-/** Owner account: always full access; cannot delete, deactivate, or restrict. */
-const PROTECTED_PLATFORM_ADMINS = ['admin@hisaby.pro'];
+const DEVELOPMENT_PLATFORM_ADMINS = ['admin@bhd.om', 'admin@hisaby.pro'];
 
 export const PLATFORM_PERMISSIONS = [
   'full',
@@ -56,9 +45,24 @@ export function getEnvPlatformAdminEmails(): string[] {
     .filter(Boolean);
 }
 
+export function getPlatformOwnerEmail(): string | null {
+  const configured = (process.env.PLATFORM_OWNER_EMAIL || '')
+    .trim()
+    .toLowerCase();
+  if (configured) return configured;
+  return process.env.NODE_ENV === 'production' ? null : 'admin@hisaby.pro';
+}
+
 export function getBootstrapAdminEmails(): string[] {
+  const development =
+    process.env.NODE_ENV === 'production' ? [] : DEVELOPMENT_PLATFORM_ADMINS;
+  const owner = getPlatformOwnerEmail();
   return Array.from(
-    new Set([...DEFAULT_PLATFORM_ADMINS, ...getEnvPlatformAdminEmails()]),
+    new Set([
+      ...development,
+      ...getEnvPlatformAdminEmails(),
+      ...(owner ? [owner] : []),
+    ]),
   );
 }
 
@@ -69,7 +73,8 @@ export function isBootstrapAdminEmail(email?: string | null): boolean {
 
 export function isProtectedPlatformAdminEmail(email?: string | null): boolean {
   if (!email) return false;
-  return PROTECTED_PLATFORM_ADMINS.includes(email.toLowerCase());
+  const owner = getPlatformOwnerEmail();
+  return !!owner && owner === email.toLowerCase();
 }
 
 export function operatorHasPermission(

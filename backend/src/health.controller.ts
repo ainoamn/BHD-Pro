@@ -8,9 +8,6 @@ import { SkipThrottle } from '@nestjs/throttler';
 import { PrismaService } from './prisma/prisma.service';
 import { RedisService } from './redis/redis.service';
 import { StorageService } from './storage/storage.service';
-import { EmailNotifyService } from './notifications/email-notify.service';
-import { WhatsappNotifyService } from './notifications/whatsapp-notify.service';
-import { SmsNotifyService } from './notifications/sms-notify.service';
 
 @ApiTags('Health')
 @SkipThrottle()
@@ -20,43 +17,16 @@ export class HealthController {
     private prisma: PrismaService,
     private redis: RedisService,
     private storage: StorageService,
-    private email: EmailNotifyService,
-    private whatsapp: WhatsappNotifyService,
-    private sms: SmsNotifyService,
   ) {}
 
   @Get()
   @ApiOperation({ summary: 'Health check (liveness)' })
   check() {
-    const storage = this.storage.status();
     return {
       status: 'ok',
       service: 'bhd-pro-api',
       timestamp: new Date().toISOString(),
-      // Render injects this; used to confirm /admin fixes are live
       commit: process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || null,
-      sentry: !!(process.env.SENTRY_DSN || '').trim(),
-      redisConfigured: this.redis.isConfigured(),
-      posCatalogCache: this.redis.isConfigured(),
-      posCatalogCacheTtlSec: this.redis.isConfigured()
-        ? this.redis.posCatalogTtlSec()
-        : null,
-      dashboardCache: this.redis.isConfigured(),
-      dashboardCacheTtlSec: this.redis.isConfigured()
-        ? this.redis.dashboardStatsTtlSec()
-        : null,
-      throttleStorage: this.redis.isConfigured() ? 'redis' : 'memory',
-      attachmentStorage: storage.driver,
-      s3Configured: storage.s3Configured,
-      emailConfigured: this.email.isConfigured(),
-      emailMode: this.email.mode(),
-      whatsappConfigured: this.whatsapp.isConfigured(),
-      whatsappMode: this.whatsapp.mode(),
-      whatsappReceiptTemplate: this.whatsapp.receiptTemplateName(),
-      whatsappOtpTemplate: this.whatsapp.otpTemplateName(),
-      appsAlwaysLinked: true,
-      smsConfigured: this.sms.isConfigured(),
-      smsMode: this.sms.mode(),
     };
   }
 
@@ -91,25 +61,6 @@ export class HealthController {
       });
     }
 
-    return {
-      status: 'ready',
-      database: 'ok',
-      redis,
-      sentry: !!(process.env.SENTRY_DSN || '').trim(),
-      redisConfigured: this.redis.isConfigured(),
-      throttleStorage: this.redis.isConfigured() ? 'redis' : 'memory',
-      attachmentStorage: storage.driver,
-      s3Configured: storage.s3Configured,
-      emailConfigured: this.email.isConfigured(),
-      emailMode: this.email.mode(),
-      whatsappConfigured: this.whatsapp.isConfigured(),
-      whatsappMode: this.whatsapp.mode(),
-      whatsappReceiptTemplate: this.whatsapp.receiptTemplateName(),
-      whatsappOtpTemplate: this.whatsapp.otpTemplateName(),
-      appsAlwaysLinked: true,
-      smsConfigured: this.sms.isConfigured(),
-      smsMode: this.sms.mode(),
-      timestamp: new Date().toISOString(),
-    };
+    return { status: 'ready' };
   }
 }

@@ -38,6 +38,17 @@ export class AuthService {
     private audit: AuditService,
   ) {}
 
+  private assertPublicRegistrationAllowed() {
+    const enabled = ['1', 'true'].includes(
+      String(process.env.ALLOW_PUBLIC_REGISTRATION || '').toLowerCase(),
+    );
+    if (process.env.NODE_ENV === 'production' && !enabled) {
+      throw new ForbiddenException(
+        'Public registration is disabled. Ask an administrator for an invitation.',
+      );
+    }
+  }
+
   private getGoogleClient() {
     const clientId = this.config.get<string>('google.clientId') || process.env.GOOGLE_CLIENT_ID;
     if (!clientId) {
@@ -88,7 +99,10 @@ export class AuthService {
     return result;
   }
 
-  async login(dto: LoginDto) {
+  async login(
+    dto: LoginDto,
+    meta: { ipAddress?: string; userAgent?: string } = {},
+  ) {
     try {
       const user = await this.validateUser(dto.email, dto.password);
 
@@ -108,21 +122,27 @@ export class AuthService {
         userId: user.id,
         action: 'LOGIN_OK',
         email: user.email,
-        ipAddress: dto.ipAddress,
-        userAgent: dto.userAgent,
+        ipAddress: meta.ipAddress,
+        userAgent: meta.userAgent,
       });
 
-      return this.issueSession(user, {
-        ipAddress: dto.ipAddress,
-        userAgent: dto.userAgent,
-      });
+      return this.issueSession(user, meta);
     } catch (err) {
-      await this.auditFailedLogin(dto.email, dto.ipAddress, dto.userAgent, err);
+      await this.auditFailedLogin(
+        dto.email,
+        meta.ipAddress,
+        meta.userAgent,
+        err,
+      );
       throw err;
     }
   }
 
-  async verify2faLogin(tempToken: string, code: string) {
+  async verify2faLogin(
+    tempToken: string,
+    code: string,
+    meta: { ipAddress?: string; userAgent?: string } = {},
+  ) {
     let payload: { sub?: string; purpose?: string };
     try {
       payload = this.jwtService.verify(tempToken, {
@@ -160,7 +180,7 @@ export class AuthService {
     });
 
     const { password: _, twoFactorSecret: __, ...safe } = user;
-    return this.issueSession(safe, {});
+    return this.issueSession(safe, meta);
   }
 
   async get2faStatus(userId: string) {
@@ -370,6 +390,7 @@ export class AuthService {
   }
 
   async register(dto: RegisterDto) {
+    this.assertPublicRegistrationAllowed();
     const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (existing) {
       throw new ForbiddenException('Email already registered');
@@ -513,6 +534,7 @@ export class AuthService {
       return this.issueSession(safe, {});
     }
 
+    this.assertPublicRegistrationAllowed();
     const company = await this.prisma.company.create({
       data: {
         name: (companyName || `شركة ${name}`).trim(),

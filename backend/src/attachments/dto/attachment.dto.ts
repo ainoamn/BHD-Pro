@@ -28,11 +28,11 @@ export class CreateAttachmentDto {
   @MaxLength(255)
   fileName: string;
 
-  @ApiPropertyOptional()
-  @IsOptional()
+  @ApiProperty()
   @IsString()
+  @MinLength(1)
   @MaxLength(128)
-  mimeType?: string;
+  mimeType: string;
 
   @ApiPropertyOptional()
   @IsOptional()
