@@ -12,7 +12,7 @@
 2. **Sentry DSN**
    - Backend: `SENTRY_DSN`
    - Frontend: `NEXT_PUBLIC_SENTRY_DSN`
-   - راجع `/api/health` → `sentry: true`
+   - أرسل خطأ اختبار من staging وتحقق من وصوله؛ نقطة الصحة العامة لا تكشف إعدادات التشغيل
 3. **CI أخضر على `main`**
    - Workflow: `.github/workflows/ci.yml`
 4. **Dependabot** مفعّل ومراجعة أسبوعية لـ PRs
@@ -21,7 +21,9 @@
    دليل المستخدم: [`USER-GUIDE-2FA.md`](./USER-GUIDE-2FA.md)  
    خارطة الإنتاج: [`PRODUCTION-ROADMAP-4-6-WEEKS.md`](./PRODUCTION-ROADMAP-4-6-WEEKS.md)
 7. **Migrations** مطبّقة: `npx prisma migrate deploy`
-8. **Penetration test** مختصر على auth / dual-control / webhooks قبل فتح التسجيل العام
+8. **Penetration test** مختصر على auth / dual-control / webhooks قبل ضبط `ALLOW_PUBLIC_REGISTRATION=true`
+9. **Dependency gate:** يجب أن ينجح `npm audit --omit=dev --audit-level=high` للخادم والواجهة
+10. **Runtime:** Node.js 24، وتشغيل الحاويات بمستخدم غير root
 
 ## مستحسن (Should)
 
