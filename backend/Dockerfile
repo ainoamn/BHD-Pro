@@ -29,4 +29,4 @@ EXPOSE 3001
 # Client already generated at image build — skip generate on boot (OOM on 512Mi).
 # Never start against an un-migrated schema and never mutate production with db push.
 USER node
-CMD ["sh", "-c", "npx prisma migrate deploy --skip-generate && exec node --max-old-space-size=384 dist/main"]
+CMD ["sh", "-c", "npx prisma migrate deploy && exec node --max-old-space-size=384 dist/main"]
