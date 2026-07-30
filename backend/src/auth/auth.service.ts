@@ -25,6 +25,7 @@ import {
   parseRequire2faGraceDays,
   resolveTwoFactorGraceStart,
 } from './two-factor-policy';
+import { assertPublicRegistrationAllowed } from './registration-policy';
 
 @Injectable()
 export class AuthService {
@@ -37,17 +38,6 @@ export class AuthService {
     private config: ConfigService,
     private audit: AuditService,
   ) {}
-
-  private assertPublicRegistrationAllowed() {
-    const enabled = ['1', 'true'].includes(
-      String(process.env.ALLOW_PUBLIC_REGISTRATION || '').toLowerCase(),
-    );
-    if (process.env.NODE_ENV === 'production' && !enabled) {
-      throw new ForbiddenException(
-        'Public registration is disabled. Ask an administrator for an invitation.',
-      );
-    }
-  }
 
   private getGoogleClient() {
     const clientId = this.config.get<string>('google.clientId') || process.env.GOOGLE_CLIENT_ID;
@@ -390,7 +380,7 @@ export class AuthService {
   }
 
   async register(dto: RegisterDto) {
-    this.assertPublicRegistrationAllowed();
+    assertPublicRegistrationAllowed();
     const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (existing) {
       throw new ForbiddenException('Email already registered');
@@ -534,7 +524,7 @@ export class AuthService {
       return this.issueSession(safe, {});
     }
 
-    this.assertPublicRegistrationAllowed();
+    assertPublicRegistrationAllowed();
     const company = await this.prisma.company.create({
       data: {
         name: (companyName || `شركة ${name}`).trim(),

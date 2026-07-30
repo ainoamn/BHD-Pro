@@ -1,5 +1,5 @@
 import { ForbiddenException } from '@nestjs/common';
-import { AuthService } from '../src/auth/auth.service';
+import { assertPublicRegistrationAllowed } from '../src/auth/registration-policy';
 import { assertProductionSecrets } from '../src/common/crypto/secrets.crypto';
 import {
   getBootstrapAdminEmails,
@@ -55,21 +55,9 @@ describe('production hardening', () => {
     expect(isProtectedPlatformAdminEmail('admin@hisaby.pro')).toBe(false);
   });
 
-  it('blocks public tenant registration by default in production', async () => {
-    const service = new AuthService(
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
+  it('blocks public tenant registration by default in production', () => {
+    expect(() => assertPublicRegistrationAllowed()).toThrow(
+      ForbiddenException,
     );
-
-    await expect(
-      service.register({
-        name: 'Test User',
-        email: 'test@example.com',
-        password: 'StrongPassword123!',
-        companyName: 'Test Company',
-      }),
-    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 });
