@@ -1277,7 +1277,12 @@ export class InvoicesService {
     };
   }
 
-  async listPayments(companyId: string, invoiceType?: 'SALES' | 'PURCHASE') {
+  async listPayments(
+    companyId: string,
+    invoiceType?: 'SALES' | 'PURCHASE',
+    requestedTake?: number,
+  ) {
+    const take = Math.min(Math.max(requestedTake || 200, 1), 500);
     const types = invoiceType
       ? invoiceType === 'SALES'
         ? (['SALES', 'CREDIT_NOTE'] as const)
@@ -1302,6 +1307,7 @@ export class InvoicesService {
         },
       },
       orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+      take,
     });
 
     return payments.map((p) => ({

@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { InvoiceStatus, InvoiceType } from '@prisma/client';
+import { InvoiceStatus, InvoiceType, Prisma } from '@prisma/client';
 
 @Injectable()
 export class ReportsService {
@@ -152,34 +152,31 @@ export class ReportsService {
   }
 
   async cashFlow(companyId: string) {
-    const base = this.notCancelled(companyId);
-
-    const invoices = await this.prisma.invoice.findMany({
-      where: base,
-      select: { type: true, total: true, paymentStatus: true, paidAmount: true },
-    });
-
-    const inflow = invoices
-      .filter((i) => i.type === 'SALES')
-      .reduce(
-        (s, i) =>
-          s +
-          (i.paymentStatus === 'PAID'
-            ? Number(i.paidAmount || i.total)
-            : Number(i.paidAmount || 0)),
-        0,
-      );
-
-    const outflow = invoices
-      .filter((i) => i.type === 'PURCHASE')
-      .reduce(
-        (s, i) =>
-          s +
-          (i.paymentStatus === 'PAID'
-            ? Number(i.paidAmount || i.total)
-            : Number(i.paidAmount || 0)),
-        0,
-      );
+    const rows = await this.prisma.$queryRaw<
+      Array<{ type: string; amount: Prisma.Decimal | number | string }>
+    >(Prisma.sql`
+      SELECT
+        "type"::text AS "type",
+        COALESCE(
+          SUM(
+            CASE
+              WHEN "payment_status"::text = 'PAID' AND "paid_amount" = 0
+                THEN "total"
+              ELSE "paid_amount"
+            END
+          ),
+          0
+        ) AS "amount"
+      FROM "invoices"
+      WHERE "company_id" = ${companyId}
+        AND "status"::text <> ${InvoiceStatus.CANCELLED}
+        AND "type"::text IN ('SALES', 'PURCHASE')
+      GROUP BY "type"
+    `);
+    const inflow = Number(rows.find((row) => row.type === 'SALES')?.amount || 0);
+    const outflow = Number(
+      rows.find((row) => row.type === 'PURCHASE')?.amount || 0,
+    );
 
     return {
       operating: inflow - outflow,

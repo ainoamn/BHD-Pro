@@ -1,4 +1,12 @@
-import { Controller, Get, Post, Param, Body, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Param,
+  Query,
+  Body,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { IsBoolean, IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
@@ -44,8 +52,12 @@ export class VatController {
 
   @Get('invoices')
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT)
-  list(@CurrentUser() user: TokenPayload) {
-    return this.vatService.listEInvoices(user.companyId);
+  list(@CurrentUser() user: TokenPayload, @Query('take') take?: string) {
+    const requestedTake = take ? Number(take) : undefined;
+    return this.vatService.listEInvoices(
+      user.companyId,
+      Number.isFinite(requestedTake) ? requestedTake : undefined,
+    );
   }
 
   @Get('stats')

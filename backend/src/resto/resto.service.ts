@@ -101,6 +101,10 @@ const RESTO_SERVER_ROLES: UserRole[] = [
 export class RestoService {
   private readonly logger = new Logger(RestoService.name);
   private readonly kitchenBuses = new Map<string, Subject<void>>();
+  private readonly reportsCache = new Map<
+    string,
+    { expiresAt: number; payload: any }
+  >();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -4280,6 +4284,11 @@ export class RestoService {
 
   async getReportsSummary(companyId: string, days = 7) {
     const safeDays = Math.min(Math.max(days || 7, 1), 90);
+    const cacheKey = `${companyId}:${safeDays}`;
+    const cached = this.reportsCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.payload;
+    }
     const from = new Date();
     from.setHours(0, 0, 0, 0);
     from.setDate(from.getDate() - (safeDays - 1));
@@ -4289,9 +4298,31 @@ export class RestoService {
         companyId,
         createdAt: { gte: from },
       },
-      include: {
+      select: {
+        status: true,
+        createdAt: true,
+        closedAt: true,
+        channel: true,
+        tableId: true,
+        invoiceId: true,
+        tipAssigneeId: true,
+        openedById: true,
         table: { select: { id: true, code: true, name: true } },
-        items: true,
+        items: {
+          select: {
+            productId: true,
+            name: true,
+            qty: true,
+            unitPrice: true,
+            status: true,
+            isComp: true,
+            sentAt: true,
+            readyAt: true,
+            stationId: true,
+            voidedAt: true,
+            voidReason: true,
+          },
+        },
       },
       orderBy: { createdAt: 'asc' },
       take: 5000,
@@ -4501,7 +4532,31 @@ export class RestoService {
             select: {
               id: true,
               customFieldsJson: true,
-              items: { select: { description: true, unitPrice: true, quantity: true } },
+              items: {
+                where: {
+                  OR: [
+                    {
+                      description: {
+                        contains: 'tip',
+                        mode: 'insensitive',
+                      },
+                    },
+                    { description: { contains: 'بقشيش' } },
+                    {
+                      description: {
+                        contains: 'service charge',
+                        mode: 'insensitive',
+                      },
+                    },
+                    { description: { contains: 'رسوم خدمة' } },
+                  ],
+                },
+                select: {
+                  description: true,
+                  unitPrice: true,
+                  quantity: true,
+                },
+              },
             },
           })
         : [];
@@ -4608,7 +4663,7 @@ export class RestoService {
     const avgTip =
       tippedCloses > 0 ? Number((tipsTotal / tippedCloses).toFixed(3)) : 0;
 
-    return {
+    const result = {
       from: from.toISOString(),
       to: new Date().toISOString(),
       days: safeDays,
@@ -4681,6 +4736,17 @@ export class RestoService {
         .sort((a, b) => b.qty - a.qty)
         .slice(0, 15),
     };
+    if (this.reportsCache.size >= 500 && !this.reportsCache.has(cacheKey)) {
+      const oldestKey = this.reportsCache.keys().next().value as
+        | string
+        | undefined;
+      if (oldestKey) this.reportsCache.delete(oldestKey);
+    }
+    this.reportsCache.set(cacheKey, {
+      expiresAt: Date.now() + 30_000,
+      payload: result,
+    });
+    return result;
   }
 
   /** Business-day flash sheet for shift handover / print */
