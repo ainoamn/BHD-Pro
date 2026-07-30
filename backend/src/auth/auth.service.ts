@@ -1,5 +1,5 @@
 import { Injectable, UnauthorizedException, ForbiddenException, Logger, BadRequestException } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
+import { JwtService, JwtSignOptions } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { OAuth2Client } from 'google-auth-library';
@@ -804,11 +804,15 @@ export class AuthService {
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(payload, {
         secret: this.config.get<string>('jwt.secret'),
-        expiresIn: this.config.get<string>('jwt.expiration'),
+        expiresIn: this.config.get<string>(
+          'jwt.expiration',
+        ) as JwtSignOptions['expiresIn'],
       }),
       this.jwtService.signAsync(payload, {
         secret: this.config.get<string>('jwt.refreshSecret'),
-        expiresIn: this.config.get<string>('jwt.refreshExpiration'),
+        expiresIn: this.config.get<string>(
+          'jwt.refreshExpiration',
+        ) as JwtSignOptions['expiresIn'],
       }),
     ]);
 
