@@ -40,6 +40,7 @@ import { playPosAlertBeep } from "@/lib/pos-beep";
 import { PosCommissionChip } from "@/components/pos/pos-commission-chip";
 import { ShellAlertsBell } from "@/components/shared/shell-alerts-bell";
 import { ShellThemeToggle } from "@/components/shared/shell-theme-toggle";
+import { MobileAppSwitcher } from "@/components/shared/mobile-app-switcher";
 import {
   DualApprovalModal,
   type DualApprovalPayload,
@@ -610,6 +611,8 @@ export function PosShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         </div>
+
+        <MobileAppSwitcher current="pos" />
 
         {blockedByPerm ? (
           <div className="border-t border-rose-500/30 bg-rose-500/10 px-4 py-2 text-center text-xs text-rose-200">

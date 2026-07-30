@@ -5,6 +5,7 @@ import { Topbar } from "@/components/layout/topbar";
 import { CommandPalette } from "@/components/dashboard/command-palette";
 import { MaintenanceGate } from "@/components/layout/maintenance-gate";
 import { Require2faBanner } from "@/components/auth/require-2fa-banner";
+import { MobileAppSwitcher } from "@/components/shared/mobile-app-switcher";
 import { useUIStore } from "@/store/ui";
 import { useAuthStore } from "@/store/auth";
 import { cn } from "@/lib/utils";
@@ -138,6 +139,10 @@ export default function DashboardLayout({
           )}
         >
           <Topbar />
+          <MobileAppSwitcher
+            current="accounting"
+            className="sticky top-14 z-30 sm:top-16"
+          />
           <main className="p-3 sm:p-4 md:p-6 max-w-[100vw] overflow-x-hidden">
             <Require2faBanner />
             {children}

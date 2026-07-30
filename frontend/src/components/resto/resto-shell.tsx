@@ -40,6 +40,7 @@ import { homePathForUser } from "@/lib/user-home";
 import { PlanUpgradeGate } from "@/components/billing/plan-upgrade-gate";
 import { ShellAlertsBell } from "@/components/shared/shell-alerts-bell";
 import { ShellThemeToggle } from "@/components/shared/shell-theme-toggle";
+import { MobileAppSwitcher } from "@/components/shared/mobile-app-switcher";
 
 export function RestoShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -365,6 +366,8 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         </div>
+
+        <MobileAppSwitcher current="resto" />
 
         <nav className="hidden lg:block border-t border-white/5 bg-black/20">
           <div className="mx-auto flex max-w-[1600px] gap-1 overflow-x-auto px-3 py-1.5 sm:px-4 scrollbar-none">
