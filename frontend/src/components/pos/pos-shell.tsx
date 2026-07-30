@@ -642,7 +642,12 @@ export function PosShell({ children }: { children: React.ReactNode }) {
                   <p className="font-bold">{t.brand}</p>
                   <p className="text-[11px] text-slate-500 truncate">{company?.name}</p>
                 </div>
-                <button type="button" onClick={() => setMenuOpen(false)} className="p-2 rounded-lg hover:bg-white/5">
+                <button
+                  type="button"
+                  onClick={() => setMenuOpen(false)}
+                  className="p-2 rounded-lg hover:bg-white/5"
+                  aria-label={locale === "en" ? "Close POS navigation" : "إغلاق قائمة الكاشير"}
+                >
                   <X className="w-5 h-5" />
                 </button>
               </div>

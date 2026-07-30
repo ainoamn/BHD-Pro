@@ -126,9 +126,19 @@ test.describe("mobile app switcher", () => {
     });
   }
 
-  for (const [path, drawerName, sectionHref] of [
-    ["/pos", /POS navigation|قائمة الكاشير/i, "/pos/inventory"],
-    ["/resto", /Restaurant navigation|قائمة المطعم/i, "/resto/takeaway"],
+  for (const [path, drawerName, closeName, sectionHref] of [
+    [
+      "/pos",
+      /POS navigation|قائمة الكاشير/i,
+      /Close POS navigation|إغلاق قائمة الكاشير/i,
+      "/pos/inventory",
+    ],
+    [
+      "/resto",
+      /Restaurant navigation|قائمة المطعم/i,
+      /Close restaurant navigation|إغلاق قائمة المطعم/i,
+      "/resto/takeaway",
+    ],
   ] as const) {
     test(`opens the full-screen navigation drawer on ${path}`, async ({
       page,
@@ -147,8 +157,12 @@ test.describe("mobile app switcher", () => {
       const box = await drawer.boundingBox();
       expect(box?.height).toBeGreaterThan(800);
 
-      await drawer.getByRole("button", { name: "Close" }).click();
+      await drawer.getByRole("button", { name: closeName }).click();
       await expect(drawer).toBeHidden();
+
+      await menuButton.click();
+      await drawer.locator(`a[href="${sectionHref}"]`).first().click();
+      await expect(page).toHaveURL(new RegExp(`${sectionHref}$`));
     });
   }
 });
