@@ -31,7 +31,8 @@ async function fetchPublicPlans(): Promise<PublicPlanDto[]> {
   const url = `${base.replace(/\/$/, "")}/api/public/plans`;
   try {
     const res = await fetch(url, {
-      cache: "no-store",
+      next: { revalidate: 300 },
+      signal: AbortSignal.timeout(2500),
       headers: { Accept: "application/json" },
     });
     if (!res.ok) return [];

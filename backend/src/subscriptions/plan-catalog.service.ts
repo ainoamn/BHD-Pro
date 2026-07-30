@@ -38,7 +38,7 @@ export type PlanCatalogItem = {
 @Injectable()
 export class PlanCatalogService implements OnModuleInit {
   private cache: { at: number; rows: PlanCatalogItem[] } | null = null;
-  private readonly ttlMs = 15_000;
+  private readonly ttlMs = 5 * 60_000;
 
   constructor(private prisma: PrismaService) {}
 
