@@ -54,6 +54,7 @@ import { useLocaleStore } from "@/store/locale";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { UpgradeBadge } from "@/components/billing/plan-upgrade-gate";
 import {
@@ -173,6 +174,22 @@ export function Sidebar() {
   const [modules, setModules] = useState<Record<string, PlanModuleGrant> | null>(
     null,
   );
+  const {
+    data: subscription,
+    isError: subscriptionError,
+  } = useQuery({
+    queryKey: ["subscription-modules", user?.companyId],
+    queryFn: async () => {
+      const res = await api.getCurrentSubscription({ light: true });
+      return res.data as {
+        features?: Record<string, boolean>;
+        modules?: Record<string, PlanModuleGrant>;
+        plan?: string;
+      };
+    },
+    enabled: !!user,
+    staleTime: 5 * 60_000,
+  });
 
   const handleLogout = async () => {
     setSidebarOpen(false);
@@ -214,45 +231,34 @@ export function Sidebar() {
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    const timer = window.setTimeout(async () => {
       try {
         const res = await api.getAdminMe();
         if (!cancelled) setIsPlatformAdmin(!!res.data.isPlatformAdmin);
       } catch {
         if (!cancelled) setIsPlatformAdmin(false);
       }
-    })();
+    }, 2000);
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
   }, [user?.email]);
 
   useEffect(() => {
-    let cancelled = false;
     if (!user) return;
-    (async () => {
-      try {
-        const res = await api.getCurrentSubscription({ light: true });
-        const data = res.data as {
-          features?: Record<string, boolean>;
-          modules?: Record<string, PlanModuleGrant>;
-          plan?: string;
-        };
-        if (!cancelled) {
-          const fromPlan = featuresFromPlanId(data.plan || user.company?.plan);
-          setFeatures({ ...fromPlan, ...(data.features || {}) });
-          if (data.modules) setModules(data.modules);
-        }
-      } catch {
-        if (!cancelled) {
-          setFeatures(featuresFromPlanId(user.company?.plan));
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [user?.id, user?.company?.plan]);
+    if (subscription) {
+      const fromPlan = featuresFromPlanId(
+        subscription.plan || user.company?.plan,
+      );
+      setFeatures({ ...fromPlan, ...(subscription.features || {}) });
+      if (subscription.modules) setModules(subscription.modules);
+      return;
+    }
+    if (subscriptionError) {
+      setFeatures(featuresFromPlanId(user.company?.plan));
+    }
+  }, [subscription, subscriptionError, user]);
 
   useEffect(() => {
     let cancelled = false;
@@ -261,7 +267,7 @@ export function Sidebar() {
       setOpenDisputes(0);
       return;
     }
-    (async () => {
+    const timer = window.setTimeout(async () => {
       try {
         const [alertsRes, disputesRes] = await Promise.all([
           api.getManagementAlerts("OPEN"),
@@ -278,9 +284,10 @@ export function Sidebar() {
           setOpenDisputes(0);
         }
       }
-    })();
+    }, 2000);
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
   }, [user?.id]);
 

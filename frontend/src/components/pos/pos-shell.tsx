@@ -20,6 +20,7 @@ import {
   X,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { wakeApi } from "@/lib/wake-api";
 import { useAuthStore } from "@/store/auth";
@@ -53,6 +54,7 @@ const TRAINING_KEY = "hisaby-pos-training";
 
 export function PosShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const pathname = usePathname();
   const locale = useLocaleStore((s) => s.locale);
   const setLocale = useLocaleStore((s) => s.setLocale);
@@ -199,10 +201,14 @@ export function PosShell({ children }: { children: React.ReactNode }) {
       try {
         const [statsRes, secRes] = await Promise.all([
           api.getPosTodayStats(),
-          api.getCompanySecurity(),
+          queryClient.fetchQuery({
+            queryKey: ["company-security", company?.id],
+            queryFn: async () => (await api.getCompanySecurity()).data,
+            staleTime: 60_000,
+          }),
         ]);
         if (cancelled) return;
-        const cfg = secRes.data as {
+        const cfg = secRes as {
           voidAlertEnabled?: boolean;
           voidAlertThreshold?: number;
         };
@@ -242,15 +248,25 @@ export function PosShell({ children }: { children: React.ReactNode }) {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [hydrated, bareShell, canSeeApprovals, t.voidAlertToast]);
+  }, [
+    hydrated,
+    bareShell,
+    canSeeApprovals,
+    t.voidAlertToast,
+    queryClient,
+    company?.id,
+  ]);
 
   useEffect(() => {
     if (!hydrated || bareShell) return;
     let cancelled = false;
     (async () => {
       try {
-        const res = await api.getCompanySecurity();
-        const d = res.data as {
+        const d = await queryClient.fetchQuery({
+          queryKey: ["company-security", company?.id],
+          queryFn: async () => (await api.getCompanySecurity()).data,
+          staleTime: 60_000,
+        }) as {
           idleLockMinutes?: number;
           allowTrainingMode?: boolean;
         };
@@ -273,7 +289,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [hydrated, bareShell, pathname]);
+  }, [hydrated, bareShell, queryClient, company?.id]);
 
   useEffect(() => {
     if (!hydrated || bareShell || idleLockMinutes <= 0 || locked) return;
@@ -340,14 +356,23 @@ export function PosShell({ children }: { children: React.ReactNode }) {
         }
       }
       try {
-        const [linkRes, subRes] = await Promise.all([
-          api.getPosLinkStatus(),
-          api.getCurrentSubscription({ light: true }).catch(() => null),
+        const [, subscription] = await Promise.all([
+          queryClient.fetchQuery({
+            queryKey: ["pos-link-status", company?.id],
+            queryFn: async () => (await api.getPosLinkStatus()).data,
+            staleTime: 5 * 60_000,
+          }),
+          queryClient.fetchQuery({
+            queryKey: ["subscription-modules", company?.id],
+            queryFn: async () =>
+              (await api.getCurrentSubscription({ light: true })).data,
+            staleTime: 5 * 60_000,
+          }).catch(() => null),
         ]);
         if (!cancelled) {
           setLinked(true);
           setLinkLoadError(false);
-          const features = (subRes?.data as { features?: Record<string, boolean> })
+          const features = (subscription as { features?: Record<string, boolean> } | null)
             ?.features;
           setPlanOk(features?.pos !== false);
         }
@@ -381,7 +406,14 @@ export function PosShell({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [hydrated, isAuthenticated, bareShell, router, pathname]);
+  }, [
+    hydrated,
+    isAuthenticated,
+    bareShell,
+    router,
+    queryClient,
+    company?.id,
+  ]);
 
   const handleLogout = async () => {
     try {

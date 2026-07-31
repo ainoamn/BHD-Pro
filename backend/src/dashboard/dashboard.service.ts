@@ -15,6 +15,10 @@ export class DashboardService {
     string,
     { expires: number; payload: Record<string, unknown> }
   >();
+  private readonly inFlight = new Map<
+    string,
+    Promise<Record<string, unknown>>
+  >();
   private static readonly MEM_TTL_MS = 30_000;
 
   constructor(
@@ -36,8 +40,21 @@ export class DashboardService {
       }
     }
 
-    const stats = await this.computeStats(companyId);
-    const payload = { ...stats, cached: false };
+    const current = this.inFlight.get(companyId);
+    if (current) {
+      return current;
+    }
+
+    const computation = this.computeStats(companyId).then(
+      (stats) => ({ ...stats, cached: false }) as Record<string, unknown>,
+    );
+    this.inFlight.set(companyId, computation);
+    let payload: Record<string, unknown>;
+    try {
+      payload = await computation;
+    } finally {
+      this.inFlight.delete(companyId);
+    }
     if (this.redis.isConfigured()) {
       void this.redis
         .setJson(cacheKey, payload, this.redis.dashboardStatsTtlSec())

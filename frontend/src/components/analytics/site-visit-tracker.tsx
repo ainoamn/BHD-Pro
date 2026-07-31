@@ -22,14 +22,17 @@ export function SiteVisitTracker() {
       /* ignore */
     }
 
-    api
-      .trackSiteVisit({
-        path: pathname,
-        referrer: typeof document !== "undefined" ? document.referrer || undefined : undefined,
-      })
-      .catch(() => {
-        /* analytics must never break UX */
-      });
+    const timer = window.setTimeout(() => {
+      api
+        .trackSiteVisit({
+          path: pathname,
+          referrer: document.referrer || undefined,
+        })
+        .catch(() => {
+          /* analytics must never break UX */
+        });
+    }, 3000);
+    return () => window.clearTimeout(timer);
   }, [pathname]);
 
   return null;

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Activity,
   BarChart3,
@@ -45,6 +46,7 @@ import { MobileAppSwitcher } from "@/components/shared/mobile-app-switcher";
 
 export function RestoShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const pathname = usePathname();
   const locale = useLocaleStore((s) => s.locale);
   const setLocale = useLocaleStore((s) => s.setLocale);
@@ -76,18 +78,27 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
         }
       }
       try {
-        const [linkRes, subRes] = await Promise.all([
-          api.getRestoLinkStatus(),
-          api.getCurrentSubscription({ light: true }).catch(() => null),
+        const [linkData, subscription] = await Promise.all([
+          queryClient.fetchQuery({
+            queryKey: ["resto-link-status", company?.id],
+            queryFn: async () => (await api.getRestoLinkStatus()).data,
+            staleTime: 5 * 60_000,
+          }),
+          queryClient.fetchQuery({
+            queryKey: ["subscription-modules", company?.id],
+            queryFn: async () =>
+              (await api.getCurrentSubscription({ light: true })).data,
+            staleTime: 5 * 60_000,
+          }).catch(() => null),
         ]);
         if (!cancelled) {
           setLinked(true);
           setLinkLoadError(false);
-          const features = (subRes?.data as { features?: Record<string, boolean> })
+          const features = (subscription as { features?: Record<string, boolean> } | null)
             ?.features;
           setPlanOk(features?.resto !== false);
           try {
-            const wh = (linkRes.data as { warehouseId?: string | null })
+            const wh = (linkData as { warehouseId?: string | null })
               ?.warehouseId;
             if (wh) {
               sessionStorage.setItem("hisaby-resto-warehouse-id", wh);
@@ -112,7 +123,14 @@ export function RestoShell({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [hydrated, isAuthenticated, isLogin, router]);
+  }, [
+    hydrated,
+    isAuthenticated,
+    isLogin,
+    router,
+    queryClient,
+    company?.id,
+  ]);
 
   const canModule = (module: ModuleKey, needed: "view" | "edit" = "view") =>
     isAdmin || canAccessModule(perms, module, needed);

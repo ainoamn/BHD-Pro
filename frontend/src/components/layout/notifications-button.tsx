@@ -194,7 +194,7 @@ export function NotificationsButton() {
   // Prefetch a lightweight badge signal once after mount
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    const timer = window.setTimeout(async () => {
       try {
         const sales = await api.getInvoiceStats("SALES");
         const salesData = (sales?.data ?? {}) as AlertStats;
@@ -204,9 +204,10 @@ export function NotificationsButton() {
       } catch {
         /* ignore */
       }
-    })();
+    }, 2000);
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
   }, []);
 

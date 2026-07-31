@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Loader2,
   Plus,
@@ -85,6 +86,7 @@ function statusStyle(status: string, occupied: boolean) {
 }
 
 export default function RestoFloorPage() {
+  const queryClient = useQueryClient();
   const locale = useLocaleStore((s) => s.locale);
   const t = restoCopy[locale === "en" ? "en" : "ar"];
   const company = useAuthStore((s) => s.company);
@@ -184,8 +186,12 @@ export default function RestoFloorPage() {
           /* ignore */
         }
         if (!wh) {
-          const link = await api.getRestoLinkStatus();
-          wh = link.data.warehouseId || "";
+          const link = await queryClient.fetchQuery({
+            queryKey: ["resto-link-status", company?.id],
+            queryFn: async () => (await api.getRestoLinkStatus()).data,
+            staleTime: 5 * 60_000,
+          });
+          wh = (link as { warehouseId?: string | null }).warehouseId || "";
           try {
             if (wh) sessionStorage.setItem("hisaby-resto-warehouse-id", wh);
           } catch {
@@ -202,7 +208,7 @@ export default function RestoFloorPage() {
         setShiftStatusError(true);
       }
     })();
-  }, [loadFloor]);
+  }, [loadFloor, queryClient, company?.id]);
 
   useEffect(() => {
     if (!order) {

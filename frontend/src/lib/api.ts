@@ -104,6 +104,7 @@ const API_URL =
 class ApiClient {
   private client: AxiosInstance;
   private refreshPromise: Promise<string | null> | null = null;
+  private restorePromise: Promise<boolean> | null = null;
 
   constructor() {
     this.client = axios.create({
@@ -365,6 +366,17 @@ class ApiClient {
   }
 
   async restoreSession() {
+    if (this.restorePromise) {
+      return this.restorePromise;
+    }
+
+    this.restorePromise = this.restoreSessionOnce().finally(() => {
+      this.restorePromise = null;
+    });
+    return this.restorePromise;
+  }
+
+  private async restoreSessionOnce() {
     try {
       const res = await this.getMe();
       const data = res.data as {

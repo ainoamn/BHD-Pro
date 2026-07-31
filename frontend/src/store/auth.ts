@@ -110,9 +110,3 @@ export const useAuthStore = create<AuthState>()(
     }
   )
 );
-
-if (typeof window !== 'undefined') {
-  setTimeout(() => {
-    useAuthStore.getState().setLoading(false);
-  }, 2000);
-}

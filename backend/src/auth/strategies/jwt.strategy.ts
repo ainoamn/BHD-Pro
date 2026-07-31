@@ -17,6 +17,13 @@ function cookieExtractor(req: Request): string | null {
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
+  private readonly authCache = new Map<
+    string,
+    { expires: number; payload: TokenPayload }
+  >();
+  private readonly authInFlight = new Map<string, Promise<TokenPayload>>();
+  private static readonly AUTH_CACHE_TTL_MS = 30_000;
+
   constructor(
     config: ConfigService,
     private prisma: PrismaService,
@@ -40,8 +47,29 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       return payload;
     }
 
+    const cached = this.authCache.get(payload.sub);
+    if (cached && cached.expires > Date.now()) {
+      return cached.payload;
+    }
+    if (cached) {
+      this.authCache.delete(payload.sub);
+    }
+
+    const inFlight = this.authInFlight.get(payload.sub);
+    if (inFlight) {
+      return inFlight;
+    }
+
+    const validation = this.loadUser(payload.sub).finally(() => {
+      this.authInFlight.delete(payload.sub);
+    });
+    this.authInFlight.set(payload.sub, validation);
+    return validation;
+  }
+
+  private async loadUser(userId: string): Promise<TokenPayload> {
     const user = await this.prisma.user.findUnique({
-      where: { id: payload.sub },
+      where: { id: userId },
       select: {
         id: true,
         email: true,
@@ -57,12 +85,22 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('User inactive or not found');
     }
 
-    return {
+    const validated = {
       sub: user.id,
       email: user.email,
       role: user.role,
       companyId: user.companyId,
       modulePermissions: resolveModulePermissions(user.role, user.permissions),
     } satisfies TokenPayload;
+
+    if (this.authCache.size >= 5000) {
+      const oldest = this.authCache.keys().next().value;
+      if (oldest) this.authCache.delete(oldest);
+    }
+    this.authCache.set(userId, {
+      expires: Date.now() + JwtStrategy.AUTH_CACHE_TTL_MS,
+      payload: validated,
+    });
+    return validated;
   }
 }

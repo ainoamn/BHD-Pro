@@ -12,7 +12,6 @@ import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import api from "@/lib/api";
-import { Company } from "@/types";
 import {
   canAccessModule,
   moduleForDashboardPath,
@@ -26,7 +25,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const { sidebarCollapsed, sidebarOpen, setSidebarOpen } = useUIStore();
-  const { isAuthenticated, isLoading, setCompany, user } = useAuthStore();
+  const { isAuthenticated, isLoading, user } = useAuthStore();
   const router = useRouter();
   const pathname = usePathname();
   const [hydrated, setHydrated] = useState(false);
@@ -65,27 +64,6 @@ export default function DashboardLayout({
       cancelled = true;
     };
   }, [hydrated, router]);
-
-  // Sync company once per session (background refresh)
-  useEffect(() => {
-    if (!hydrated || !isAuthenticated) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await api.getCompany();
-        const fresh = res.data as Company;
-        if (!cancelled && fresh) {
-          const current = useAuthStore.getState().company;
-          setCompany(current ? { ...current, ...fresh } : fresh);
-        }
-      } catch {
-        // keep cached company
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [hydrated, isAuthenticated, setCompany]);
 
   useEffect(() => {
     if (!hydrated || isLoading) return;

@@ -36,7 +36,7 @@ export function HisabyAppsPanel({ className }: { className?: string }) {
     isError: loadError,
     refetch,
   } = useQuery({
-    queryKey: ["subscription-modules"],
+    queryKey: ["subscription-modules", user?.companyId],
     queryFn: async () => {
       const res = await api.getCurrentSubscription({ light: true });
       return res.data as {

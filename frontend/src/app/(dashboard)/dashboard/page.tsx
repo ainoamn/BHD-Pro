@@ -86,7 +86,7 @@ export default function DashboardPage() {
   });
 
   const { data: subscription } = useQuery({
-    queryKey: ["subscription-modules"],
+    queryKey: ["subscription-modules", company?.id],
     queryFn: async () => {
       const res = await api.getCurrentSubscription({ light: true });
       return res.data as {
@@ -104,7 +104,7 @@ export default function DashboardPage() {
   const { data: invoices = [] } = useQuery({
     queryKey: ["invoices"],
     queryFn: async () => {
-      const res = await api.getInvoices();
+      const res = await api.getInvoices({ summary: true, take: 40 });
       return res.data as {
         id: string;
         number: string;

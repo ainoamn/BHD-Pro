@@ -198,7 +198,14 @@ export default function PosCheckoutPage() {
   const [paying, setPaying] = useState(false);
   const [lastInvoice, setLastInvoice] = useState<ReceiptSnapshot | null>(null);
   const [warehouses, setWarehouses] = useState<PosWarehouse[]>([]);
-  const [warehouseId, setWarehouseId] = useState("");
+  const [warehouseId, setWarehouseId] = useState(() => {
+    if (typeof window === "undefined") return "";
+    try {
+      return localStorage.getItem(POS_WAREHOUSE_KEY) || "";
+    } catch {
+      return "";
+    }
+  });
   const [canSwitchWarehouse, setCanSwitchWarehouse] = useState(false);
   const [homeWarehouseId, setHomeWarehouseId] = useState<string | null>(null);
   const [homeWarehouseLabel, setHomeWarehouseLabel] = useState("");
@@ -354,7 +361,7 @@ export default function PosCheckoutPage() {
         : 5;
 
   const { data: securityConfig } = useQuery({
-    queryKey: ["company-security"],
+    queryKey: ["company-security", companyId],
     queryFn: async () => {
       const res = await api.getCompanySecurity();
       return res.data as {
@@ -928,7 +935,8 @@ export default function PosCheckoutPage() {
   useEffect(() => {
     if (!user?.id) return;
     setTipAssigneeId((prev) => prev || user.id);
-    void loadTipStaff();
+    const timer = window.setTimeout(() => void loadTipStaff(), 2000);
+    return () => window.clearTimeout(timer);
   }, [user?.id, loadTipStaff]);
 
   useEffect(() => {
@@ -977,7 +985,10 @@ export default function PosCheckoutPage() {
   }, [companyId, user?.id]);
 
   useEffect(() => {
-    loadRecentSales();
+    void loadRecentSales();
+  }, [loadRecentSales]);
+
+  useEffect(() => {
     focusScan();
     if (companyId) {
       void loadParkedCarts();
@@ -1070,7 +1081,7 @@ export default function PosCheckoutPage() {
         setBootError(true);
       }
     })();
-  }, [loadRecentSales, loadParkedCarts, focusScan, companyId, t.loadFailed]);
+  }, [loadParkedCarts, focusScan, companyId, t.loadFailed]);
 
   useEffect(() => {
     void loadOpsStrip();

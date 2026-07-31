@@ -112,8 +112,6 @@ export function Topbar() {
           {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
         </button>
 
-        <NotificationsButton />
-
         <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 rounded-lg max-w-[200px]">
           <Building2 className="w-4 h-4 text-emerald-500 dark:text-emerald-400 shrink-0" />
           <span className="text-sm text-slate-900 dark:text-white font-medium truncate">
@@ -122,7 +120,7 @@ export function Topbar() {
         </div>
       </div>
 
-      <div className="lg:hidden shrink-0">
+      <div className="shrink-0">
         <NotificationsButton />
       </div>
     </header>
