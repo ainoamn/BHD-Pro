@@ -2848,8 +2848,12 @@ export class PosService {
         take,
         include: {
           items: {
-            include: {
-              product: { select: { id: true, sku: true, barcode: true } },
+            select: {
+              productId: true,
+              description: true,
+              quantity: true,
+              unitPrice: true,
+              total: true,
             },
           },
           payments: { select: { method: true, amount: true } },
@@ -2870,8 +2874,12 @@ export class PosService {
         take: Math.min(take, 15),
         include: {
           items: {
-            include: {
-              product: { select: { id: true, sku: true, barcode: true } },
+            select: {
+              productId: true,
+              description: true,
+              quantity: true,
+              unitPrice: true,
+              total: true,
             },
           },
           payments: { select: { method: true, amount: true } },

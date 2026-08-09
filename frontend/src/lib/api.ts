@@ -361,10 +361,11 @@ class ApiClient {
     useAuthStore.getState().logout();
   }
 
-  async getMe() {
-    return this.get('/auth/me');
+  async getMe(config?: AxiosRequestConfig) {
+    return this.get('/auth/me', config);
   }
 
+  /** Session restore — short timeout so mobile shells fail open instead of hanging 60s. */
   async restoreSession() {
     if (this.restorePromise) {
       return this.restorePromise;
@@ -378,7 +379,7 @@ class ApiClient {
 
   private async restoreSessionOnce() {
     try {
-      const res = await this.getMe();
+      const res = await this.getMe({ timeout: 15000 });
       const data = res.data as {
         id: string;
         name: string;
@@ -465,6 +466,7 @@ class ApiClient {
     paymentStatus?: string;
     q?: string;
     take?: number;
+    /** Skip nested line items — list/hub first paint */
     summary?: boolean;
   }) {
     return this.get('/invoices', {
@@ -3229,7 +3231,10 @@ class ApiClient {
         sms?: string;
         whatsappError?: string;
         whatsappTo?: string;
+        whatsappVia?: string;
+        whatsappMessageId?: string;
         receiptTemplate?: string | null;
+        receiptTemplateLang?: string;
       };
     }>(`/pos/sales/${id}/notify`);
   }

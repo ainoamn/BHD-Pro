@@ -4,10 +4,10 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 import { DashboardStats } from "@/components/dashboard/stats";
-import { RevenueChart } from "@/components/dashboard/revenue-chart";
 import { RecentInvoices } from "@/components/dashboard/recent-invoices";
 import { PageHeader, LoadingSpinner, QueryError } from "@/components/ui/page-shell";
 import { QuickActions } from "@/components/dashboard/quick-actions";
@@ -21,6 +21,12 @@ import {
 } from "@/lib/plan-access-catalog";
 import { UpgradeBadge } from "@/components/billing/plan-upgrade-gate";
 import { subscriptionUpgradeHref } from "@/lib/plan-upgrade";
+
+const RevenueChart = dynamic(
+  () =>
+    import("@/components/dashboard/revenue-chart").then((m) => m.RevenueChart),
+  { ssr: false, loading: () => <div className="h-64 rounded-xl bg-slate-100/60 dark:bg-slate-800/40 animate-pulse" /> },
+);
 
 interface DashboardData {
   revenue: number;
@@ -95,6 +101,7 @@ export default function DashboardPage() {
         plan?: string;
       };
     },
+    staleTime: 60_000,
   });
   const modules = subscription?.modules;
 
@@ -121,6 +128,7 @@ export default function DashboardPage() {
     enabled: collectOpen,
   });
 
+  /** Show stats as soon as ready; modules lock cards without blocking first paint. */
   const bootLoading = isLoading;
 
   return (

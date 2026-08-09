@@ -90,6 +90,7 @@ export class InvoicesService {
       paymentStatus?: PaymentStatus;
       q?: string;
       take?: number;
+      /** List UI — no nested items/payments (load full invoice on open/edit). */
       summary?: boolean;
     },
   ) {

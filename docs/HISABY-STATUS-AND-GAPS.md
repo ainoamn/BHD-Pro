@@ -8,6 +8,7 @@
 **إصلاح بطء صالة المطاعم:** [`HISABY-FIX-RESTO-FLOOR-PERF-2026-07-29.md`](./HISABY-FIX-RESTO-FLOOR-PERF-2026-07-29.md)  
 **إصلاح بطء شامل (>30ث):** [`HISABY-FIX-SYSTEMIC-SLOW-LOAD-2026-07-29.md`](./HISABY-FIX-SYSTEMIC-SLOW-LOAD-2026-07-29.md)  
 **إصلاح واتساب (تم الإرسال ولا يصل):** [`HISABY-FIX-WHATSAPP-DELIVERY-2026-07-29.md`](./HISABY-FIX-WHATSAPP-DELIVERY-2026-07-29.md)  
+**إصلاح موبايل المحاسبة + بطء الأنظمة:** [`HISABY-FIX-MOBILE-ACCOUNTING-PERF-2026-08-09.md`](./HISABY-FIX-MOBILE-ACCOUNTING-PERF-2026-08-09.md)  
 **دليل المراسلات (واتساب/إيميل/SMS):** [`MESSAGING-WHATSAPP-EMAIL-GUIDE.md`](./MESSAGING-WHATSAPP-EMAIL-GUIDE.md)  
 **لوحة المنصة / الباقات / التسعير:** [`HISABY-ADMIN-PLANS-USERS-PRICING-2026-07-26.md`](./HISABY-ADMIN-PLANS-USERS-PRICING-2026-07-26.md)  
 **مقارنة الباقات في الصفحة الرئيسية:** [`HISABY-LANDING-PLAN-COMPARE-2026-07-26.md`](./HISABY-LANDING-PLAN-COMPARE-2026-07-26.md)  

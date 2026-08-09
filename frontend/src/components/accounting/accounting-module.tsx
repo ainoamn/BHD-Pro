@@ -418,6 +418,13 @@ export function AccountingModule() {
               : "PURCHASE"
             : undefined;
 
+  const isOverview = hubTab === "overview";
+  const isListTab =
+    hubTab === "sales" ||
+    hubTab === "purchases" ||
+    hubTab === "quotations" ||
+    hubTab === "creditNotes";
+
   const { data: invoices = [], isLoading, isError, refetch } = useQuery({
     queryKey: [
       "invoices",
@@ -425,6 +432,7 @@ export function AccountingModule() {
       statusFilter,
       paymentFilter,
       debouncedSearchQuery,
+      "summary",
     ],
     queryFn: async () => {
       const res = await api.getInvoices({
@@ -433,10 +441,11 @@ export function AccountingModule() {
         paymentStatus: paymentFilter || undefined,
         q: debouncedSearchQuery || undefined,
         summary: true,
+        take: 60,
       });
       return res.data as Invoice[];
     },
-    enabled: hubTab !== "overview",
+    enabled: isListTab || isOverview,
   });
 
   const filteredInvoices = invoices;
@@ -455,6 +464,7 @@ export function AccountingModule() {
       }[];
     },
     enabled: hubTab !== "overview" || modalOpen || printInvoice !== null,
+    staleTime: 120_000,
   });
 
   const resolveDocTemplate = (invoiceType: string, variant: "invoice" | "receipt") => {
@@ -492,7 +502,9 @@ export function AccountingModule() {
       const res = await api.getContacts(contactsQueryType);
       return res.data as Contact[];
     },
+    // Defer until create form needs them
     enabled: modalOpen,
+    staleTime: 60_000,
   });
 
   const { data: costCenters = [] } = useQuery({
@@ -502,6 +514,7 @@ export function AccountingModule() {
       return res.data as { id: string; code: string; name: string }[];
     },
     enabled: modalOpen,
+    staleTime: 120_000,
   });
 
   const { data: projects = [] } = useQuery({
@@ -511,6 +524,7 @@ export function AccountingModule() {
       return res.data as { id: string; code: string; name: string; costCenterId?: string | null }[];
     },
     enabled: modalOpen,
+    staleTime: 120_000,
   });
 
   const { data: invoiceFields = [] } = useQuery({
@@ -520,6 +534,7 @@ export function AccountingModule() {
       return res.data as CustomFieldDef[];
     },
     enabled: modalOpen,
+    staleTime: 120_000,
   });
 
   const contactType = invoiceType === "SALES" ? "CUSTOMER" : "SUPPLIER";

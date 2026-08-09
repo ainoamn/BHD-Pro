@@ -46,6 +46,7 @@ import {
   Sun,
   Mail,
   Flag,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUIStore } from "@/store/ui";
@@ -315,6 +316,14 @@ export function Sidebar() {
             <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{tApp("tagline")}</p>
           </div>
         )}
+        <button
+          type="button"
+          aria-label="Close menu"
+          className="lg:hidden shrink-0 rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+          onClick={() => setSidebarOpen(false)}
+        >
+          <X className="w-5 h-5" />
+        </button>
       </div>
 
       <div className="px-3 pt-3 shrink-0 space-y-2">

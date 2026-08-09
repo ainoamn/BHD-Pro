@@ -19,6 +19,8 @@ import {
 import { homePathForUser } from "@/lib/user-home";
 import { wakeApi } from "@/lib/wake-api";
 
+const BOOT_SAFETY_MS = 12000;
+
 export default function DashboardLayout({
   children,
 }: {
@@ -29,16 +31,29 @@ export default function DashboardLayout({
   const router = useRouter();
   const pathname = usePathname();
   const [hydrated, setHydrated] = useState(false);
+  const [bootTimedOut, setBootTimedOut] = useState(false);
+  const [bootRetry, setBootRetry] = useState(0);
 
   useEffect(() => {
     setHydrated(true);
     wakeApi();
   }, []);
 
-  // Validate session; keep UI if we already have auth from a fresh login.
+  // Validate session; never leave mobile stuck on the spinner (cold API).
   useEffect(() => {
     if (!hydrated) return;
     let cancelled = false;
+    setBootTimedOut(false);
+
+    const safety = window.setTimeout(() => {
+      if (cancelled) return;
+      const store = useAuthStore.getState();
+      store.setLoading(false);
+      if (!store.isAuthenticated && !store.accessToken) {
+        setBootTimedOut(true);
+      }
+    }, BOOT_SAFETY_MS);
+
     (async () => {
       const store = useAuthStore.getState();
       if (store.isAuthenticated) {
@@ -55,22 +70,25 @@ export default function DashboardLayout({
         // Fresh login keeps accessToken in memory — trust it until /me works.
         if (!still.accessToken) {
           still.logout();
-          router.replace("/login");
+          if (!cancelled) setBootTimedOut(true);
         }
       }
       useAuthStore.getState().setLoading(false);
     })();
+
     return () => {
       cancelled = true;
+      window.clearTimeout(safety);
     };
-  }, [hydrated, router]);
+  }, [hydrated, router, bootRetry]);
 
   useEffect(() => {
-    if (!hydrated || isLoading) return;
+    if (!hydrated || isLoading || bootTimedOut) return;
     if (!isAuthenticated) {
-      router.replace("/login");
+      const next = encodeURIComponent(`${pathname || "/dashboard"}${typeof window !== "undefined" ? window.location.search : ""}`);
+      router.replace(`/login?next=${next}`);
     }
-  }, [hydrated, isAuthenticated, isLoading, router]);
+  }, [hydrated, isAuthenticated, isLoading, bootTimedOut, router, pathname]);
 
   useEffect(() => {
     if (!hydrated || !isAuthenticated || !user) return;
@@ -84,8 +102,47 @@ export default function DashboardLayout({
 
   if (!hydrated || isLoading) {
     return (
-      <div className="min-h-screen bg-app flex items-center justify-center">
+      <div className="min-h-screen bg-app flex flex-col items-center justify-center gap-4 p-6">
         <div className="animate-spin w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full" />
+        <p className="text-sm text-slate-500 dark:text-slate-400 text-center max-w-xs">
+          جاري الاتصال بالخادم…
+        </p>
+      </div>
+    );
+  }
+
+  if (bootTimedOut && !isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-app flex flex-col items-center justify-center gap-4 p-6 text-center">
+        <p className="text-base font-semibold text-slate-800 dark:text-slate-100">
+          الخادم يستغرق وقتاً أطول من المعتاد
+        </p>
+        <p className="text-sm text-slate-500 dark:text-slate-400 max-w-sm">
+          غالباً بعد فترة خمول. أعد المحاولة أو سجّل الدخول من جديد.
+        </p>
+        <div className="flex flex-wrap gap-2 justify-center">
+          <button
+            type="button"
+            className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white"
+            onClick={() => {
+              wakeApi();
+              setBootTimedOut(false);
+              setBootRetry((n) => n + 1);
+            }}
+          >
+            إعادة المحاولة
+          </button>
+          <button
+            type="button"
+            className="rounded-xl border border-slate-300 dark:border-slate-600 px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200"
+            onClick={() => {
+              const next = encodeURIComponent(pathname || "/dashboard");
+              router.replace(`/login?next=${next}`);
+            }}
+          >
+            تسجيل الدخول
+          </button>
+        </div>
       </div>
     );
   }

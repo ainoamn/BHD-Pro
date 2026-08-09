@@ -990,32 +990,35 @@ export default function PosCheckoutPage() {
 
   useEffect(() => {
     focusScan();
-    if (companyId) {
-      void loadParkedCarts();
-      void api
-        .getPosIncentivesConfig()
-        .then((res) => {
-          setReceiptFooter(String(res.data.receiptFooter || ""));
-        })
-        .catch(() => {
-          toast.error(t.loadFailed);
-        });
-    } else {
-      setParkedCarts([]);
-      setParkLoadError(false);
-    }
-    (async () => {
+    void (async () => {
       try {
         const { isWebSerialSupported } = await import("@/lib/pos-escpos");
         setWebSerialOk(isWebSerialSupported());
       } catch {
         setWebSerialOk(false);
       }
+    })();
+    if (companyId) {
+      // Defer non-critical boot so warehouse/catalog win the race
+      window.setTimeout(() => {
+        void loadParkedCarts();
+        void api
+          .getPosIncentivesConfig()
+          .then((res) => {
+            setReceiptFooter(String(res.data.receiptFooter || ""));
+          })
+          .catch(() => {
+            /* optional */
+          });
+      }, 0);
+    } else {
+      setParkedCarts([]);
+      setParkLoadError(false);
+    }
+    (async () => {
       try {
-        const [ctxRes, contactRes] = await Promise.all([
-          api.getPosWarehouseContext(),
-          api.getContacts("CUSTOMER"),
-        ]);
+        // Warehouse context first — catalog needs it; contacts can wait.
+        const ctxRes = await api.getPosWarehouseContext();
         setBootError(false);
         const ctx = ctxRes.data;
         setWarehouses(
@@ -1034,10 +1037,6 @@ export default function PosCheckoutPage() {
             ? `${ctx.homeWarehouse.code} — ${ctx.homeWarehouse.name}`
             : "",
         );
-        const contactRows = ((contactRes.data as Contact[]) || []).filter(
-          (c) => c.isActive !== false,
-        );
-        setCustomers(contactRows);
 
         const homeId = ctx.homeWarehouseId || "";
         if (ctx.canSwitchFreely) {
@@ -1071,12 +1070,24 @@ export default function PosCheckoutPage() {
           }
         }
 
-        try {
-          const pend = await api.listPosPendingFulfillments(20);
-          setPendingFulfillments(pend.data || []);
-        } catch {
-          setPendingFulfillments([]);
-        }
+        // Secondary: contacts + fulfilments after register can sell
+        void (async () => {
+          try {
+            const contactRes = await api.getContacts("CUSTOMER");
+            const contactRows = ((contactRes.data as Contact[]) || []).filter(
+              (c) => c.isActive !== false,
+            );
+            setCustomers(contactRows);
+          } catch {
+            /* keep empty */
+          }
+          try {
+            const pend = await api.listPosPendingFulfillments(20);
+            setPendingFulfillments(pend.data || []);
+          } catch {
+            setPendingFulfillments([]);
+          }
+        })();
       } catch {
         setBootError(true);
       }
