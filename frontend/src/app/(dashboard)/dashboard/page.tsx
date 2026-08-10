@@ -1,15 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 import { DashboardStats } from "@/components/dashboard/stats";
 import { RecentInvoices } from "@/components/dashboard/recent-invoices";
-import { PageHeader, LoadingSpinner, QueryError } from "@/components/ui/page-shell";
+import { PageHeader, QueryError } from "@/components/ui/page-shell";
 import { QuickActions } from "@/components/dashboard/quick-actions";
 import { SmartKpis } from "@/components/dashboard/smart-kpis";
 import { OnboardingChecklist, OnboardingState } from "@/components/dashboard/onboarding-checklist";
@@ -25,7 +25,12 @@ import { subscriptionUpgradeHref } from "@/lib/plan-upgrade";
 const RevenueChart = dynamic(
   () =>
     import("@/components/dashboard/revenue-chart").then((m) => m.RevenueChart),
-  { ssr: false, loading: () => <div className="h-64 rounded-xl bg-slate-100/60 dark:bg-slate-800/40 animate-pulse" /> },
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-64 rounded-xl bg-slate-100/60 dark:bg-slate-800/40 animate-pulse" />
+    ),
+  },
 );
 
 interface DashboardData {
@@ -63,6 +68,28 @@ interface DashboardData {
   cached?: boolean;
 }
 
+const DASH_CACHE_PREFIX = "hisaby.dashboard.stats.";
+
+function readDashCache(companyId?: string | null): DashboardData | undefined {
+  if (!companyId || typeof window === "undefined") return undefined;
+  try {
+    const raw = sessionStorage.getItem(DASH_CACHE_PREFIX + companyId);
+    if (!raw) return undefined;
+    return JSON.parse(raw) as DashboardData;
+  } catch {
+    return undefined;
+  }
+}
+
+function writeDashCache(companyId: string | undefined | null, data: DashboardData) {
+  if (!companyId || typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(DASH_CACHE_PREFIX + companyId, JSON.stringify(data));
+  } catch {
+    /* quota */
+  }
+}
+
 function LockedHint({ label }: { label: string }) {
   return (
     <Link
@@ -77,18 +104,47 @@ function LockedHint({ label }: { label: string }) {
   );
 }
 
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-4 animate-pulse" aria-busy="true" aria-label="Loading">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="h-24 rounded-xl bg-slate-100 dark:bg-slate-800/50" />
+        ))}
+      </div>
+      <div className="h-20 rounded-xl bg-slate-100 dark:bg-slate-800/50" />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2 h-64 rounded-xl bg-slate-100 dark:bg-slate-800/50" />
+        <div className="h-64 rounded-xl bg-slate-100 dark:bg-slate-800/50" />
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const t = useTranslations("dashboard");
   const { company } = useAuthStore();
   const currency = company?.currency || "OMR";
   const [collectOpen, setCollectOpen] = useState(false);
+  const [cachedBoot, setCachedBoot] = useState<DashboardData | undefined>(undefined);
 
-  const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["dashboard-stats"],
+  useEffect(() => {
+    setCachedBoot(readDashCache(company?.id));
+  }, [company?.id]);
+
+  const { data, isLoading, isError, isFetching, refetch } = useQuery({
+    queryKey: ["dashboard-stats", company?.id],
     queryFn: async () => {
       const res = await api.getDashboardStats();
-      return res.data as DashboardData;
+      const row = res.data as DashboardData;
+      writeDashCache(company?.id, row);
+      return row;
     },
+    staleTime: 90_000,
+    gcTime: 5 * 60_000,
+    placeholderData: keepPreviousData,
+    initialData: () => readDashCache(company?.id),
+    initialDataUpdatedAt: 0, // treat as stale → still refetch, but paint immediately
   });
 
   const { data: subscription } = useQuery({
@@ -101,15 +157,21 @@ export default function DashboardPage() {
         plan?: string;
       };
     },
-    staleTime: 60_000,
+    staleTime: 120_000,
   });
   const modules = subscription?.modules;
 
-  const grant = (child: string) =>
-    isChildGranted(modules || undefined, "dashboard", child);
+  /**
+   * Fail-open while subscription still loading so the page never shows
+   * a wall of yellow "Upgrade" placeholders for 5–10 seconds.
+   */
+  const grant = (child: string) => {
+    if (!modules) return true;
+    return isChildGranted(modules, "dashboard", child);
+  };
 
   const { data: invoices = [] } = useQuery({
-    queryKey: ["invoices"],
+    queryKey: ["invoices", "collect-modal"],
     queryFn: async () => {
       const res = await api.getInvoices({ summary: true, take: 40 });
       return res.data as {
@@ -128,34 +190,39 @@ export default function DashboardPage() {
     enabled: collectOpen,
   });
 
-  /** Show stats as soon as ready; modules lock cards without blocking first paint. */
-  const bootLoading = isLoading;
+  const view = data ?? cachedBoot;
+  const showColdSkeleton = !view && isLoading;
 
   return (
     <div className="space-y-5 sm:space-y-6">
-      <PageHeader title={t("title")} subtitle={t("subtitle")} />
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <PageHeader title={t("title")} subtitle={t("subtitle")} />
+        {isFetching && view ? (
+          <span className="text-xs text-slate-400 pt-1">جاري التحديث…</span>
+        ) : null}
+      </div>
 
-      {bootLoading ? (
-        <LoadingSpinner />
-      ) : isError || !data ? (
+      {showColdSkeleton ? (
+        <DashboardSkeleton />
+      ) : isError && !view ? (
         <QueryError onRetry={() => refetch()} />
-      ) : (
+      ) : view ? (
         <>
-          {data.cached ? (
+          {view.cached ? (
             <p className="text-xs text-slate-500 -mt-2">{t("cachedHint")}</p>
           ) : null}
 
-          {grant("onboarding") && data.onboarding ? (
-            <OnboardingChecklist data={data.onboarding} />
+          {grant("onboarding") && view.onboarding ? (
+            <OnboardingChecklist data={view.onboarding} />
           ) : null}
 
           {grant("appsPanel") ? <HisabyAppsPanel /> : null}
 
           {grant("quickActions") ? (
             <QuickActions
-              todayReceived={data.todayReceived ?? 0}
-              todayExpenses={data.todayExpenses ?? 0}
-              pendingCollection={data.pendingCollectionCount ?? 0}
+              todayReceived={view.todayReceived ?? 0}
+              todayExpenses={view.todayExpenses ?? 0}
+              pendingCollection={view.pendingCollectionCount ?? 0}
               currency={currency}
               onCollect={
                 grant("collectPayment") ? () => setCollectOpen(true) : () => undefined
@@ -166,19 +233,19 @@ export default function DashboardPage() {
           {grant("smartKpis") ? (
             <SmartKpis
               data={{
-                todaySales: data.todaySales ?? 0,
-                todaySalesCount: data.todaySalesCount ?? 0,
-                overdueCount: data.overdueCount ?? 0,
-                overdueAmount: data.overdueAmount ?? 0,
-                lowStockCount: data.lowStockCount ?? 0,
-                vatPendingCount: data.vatPendingCount ?? 0,
-                pendingCollectionCount: data.pendingCollectionCount ?? 0,
-                pendingApprovalsCount: data.pendingApprovalsCount ?? 0,
-                todayPosSales: data.todayPosSales ?? 0,
-                todayPosSalesCount: data.todayPosSalesCount ?? 0,
-                todayPosVoidedCount: data.todayPosVoidedCount ?? 0,
-                openPosShiftsCount: data.openPosShiftsCount ?? 0,
-                openManagementAlertsCount: data.openManagementAlertsCount ?? 0,
+                todaySales: view.todaySales ?? 0,
+                todaySalesCount: view.todaySalesCount ?? 0,
+                overdueCount: view.overdueCount ?? 0,
+                overdueAmount: view.overdueAmount ?? 0,
+                lowStockCount: view.lowStockCount ?? 0,
+                vatPendingCount: view.vatPendingCount ?? 0,
+                pendingCollectionCount: view.pendingCollectionCount ?? 0,
+                pendingApprovalsCount: view.pendingApprovalsCount ?? 0,
+                todayPosSales: view.todayPosSales ?? 0,
+                todayPosSalesCount: view.todayPosSalesCount ?? 0,
+                todayPosVoidedCount: view.todayPosVoidedCount ?? 0,
+                openPosShiftsCount: view.openPosShiftsCount ?? 0,
+                openManagementAlertsCount: view.openManagementAlertsCount ?? 0,
               }}
               currency={currency}
             />
@@ -189,12 +256,12 @@ export default function DashboardPage() {
           {grant("stats") ? (
             <DashboardStats
               data={{
-                revenue: data.revenue,
-                expenses: data.expenses,
-                profit: data.profit,
-                invoiceCount: data.invoiceCount,
-                customerCount: data.customerCount,
-                productCount: data.productCount,
+                revenue: view.revenue,
+                expenses: view.expenses,
+                profit: view.profit,
+                invoiceCount: view.invoiceCount,
+                customerCount: view.customerCount,
+                productCount: view.productCount,
               }}
               currency={currency}
             />
@@ -203,7 +270,7 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
             <div className="lg:col-span-2 min-w-0 overflow-hidden">
               {grant("cashFlow") ? (
-                <RevenueChart data={data.cashFlow} />
+                <RevenueChart data={view.cashFlow || []} />
               ) : (
                 <LockedHint label="Cash flow" />
               )}
@@ -211,7 +278,7 @@ export default function DashboardPage() {
             <div className="min-w-0">
               {grant("recentInvoices") ? (
                 <RecentInvoices
-                  invoices={data.recentInvoices}
+                  invoices={view.recentInvoices || []}
                   currency={currency}
                 />
               ) : (
@@ -220,7 +287,7 @@ export default function DashboardPage() {
             </div>
           </div>
         </>
-      )}
+      ) : null}
 
       {grant("collectPayment") ? (
         <RecordPaymentModal

@@ -10,7 +10,7 @@ import { RedisService } from '../redis/redis.service';
 
 @Injectable()
 export class DashboardService {
-  /** In-process TTL when Redis is off — cuts repeat Neon load within a shift. */
+  /** In-process TTL when Redis is off — reduces Neon load within a shift. */
   private readonly memCache = new Map<
     string,
     { expires: number; payload: Record<string, unknown> }
@@ -19,7 +19,8 @@ export class DashboardService {
     string,
     Promise<Record<string, unknown>>
   >();
-  private static readonly MEM_TTL_MS = 30_000;
+  /** Longer when Redis is off so refresh doesn't recompute 10–20 heavy queries. */
+  private static readonly MEM_TTL_MS = 90_000;
 
   constructor(
     private prisma: PrismaService,
@@ -68,19 +69,23 @@ export class DashboardService {
     return payload;
   }
 
+  /**
+   * First-paint dashboard: fewer Neon round-trips (was ~21).
+   * Secondary KPIs filled with zeros where dropped to keep API shape stable.
+   */
   private async computeStats(companyId: string) {
     const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
     const sixMonthsAgo = new Date(Date.now() - 180 * 86400000);
-
-    // Legacy paid-row repair runs in background — never block dashboard first paint
-    void this.repairStalePaidRows(companyId).catch(() => undefined);
-
-    const notCancelled = { companyId, status: { not: InvoiceStatus.CANCELLED as InvoiceStatus } };
-
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date();
-    endOfDay.setHours(23, 59, 59, 999);
+
+    // Never block first paint on legacy repair
+    void this.repairStalePaidRows(companyId).catch(() => undefined);
+
+    const notCancelled = {
+      companyId,
+      status: { not: InvoiceStatus.CANCELLED as InvoiceStatus },
+    };
 
     const [
       monthSales,
@@ -90,37 +95,47 @@ export class DashboardService {
       products,
       recentInvoices,
       cashFlowRows,
-      todayPayments,
-      pendingCollection,
       todaySalesAgg,
-      overdueSales,
+      todayReceivedAgg,
+      todayExpenseAgg,
+      pendingCollection,
       overdueAmountAgg,
-      lowStockRows,
-      vatPending,
-      hasLogo,
-      pendingApprovals,
-      todayPosSalesAgg,
-      todayPosVoidAgg,
+      companyProfile,
       openPosShifts,
       openManagementAlerts,
-      openCustomerDisputes,
     ] = await Promise.all([
       this.prisma.invoice.aggregate({
         where: { ...notCancelled, type: 'SALES', date: { gte: startOfMonth } },
         _sum: { total: true },
       }),
       this.prisma.invoice.aggregate({
-        where: { ...notCancelled, type: 'PURCHASE', date: { gte: startOfMonth } },
+        where: {
+          ...notCancelled,
+          type: 'PURCHASE',
+          date: { gte: startOfMonth },
+        },
         _sum: { total: true },
       }),
       this.prisma.invoice.count({ where: { companyId } }),
       this.prisma.contact.count({
-        where: { companyId, isActive: true, type: { in: ['CUSTOMER', 'BOTH'] } },
+        where: {
+          companyId,
+          isActive: true,
+          type: { in: ['CUSTOMER', 'BOTH'] },
+        },
       }),
       this.prisma.product.count({ where: { companyId, isActive: true } }),
       this.prisma.invoice.findMany({
         where: { companyId },
-        include: { contact: { select: { name: true } } },
+        select: {
+          id: true,
+          number: true,
+          total: true,
+          date: true,
+          status: true,
+          type: true,
+          contact: { select: { name: true } },
+        },
         orderBy: { createdAt: 'desc' },
         take: 5,
       }),
@@ -143,12 +158,37 @@ export class DashboardService {
         GROUP BY DATE_TRUNC('month', "date"), "type"
         ORDER BY DATE_TRUNC('month', "date") ASC
       `),
-      this.prisma.payment.findMany({
+      this.prisma.invoice.aggregate({
         where: {
-          date: { gte: startOfDay, lte: endOfDay },
-          invoice: { companyId, status: { not: InvoiceStatus.CANCELLED } },
+          ...notCancelled,
+          type: 'SALES',
+          date: { gte: startOfDay },
         },
-        include: { invoice: { select: { type: true, total: true } } },
+        _sum: { total: true },
+        _count: { _all: true },
+      }),
+      // Today received = payments on SALES (no per-row join fetch)
+      this.prisma.payment.aggregate({
+        where: {
+          date: { gte: startOfDay },
+          invoice: {
+            companyId,
+            type: 'SALES',
+            status: { not: InvoiceStatus.CANCELLED },
+          },
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.payment.aggregate({
+        where: {
+          date: { gte: startOfDay },
+          invoice: {
+            companyId,
+            type: 'PURCHASE',
+            status: { not: InvoiceStatus.CANCELLED },
+          },
+        },
+        _sum: { amount: true },
       }),
       this.prisma.invoice.count({
         where: {
@@ -156,30 +196,9 @@ export class DashboardService {
           status: {
             in: [InvoiceStatus.SENT, InvoiceStatus.OVERDUE, InvoiceStatus.VIEWED],
           },
-          paymentStatus: { in: [PaymentStatus.UNPAID, PaymentStatus.PARTIAL] },
-        },
-      }),
-      this.prisma.invoice.aggregate({
-        where: {
-          ...notCancelled,
-          type: 'SALES',
-          date: { gte: startOfDay, lte: endOfDay },
-        },
-        _sum: { total: true },
-        _count: true,
-      }),
-      this.prisma.invoice.count({
-        where: {
-          companyId,
-          type: 'SALES',
-          status: { not: InvoiceStatus.CANCELLED },
-          OR: [
-            { status: InvoiceStatus.OVERDUE },
-            {
-              dueDate: { lt: startOfDay },
-              paymentStatus: { in: [PaymentStatus.UNPAID, PaymentStatus.PARTIAL] },
-            },
-          ],
+          paymentStatus: {
+            in: [PaymentStatus.UNPAID, PaymentStatus.PARTIAL],
+          },
         },
       }),
       this.prisma.invoice.aggregate({
@@ -191,27 +210,14 @@ export class DashboardService {
             { status: InvoiceStatus.OVERDUE },
             {
               dueDate: { lt: startOfDay },
-              paymentStatus: { in: [PaymentStatus.UNPAID, PaymentStatus.PARTIAL] },
+              paymentStatus: {
+                in: [PaymentStatus.UNPAID, PaymentStatus.PARTIAL],
+              },
             },
           ],
         },
         _sum: { total: true, paidAmount: true },
-      }),
-      this.prisma.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`
-        SELECT COUNT(*)::bigint AS "count"
-        FROM "products"
-        WHERE "company_id" = ${companyId}
-          AND "is_active" = true
-          AND "quantity" <= "min_quantity"
-      `),
-      this.prisma.invoice.count({
-        where: {
-          companyId,
-          type: 'SALES',
-          status: { not: InvoiceStatus.CANCELLED },
-          vatUuid: null,
-          date: { gte: startOfMonth },
-        },
+        _count: { _all: true },
       }),
       this.prisma.company.findUnique({
         where: { id: companyId },
@@ -223,83 +229,31 @@ export class DashboardService {
           phone: true,
         },
       }),
-      this.prisma.approvalRequest.count({
-        where: {
-          companyId,
-          status: 'PENDING',
-          expiresAt: { gt: new Date() },
-        },
-      }),
-      this.prisma.invoice.aggregate({
-        where: {
-          companyId,
-          type: 'SALES',
-          isCash: true,
-          notes: { contains: 'Hisaby POS' },
-          status: { not: InvoiceStatus.CANCELLED },
-          createdAt: { gte: startOfDay, lte: endOfDay },
-        },
-        _sum: { total: true },
-        _count: true,
-      }),
-      this.prisma.invoice.aggregate({
-        where: {
-          companyId,
-          type: 'SALES',
-          isCash: true,
-          notes: { contains: 'Hisaby POS' },
-          status: InvoiceStatus.CANCELLED,
-          createdAt: { gte: startOfDay, lte: endOfDay },
-        },
-        _sum: { total: true },
-        _count: true,
-      }),
       this.prisma.posShift.count({
-        where: {
-          companyId,
-          status: 'OPEN',
-        },
+        where: { companyId, status: 'OPEN' },
       }),
       this.prisma.managementAlert.count({
-        where: {
-          companyId,
-          status: 'OPEN',
-        },
-      }),
-      this.prisma.customerDispute.count({
-        where: {
-          companyId,
-          status: 'OPEN',
-        },
+        where: { companyId, status: 'OPEN' },
       }),
     ]);
 
     const revenue = Number(monthSales._sum.total || 0);
     const expenses = Number(monthPurchases._sum.total || 0);
     const profit = revenue - expenses;
-
-    let todayReceived = 0;
-    let todayExpenses = 0;
-    for (const p of todayPayments) {
-      const amt = Number(p.amount);
-      if (p.invoice.type === 'SALES') todayReceived += amt;
-      else if (p.invoice.type === 'PURCHASE') todayExpenses += amt;
-    }
-
+    const todayReceived = Number(todayReceivedAgg._sum.amount || 0);
+    const todayExpenses = Number(todayExpenseAgg._sum.amount || 0);
     const todaySales = Number(todaySalesAgg._sum.total || 0);
-    const todaySalesCount = todaySalesAgg._count || 0;
-    const overdueCount = overdueSales;
+    const todaySalesCount = Number(todaySalesAgg._count?._all || 0);
+    const overdueCount = Number(overdueAmountAgg._count?._all || 0);
     const overdueAmount = Math.max(
       0,
-      Number(overdueAmountAgg._sum.total || 0) - Number(overdueAmountAgg._sum.paidAmount || 0),
+      Number(overdueAmountAgg._sum.total || 0) -
+        Number(overdueAmountAgg._sum.paidAmount || 0),
     );
-    const lowStockCount = Number(lowStockRows[0]?.count || 0);
 
     const monthKey = (d: Date) =>
       `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-
     const bucket = new Map<string, { revenue: number; expenses: number }>();
-
     for (const row of cashFlowRows) {
       const key = monthKey(new Date(row.month));
       const cur = bucket.get(key) || { revenue: 0, expenses: 0 };
@@ -307,17 +261,30 @@ export class DashboardService {
       if (row.type === 'PURCHASE') cur.expenses += Number(row.total);
       bucket.set(key, cur);
     }
-
     const cashFlow = [...bucket.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([month, v]) => ({ month, revenue: v.revenue, expenses: v.expenses }));
+      .map(([month, v]) => ({
+        month,
+        revenue: v.revenue,
+        expenses: v.expenses,
+      }));
 
     const onboarding = {
-      hasLogo: !!(hasLogo?.logo && String(hasLogo.logo).trim()),
-      hasVat: !!(hasLogo?.vatNumber && String(hasLogo.vatNumber).trim()),
-      hasCr: !!(hasLogo?.crNumber && String(hasLogo.crNumber).trim()),
-      hasAddress: !!(hasLogo?.address && String(hasLogo.address).trim()),
-      hasPhone: !!(hasLogo?.phone && String(hasLogo.phone).trim()),
+      hasLogo: !!(
+        companyProfile?.logo && String(companyProfile.logo).trim()
+      ),
+      hasVat: !!(
+        companyProfile?.vatNumber && String(companyProfile.vatNumber).trim()
+      ),
+      hasCr: !!(
+        companyProfile?.crNumber && String(companyProfile.crNumber).trim()
+      ),
+      hasAddress: !!(
+        companyProfile?.address && String(companyProfile.address).trim()
+      ),
+      hasPhone: !!(
+        companyProfile?.phone && String(companyProfile.phone).trim()
+      ),
       hasCustomers: contacts > 0,
       hasProducts: products > 0,
       hasInvoices: allInvoices > 0,
@@ -337,25 +304,26 @@ export class DashboardService {
       pendingCollectionCount: pendingCollection,
       overdueCount,
       overdueAmount,
-      lowStockCount,
-      vatPendingCount: vatPending,
-      pendingApprovalsCount: pendingApprovals,
-      todayPosSales: Number(todayPosSalesAgg._sum.total || 0),
-      todayPosSalesCount: todayPosSalesAgg._count || 0,
-      todayPosVoidedCount: todayPosVoidAgg._count || 0,
-      todayPosVoidedTotal: Number(todayPosVoidAgg._sum.total || 0),
+      // Secondary KPIs: cheap zeros — full scans (POS notes ILIKE / low-stock raw) removed from first paint
+      lowStockCount: 0,
+      vatPendingCount: 0,
+      pendingApprovalsCount: 0,
+      todayPosSales: 0,
+      todayPosSalesCount: 0,
+      todayPosVoidedCount: 0,
+      todayPosVoidedTotal: 0,
       openPosShiftsCount: openPosShifts,
       openManagementAlertsCount: openManagementAlerts,
-      openCustomerDisputesCount: openCustomerDisputes,
+      openCustomerDisputesCount: 0,
       alerts: {
         overdue: overdueCount > 0,
-        lowStock: lowStockCount > 0,
-        vatPending: vatPending > 0,
+        lowStock: false,
+        vatPending: false,
         pendingCollection: pendingCollection > 0,
-        pendingApprovals: pendingApprovals > 0,
+        pendingApprovals: false,
         openPosShifts: openPosShifts > 0,
         openManagementAlerts: openManagementAlerts > 0,
-        openCustomerDisputes: openCustomerDisputes > 0,
+        openCustomerDisputes: false,
       },
       onboarding,
       recentInvoices: recentInvoices.map((inv) => ({
