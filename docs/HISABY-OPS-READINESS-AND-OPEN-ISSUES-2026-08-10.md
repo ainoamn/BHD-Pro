@@ -7,6 +7,7 @@
 
 **مرتبط:**  
 - واتساب (تفاصيل تقنية): [`HISABY-FIX-WHATSAPP-DELIVERY-2026-07-29.md`](./HISABY-FIX-WHATSAPP-DELIVERY-2026-07-29.md)  
+- **Meta `#200` API access blocked:** [`HISABY-WHATSAPP-META-200-API-ACCESS-BLOCKED-2026-08-10.md`](./HISABY-WHATSAPP-META-200-API-ACCESS-BLOCKED-2026-08-10.md)  
 - دليل المراسلات: [`MESSAGING-WHATSAPP-EMAIL-GUIDE.md`](./MESSAGING-WHATSAPP-EMAIL-GUIDE.md)  
 - بطء اللوحة: [`HISABY-FIX-DASHBOARD-SLOW-PAINT-2026-08-10.md`](./HISABY-FIX-DASHBOARD-SLOW-PAINT-2026-08-10.md)  
 - موبايل المحاسبة: [`HISABY-FIX-MOBILE-ACCOUNTING-PERF-2026-08-09.md`](./HISABY-FIX-MOBILE-ACCOUNTING-PERF-2026-08-09.md)
@@ -82,7 +83,11 @@
 **ما زال حرجاً:** Deploy Render + مطابقة قالب Meta `pos_receipt` يدوياً.
 
 ### 4.1 تأكيد الحالة (تذكير المشغّل — 10 أغسطس 2026)
-- بعد **إصدار الفاتورة** و**إيصال الكاشير**: النظام قد يظهر نجاحاً أو يحاول الإرسال، **والرسالة لا تصل لهاتف العميل**.
+- بعد **إصدار الفاتورة** و**إيصال الكاشير**: غالباً **لا تصل** رسالة واتساب للجوال.
+- **لقطة إنتاج (كاشير):**  
+  `واتساب لم يُرسل من السيرفر: #200 — API access blocked.`  
+  → Meta رفضت وصول API (توكن/صلاحيات). الدليل الكامل:  
+  [`HISABY-WHATSAPP-META-200-API-ACCESS-BLOCKED-2026-08-10.md`](./HISABY-WHATSAPP-META-200-API-ACCESS-BLOCKED-2026-08-10.md)
 - في WhatsApp Manager سابقاً: قالب `pos_receipt` **نشط — جودة معلقة**، عمود التسليم فارغ.
 - الصحة الحية: `whatsappMode: live` + `WHATSAPP_RECEIPT_TEMPLATE=pos_receipt`.
 
@@ -117,6 +122,7 @@ WHATSAPP_RECEIPT_TEMPLATE_LANG=ar
 
 ### 4.3 أسباب محتملة لاستمرار «لا يصل» (مرتّبة)
 
+0. **`#200 — API access blocked`** — التوكن بلا صلاحية واتساب أو System User غير مربوط بـ WABA (إغلاق على Meta + `WHATSAPP_TOKEN`، ليس القالب).  
 1. **عدم تطابق قالب Meta `pos_receipt`** مع 5 متغيرات / اللغة `ar` / أزرار URL بدون معاملات زر.  
 2. **رقم العميل** بدون `968` أو ليس عليه واتساب أو خاطئ على جهة الاتصال.  
 3. **«تم الإرسال» = قبول Graph API** وليس تسليم الهاتف (لا webhook بعد).  
@@ -127,18 +133,20 @@ WHATSAPP_RECEIPT_TEMPLATE_LANG=ar
 
 ### 4.4 قائمة تحقق لإغلاق حادثة واتساب
 
+- [ ] إن ظهر `#200` / `API access blocked`: اتبع [`HISABY-WHATSAPP-META-200-…`](./HISABY-WHATSAPP-META-200-API-ACCESS-BLOCKED-2026-08-10.md) (توكن Permanent + scopes).  
 - [ ] Deploy Render + Vercel لأحدث `main`؛ صحة API تظهر commit الحديث.  
 - [ ] فتح `pos_receipt` في Meta ومطابقة نص الجسم مع 5 متغيرات (انظر دليل المراسلات §3).  
 - [ ] اختبار من Hisaby **`/integrations`** إلى **رقمك** بصيغة `968xxxxxxxx`.  
 - [ ] بيع كاشير بعميل برقمك → راقب Render logs:  
   - `WhatsApp template accepted … id=wamid…` = قبول  
-  - `WhatsApp template failed … #…` = اقرأ الرمز وأصلح القالب  
+  - `WhatsApp template failed … #…` = اقرأ الرمز وأصلح (توكن أو قالب)  
 - [ ] فاتورة محاسبة: غيّر الحالة إلى `SENT` أو `PAID` لعميل برقمك.  
 - [ ] راقب WhatsApp Manager → عمود التسليم للقالب.  
 - [ ] لاحقاً: webhook لحالات `failed`/`delivered` داخل المنتج.
 
 تفاصيل أعمق وأخطاء Meta الشائعة:  
-[`HISABY-FIX-WHATSAPP-DELIVERY-2026-07-29.md`](./HISABY-FIX-WHATSAPP-DELIVERY-2026-07-29.md)
+[`HISABY-FIX-WHATSAPP-DELIVERY-2026-07-29.md`](./HISABY-FIX-WHATSAPP-DELIVERY-2026-07-29.md) ·  
+[`HISABY-WHATSAPP-META-200-API-ACCESS-BLOCKED-2026-08-10.md`](./HISABY-WHATSAPP-META-200-API-ACCESS-BLOCKED-2026-08-10.md)
 
 ---
 

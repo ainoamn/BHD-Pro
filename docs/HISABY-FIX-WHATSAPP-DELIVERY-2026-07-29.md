@@ -1,7 +1,8 @@
 # واتساب — «تم الإرسال» بدون وصول · تشخيص وإصلاح (29 يوليو 2026)
 
-**آخر تحديث:** 29 يوليو 2026 · محدّث 10 أغسطس 2026 (واتساب ما زال لا يصل للفواتير/الإيصالات)  
+**آخر تحديث:** 29 يوليو 2026 · محدّث 10 أغسطس 2026 (`#200 — API access blocked`)  
 **جاهزية + فجوات:** [`HISABY-OPS-READINESS-AND-OPEN-ISSUES-2026-08-10.md`](./HISABY-OPS-READINESS-AND-OPEN-ISSUES-2026-08-10.md)  
+**خطأ Meta #200:** [`HISABY-WHATSAPP-META-200-API-ACCESS-BLOCKED-2026-08-10.md`](./HISABY-WHATSAPP-META-200-API-ACCESS-BLOCKED-2026-08-10.md)  
 **البيئة الحية:** API `hisaby-api.onrender.com` · واجهة `bhd-pro.vercel.app`  
 **مرجع تشغيلي عام:** [`MESSAGING-WHATSAPP-EMAIL-GUIDE.md`](./MESSAGING-WHATSAPP-EMAIL-GUIDE.md)
 
@@ -9,9 +10,21 @@
 
 ## 0) تحديث 10 أغسطس 2026 — الحادثة ما زالت مفتوحة
 
-المشرغل يؤكد مجدداً: **بعد إصدار الفواتير والإيصالات لا يصل واتساب للجوال.**
+المشغّل يؤكد مجدداً: **بعد إصدار الفواتير والإيصالات لا يصل واتساب للجوال.**
 
-يشمل:
+**أحدث رسالة من الكاشير:**
+
+```text
+واتساب لم يُرسل من السيرفر: #200 — API access blocked.
+```
+
+| | |
+|--|--|
+| المعنى | Graph رفض الطلب — غالباً `WHATSAPP_TOKEN` بلا صلاحية واتساب أو System User غير مرتبط بـ WABA |
+| الإغلاق | توكن Permanent جديد على Render — **ليس** نص القالب وحده |
+| الدليل | [`HISABY-WHATSAPP-META-200-API-ACCESS-BLOCKED-2026-08-10.md`](./HISABY-WHATSAPP-META-200-API-ACCESS-BLOCKED-2026-08-10.md) |
+
+يشمل أيضاً:
 - إيصالات **الكاشير** (بيع / إعادة إرسال)
 - فواتير **المحاسبة** عند التحويل إلى `SENT` أو `PAID` (توظّف نفس `notifyPosSale` + قالب `pos_receipt`)
 

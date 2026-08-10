@@ -8,7 +8,9 @@ export class WhatsappNotifyService {
   isConfigured(): boolean {
     if (process.env.WHATSAPP_ENABLED === 'false') return false;
     if ((process.env.WHATSAPP_TOKEN || '').toLowerCase() === 'mock') return true;
-    return !!(process.env.WHATSAPP_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID);
+    const token = (process.env.WHATSAPP_TOKEN || '').trim();
+    const phoneId = (process.env.WHATSAPP_PHONE_NUMBER_ID || '').trim();
+    return !!(token && phoneId);
   }
 
   mode(): 'live' | 'mock' | 'off' {
@@ -58,16 +60,58 @@ export class WhatsappNotifyService {
     }
   }
 
+  /** Map Meta codes to short Arabic ops guidance (appended after raw error). */
+  private metaOpsHint(code: number | undefined, message: string): string | null {
+    const blob = `${code ?? ''} ${message}`.toLowerCase();
+    if (
+      code === 200 ||
+      /api access blocked|permissions required|permission is either not granted|necessary permissions/i.test(
+        blob,
+      )
+    ) {
+      return 'التوكن بلا صلاحية واتساب أو محجوب: جدّد System User Token بصلاحيتَي whatsapp_business_messaging + whatsapp_business_management وضع القيمة في Render WHATSAPP_TOKEN (Permanent)';
+    }
+    if (code === 190 || /expired|session has expired|invalid oauth/i.test(blob)) {
+      return 'التوكن منتهي: أنشئ Permanent Token جديد من Meta Business وضعه على Render ثم أعد تشغيل الخدمة';
+    }
+    if (code === 10 || code === 3) {
+      return 'صلاحيات التطبيق ناقصة في Meta: راجع App → WhatsApp → Permissions وامنح التطبيق وصول WABA';
+    }
+    if (code === 133010 || /template does not exist/i.test(blob)) {
+      return 'القالب غير متاح: تأكد WHATSAPP_RECEIPT_TEMPLATE=pos_receipt واللغة ar';
+    }
+    if (code === 132000 || code === 132001 || code === 132012) {
+      return 'متغيرات/لغة القالب لا تطابق Meta: 5 حقول {{1}}…{{5}} ولغة ar';
+    }
+    if (code === 131047) {
+      return 'خارج نافذة 24 ساعة — استخدم قالباً معتمداً Utility';
+    }
+    return null;
+  }
+
   private async parseMetaError(res: Response): Promise<string> {
     const text = await res.text();
     try {
       const json = JSON.parse(text) as {
-        error?: { message?: string; code?: number; error_data?: { details?: string } };
+        error?: {
+          message?: string;
+          code?: number;
+          error_subcode?: number;
+          error_user_msg?: string;
+          error_data?: { details?: string };
+          type?: string;
+        };
       };
-      const msg = json?.error?.message || text;
-      const details = json?.error?.error_data?.details;
-      const code = json?.error?.code;
-      return [code ? `#${code}` : null, msg, details].filter(Boolean).join(' — ').slice(0, 500);
+      const err = json?.error;
+      const msg = err?.message || text;
+      const details = err?.error_data?.details || err?.error_user_msg;
+      const code = err?.code;
+      const base = [code != null ? `#${code}` : null, msg, details]
+        .filter(Boolean)
+        .join(' — ')
+        .slice(0, 420);
+      const hint = this.metaOpsHint(code, msg);
+      return (hint ? `${base} | ${hint}` : base).slice(0, 700);
     } catch {
       return `WhatsApp API ${res.status}: ${text.slice(0, 400)}`;
     }

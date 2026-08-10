@@ -4549,19 +4549,30 @@ export default function PosCheckoutPage() {
                         );
                         return;
                       }
-                      const pending =
-                        /template|131047|24|WHATSAPP_RECEIPT|not configured|قيد|132000|132001|132012|133010/i.test(
+                      const tokenBlocked =
+                        /#200\b|API access blocked|permissions required|whatsapp_business_messaging|التوكن|منتهي|OAuth/i.test(
                           waError,
-                        ) || !res.data?.delivery?.receiptTemplate;
+                        );
+                      const pending =
+                        !tokenBlocked &&
+                        (/template|131047|24|WHATSAPP_RECEIPT|not configured|قيد|132000|132001|132012|133010/i.test(
+                          waError,
+                        ) ||
+                          !res.data?.delivery?.receiptTemplate);
+                      const errSnippet = waError.slice(0, 320);
                       toast.error(
-                        pending
-                          ? waError
-                            ? `${t.shareWhatsAppTemplateMismatch || t.shareWhatsAppTemplatePending}: ${waError.slice(0, 180)}`
-                            : t.shareWhatsAppTemplatePending || t.shareWhatsAppNeedTemplate
-                          : waError
-                            ? `${t.shareWhatsAppPartial}: ${waError.slice(0, 180)}`
-                            : t.shareWhatsAppPartial,
-                        { duration: 12000 },
+                        tokenBlocked
+                          ? errSnippet
+                            ? `${t.shareWhatsAppTokenBlocked || t.shareWhatsAppPartial}: ${errSnippet}`
+                            : t.shareWhatsAppTokenBlocked || t.shareWhatsAppPartial
+                          : pending
+                            ? errSnippet
+                              ? `${t.shareWhatsAppTemplateMismatch || t.shareWhatsAppTemplatePending}: ${errSnippet}`
+                              : t.shareWhatsAppTemplatePending || t.shareWhatsAppNeedTemplate
+                            : errSnippet
+                              ? `${t.shareWhatsAppPartial}: ${errSnippet}`
+                              : t.shareWhatsAppPartial,
+                        { duration: 16000 },
                       );
                     } catch (err: unknown) {
                       toast.dismiss(toastId);

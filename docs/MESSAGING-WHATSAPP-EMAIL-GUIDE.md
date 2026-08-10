@@ -232,14 +232,17 @@ SMTP_SECURE=false
 ## 8) قائمة تحقق تشغيل واتساب (الوضع الحالي)
 
 1. [x] Business Portfolio + تطبيق WhatsApp على Meta  
-2. [x] Token + Phone number ID على Render · `whatsappMode: live`  
-3. [x] قالب `pos_receipt` بحالة Active (قد تظهر Quality Pending)  
-4. [ ] نص القالب = 5 متغيرات مطابقة لـ Hisaby (انظر §3)  
-5. [ ] اختبار من `/integrations` لرقم عليه واتساب فعلاً  
-6. [ ] بيع/إعادة إرسال من الكاشير → وصول الرسالة أو خطأ Meta واضح  
-7. [ ] عمود التسليم في WhatsApp Manager يبدأ بالارتفاع بعد إرسال ناجح عبر القالب  
-8. [ ] (مستحسن) System User + Permanent token إن لم يكن دائماً بعد  
+2. [ ] Token **Permanent** بصلاحيتَي `whatsapp_business_messaging` + `whatsapp_business_management` (بدون `#200`)  
+3. [x] Phone number ID على Render · `whatsappMode: live`  
+4. [x] قالب `pos_receipt` بحالة Active (قد تظهر Quality Pending)  
+5. [ ] نص القالب = 5 متغيرات مطابقة لـ Hisaby (انظر §3)  
+6. [ ] اختبار من `/integrations` لرقم عليه واتساب فعلاً  
+7. [ ] بيع/إعادة إرسال من الكاشير → وصول الرسالة أو خطأ Meta واضح  
+8. [ ] عمود التسليم في WhatsApp Manager يبدأ بالارتفاع بعد إرسال ناجح عبر القالب  
 9. [ ] (لاحقاً) Webhook حالات التسليم  
+
+**خطأ إنتاج شائع:** `#200 — API access blocked` →  
+[`HISABY-WHATSAPP-META-200-API-ACCESS-BLOCKED-2026-08-10.md`](./HISABY-WHATSAPP-META-200-API-ACCESS-BLOCKED-2026-08-10.md)
 
 مرجع الحادثة والإصلاح البرمجي: [`HISABY-FIX-WHATSAPP-DELIVERY-2026-07-29.md`](./HISABY-FIX-WHATSAPP-DELIVERY-2026-07-29.md)
 
@@ -262,13 +265,17 @@ SMTP_SECURE=false
 
 ## 10) الخطوة التالية المقترحة
 
-1. **انشر** إصلاح صدق أخطاء واتساب (إن لم يُدفع بعد) على Render + Vercel.  
-2. **طابق** قالب `pos_receipt` مع §3 واختبر من `/integrations` ثم الكاشير.  
-3. إن ظهر خطأ Meta في التوست: أصلح القالب/اللغة/الرقم حسب الرمز.  
-4. لاحقاً: Webhook تسليم + قالب OTP + إيميل/SMS إن لزم.
+1. إن ظهر **`#200 — API access blocked`**: جدّد توكن System User أولاً  
+   ([دليل #200](./HISABY-WHATSAPP-META-200-API-ACCESS-BLOCKED-2026-08-10.md)).  
+2. **انشر** أحدث `main` على Render + Vercel.  
+3. **طابق** قالب `pos_receipt` مع §3 واختبر من `/integrations` ثم الكاشير.  
+4. إن ظهر رمز Meta آخر: أصلح القالب/اللغة/الرقم حسب الرمز.  
+5. لاحقاً: Webhook تسليم + قالب OTP + إيميل/SMS إن لزم.
 
 ---
 
 **للمشغّل غير التقني:**  
 افتح المحاسبة → **الربط والإشعارات** (`/integrations`) → **اقرأني**.  
-إن ظهر «تم الإرسال» ولا يصل الجوال: اقرأ [`HISABY-FIX-WHATSAPP-DELIVERY-2026-07-29.md`](./HISABY-FIX-WHATSAPP-DELIVERY-2026-07-29.md) ونفّذ قائمة التحقق هناك.
+إن ظهر `#200` أو «API access blocked»:  
+[`HISABY-WHATSAPP-META-200-API-ACCESS-BLOCKED-2026-08-10.md`](./HISABY-WHATSAPP-META-200-API-ACCESS-BLOCKED-2026-08-10.md).  
+إن ظهر «تم الإرسال» ولا يصل الجوال: [`HISABY-FIX-WHATSAPP-DELIVERY-2026-07-29.md`](./HISABY-FIX-WHATSAPP-DELIVERY-2026-07-29.md).

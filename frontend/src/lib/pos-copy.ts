@@ -463,6 +463,8 @@ export const posCopy = {
       "القالب قيد المراجعة في Meta — الإرسال التلقائي يعمل بعد أن يصبح نشطاً وضبط Render",
     shareWhatsAppTemplateMismatch:
       "رفض Meta قالب الإيصال — طابق نص pos_receipt مع 5 متغيرات {{1}}…{{5}} واللغة ar",
+    shareWhatsAppTokenBlocked:
+      "واتساب محجوب من Meta (#200) — جدّد Permanent Token بصلاحيات واتساب على Render",
     partnerPay: "دفع شريك (بطاقة/محفظة)",
     partnerPayHint: "يفتح بوابة ثواني/Stripe/PayPal — ليس شارة NFC",
     partnerPayOpened: "تم فتح صفحة دفع الشريك",
@@ -1088,6 +1090,8 @@ export const posCopy = {
       "Template is under Meta review — auto-send works after it becomes Active and Render is configured",
     shareWhatsAppTemplateMismatch:
       "Meta rejected the receipt template — match pos_receipt body to 5 vars {{1}}…{{5}} and language ar",
+    shareWhatsAppTokenBlocked:
+      "WhatsApp blocked by Meta (#200) — set a permanent System User token with WhatsApp scopes on Render",
     partnerPay: "Partner pay (card/wallet)",
     partnerPayHint: "Opens Thawani/Stripe/PayPal — not the NFC approval badge",
     partnerPayOpened: "Partner checkout opened",
