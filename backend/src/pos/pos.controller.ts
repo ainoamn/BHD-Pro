@@ -439,12 +439,15 @@ export class PosController {
     @Query('take') take?: string,
     @Query('warehouseId') warehouseId?: string,
     @Query('q') q?: string,
+    @Query('light') light?: string,
   ) {
-    const n = take ? parseInt(take, 10) : 20;
+    const n = take ? parseInt(take, 10) : 15;
+    const useLight = light !== '0' && light !== 'false';
     return this.pos.listRecentSales(user.companyId, {
-      take: Number.isFinite(n) ? n : 20,
+      take: Number.isFinite(n) ? n : 15,
       warehouseId: warehouseId || undefined,
       q: q || undefined,
+      light: useLight,
     });
   }
 

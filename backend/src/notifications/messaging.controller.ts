@@ -239,22 +239,31 @@ export class MessagingController {
       `رسالة اختبار من Hisaby (${user.email}) — ${new Date().toISOString()}`;
 
     if (dto.channel === 'whatsapp') {
+      // Normalize phone the same path as receipts (E.164 digits via to string)
+      const digits = dto.to.replace(/\D/g, '');
       const template = this.whatsapp.receiptTemplateName();
       if (template) {
-        const names = this.whatsapp.receiptParamNames();
-        const res = await this.whatsapp.sendTemplate(
-          dto.to,
-          template,
-          ['اختبار', 'Hisaby', 'TEST-001', '0.000 OMR', 'https://hisaby.pro'],
-          undefined,
-          names,
-        );
+        const res = await this.whatsapp.sendPosReceipt(digits, {
+          customerName: 'اختبار',
+          companyName: 'Hisaby',
+          invoiceNumber: 'TEST-001',
+          amount: '0.000',
+          viewUrl: 'https://hisaby.pro',
+          fullBody: body,
+        });
         return {
           channel: 'whatsapp',
-          ...res,
+          ok: res.ok,
+          error: res.error,
+          messageId: res.messageId,
           mode: this.whatsapp.mode(),
-          via: 'template',
+          via: res.via || 'template',
           template,
+          templateLang: this.whatsapp.receiptTemplateLang(),
+          to: digits.length >= 4 ? `****${digits.slice(-4)}` : '****',
+          hint: res.ok
+            ? 'Meta accepted the template. Confirm delivery on the phone and in WhatsApp Manager.'
+            : res.error,
         };
       }
       const res = await this.whatsapp.sendText(dto.to, body);

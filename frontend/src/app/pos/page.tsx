@@ -704,9 +704,11 @@ export default function PosCheckoutPage() {
 
     try {
       const res = await api.listRecentPosSales({
-        take: q?.trim() ? 40 : 20,
+        take: q?.trim() ? 40 : 15,
         warehouseId: wh,
         q: q?.trim() || undefined,
+        // Full only when searching refund drawer; strip stays light & fast
+        light: !q?.trim(),
       });
       const rows = (res.data as RecentCashSale[]) || [];
       // Never wipe a non-empty strip with an empty API response (stale filter / race).

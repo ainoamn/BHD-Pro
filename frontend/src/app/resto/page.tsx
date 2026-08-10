@@ -150,10 +150,50 @@ export default function RestoFloorPage() {
     if (!opts?.silent) setLoading(true);
     setError("");
     try {
+      // Instant paint from session cache while network runs
+      if (!opts?.silent) {
+        try {
+          const raw = sessionStorage.getItem("hisaby-resto-floor");
+          if (raw) {
+            const cached = JSON.parse(raw) as {
+              companyName?: string;
+              zones?: typeof zones;
+              empty?: boolean;
+              at?: number;
+            };
+            // Use cache if < 2 minutes old
+            if (
+              cached.zones &&
+              cached.at &&
+              Date.now() - cached.at < 120_000
+            ) {
+              setCompanyName(cached.companyName || "");
+              setZones(cached.zones);
+              setEmpty(!!cached.empty);
+              setLoading(false);
+            }
+          }
+        } catch {
+          /* ignore */
+        }
+      }
       const res = await api.getRestoFloor();
       setCompanyName(res.data.companyName);
       setZones(res.data.zones || []);
       setEmpty(!!res.data.empty);
+      try {
+        sessionStorage.setItem(
+          "hisaby-resto-floor",
+          JSON.stringify({
+            companyName: res.data.companyName,
+            zones: res.data.zones || [],
+            empty: !!res.data.empty,
+            at: Date.now(),
+          }),
+        );
+      } catch {
+        /* ignore */
+      }
     } catch (err) {
       setError(apiErrorMessage(err, t.actionFail));
     } finally {

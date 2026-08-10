@@ -2244,51 +2244,36 @@ export class PosService {
     const warehouseId = opts?.warehouseId;
     const cashierId = opts?.cashierId;
     const from = this.startOfDayMuscat();
-    const warehouseFilter = warehouseId
-      ? {
-          OR: [
-            { posWarehouseId: warehouseId },
-            { posShift: { is: { warehouseId } } },
-            { AND: [{ posWarehouseId: null }, { posShiftId: null }] },
-          ],
-        }
-      : {};
-
-    const baseWhere = {
-      companyId,
-      type: InvoiceType.SALES,
-      isCash: true,
-      notes: { contains: 'Hisaby POS' },
+    const saleBase = {
+      ...this.posCashSaleWhere(companyId, { warehouseId }),
       createdAt: { gte: from },
-      ...warehouseFilter,
+    };
+
+    const refundBase = {
+      ...this.posRefundWhere(companyId, { warehouseId }),
+      createdAt: { gte: from },
     };
 
     const [storeAgg, storeVoidCount, storeRefundCount, myAgg, myVoidCount, myRefundCount] =
       await Promise.all([
         this.prisma.invoice.aggregate({
           where: {
-            ...baseWhere,
+            ...saleBase,
             status: { not: InvoiceStatus.CANCELLED },
           },
           _count: { id: true },
           _sum: { total: true },
         }),
         this.prisma.invoice.count({
-          where: { ...baseWhere, status: InvoiceStatus.CANCELLED },
+          where: { ...saleBase, status: InvoiceStatus.CANCELLED },
         }),
         this.prisma.invoice.count({
-          where: {
-            companyId,
-            type: InvoiceType.CREDIT_NOTE,
-            notes: { contains: 'Hisaby POS refund' },
-            createdAt: { gte: from },
-            ...warehouseFilter,
-          },
+          where: refundBase,
         }),
         cashierId
           ? this.prisma.invoice.aggregate({
               where: {
-                ...baseWhere,
+                ...saleBase,
                 createdById: cashierId,
                 status: { not: InvoiceStatus.CANCELLED },
               },
@@ -2299,7 +2284,7 @@ export class PosService {
         cashierId
           ? this.prisma.invoice.count({
               where: {
-                ...baseWhere,
+                ...saleBase,
                 createdById: cashierId,
                 status: InvoiceStatus.CANCELLED,
               },
@@ -2308,12 +2293,8 @@ export class PosService {
         cashierId
           ? this.prisma.invoice.count({
               where: {
-                companyId,
-                type: InvoiceType.CREDIT_NOTE,
-                notes: { contains: 'Hisaby POS refund' },
-                createdAt: { gte: from },
+                ...refundBase,
                 createdById: cashierId,
-                ...warehouseFilter,
               },
             })
           : Promise.resolve(0),
@@ -2769,12 +2750,85 @@ export class PosService {
     };
   }
 
+  /**
+   * Indexed POS cash-sale filter — avoid full-table notes contains when possible.
+   * Modern POS rows set posWarehouseId / posShiftId; legacy uses notes only.
+   */
+  private posCashSaleWhere(
+    companyId: string,
+    opts?: { warehouseId?: string },
+  ): Prisma.InvoiceWhereInput {
+    const warehouseId = opts?.warehouseId?.trim();
+    const legacyNotes: Prisma.InvoiceWhereInput = {
+      AND: [
+        { notes: { contains: 'Hisaby POS' } },
+        { posWarehouseId: null },
+        { posShiftId: null },
+      ],
+    };
+    if (warehouseId) {
+      return {
+        companyId,
+        type: InvoiceType.SALES,
+        isCash: true,
+        OR: [
+          { posWarehouseId: warehouseId },
+          { posShift: { is: { warehouseId } } },
+          legacyNotes,
+        ],
+      };
+    }
+    return {
+      companyId,
+      type: InvoiceType.SALES,
+      isCash: true,
+      OR: [
+        { posWarehouseId: { not: null } },
+        { posShiftId: { not: null } },
+        legacyNotes,
+      ],
+    };
+  }
+
+  private posRefundWhere(
+    companyId: string,
+    opts?: { warehouseId?: string },
+  ): Prisma.InvoiceWhereInput {
+    const warehouseId = opts?.warehouseId?.trim();
+    const warehouseOr = warehouseId
+      ? {
+          OR: [
+            { posWarehouseId: warehouseId },
+            { posShift: { is: { warehouseId } } },
+            {
+              AND: [{ posWarehouseId: null }, { posShiftId: null }],
+            },
+          ],
+        }
+      : {};
+    return {
+      companyId,
+      type: InvoiceType.CREDIT_NOTE,
+      isCash: true,
+      notes: { contains: 'Hisaby POS refund' },
+      status: { not: InvoiceStatus.CANCELLED },
+      ...warehouseOr,
+    };
+  }
+
   /** Recent Hisaby POS cash sales for reprint / void / refund drawer. */
   async listRecentSales(
     companyId: string,
-    opts?: { take?: number; warehouseId?: string; q?: string },
+    opts?: {
+      take?: number;
+      warehouseId?: string;
+      q?: string;
+      /** Default true — strip UI (no items / reprints). */
+      light?: boolean;
+    },
   ) {
-    const take = Math.min(Math.max(opts?.take ?? 20, 1), 50);
+    const light = opts?.light !== false;
+    const take = Math.min(Math.max(opts?.take ?? (light ? 15 : 20), 1), 50);
     const warehouseId = opts?.warehouseId?.trim() || undefined;
     const q = String(opts?.q || '').trim();
     const qDigits = q.replace(/\D/g, '');
@@ -2817,82 +2871,81 @@ export class PosService {
           ]
         : undefined;
 
-    const warehouseOr = warehouseId
-      ? [
-          { posWarehouseId: warehouseId },
-          { posShift: { is: { warehouseId } } },
-          // Legacy sales without warehouse tags still appear on the register
-          { AND: [{ posWarehouseId: null }, { posShiftId: null }] },
-        ]
-      : undefined;
+    const saleWhere: Prisma.InvoiceWhereInput = searchOr
+      ? {
+          AND: [
+            this.posCashSaleWhere(companyId, { warehouseId }),
+            { OR: searchOr },
+          ],
+        }
+      : this.posCashSaleWhere(companyId, { warehouseId });
 
-    const baseWhereExtra =
-      warehouseOr && searchOr
-        ? { AND: [{ OR: warehouseOr }, { OR: searchOr }] }
-        : warehouseOr
-          ? { OR: warehouseOr }
-          : searchOr
-            ? { OR: searchOr }
-            : {};
+    const itemSelect = {
+      productId: true,
+      description: true,
+      quantity: true,
+      unitPrice: true,
+      total: true,
+    } as const;
 
-    const [sales, refundDocs] = await Promise.all([
-      this.prisma.invoice.findMany({
-        where: {
-          companyId,
-          type: InvoiceType.SALES,
-          isCash: true,
-          notes: { contains: 'Hisaby POS' },
-          ...baseWhereExtra,
-        },
+    const sales = await this.prisma.invoice.findMany({
+      where: saleWhere,
+      orderBy: { createdAt: 'desc' },
+      take,
+      select: {
+        id: true,
+        number: true,
+        total: true,
+        date: true,
+        createdAt: true,
+        status: true,
+        notes: true,
+        posWarehouseId: true,
+        payments: { select: { method: true, amount: true } },
+        contact: { select: { id: true, name: true, phone: true } },
+        posShift: { select: { warehouseId: true } },
+        ...(light ? {} : { items: { select: itemSelect } }),
+      },
+    });
+
+    let refundDocs: typeof sales = [];
+    if (!light || q.length > 0) {
+      const refundWhere: Prisma.InvoiceWhereInput = searchOr
+        ? {
+            AND: [
+              this.posRefundWhere(companyId, { warehouseId }),
+              { OR: searchOr },
+            ],
+          }
+        : this.posRefundWhere(companyId, { warehouseId });
+      refundDocs = (await this.prisma.invoice.findMany({
+        where: refundWhere,
         orderBy: { createdAt: 'desc' },
-        take,
-        include: {
-          items: {
-            select: {
-              productId: true,
-              description: true,
-              quantity: true,
-              unitPrice: true,
-              total: true,
-            },
-          },
+        take: Math.min(take, light ? 8 : 15),
+        select: {
+          id: true,
+          number: true,
+          total: true,
+          date: true,
+          createdAt: true,
+          status: true,
+          notes: true,
+          posWarehouseId: true,
           payments: { select: { method: true, amount: true } },
           contact: { select: { id: true, name: true, phone: true } },
           posShift: { select: { warehouseId: true } },
+          ...(light ? {} : { items: { select: itemSelect } }),
         },
-      }),
-      this.prisma.invoice.findMany({
-        where: {
-          companyId,
-          type: InvoiceType.CREDIT_NOTE,
-          isCash: true,
-          notes: { contains: 'Hisaby POS refund' },
-          status: { not: InvoiceStatus.CANCELLED },
-          ...baseWhereExtra,
-        },
-        orderBy: { createdAt: 'desc' },
-        take: Math.min(take, 15),
-        include: {
-          items: {
-            select: {
-              productId: true,
-              description: true,
-              quantity: true,
-              unitPrice: true,
-              total: true,
-            },
-          },
-          payments: { select: { method: true, amount: true } },
-          contact: { select: { id: true, name: true, phone: true } },
-          posShift: { select: { warehouseId: true } },
-        },
-      }),
-    ]);
+      })) as typeof sales;
+    }
 
-    const reprintCounts = await this.getReprintCounts(
-      companyId,
-      [...sales, ...refundDocs].map((s) => s.id),
-    );
+    const reprintCounts =
+      light
+        ? ({} as Record<string, number>)
+        : await this.getReprintCounts(
+            companyId,
+            [...sales, ...refundDocs].map((s) => s.id),
+          );
 
     const mappedSales = sales.map((inv) => {
       const notes = String(inv.notes || '');
@@ -2913,7 +2966,7 @@ export class PosService {
         refunded,
         warehouseId: inv.posWarehouseId || inv.posShift?.warehouseId || null,
         contact: inv.contact,
-        items: inv.items,
+        items: 'items' in inv ? (inv as { items?: unknown[] }).items || [] : [],
         payments: inv.payments,
         reprintCount: reprintCounts[inv.id] || 0,
       };
@@ -2932,7 +2985,7 @@ export class PosService {
       refunded: true,
       warehouseId: inv.posWarehouseId || inv.posShift?.warehouseId || null,
       contact: inv.contact,
-      items: inv.items,
+      items: 'items' in inv ? (inv as { items?: unknown[] }).items || [] : [],
       payments: inv.payments,
       reprintCount: reprintCounts[inv.id] || 0,
     }));

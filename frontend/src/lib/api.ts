@@ -2088,7 +2088,7 @@ class ApiClient {
           itemCount: number;
         } | null;
       }>;
-    }>('/resto/floor');
+    }>('/resto/floor', { timeout: 20000 });
   }
 
   getRestoFreeTables() {
@@ -3186,11 +3186,18 @@ class ApiClient {
     });
   }
 
-  listRecentPosSales(opts?: { take?: number; warehouseId?: string; q?: string }) {
+  listRecentPosSales(opts?: {
+    take?: number;
+    warehouseId?: string;
+    q?: string;
+    light?: boolean;
+  }) {
     const params = new URLSearchParams();
     if (opts?.take) params.set('take', String(opts.take));
     if (opts?.warehouseId) params.set('warehouseId', opts.warehouseId);
     if (opts?.q?.trim()) params.set('q', opts.q.trim());
+    if (opts?.light === false) params.set('light', '0');
+    else params.set('light', '1');
     const q = params.toString();
     return this.get<
       {
@@ -3215,7 +3222,7 @@ class ApiClient {
         payments?: { method?: string; amount?: number | string }[];
         reprintCount?: number;
       }[]
-    >(`/pos/sales/recent${q ? `?${q}` : ''}`);
+    >(`/pos/sales/recent${q ? `?${q}` : ''}`, { timeout: 15000 });
   }
 
   voidPosSale(id: string, body?: { approval?: DualApprovalPayload }) {

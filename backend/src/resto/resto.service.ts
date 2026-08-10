@@ -105,6 +105,15 @@ export class RestoService {
     string,
     { expiresAt: number; payload: any }
   >();
+  private readonly floorMemCache = new Map<
+    string,
+    { expires: number; payload: Record<string, unknown> }
+  >();
+  private readonly floorInFlight = new Map<
+    string,
+    Promise<Record<string, unknown>>
+  >();
+  private static readonly FLOOR_MEM_TTL_MS = 12_000;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -128,6 +137,7 @@ export class RestoService {
 
   /** Push KDS clients (SSE) after ticket changes */
   notifyKitchen(companyId: string) {
+    this.bustFloorCache(companyId);
     this.kitchenBus(companyId).next();
   }
 
@@ -1342,7 +1352,35 @@ export class RestoService {
   }
 
   async getFloor(companyId: string) {
-    // Light floor: one parallel wave for company + zones + open orders.
+    const hit = this.floorMemCache.get(companyId);
+    if (hit && hit.expires > Date.now()) {
+      return { ...hit.payload, cached: true };
+    }
+    const flight = this.floorInFlight.get(companyId);
+    if (flight) return flight;
+
+    const work = this.computeFloor(companyId).then((payload) => {
+      this.floorMemCache.set(companyId, {
+        expires: Date.now() + RestoService.FLOOR_MEM_TTL_MS,
+        payload,
+      });
+      return payload;
+    });
+    this.floorInFlight.set(companyId, work);
+    try {
+      return await work;
+    } finally {
+      this.floorInFlight.delete(companyId);
+    }
+  }
+
+  /** Invalidate floor cache after table/order mutations. */
+  private bustFloorCache(companyId: string) {
+    this.floorMemCache.delete(companyId);
+  }
+
+  private async computeFloor(companyId: string) {
+    // Light floor: parallel company + zones + open orders; aggregate line totals in SQL.
     const [company, zones, activeAssignments, openOrders] = await Promise.all([
       this.prisma.company.findUnique({
         where: { id: companyId },
@@ -1360,9 +1398,9 @@ export class RestoService {
               name: true,
               seats: true,
               status: true,
-              guestToken: true,
               guestCallAt: true,
               guestCallType: true,
+              // guestToken omitted — not needed for floor paint (cuts payload)
             },
           },
         },
@@ -1380,7 +1418,7 @@ export class RestoService {
           tableId: { not: null },
         },
         orderBy: { createdAt: 'desc' },
-        take: 200,
+        take: 120,
         select: {
           id: true,
           number: true,
@@ -1406,28 +1444,31 @@ export class RestoService {
     >();
 
     if (openOrderIds.length) {
-      const itemRows = await this.prisma.restoOrderItem.findMany({
-        where: {
-          orderId: { in: openOrderIds },
-          status: { not: RestoOrderItemStatus.CANCELLED },
-        },
-        select: {
-          orderId: true,
-          qty: true,
-          unitPrice: true,
-          source: true,
-        },
-      });
-      for (const it of itemRows) {
-        const prev = totalsByOrder.get(it.orderId) || {
-          itemCount: 0,
-          total: 0,
-          guestItemCount: 0,
-        };
-        prev.itemCount += 1;
-        prev.total += Number(it.qty) * Number(it.unitPrice);
-        if (it.source === 'GUEST') prev.guestItemCount += 1;
-        totalsByOrder.set(it.orderId, prev);
+      // One aggregation query instead of shipping every line to Node
+      const rows = await this.prisma.$queryRaw<
+        Array<{
+          orderId: string;
+          itemCount: bigint | number;
+          total: Prisma.Decimal | number | string;
+          guestItemCount: bigint | number;
+        }>
+      >(Prisma.sql`
+        SELECT
+          "order_id" AS "orderId",
+          COUNT(*)::int AS "itemCount",
+          COALESCE(SUM("qty" * "unit_price"), 0) AS "total",
+          COALESCE(SUM(CASE WHEN "source"::text = 'GUEST' THEN 1 ELSE 0 END), 0)::int AS "guestItemCount"
+        FROM "resto_order_items"
+        WHERE "order_id" IN (${Prisma.join(openOrderIds)})
+          AND "status"::text <> ${RestoOrderItemStatus.CANCELLED}
+        GROUP BY "order_id"
+      `);
+      for (const r of rows) {
+        totalsByOrder.set(r.orderId, {
+          itemCount: Number(r.itemCount || 0),
+          total: Number(r.total || 0),
+          guestItemCount: Number(r.guestItemCount || 0),
+        });
       }
     }
 
@@ -1466,7 +1507,6 @@ export class RestoService {
             name: t.name,
             seats: t.seats,
             status: open ? RestoTableStatus.OCCUPIED : t.status,
-            guestToken: t.guestToken,
             guestCallAt: t.guestCallAt,
             guestCallType: t.guestCallType,
             openOrder: open
@@ -1487,18 +1527,16 @@ export class RestoService {
       };
     });
 
-    const tables = mappedZones.flatMap((z) =>
-      z.tables.map((t) => ({ ...t, zoneId: z.id, zoneName: z.name })),
-    );
+    // No flat `tables` duplicate — frontend uses zones; cuts JSON ~50%
+    const tableCount = mappedZones.reduce((n, z) => n + z.tables.length, 0);
 
     return {
       companyId: company.id,
       companyName: company.name,
       linked: !!company.restoLinkedAt,
       zones: mappedZones,
-      tables,
-      empty: tables.length === 0,
-      needsSetup: tables.length === 0,
+      empty: tableCount === 0,
+      needsSetup: tableCount === 0,
     };
   }
 

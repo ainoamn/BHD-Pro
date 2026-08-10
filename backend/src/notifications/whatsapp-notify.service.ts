@@ -148,10 +148,19 @@ export class WhatsappNotifyService {
     }
   }
 
+  private sanitizeTemplateText(text: string): string {
+    // Meta rejects newlines/tabs in body variables (#132018 family)
+    return String(text || '-')
+      .replace(/[\r\n\t]+/g, ' ')
+      .replace(/\s{2,}/g, ' ')
+      .trim()
+      .slice(0, 1024) || '-';
+  }
+
   /**
    * Business-initiated message via approved template.
-   * Positional {{1}}…{{n}} or named {{customer_name}} (Meta newer UI).
-   * Set WHATSAPP_TEMPLATE_PARAM_NAMES=name1,name2,… to send named params.
+   * Tries primary language, then optional fallbacks (WHATSAPP_RECEIPT_TEMPLATE_LANGS).
+   * Retries named→positional or reverse if parameter mismatch is likely.
    */
   async sendTemplate(
     toE164: string,
@@ -176,70 +185,112 @@ export class WhatsappNotifyService {
 
     const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID!;
     const token = process.env.WHATSAPP_TOKEN!;
-    const url = `https://graph.facebook.com/v19.0/${phoneId}/messages`;
-    const language = { code: (lang || this.receiptTemplateLang()).trim() || 'ar' };
+    const url = `https://graph.facebook.com/v21.0/${phoneId}/messages`;
+    const primaryLang = (lang || this.receiptTemplateLang()).trim() || 'ar';
+    const extraLangs = (process.env.WHATSAPP_RECEIPT_TEMPLATE_LANGS || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const langs = [...new Set([primaryLang, ...extraLangs, 'ar', 'en'])].slice(0, 4);
+
+    const envNames = (process.env.WHATSAPP_TEMPLATE_PARAM_NAMES || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
     const names =
       paramNames && paramNames.length
         ? paramNames
-        : (process.env.WHATSAPP_TEMPLATE_PARAM_NAMES || '')
-            .split(',')
-            .map((s) => s.trim())
-            .filter(Boolean);
-    const useNamed = names.length > 0 && names.length === bodyParams.length;
-    const components =
-      bodyParams.length > 0
-        ? [
-            {
-              type: 'body',
-              parameters: bodyParams.map((text, i) => ({
-                type: 'text',
-                text: String(text || '-').slice(0, 1024),
-                ...(useNamed ? { parameter_name: names[i] } : {}),
-              })),
-            },
-          ]
-        : undefined;
+        : envNames.length
+          ? envNames
+          : [];
+    const cleanParams = bodyParams.map((p) => this.sanitizeTemplateText(String(p)));
 
-    try {
-      const res = await this.metaFetch(url, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          messaging_product: 'whatsapp',
-          to: phone,
-          type: 'template',
-          template: {
-            name: templateName,
-            language,
-            ...(components ? { components } : {}),
-          },
-        }),
-      });
-      if (!res.ok) {
-        const err = await this.parseMetaError(res);
-        this.logger.warn(
-          `WhatsApp template failed name=${templateName} lang=${language.code} to=${this.maskPhone(phone)} params=${bodyParams.length} named=${useNamed}: ${err}`,
-        );
-        return { ok: false, error: err };
+    const attempts: Array<{ named: boolean; names?: string[] }> = [];
+    if (names.length > 0 && names.length === cleanParams.length) {
+      attempts.push({ named: true, names });
+      attempts.push({ named: false });
+    } else {
+      attempts.push({ named: false });
+      if (names.length === cleanParams.length && names.length > 0) {
+        attempts.push({ named: true, names });
+      } else if (cleanParams.length === 5) {
+        // Meta new UI often uses these names for utility receipts
+        attempts.push({
+          named: true,
+          names: [
+            'customer_name',
+            'company_name',
+            'invoice_number',
+            'amount',
+            'receipt_url',
+          ],
+        });
       }
-      const messageId = await this.parseMetaMessageId(res);
-      this.logger.log(
-        `WhatsApp template accepted name=${templateName} lang=${language.code} to=${this.maskPhone(phone)} id=${messageId || 'n/a'}`,
-      );
-      return { ok: true, messageId };
-    } catch (err) {
-      const message =
-        err instanceof Error && err.name === 'AbortError'
-          ? 'WhatsApp API timeout'
-          : err instanceof Error
-            ? err.message
-            : 'send failed';
-      this.logger.warn(`WhatsApp template error: ${message}`);
-      return { ok: false, error: message };
     }
+
+    let lastError = 'template send failed';
+    for (const language of langs) {
+      for (const attempt of attempts) {
+        const components =
+          cleanParams.length > 0
+            ? [
+                {
+                  type: 'body',
+                  parameters: cleanParams.map((text, i) => ({
+                    type: 'text' as const,
+                    text,
+                    ...(attempt.named && attempt.names
+                      ? { parameter_name: attempt.names[i] }
+                      : {}),
+                  })),
+                },
+              ]
+            : undefined;
+
+        try {
+          const res = await this.metaFetch(url, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              messaging_product: 'whatsapp',
+              to: phone,
+              type: 'template',
+              template: {
+                name: templateName,
+                language: { code: language },
+                ...(components ? { components } : {}),
+              },
+            }),
+          });
+          if (!res.ok) {
+            const err = await this.parseMetaError(res);
+            lastError = err;
+            this.logger.warn(
+              `WhatsApp template failed name=${templateName} lang=${language} named=${attempt.named} to=${this.maskPhone(phone)} params=${cleanParams.length}: ${err}`,
+            );
+            // Try next combination
+            continue;
+          }
+          const messageId = await this.parseMetaMessageId(res);
+          this.logger.log(
+            `WhatsApp template accepted name=${templateName} lang=${language} named=${attempt.named} to=${this.maskPhone(phone)} id=${messageId || 'n/a'}`,
+          );
+          return { ok: true, messageId };
+        } catch (err) {
+          lastError =
+            err instanceof Error && err.name === 'AbortError'
+              ? 'WhatsApp API timeout'
+              : err instanceof Error
+                ? err.message
+                : 'send failed';
+          this.logger.warn(`WhatsApp template error: ${lastError}`);
+        }
+      }
+    }
+    return { ok: false, error: lastError };
   }
 
   /** Send a document link (Cloud API link type) — used for invoices/receipts. */
