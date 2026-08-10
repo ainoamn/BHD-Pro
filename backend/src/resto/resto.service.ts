@@ -1398,9 +1398,9 @@ export class RestoService {
               name: true,
               seats: true,
               status: true,
+              guestToken: true,
               guestCallAt: true,
               guestCallType: true,
-              // guestToken omitted — not needed for floor paint (cuts payload)
             },
           },
         },
@@ -1444,31 +1444,60 @@ export class RestoService {
     >();
 
     if (openOrderIds.length) {
-      // One aggregation query instead of shipping every line to Node
-      const rows = await this.prisma.$queryRaw<
-        Array<{
-          orderId: string;
-          itemCount: bigint | number;
-          total: Prisma.Decimal | number | string;
-          guestItemCount: bigint | number;
-        }>
-      >(Prisma.sql`
-        SELECT
-          "order_id" AS "orderId",
-          COUNT(*)::int AS "itemCount",
-          COALESCE(SUM("qty" * "unit_price"), 0) AS "total",
-          COALESCE(SUM(CASE WHEN "source"::text = 'GUEST' THEN 1 ELSE 0 END), 0)::int AS "guestItemCount"
-        FROM "resto_order_items"
-        WHERE "order_id" IN (${Prisma.join(openOrderIds)})
-          AND "status"::text <> ${RestoOrderItemStatus.CANCELLED}
-        GROUP BY "order_id"
-      `);
-      for (const r of rows) {
-        totalsByOrder.set(r.orderId, {
-          itemCount: Number(r.itemCount || 0),
-          total: Number(r.total || 0),
-          guestItemCount: Number(r.guestItemCount || 0),
+      try {
+        // One aggregation query instead of shipping every line to Node
+        const rows = await this.prisma.$queryRaw<
+          Array<{
+            orderId: string;
+            itemCount: bigint | number;
+            total: Prisma.Decimal | number | string;
+            guestItemCount: bigint | number;
+          }>
+        >(Prisma.sql`
+          SELECT
+            "order_id" AS "orderId",
+            COUNT(*)::int AS "itemCount",
+            COALESCE(SUM("qty" * "unit_price"), 0) AS "total",
+            COALESCE(SUM(CASE WHEN "source"::text = 'GUEST' THEN 1 ELSE 0 END), 0)::int AS "guestItemCount"
+          FROM "resto_order_items"
+          WHERE "order_id" IN (${Prisma.join(openOrderIds)})
+            AND "status"::text <> ${RestoOrderItemStatus.CANCELLED}
+          GROUP BY "order_id"
+        `);
+        for (const r of rows) {
+          totalsByOrder.set(r.orderId, {
+            itemCount: Number(r.itemCount || 0),
+            total: Number(r.total || 0),
+            guestItemCount: Number(r.guestItemCount || 0),
+          });
+        }
+      } catch (err) {
+        this.logger.warn(
+          `floor SQL aggregate failed, fallback scan: ${err instanceof Error ? err.message : err}`,
+        );
+        const itemRows = await this.prisma.restoOrderItem.findMany({
+          where: {
+            orderId: { in: openOrderIds },
+            status: { not: RestoOrderItemStatus.CANCELLED },
+          },
+          select: {
+            orderId: true,
+            qty: true,
+            unitPrice: true,
+            source: true,
+          },
         });
+        for (const it of itemRows) {
+          const prev = totalsByOrder.get(it.orderId) || {
+            itemCount: 0,
+            total: 0,
+            guestItemCount: 0,
+          };
+          prev.itemCount += 1;
+          prev.total += Number(it.qty) * Number(it.unitPrice);
+          if (it.source === 'GUEST') prev.guestItemCount += 1;
+          totalsByOrder.set(it.orderId, prev);
+        }
       }
     }
 
@@ -1507,6 +1536,7 @@ export class RestoService {
             name: t.name,
             seats: t.seats,
             status: open ? RestoTableStatus.OCCUPIED : t.status,
+            guestToken: t.guestToken,
             guestCallAt: t.guestCallAt,
             guestCallType: t.guestCallType,
             openOrder: open
@@ -1527,16 +1557,19 @@ export class RestoService {
       };
     });
 
-    // No flat `tables` duplicate — frontend uses zones; cuts JSON ~50%
-    const tableCount = mappedZones.reduce((n, z) => n + z.tables.length, 0);
+    // Flat list retained for settings/reservations clients that still read data.tables
+    const tables = mappedZones.flatMap((z) =>
+      z.tables.map((t) => ({ ...t, zoneId: z.id, zoneName: z.name })),
+    );
 
     return {
       companyId: company.id,
       companyName: company.name,
       linked: !!company.restoLinkedAt,
       zones: mappedZones,
-      empty: tableCount === 0,
-      needsSetup: tableCount === 0,
+      tables,
+      empty: tables.length === 0,
+      needsSetup: tables.length === 0,
     };
   }
 

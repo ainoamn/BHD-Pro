@@ -12,6 +12,7 @@
 **إصلاح بطء لوحة التحكم 5–10ث:** [`HISABY-FIX-DASHBOARD-SLOW-PAINT-2026-08-10.md`](./HISABY-FIX-DASHBOARD-SLOW-PAINT-2026-08-10.md)  
 **جاهزية الإنتاج + فجوات مفتوحة (واتساب لا يصل):** [`HISABY-OPS-READINESS-AND-OPEN-ISSUES-2026-08-10.md`](./HISABY-OPS-READINESS-AND-OPEN-ISSUES-2026-08-10.md)  
 **إصلاح واتساب + بطء كاشير/مطاعم (10 أغسطس):** [`HISABY-FIX-WA-POS-RESTO-SPEED-2026-08-10.md`](./HISABY-FIX-WA-POS-RESTO-SPEED-2026-08-10.md)  
+**Render متوقف على commit قديم (حرج):** [`HISABY-RENDER-DEPLOY-STUCK-2026-08-10.md`](./HISABY-RENDER-DEPLOY-STUCK-2026-08-10.md)  
 **دليل المراسلات (واتساب/إيميل/SMS):** [`MESSAGING-WHATSAPP-EMAIL-GUIDE.md`](./MESSAGING-WHATSAPP-EMAIL-GUIDE.md)  
 **لوحة المنصة / الباقات / التسعير:** [`HISABY-ADMIN-PLANS-USERS-PRICING-2026-07-26.md`](./HISABY-ADMIN-PLANS-USERS-PRICING-2026-07-26.md)  
 **مقارنة الباقات في الصفحة الرئيسية:** [`HISABY-LANDING-PLAN-COMPARE-2026-07-26.md`](./HISABY-LANDING-PLAN-COMPARE-2026-07-26.md)  
