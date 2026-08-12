@@ -11,6 +11,7 @@ import { useLocaleStore } from "@/store/locale";
 import { useAuthStore } from "@/store/auth";
 import { posCopy } from "@/lib/pos-copy";
 import { DualApprovalModal } from "@/components/security/dual-approval-modal";
+import { escapeHtml } from "@/lib/html-escape";
 import {
   openPosShiftReportEmail,
   openPosShiftReportWhatsApp,
@@ -124,6 +125,7 @@ function printShiftReport(
   kind: "Z" | "X",
   companyName?: string,
 ) {
+  const h = escapeHtml;
   const title = kind === "X" ? "X-Report" : "Z-Report";
   const movements = report.cashMovements || [];
   const rows = [
@@ -153,7 +155,7 @@ function printShiftReport(
       const label = m.type === "IN" ? t.cashIn : t.cashOut;
       const reason = m.reason ? ` · ${m.reason}` : "";
       const when = m.createdAt ? new Date(m.createdAt).toLocaleString() : "";
-      return `<tr><td>${label}${reason}<br/><span style="font-size:11px;color:#666">${when}</span></td><td>${m.amount}</td></tr>`;
+      return `<tr><td>${h(label)}${h(reason)}<br/><span style="font-size:11px;color:#666">${h(when)}</span></td><td>${h(m.amount)}</td></tr>`;
     })
     .join("");
   const html = `<!doctype html><html><head><title>${title}</title>
@@ -166,20 +168,20 @@ function printShiftReport(
       td:last-child{text-align:right;font-weight:700}
       @media print{button{display:none}}
     </style></head><body>
-    <h1>${title} · ${companyName || "Hisaby POS"}</h1>
-    <h2>${new Date().toLocaleString()}</h2>
-    <table>${rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join("")}</table>
+    <h1>${h(title)} · ${h(companyName || "Hisaby POS")}</h1>
+    <h2>${h(new Date().toLocaleString())}</h2>
+    <table>${rows.map(([k, v]) => `<tr><td>${h(k)}</td><td>${h(v)}</td></tr>`).join("")}</table>
     ${
       movements.length
-        ? `<h3>${t.cashMovements}</h3><table>${movementRows}</table>`
+        ? `<h3>${h(t.cashMovements)}</h3><table>${movementRows}</table>`
         : ""
     }
-    <script>window.onload=()=>window.print()</script>
     </body></html>`;
   const w = window.open("", "_blank", "noopener,noreferrer,width=420,height=640");
   if (!w) return;
   w.document.write(html);
   w.document.close();
+  w.addEventListener("load", () => w.print(), { once: true });
 }
 
 function isDualControlRequired(err: {

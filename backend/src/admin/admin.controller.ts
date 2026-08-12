@@ -185,7 +185,7 @@ export class AdminController {
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @UseGuards(JwtAuthGuard, PlatformAdminGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Reset user password and email temporary credentials' })
+  @ApiOperation({ summary: 'Revoke sessions and email a single-use reset link' })
   resetUserPassword(@Param('id') id: string) {
     return this.admin.resetUserPassword(id);
   }

@@ -35,6 +35,8 @@ import {
   isValidMobileE164,
   toE164Digits,
 } from '../common/phone';
+import { nextDocumentNumber, seedAfter } from '../common/document-number';
+import { ensurePublicDocumentCode } from '../common/public-document-code';
 import {
   AddRestoOrderItemDto,
   AttachRestoLoyaltyDto,
@@ -1627,16 +1629,16 @@ export class RestoService {
     const prefix = `R-${y}${m}${d}-`;
     const last = await this.prisma.restoOrder.findFirst({
       where: { companyId, number: { startsWith: prefix } },
-      orderBy: { number: 'desc' },
+      orderBy: { createdAt: 'desc' },
       select: { number: true },
     });
-    let seq = 1;
-    if (last?.number) {
-      const part = last.number.slice(prefix.length);
-      const n = parseInt(part, 10);
-      if (!Number.isNaN(n)) seq = n + 1;
-    }
-    return `${prefix}${String(seq).padStart(4, '0')}`;
+    return nextDocumentNumber(this.prisma, {
+      scope: companyId,
+      series: 'resto-order',
+      period: `${y}${m}${d}`,
+      prefix,
+      seed: seedAfter(last?.number),
+    });
   }
 
   private mapOrder(order: {
@@ -3971,10 +3973,14 @@ export class RestoService {
         };
       }
       if (existing && existing.status !== 'CANCELLED') {
+        const publicRef = await ensurePublicDocumentCode(
+          this.prisma,
+          existing.id,
+        );
         return {
           orderId,
           invoiceId: existing.id,
-          payUrl: `${this.frontendOrigin()}/pay/${existing.id}`,
+          payUrl: `${this.frontendOrigin()}/pay/${publicRef}`,
           alreadyPaid: false,
           total: Number(existing.total),
         };
@@ -4100,7 +4106,8 @@ export class RestoService {
       /* non-fatal */
     }
 
-    const payUrl = `${this.frontendOrigin()}/pay/${invoice.id}`;
+    const publicRef = await ensurePublicDocumentCode(this.prisma, invoice.id);
+    const payUrl = `${this.frontendOrigin()}/pay/${publicRef}`;
     let notify: {
       ok: boolean;
       channel: string | null;
@@ -7151,7 +7158,11 @@ export class RestoService {
       });
       paymentStatus = inv?.paymentStatus ?? null;
       if (inv && inv.status !== 'CANCELLED' && inv.paymentStatus !== 'PAID') {
-        payUrl = `${this.frontendOrigin()}/pay/${invoiceId}`;
+        const publicRef = await ensurePublicDocumentCode(
+          this.prisma,
+          invoiceId,
+        );
+        payUrl = `${this.frontendOrigin()}/pay/${publicRef}`;
       }
     }
 

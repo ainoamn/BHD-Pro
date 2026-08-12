@@ -10,8 +10,8 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['var(--font-cairo)', 'system-ui', 'sans-serif'],
-        display: ['var(--font-space)', 'system-ui', 'sans-serif'],
+        sans: ['Cairo', 'Tahoma', 'Arial', 'system-ui', 'sans-serif'],
+        display: ['Space Grotesk', 'Segoe UI', 'Arial', 'system-ui', 'sans-serif'],
       },
       colors: {
         brand: {

@@ -19,6 +19,7 @@ export default function RegisterPage() {
     email: "",
     password: "",
     companyName: "",
+    country: "OM",
   });
   const [loading, setLoading] = useState(false);
 
@@ -72,10 +73,11 @@ export default function RegisterPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm text-slate-400 mb-1">{t("name")}</label>
+              <label htmlFor="register-name" className="block text-sm text-slate-400 mb-1">{t("name")}</label>
               <div className="relative">
                 <User className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                 <input
+                  id="register-name"
                   type="text"
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -85,10 +87,11 @@ export default function RegisterPage() {
               </div>
             </div>
             <div>
-              <label className="block text-sm text-slate-400 mb-1">{t("companyName")}</label>
+              <label htmlFor="register-company" className="block text-sm text-slate-400 mb-1">{t("companyName")}</label>
               <div className="relative">
                 <Building2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                 <input
+                  id="register-company"
                   type="text"
                   value={form.companyName}
                   onChange={(e) => setForm({ ...form, companyName: e.target.value })}
@@ -100,10 +103,11 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label className="block text-sm text-slate-400 mb-1">{t("email")}</label>
+            <label htmlFor="register-email" className="block text-sm text-slate-400 mb-1">{t("email")}</label>
             <div className="relative">
               <Mail className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
               <input
+                id="register-email"
                 type="email"
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
@@ -114,10 +118,11 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label className="block text-sm text-slate-400 mb-1">{t("password")}</label>
+            <label htmlFor="register-password" className="block text-sm text-slate-400 mb-1">{t("password")}</label>
             <div className="relative">
               <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
               <input
+                id="register-password"
                 type="password"
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
@@ -128,6 +133,25 @@ export default function RegisterPage() {
               />
             </div>
             <p className="text-xs text-slate-500 mt-1">{t("passwordHint")}</p>
+          </div>
+
+          <div>
+            <label htmlFor="register-country" className="block text-sm text-slate-400 mb-1">
+              {t("country")}
+            </label>
+            <select
+              id="register-country"
+              value={form.country}
+              onChange={(e) => setForm({ ...form, country: e.target.value })}
+              className="w-full h-10 px-3 bg-slate-800/50 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-emerald-500"
+            >
+              <option value="OM">{t("countryOM")}</option>
+              <option value="AE">{t("countryAE")}</option>
+              <option value="SA">{t("countrySA")}</option>
+              <option value="BH">{t("countryBH")}</option>
+              <option value="QA">{t("countryQA")}</option>
+              <option value="KW">{t("countryKW")}</option>
+            </select>
           </div>
 
           <p className="text-xs text-slate-500">
@@ -145,6 +169,7 @@ export default function RegisterPage() {
 
           <GoogleSignInButton
             companyName={form.companyName.trim() || undefined}
+            country={form.country}
             onSuccess={() => {
               toast.success(t("register"));
               router.push("/dashboard");

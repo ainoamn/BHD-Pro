@@ -1,4 +1,5 @@
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, Matches } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class GoogleAuthDto {
   @IsString()
@@ -9,4 +10,11 @@ export class GoogleAuthDto {
   @IsOptional()
   @IsString()
   companyName?: string;
+
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim().toUpperCase() : value,
+  )
+  @Matches(/^[A-Z]{2}$/)
+  country?: string;
 }

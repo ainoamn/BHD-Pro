@@ -6,6 +6,7 @@ import {
   encryptConfigSecrets,
 } from '../common/crypto/secrets.crypto';
 import { assertPlatformAdminEmail } from '../common/guards/platform-admin.guard';
+import { validateGatewayConfigUpdate } from './gateway-config';
 
 function secretKeysFor(slug: string): string[] {
   return (GATEWAY_META[slug as keyof typeof GATEWAY_META]?.configKeys || [])
@@ -71,7 +72,9 @@ export class PlatformGatewaysService implements OnModuleInit {
         where: { slug: slug as never },
       });
       if (!existing) continue;
-      const encrypted = encryptConfigSecrets(config, secretKeys);
+      const encrypted = encryptConfigSecrets(config, secretKeys, {
+        aad: `platform:gateway:${slug}`,
+      });
       await this.prisma.platformPaymentGateway.update({
         where: { slug: slug as never },
         data: {
@@ -112,7 +115,9 @@ export class PlatformGatewaysService implements OnModuleInit {
   /** Decrypted config for payment adapters only */
   decryptedConfig(gateway: { slug: string; configJson: unknown }): Record<string, string> {
     const raw = (gateway.configJson as Record<string, string>) || {};
-    return decryptConfigSecrets(raw, secretKeysFor(gateway.slug));
+    return decryptConfigSecrets(raw, secretKeysFor(gateway.slug), {
+      aad: `platform:gateway:${gateway.slug}`,
+    });
   }
 
   async update(
@@ -123,11 +128,14 @@ export class PlatformGatewaysService implements OnModuleInit {
     const currentConfig = (existing.configJson as Record<string, string>) || {};
     let nextConfig = currentConfig;
     if (data.configJson) {
-      const merged = { ...currentConfig, ...data.configJson };
-      nextConfig = encryptConfigSecrets(merged, secretKeysFor(slug));
+      const incomingConfig = validateGatewayConfigUpdate(slug, data.configJson);
+      const merged = { ...currentConfig, ...incomingConfig };
+      nextConfig = encryptConfigSecrets(merged, secretKeysFor(slug), {
+        aad: `platform:gateway:${slug}`,
+      });
       // restore unchanged secrets when UI sent mask or left blank
       for (const key of secretKeysFor(slug)) {
-        const incoming = data.configJson[key];
+        const incoming = incomingConfig[key];
         if (incoming === '••••••••' || incoming === undefined || incoming === '') {
           nextConfig[key] = currentConfig[key] ?? '';
         }

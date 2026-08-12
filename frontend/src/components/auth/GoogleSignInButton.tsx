@@ -10,9 +10,10 @@ type Props = {
   onSuccess: () => void;
   onRequires2fa?: (tempToken: string) => void;
   companyName?: string;
+  country?: string;
 };
 
-export function GoogleSignInButton({ onSuccess, onRequires2fa, companyName }: Props) {
+export function GoogleSignInButton({ onSuccess, onRequires2fa, companyName, country }: Props) {
   const t = useTranslations("auth");
   const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
@@ -24,7 +25,7 @@ export function GoogleSignInButton({ onSuccess, onRequires2fa, companyName }: Pr
       }
       try {
         toast.loading(t("googleLoading"), { id: "google-signin" });
-        const data = await api.googleLogin(credentialResponse.credential, companyName);
+        const data = await api.googleLogin(credentialResponse.credential, companyName, country);
         toast.dismiss("google-signin");
         if (data?.requires2fa && data.tempToken) {
           if (onRequires2fa) {
@@ -43,7 +44,7 @@ export function GoogleSignInButton({ onSuccess, onRequires2fa, companyName }: Pr
         toast.error(Array.isArray(msg) ? msg.join(" — ") : msg || t("googleError"));
       }
     },
-    [companyName, onRequires2fa, onSuccess, t],
+    [companyName, country, onRequires2fa, onSuccess, t],
   );
 
   if (!clientId) {

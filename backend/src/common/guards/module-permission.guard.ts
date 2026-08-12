@@ -18,6 +18,9 @@ import {
 
 /** First match wins — put specific paths before broad ones. */
 const PATH_MODULE_MAP: { re: RegExp; module: ModuleKey }[] = [
+  { re: /\/scheduled-invoices/, module: 'sales' },
+  { re: /\/purchase-orders/, module: 'purchases' },
+  { re: /\/invoices(\/|$|\?)/, module: 'sales' },
   { re: /\/dashboard(\/|$|\?)/, module: 'dashboard' },
   { re: /\/sales(\/|$|\?)/, module: 'sales' },
   { re: /\/purchases(\/|$|\?)/, module: 'purchases' },
@@ -35,6 +38,7 @@ const PATH_MODULE_MAP: { re: RegExp; module: ModuleKey }[] = [
   { re: /\/management-alerts/, module: 'managementAlerts' },
   { re: /\/manager-reports/, module: 'managementAlerts' },
   { re: /\/inventory(\/|$|\?)/, module: 'inventory' },
+  { re: /\/products(\/|$|\?)/, module: 'inventory' },
   { re: /\/delivery-notes/, module: 'deliveryNotes' },
   { re: /\/stock-counts/, module: 'stockCounts' },
   { re: /\/warehouses/, module: 'warehouses' },
@@ -42,7 +46,16 @@ const PATH_MODULE_MAP: { re: RegExp; module: ModuleKey }[] = [
   { re: /\/vat(\/|$|\?)/, module: 'vat' },
   { re: /\/integrations/, module: 'integrations' },
   { re: /\/ai-analytics/, module: 'aiAnalytics' },
+  { re: /\/ai(\/|$|\?)/, module: 'aiAnalytics' },
   { re: /\/settings(\/|$|\?)/, module: 'settings' },
+  { re: /\/companies(\/|$|\?)/, module: 'settings' },
+  { re: /\/attachments(\/|$|\?)/, module: 'settings' },
+  { re: /\/dual-control(\/|$|\?)/, module: 'settings' },
+  { re: /\/messaging(\/|$|\?)/, module: 'integrations' },
+  { re: /\/subscriptions(\/|$|\?)/, module: 'settings' },
+  { re: /\/payments(\/|$|\?)/, module: 'settings' },
+  { re: /\/periods(\/|$|\?)/, module: 'accounting' },
+  { re: /\/audit(\/|$|\?)/, module: 'settings' },
   { re: /\/period-locks/, module: 'settings' },
   { re: /\/tax-rates/, module: 'settings' },
   { re: /\/api-keys/, module: 'settings' },
@@ -67,13 +80,52 @@ const PATH_MODULE_MAP: { re: RegExp; module: ModuleKey }[] = [
   { re: /\/resto(\/|$|\?)/, module: 'floor' },
   { re: /\/users(\/|$|\?)/, module: 'users' },
   { re: /\/reports(\/|$|\?)/, module: 'reports' },
+  { re: /\/accounts(\/|$|\?)/, module: 'chartOfAccounts' },
+  { re: /\/payroll(\/|$|\?)/, module: 'employees' },
+  { re: /\/disputes(\/|$|\?)/, module: 'managementAlerts' },
 ];
 
-function moduleForPath(url: string): ModuleKey | null {
+export function moduleForPath(url: string): ModuleKey | null {
   for (const row of PATH_MODULE_MAP) {
     if (row.re.test(url)) return row.module;
   }
   return null;
+}
+
+export function enforceModulePermission(
+  context: ExecutionContext,
+  reflector: Reflector,
+): boolean {
+  const req = context.switchToHttp().getRequest();
+  const role = req.user?.role as string | undefined;
+  if (!req.user || role === 'ADMIN') return true;
+
+  const meta = reflector.getAllAndOverride<ModuleAccessMeta>(MODULE_ACCESS_KEY, [
+    context.getHandler(),
+    context.getClass(),
+  ]);
+  const path = String(req.originalUrl || req.url || '');
+  const module = meta?.module || moduleForPath(path);
+  if (!module) return true;
+
+  const needed = meta?.level || accessForHttpMethod(req.method || 'GET');
+  const permissions = req.user?.modulePermissions as
+    | ModulePermissions
+    | undefined;
+
+  if (!canAccessModule(permissions, module, needed)) {
+    throw new ForbiddenException({
+      statusCode: 403,
+      code: 'MODULE_ACCESS_DENIED',
+      module,
+      required: needed,
+      message:
+        needed === 'edit'
+          ? 'You can view this area but cannot make changes. Ask your company admin.'
+          : 'This area is hidden for your account. Ask your company admin for access.',
+    });
+  }
+  return true;
 }
 
 @Injectable()
@@ -81,35 +133,6 @@ export class ModulePermissionGuard implements CanActivate {
   constructor(private reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const req = context.switchToHttp().getRequest();
-    const role = req.user?.role as string | undefined;
-    if (!req.user || role === 'ADMIN') return true;
-
-    const meta = this.reflector.getAllAndOverride<ModuleAccessMeta>(
-      MODULE_ACCESS_KEY,
-      [context.getHandler(), context.getClass()],
-    );
-    const path = String(req.originalUrl || req.url || '');
-    const module = meta?.module || moduleForPath(path);
-    if (!module) return true;
-
-    const needed = meta?.level || accessForHttpMethod(req.method || 'GET');
-    const permissions = req.user?.modulePermissions as
-      | ModulePermissions
-      | undefined;
-
-    if (!canAccessModule(permissions, module, needed)) {
-      throw new ForbiddenException({
-        statusCode: 403,
-        code: 'MODULE_ACCESS_DENIED',
-        module,
-        required: needed,
-        message:
-          needed === 'edit'
-            ? 'You can view this area but cannot make changes. Ask your company admin.'
-            : 'This area is hidden for your account. Ask your company admin for access.',
-      });
-    }
-    return true;
+    return enforceModulePermission(context, this.reflector);
   }
 }

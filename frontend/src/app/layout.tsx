@@ -1,21 +1,8 @@
 import type { Metadata } from "next";
-import { Cairo, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import "./light-theme.css";
 import { Providers } from "@/components/providers";
 import { ClientErrorBeacon } from "@/components/system/client-error-beacon";
-
-const cairo = Cairo({
-  subsets: ["arabic", "latin"],
-  variable: "--font-cairo",
-  display: "swap",
-});
-
-const spaceGrotesk = Space_Grotesk({
-  subsets: ["latin"],
-  variable: "--font-space",
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   metadataBase: new URL(
@@ -62,7 +49,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ar" dir="rtl" suppressHydrationWarning>
-      <body className={`${cairo.variable} ${spaceGrotesk.variable} font-sans antialiased`}>
+      <body className="font-sans antialiased">
         <Providers>
           <ClientErrorBeacon />
           {children}

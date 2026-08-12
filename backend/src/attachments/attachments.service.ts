@@ -47,6 +47,7 @@ export class AttachmentsService {
       dto.fileName,
       dto.mimeType,
       dto.storageKey,
+      dto.sizeBytes,
     );
 
     return this.prisma.attachment.create({

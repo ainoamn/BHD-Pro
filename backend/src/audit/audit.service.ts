@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 export type AuditPayload = {
@@ -15,6 +15,8 @@ export type AuditPayload = {
 
 @Injectable()
 export class AuditService {
+  private readonly logger = new Logger(AuditService.name);
+  private lastFailureLogAt = 0;
   constructor(private prisma: PrismaService) {}
 
   async log(payload: AuditPayload) {
@@ -32,8 +34,17 @@ export class AuditService {
           userAgent: payload.userAgent || null,
         },
       });
-    } catch {
-      // Never break business flow because of audit write failures
+    } catch (error) {
+      // Preserve business availability, but never let compliance failures be silent.
+      const now = Date.now();
+      if (now - this.lastFailureLogAt > 60_000) {
+        this.lastFailureLogAt = now;
+        this.logger.error(
+          `AUDIT_WRITE_FAILED action=${payload.action} entity=${payload.entity}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
     }
   }
 

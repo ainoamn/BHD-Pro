@@ -7,6 +7,7 @@ import {
   AccountCategory,
 } from '@prisma/client';
 import { PeriodsService } from '../periods/periods.service';
+import { nextDocumentNumber, seedAfter } from '../common/document-number';
 
 type JournalLineInput = {
   accountId: string;
@@ -34,10 +35,18 @@ export class GlPostingService {
 
   private async generateNumber(companyId: string) {
     const year = new Date().getFullYear();
-    const count = await this.prisma.journal.count({
+    const latest = await this.prisma.journal.findFirst({
       where: { companyId, number: { startsWith: `JV-${year}-` } },
+      orderBy: { createdAt: 'desc' },
+      select: { number: true },
     });
-    return `JV-${year}-${String(count + 1).padStart(4, '0')}`;
+    return nextDocumentNumber(this.prisma, {
+      scope: companyId,
+      series: 'journal',
+      period: String(year),
+      prefix: `JV-${year}-`,
+      seed: seedAfter(latest?.number),
+    });
   }
 
   private async accountByCode(companyId: string, code: string) {

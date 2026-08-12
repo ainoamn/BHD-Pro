@@ -19,6 +19,7 @@ import {
 import { AccountCategory, AccountType, PayrollStatus, PaymentMethod } from '@prisma/client';
 import { GlPostingService } from '../journal/gl-posting.service';
 import { ensureDefaultCostCentersAndProjects } from './default-analytics.seed';
+import { nextDocumentNumber, seedAfter } from '../common/document-number';
 
 @Injectable()
 export class ErpService {
@@ -913,14 +914,15 @@ export class ErpService {
     const prefix = `PAY-${year}-`;
     const latest = await this.prisma.payrollRun.findFirst({
       where: { companyId, number: { startsWith: prefix } },
-      orderBy: { number: 'desc' },
+      orderBy: { createdAt: 'desc' },
     });
-    let seq = 1;
-    if (latest?.number) {
-      const m = latest.number.match(/-(\d+)$/);
-      if (m) seq = parseInt(m[1], 10) + 1;
-    }
-    const number = `${prefix}${String(seq).padStart(4, '0')}`;
+    const number = await nextDocumentNumber(this.prisma, {
+      scope: companyId,
+      series: 'payroll',
+      period: String(year),
+      prefix,
+      seed: seedAfter(latest?.number),
+    });
 
     const lines = employees.map((e) => {
       const base = Number(e.baseSalary);

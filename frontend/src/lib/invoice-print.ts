@@ -7,6 +7,7 @@ import {
   normalizeDocumentColor,
 } from "@/lib/document-theme";
 import { buildWorkflowStepsHtml } from "@/lib/document-workflow";
+import { escapeHtml, safeImageSource } from "@/lib/html-escape";
 
 interface CompanyInfo {
   name?: string;
@@ -120,8 +121,67 @@ function buildSignatureAndQrHtml(
   `;
 }
 
-function escapeAttr(value: string): string {
-  return value.replace(/"/g, "&quot;");
+function sanitizePrintInputs(
+  invoice: InvoiceDocumentData,
+  company: CompanyInfo | null | undefined,
+  options: PrintOptions,
+) {
+  const safeContact = Object.fromEntries(
+    Object.entries(invoice.contact || {}).map(([key, value]) => [
+      key,
+      typeof value === "string" ? escapeHtml(value) : value,
+    ]),
+  ) as InvoiceDocumentData["contact"];
+  const safeInvoice: InvoiceDocumentData = {
+    ...invoice,
+    number: escapeHtml(invoice.number),
+    currency: invoice.currency ? escapeHtml(invoice.currency) : invoice.currency,
+    notes: invoice.notes ? escapeHtml(invoice.notes) : invoice.notes,
+    contact: safeContact,
+    items: invoice.items.map((item) => ({
+      ...item,
+      description: escapeHtml(item.description),
+    })),
+  };
+  const safeCompany = company
+    ? ({
+        ...company,
+        name: company.name ? escapeHtml(company.name) : company.name,
+        address: company.address ? escapeHtml(company.address) : company.address,
+        city: company.city ? escapeHtml(company.city) : company.city,
+        phone: company.phone ? escapeHtml(company.phone) : company.phone,
+        vatNumber: company.vatNumber
+          ? escapeHtml(company.vatNumber)
+          : company.vatNumber,
+        crNumber: company.crNumber
+          ? escapeHtml(company.crNumber)
+          : company.crNumber,
+        logo: safeImageSource(company.logo),
+      } satisfies CompanyInfo)
+    : company;
+  const safeLabels = options.labels
+    ? (Object.fromEntries(
+        Object.entries(options.labels).map(([key, value]) => [
+          key,
+          escapeHtml(value),
+        ]),
+      ) as NonNullable<PrintOptions["labels"]>)
+    : undefined;
+  const safeOptions: PrintOptions = {
+    ...options,
+    baseCurrency: options.baseCurrency
+      ? escapeHtml(options.baseCurrency)
+      : options.baseCurrency,
+    headerNote: options.headerNote
+      ? escapeHtml(options.headerNote)
+      : options.headerNote,
+    footerNote: options.footerNote
+      ? escapeHtml(options.footerNote)
+      : options.footerNote,
+    qrDataUrl: safeImageSource(options.qrDataUrl),
+    labels: safeLabels,
+  };
+  return { invoice: safeInvoice, company: safeCompany, options: safeOptions };
 }
 
 function buildBodyHtml(
@@ -228,7 +288,7 @@ function buildBodyHtml(
 
   const logoSrc = (company?.logo || "").trim();
   const logoHtml = logoSrc
-    ? `<img class="company-logo" src="${escapeAttr(logoSrc)}" alt="" crossorigin="anonymous" style="max-height:64px;max-width:160px;object-fit:contain;display:block;" />`
+    ? `<img class="company-logo" src="${escapeHtml(logoSrc)}" alt="" crossorigin="anonymous" style="max-height:64px;max-width:160px;object-fit:contain;display:block;" />`
     : "";
 
   return `
@@ -377,8 +437,9 @@ export function openInvoicePrintDialog(
   company: CompanyInfo | null | undefined,
   options: PrintOptions
 ) {
-  const printTitle = resolvePrintTitle(invoice, options);
-  const bodyHtml = buildBodyHtml(invoice, company, options);
+  const safe = sanitizePrintInputs(invoice, company, options);
+  const printTitle = escapeHtml(resolvePrintTitle(safe.invoice, safe.options));
+  const bodyHtml = buildBodyHtml(safe.invoice, safe.company, safe.options);
   const win = window.open("", "_blank", "width=800,height=900");
   if (!win) return;
 
@@ -424,8 +485,9 @@ export async function downloadInvoicePdf(
     import("jspdf"),
   ]);
 
-  const printTitle = resolvePrintTitle(invoice, options);
-  const bodyHtml = buildBodyHtml(invoice, company, options);
+  const safe = sanitizePrintInputs(invoice, company, options);
+  const printTitle = escapeHtml(resolvePrintTitle(safe.invoice, safe.options));
+  const bodyHtml = buildBodyHtml(safe.invoice, safe.company, safe.options);
   const fullHtml = buildFullHtml(printTitle, bodyHtml);
 
   const iframe = document.createElement("iframe");

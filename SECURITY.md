@@ -1,86 +1,71 @@
-# Production security checklist (BHD Pro)
+# Security policy
 
-## Status
+## Production security checklist (BHD Pro)
+
+### Status
 
 The codebase is hardened for a controlled production launch. Deployment must still fail closed unless the required secrets, HTTPS origins, platform owner, database migrations, Redis, S3, and monitoring settings are configured.
 
-## Required before production
+### Required before production
 
-1. Set `NODE_ENV=production`
-2. Generate secrets (never use `.env.example` values):
-   - `JWT_SECRET` / `JWT_REFRESH_SECRET` / `PAYMENT_SECRETS_KEY` via `openssl rand -base64 48`
-3. Set `CORS_ORIGIN` and `FRONTEND_URL` to your **HTTPS** frontend origin
-4. Set `PLATFORM_ADMIN_EMAILS` and one `PLATFORM_OWNER_EMAIL`; production has no hardcoded fallback administrators
-5. Configure payment webhook secrets (Stripe / Thawani / PayPal) — webhooks fail closed without them
-6. Terminate TLS at a reverse proxy (Nginx / Caddy / Cloudflare) — do not expose Nest/Next on plain HTTP
-7. Do not publish Postgres/Redis ports publicly; use private network + strong DB password
-8. Do not run `prisma:seed` against production (the command now fails in production)
-9. Keep `ALLOW_PUBLIC_REGISTRATION=false` until public onboarding is explicitly approved
-10. Apply migrations with `prisma migrate deploy` only; never use `db push --accept-data-loss`
+1. Set `NODE_ENV=production`.
+2. Generate independent `JWT_SECRET`, `JWT_REFRESH_SECRET`, `PAYMENT_SECRETS_KEY`, and `TOTP_SECRETS_KEY` values with `openssl rand -base64 48`.
+3. Set `CORS_ORIGIN` and `FRONTEND_URL` to explicit HTTPS origins.
+4. Set `PLATFORM_ADMIN_EMAILS` and one `PLATFORM_OWNER_EMAIL`; production has no hardcoded fallback administrators.
+5. Configure payment webhook secrets; webhooks fail closed without them.
+6. Terminate TLS at a reverse proxy and never publish Postgres/Redis ports.
+7. Do not run `prisma:seed` in production. Apply migrations with `prisma migrate deploy`, never destructive `db push`.
+8. Keep `ALLOW_PUBLIC_REGISTRATION=false` until onboarding is approved.
+9. Configure private S3 attachment storage, Redis authentication, monitoring, backups, and tested restore.
 
-## What was hardened
+### Hardened controls
 
-| Area | Change |
-|------|--------|
-| Free plan upgrade | Disabled — paid checkout only |
-| JWT secrets | Production boot fails if weak/missing |
-| Refresh sessions | Hashed in DB, rotated on refresh, revoked on logout |
-| JWT strategy | Re-checks user + company `isActive` |
-| Helmet | Security headers on API |
-| Rate limit | Global + stricter on auth |
-| Swagger | Disabled when `NODE_ENV=production` |
-| Webhooks | Stripe skew + Thawani/PayPal signature verification |
-| Gateway secrets | AES-256-GCM at rest when `PAYMENT_SECRETS_KEY` set; admin UI masks secrets |
-| Platform gateways | Restricted to `PLATFORM_ADMIN_EMAILS` |
-| Registration | Disabled by default in production; when enabled it always starts on STARTER |
-| API keys | ADMIN only; API keys cannot create more keys |
-| Cookies httpOnly | Access + refresh in `bhd_access` / `bhd_refresh`; not stored in localStorage |
-| Next.js | Security headers + `poweredByHeader: false` + `/backend-api` rewrite for cookie auth |
-| Docker | Node 24, non-root app users, localhost-bound app ports, Redis and health checks |
-| Dependencies | Production npm audits are enforced by CI and must report zero advisories |
-| Attachments | MIME is required; active SVG is rejected |
+| Area | Control |
+|---|---|
+| Registration/subscription | New tenants start on STARTER; paid upgrades use checkout only |
+| Sessions | httpOnly cookies, hashed refresh sessions, rotation, revocation and CSRF token |
+| Authorization | JWT re-check, central roles/modules, tenant-header boundary and scoped API keys |
+| Secrets | Production fail-closed; AES-GCM v2, purpose separation, AAD, versions and rotation ring |
+| Payments | Signed/bound webhooks, fixed gateway origins, atomic claim and unique idempotency key |
+| Browser | XSS-safe printing, CSP, HSTS, frame/content/referrer/permissions policies |
+| Attachments | size + MIME magic validation, active SVG denied, private encrypted S3 |
+| Operations | non-root containers, one-shot migration job, authenticated Redis, CI regressions/audits |
 
-## Remaining (recommended next)
+### Earlier hardening retained
 
-- ~~Enforce 2FA for ADMIN/MANAGER~~ — **done (Wave H partial):** `REQUIRE_2FA_ROLES` (default `ADMIN,MANAGER`) + company `require2faForAdmins`; banner + disable blocked; set `REQUIRE_2FA_ROLES=off` to disable env policy
-- ~~CI / Dependabot / optional Sentry SDK~~ — **done (Wave AZ):** `.github/workflows/ci.yml`, Dependabot, `@sentry/node` + `@sentry/browser` when DSN set
-- WAF / bot protection in front of login (Cloudflare) — see [`docs/PRODUCTION-HARDENING.md`](./docs/PRODUCTION-HARDENING.md)
-- ~~Wire Redis (`REDIS_URL`) for throttle storage + health ping~~ — **done (Wave BA):** optional; in-memory throttle when unset
-- ~~Object storage (S3) for attachments~~ — **done (Wave BB):** `ATTACHMENT_STORAGE=s3` + delete on remove; falls back to dataurl/local
-- Playwright login smoke in CI — **done (Wave BA):** `frontend/e2e/smoke.spec.ts`
-- Narrow API-key scopes below full ACCOUNTANT where possible
-- External penetration testing before changing `ALLOW_PUBLIC_REGISTRATION=true`
+- Production has no wildcard Vercel CORS unless explicitly enabled.
+- Swagger is disabled in production; auth and sensitive operations are rate-limited.
+- `REQUIRE_2FA_ROLES`, grace policy, hard lock, Sentry, Redis health/cache, S3 removal, Dependabot and Playwright smoke remain supported.
+- The SPA calls `/backend-api/*` so browser cookies remain same-site. A separate API domain requires HTTPS, `COOKIE_SAME_SITE=none`, and credentialed requests.
+- Tokens may be returned for non-browser clients; the SPA does not persist them in localStorage.
+- See [production hardening](./docs/PRODUCTION-HARDENING.md), [deployment](./docs/SECURITY-HARDENING-DEPLOYMENT-2026-08-11.md), and [threat model](./docs/THREAT-MODEL.md).
 
-## Hardening — 27 Jul 2026 (Wave AZ)
+### Historical hardening detail (preserved)
 
-| Area | Change |
-|------|--------|
-| CI | GitHub Actions build + typecheck + audit on `main` |
-| Dependabot | Weekly npm + Actions updates |
-| Sentry | Optional DSN bootstrap (API + browser beacon) |
-| Tests | Backend smoke tests for module permissions |
-| Docs | `docs/PRODUCTION-HARDENING.md` WAF/Sentry checklist |
+| Wave/date | Controls delivered |
+|---|---|
+| 25 Jul 2026 | Explicit CORS opt-in for Vercel previews, environment-only platform admins, 2MB attachment/MIME policy, POS camera permissions |
+| Wave H — 26 Jul 2026 | Required-role 2FA policy, throttled setup/confirm/disable, dashboard enforcement UX, baseline CSP, dashboard error handling |
+| Wave AZ — 27 Jul 2026 | GitHub Actions CI, Dependabot, optional Sentry, module-permission smoke tests and production-hardening docs |
+| Wave BA/BB | Redis throttle/health/cache, private object storage support, and Playwright login smoke |
 
-## Hardening — 26 Jul 2026 (Wave H partial)
+### Remaining external controls
 
-| Area | Change |
-|------|--------|
-| 2FA policy | Env `REQUIRE_2FA_ROLES` + company `require2faForAdmins` |
-| 2FA throttle | setup/confirm/disable limited to 10/min |
-| 2FA UX | Dashboard banner + cannot disable when required |
-| CSP | Baseline `frame-ancestors` / `base-uri` / `form-action` / `object-src` on Next |
-| Query errors | Dashboard/reports no longer infinite-spin on API failure |
+- Put WAF/bot protection in front of login and public mutation routes.
+- Run an independently authorized penetration test before opening public registration.
+- Complete malware scanning/CDR for office attachments and independent compliance evidence where the market requires it.
 
-## Hardening — 25 Jul 2026
+## الإبلاغ المسؤول
 
-| Area | Change |
-|------|--------|
-| CORS | No default `*.vercel.app`; opt-in via `CORS_ALLOW_VERCEL_PREVIEWS=1` |
-| Platform admins | Production uses only environment-configured owner/operators |
-| Attachments | Max ~2MB + mandatory explicit MIME allowlist; SVG is denied |
-| Next Permissions-Policy | `camera=(self)` so POS barcode works |
+لا تختبر بيانات أو حسابات لا تملكها، ولا تنشر تفاصيل قابلة للاستغلال قبل المعالجة. أرسل بلاغاً خاصاً إلى قناة الأمان المعتمدة لدى شركة بن حمود للتطوير متضمناً: المسار المتأثر، خطوات إعادة الإنتاج، الأثر المتوقع، ووسيلة تواصل آمنة. لا تضع أسراراً حقيقية في البلاغ.
 
-- Browser sessions use **httpOnly** cookies (`bhd_access`, `bhd_refresh`).
-- Frontend calls `/backend-api/*` (Next rewrite → Nest) so cookies are same-site.
-- For a separate API domain, set `COOKIE_SAME_SITE=none`, HTTPS, and `NEXT_PUBLIC_API_URL` to the API origin with `credentials: true`.
-- Tokens may still be returned in JSON for non-browser clients; the SPA does **not** persist them.
+## Supported versions
+
+يدعم الفريق آخر إصدار إنتاجي فقط. تُعطى الأولوية للثغرات التي تؤثر في المصادقة، عزل الشركات، المدفوعات، أو كشف البيانات. لا تمثل الاستجابة أو هذه الوثيقة ادعاء شهادة PCI DSS أو SOC 2 أو ISO 27001.
+
+## قواعد المطورين
+
+- يمنع إدخال أسرار حقيقية في Git أو الاختبارات أو لقطات الخطأ.
+- يجب أن يمر كل تغيير أمني باختبار regression ومراجعة مستقلة قبل الإنتاج.
+- لا تُشغّل هجرات Prisma تلقائياً من كل نسخة تطبيق؛ استخدم release/migrate job واحداً.
+- يجب تدوير السر فور الاشتباه، ثم إبطال الجلسات والمفاتيح المتأثرة ومراجعة سجل التدقيق المنقح.

@@ -93,9 +93,9 @@ export default function DashboardLayout({
   useEffect(() => {
     if (!hydrated || !isAuthenticated || !user) return;
     if (user.role === "ADMIN") return;
-    const module = moduleForDashboardPath(pathname);
-    if (!module) return;
-    if (!canAccessModule(user.modulePermissions, module, "view")) {
+    const moduleKey = moduleForDashboardPath(pathname);
+    if (!moduleKey) return;
+    if (!canAccessModule(user.modulePermissions, moduleKey, "view")) {
       router.replace(homePathForUser(user));
     }
   }, [hydrated, isAuthenticated, user, pathname, router]);

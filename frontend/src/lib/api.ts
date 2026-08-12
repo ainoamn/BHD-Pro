@@ -132,6 +132,11 @@ class ApiClient {
         if (company?.id) {
           config.headers['X-Company-ID'] = company.id;
         }
+        const method = String(config.method || "get").toUpperCase();
+        if (!["GET", "HEAD", "OPTIONS"].includes(method)) {
+          const csrf = this.readCookie("bhd_csrf");
+          if (csrf) config.headers["X-CSRF-Token"] = csrf;
+        }
 
         return config;
       },
@@ -193,6 +198,16 @@ class ApiClient {
         return Promise.reject(error);
       }
     );
+  }
+
+  private readCookie(name: string): string | null {
+    if (typeof document === "undefined") return null;
+    const prefix = `${encodeURIComponent(name)}=`;
+    const row = document.cookie
+      .split(";")
+      .map((part) => part.trim())
+      .find((part) => part.startsWith(prefix));
+    return row ? decodeURIComponent(row.slice(prefix.length)) : null;
   }
 
   private async refreshAccessToken(): Promise<string | null> {
@@ -296,7 +311,15 @@ class ApiClient {
     return this.post('/auth/2fa/disable', { password, code });
   }
 
-  async register(data: { name: string; email: string; password: string; companyName: string; plan?: string }) {
+  async register(data: {
+    name: string;
+    email: string;
+    password: string;
+    companyName: string;
+    country?: string;
+    language?: string;
+    plan?: string;
+  }) {
     const response = await this.client.post('/auth/register', data);
     const { user, accessToken } = response.data;
     const company = user.company as import('@/types').Company;
@@ -317,10 +340,26 @@ class ApiClient {
     return response.data;
   }
 
-  async googleLogin(idToken: string, companyName?: string) {
+  forgotPassword(email: string) {
+    return this.post<{ message: string }>('/auth/forgot-password', { email });
+  }
+
+  resetPassword(token: string, newPassword: string) {
+    return this.post<{ message: string }>('/auth/reset-password', { token, newPassword });
+  }
+
+  changePassword(currentPassword: string, newPassword: string) {
+    return this.post<{ message: string }>('/auth/change-password', {
+      currentPassword,
+      newPassword,
+    });
+  }
+
+  async googleLogin(idToken: string, companyName?: string, country?: string) {
     const response = await this.client.post('/auth/google', {
       idToken,
       ...(companyName ? { companyName } : {}),
+      ...(country ? { country } : {}),
     });
     const data = response.data as {
       requires2fa?: boolean;

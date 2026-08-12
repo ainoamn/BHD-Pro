@@ -7,6 +7,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateDeliveryNoteDto } from './dto/create-delivery-note.dto';
 import { DeliveryNoteStatus, MovementType } from '@prisma/client';
 import { RedisService } from '../redis/redis.service';
+import { nextDocumentNumber, seedAfter } from '../common/document-number';
 
 @Injectable()
 export class DeliveryNotesService {
@@ -25,15 +26,16 @@ export class DeliveryNotesService {
     const prefix = `DN-${year}-`;
     const latest = await this.prisma.deliveryNote.findFirst({
       where: { companyId, number: { startsWith: prefix } },
-      orderBy: { number: 'desc' },
+      orderBy: { createdAt: 'desc' },
       select: { number: true },
     });
-    let next = 1;
-    if (latest?.number) {
-      const seq = Number(latest.number.slice(prefix.length));
-      if (!Number.isNaN(seq)) next = seq + 1;
-    }
-    return `${prefix}${String(next).padStart(4, '0')}`;
+    return nextDocumentNumber(this.prisma, {
+      scope: companyId,
+      series: 'delivery-note',
+      period: String(year),
+      prefix,
+      seed: seedAfter(latest?.number),
+    });
   }
 
   findAll(companyId: string) {

@@ -1,7 +1,9 @@
 import { Response, CookieOptions } from 'express';
+import { randomBytes } from 'crypto';
 
 export const ACCESS_COOKIE = 'bhd_access';
 export const REFRESH_COOKIE = 'bhd_refresh';
+export const CSRF_COOKIE = 'bhd_csrf';
 
 function baseCookieOptions(): CookieOptions {
   const isProd = process.env.NODE_ENV === 'production';
@@ -32,10 +34,16 @@ export function setAuthCookies(
     ...base,
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
+  res.cookie(CSRF_COOKIE, randomBytes(24).toString('base64url'), {
+    ...base,
+    httpOnly: false,
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  });
 }
 
 export function clearAuthCookies(res: Response) {
   const base = baseCookieOptions();
   res.clearCookie(ACCESS_COOKIE, base);
   res.clearCookie(REFRESH_COOKIE, base);
+  res.clearCookie(CSRF_COOKIE, { ...base, httpOnly: false });
 }

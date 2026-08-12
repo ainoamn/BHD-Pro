@@ -2,6 +2,8 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateJournalDto } from './dto/create-journal.dto';
 import { PeriodsService } from '../periods/periods.service';
+import { nextDocumentNumber, seedAfter } from '../common/document-number';
+import { decimal } from '../common/money';
 
 @Injectable()
 export class JournalService {
@@ -12,10 +14,18 @@ export class JournalService {
 
   private async generateNumber(companyId: string) {
     const year = new Date().getFullYear();
-    const count = await this.prisma.journal.count({
+    const latest = await this.prisma.journal.findFirst({
       where: { companyId, number: { startsWith: `JV-${year}-` } },
+      orderBy: { createdAt: 'desc' },
+      select: { number: true },
     });
-    return `JV-${year}-${String(count + 1).padStart(4, '0')}`;
+    return nextDocumentNumber(this.prisma, {
+      scope: companyId,
+      series: 'journal',
+      period: String(year),
+      prefix: `JV-${year}-`,
+      seed: seedAfter(latest?.number),
+    });
   }
 
   async getAccounts(companyId: string) {
@@ -68,10 +78,16 @@ export class JournalService {
 
     await this.periods.assertOpen(companyId, dto.date);
 
-    const totalDebit = dto.lines.reduce((s, l) => s + Number(l.debit), 0);
-    const totalCredit = dto.lines.reduce((s, l) => s + Number(l.credit), 0);
+    const totalDebit = dto.lines.reduce(
+      (sum, line) => sum.plus(decimal(line.debit)),
+      decimal(0),
+    );
+    const totalCredit = dto.lines.reduce(
+      (sum, line) => sum.plus(decimal(line.credit)),
+      decimal(0),
+    );
 
-    if (Math.abs(totalDebit - totalCredit) > 0.001) {
+    if (totalDebit.minus(totalCredit).abs().gt('0.001')) {
       throw new BadRequestException(`Journal not balanced: debit=${totalDebit}, credit=${totalCredit}`);
     }
 

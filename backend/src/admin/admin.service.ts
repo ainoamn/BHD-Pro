@@ -1,11 +1,9 @@
 import { Injectable, NotFoundException, BadRequestException, OnModuleInit } from '@nestjs/common';
 import { Prisma, UserRole } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
-import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { PLAN_DETAILS } from '../common/plan-features';
 import { PlanCatalogService } from '../subscriptions/plan-catalog.service';
-import { EmailNotifyService } from '../notifications/email-notify.service';
+import { AuthService } from '../auth/auth.service';
 import { buildPublicPlanHighlights } from '../common/plan-access-catalog';
 import {
   getBootstrapAdminEmails,
@@ -34,7 +32,7 @@ export class AdminService implements OnModuleInit {
   constructor(
     private prisma: PrismaService,
     private planCatalog: PlanCatalogService,
-    private emailNotify: EmailNotifyService,
+    private authService: AuthService,
   ) {}
 
   async onModuleInit() {
@@ -1103,61 +1101,8 @@ export class AdminService implements OnModuleInit {
       );
     }
 
-    const temporaryPassword = this.generateTempPassword(12);
-    const hashed = await bcrypt.hash(temporaryPassword, 12);
-    await this.prisma.user.update({
-      where: { id },
-      data: {
-        password: hashed,
-        loginAttempts: 0,
-        lockedUntil: null,
-      },
-    });
-
-    let emailSent = false;
-    let emailMock = false;
-    let emailError: string | undefined;
-    try {
-      const result = await this.emailNotify.sendText({
-        to: user.email,
-        subject: 'Hisaby — temporary password / كلمة مرور مؤقتة',
-        text: [
-          `Hello ${user.name},`,
-          '',
-          'Your Hisaby password was reset by a platform administrator.',
-          `Temporary password: ${temporaryPassword}`,
-          '',
-          'Please sign in and change it immediately.',
-          '',
-          `مرحباً ${user.name}،`,
-          'تم إعادة تعيين كلمة مرور حسابي بواسطة مشرف المنصة.',
-          `كلمة المرور المؤقتة: ${temporaryPassword}`,
-          'يرجى تسجيل الدخول وتغييرها فوراً.',
-        ].join('\n'),
-      });
-      emailMock = !!result.mock;
-      emailSent = result.ok && !emailMock;
-      emailError = result.error;
-    } catch (err) {
-      emailError = err instanceof Error ? err.message : 'email failed';
-    }
-
-    return {
-      ok: true,
-      id: user.id,
-      email: user.email,
-      emailSent,
-      emailMock,
-      ...(emailSent ? {} : { temporaryPassword }),
-      ...(emailError && !emailSent ? { emailError } : {}),
-    };
-  }
-
-  private generateTempPassword(length = 12): string {
-    const alphabet =
-      'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%';
-    const bytes = randomBytes(length);
-    return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join('');
+    const result = await this.authService.requestPasswordResetByUserId(id);
+    return { ...result, id: user.id };
   }
 
   async listBilling(status?: string) {

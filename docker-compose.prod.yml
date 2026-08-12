@@ -22,11 +22,14 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes"]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD}
+    command:
+      ["sh", "-c", "exec redis-server --appendonly yes --requirepass \"$${REDIS_PASSWORD}\""]
     volumes:
       - hisaby_redis:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep -q PONG"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -46,6 +49,10 @@ services:
         condition: service_healthy
     ports:
       - "127.0.0.1:3000:3000"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     healthcheck:
       test:
         [
@@ -57,6 +64,24 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+
+  migrate:
+    build: ./backend
+    restart: "no"
+    env_file:
+      - .env.production
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://hisaby:${POSTGRES_PASSWORD}@db:5432/hisaby_pro?schema=public
+      DIRECT_URL: postgresql://hisaby:${POSTGRES_PASSWORD}@db:5432/hisaby_pro?schema=public
+    command: ["npx", "prisma", "migrate", "deploy", "--schema", "src/prisma/schema.prisma"]
+    depends_on:
+      db:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
 
   backend:
     build: ./backend
@@ -70,15 +95,22 @@ services:
       CORS_ORIGIN: https://hisaby.pro
       FRONTEND_URL: https://hisaby.pro
       API_PUBLIC_URL: https://hisaby.pro
-      REDIS_URL: redis://redis:6379
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       PORT: 3001
     depends_on:
-      db:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
     ports:
       - "127.0.0.1:3001:3001"
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     healthcheck:
       test:
         [

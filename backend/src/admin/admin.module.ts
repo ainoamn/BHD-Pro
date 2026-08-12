@@ -6,9 +6,10 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { PlatformAdminGuard } from '../common/guards/platform-admin.guard';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [PrismaModule, SubscriptionsModule, NotificationsModule],
+  imports: [PrismaModule, SubscriptionsModule, NotificationsModule, AuthModule],
   controllers: [AdminController, PublicVisitsController],
   providers: [AdminService, PlatformAdminGuard, SubscriptionReminderService],
   exports: [AdminService],

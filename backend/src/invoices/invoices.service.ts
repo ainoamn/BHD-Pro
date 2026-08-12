@@ -19,6 +19,8 @@ import { CustomerNotifyService } from '../notifications/customer-notify.service'
 import { EmailNotifyService } from '../notifications/email-notify.service';
 import { RedisService } from '../redis/redis.service';
 import { DocumentShareService } from './document-share.service';
+import { nextDocumentNumber, seedAfter } from '../common/document-number';
+import { calculateTaxLine } from '../common/money';
 
 const OMAN_VAT_RATE = 5;
 
@@ -46,12 +48,14 @@ export class InvoicesService {
     void this.redis.invalidatePosCatalog(companyId).catch(() => undefined);
   }
   private calcLine(item: { quantity: number; unitPrice: number; discount?: number; taxRate?: number }) {
-    const discount = item.discount || 0;
-    const lineSubtotal = item.quantity * item.unitPrice - discount;
     const taxRate = item.taxRate ?? OMAN_VAT_RATE;
-    const taxAmount = Number((lineSubtotal * (taxRate / 100)).toFixed(3));
-    const total = Number((lineSubtotal + taxAmount).toFixed(3));
-    return { lineSubtotal, taxRate, taxAmount, total };
+    const result = calculateTaxLine({ ...item, taxRate });
+    return {
+      lineSubtotal: result.lineSubtotal.toNumber(),
+      taxRate: result.taxRate.toNumber(),
+      taxAmount: result.taxAmount.toNumber(),
+      total: result.total.toNumber(),
+    };
   }
 
   private async generateNumber(companyId: string, type: InvoiceType): Promise<string> {
@@ -66,19 +70,16 @@ export class InvoicesService {
 
     const latest = await this.prisma.invoice.findFirst({
       where: { companyId, number: { startsWith: prefix } },
-      orderBy: { number: 'desc' },
+      orderBy: { createdAt: 'desc' },
       select: { number: true },
     });
-
-    let nextSeq = 1;
-    if (latest?.number) {
-      const match = latest.number.match(/-(\d+)$/);
-      if (match) {
-        nextSeq = parseInt(match[1], 10) + 1;
-      }
-    }
-
-    return `${prefix}${String(nextSeq).padStart(4, '0')}`;
+    return nextDocumentNumber(this.prisma, {
+      scope: companyId,
+      series: `invoice:${type}`,
+      period: String(year),
+      prefix,
+      seed: seedAfter(latest?.number),
+    });
   }
 
   async findAll(

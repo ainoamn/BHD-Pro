@@ -33,7 +33,8 @@ function mapPublicDocument(payload: Record<string, unknown>): {
     headerNote: template?.headerText,
     footerNote: template?.footerText,
     invoice: {
-      id: invoice.id as string,
+      // Public DTO deliberately does not expose the internal invoice UUID.
+      id: "",
       number: invoice.number as string,
       type: invoice.type as string,
       date: invoice.date as string,

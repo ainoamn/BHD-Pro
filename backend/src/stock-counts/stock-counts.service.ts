@@ -10,6 +10,7 @@ import {
 } from './dto/stock-count.dto';
 import { MovementType, StockCountStatus } from '@prisma/client';
 import { RedisService } from '../redis/redis.service';
+import { nextDocumentNumber, seedAfter } from '../common/document-number';
 
 @Injectable()
 export class StockCountsService {
@@ -28,15 +29,16 @@ export class StockCountsService {
     const prefix = `SC-${year}-`;
     const latest = await this.prisma.stockCount.findFirst({
       where: { companyId, number: { startsWith: prefix } },
-      orderBy: { number: 'desc' },
+      orderBy: { createdAt: 'desc' },
       select: { number: true },
     });
-    let next = 1;
-    if (latest?.number) {
-      const seq = Number(latest.number.slice(prefix.length));
-      if (!Number.isNaN(seq)) next = seq + 1;
-    }
-    return `${prefix}${String(next).padStart(4, '0')}`;
+    return nextDocumentNumber(this.prisma, {
+      scope: companyId,
+      series: 'stock-count',
+      period: String(year),
+      prefix,
+      seed: seedAfter(latest?.number),
+    });
   }
 
   private async resolveWarehouse(companyId: string, warehouseId?: string | null) {

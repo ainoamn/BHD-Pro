@@ -23,6 +23,8 @@ const nextConfig = {
           { key: 'X-Frame-Options', value: 'DENY' },
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin-allow-popups' },
+          { key: 'X-Permitted-Cross-Domain-Policies', value: 'none' },
           {
             key: 'Permissions-Policy',
             // camera=(self) required for POS barcode scanning on /pos
@@ -34,9 +36,8 @@ const nextConfig = {
           },
           {
             key: 'Content-Security-Policy',
-            // Baseline hardening without breaking Next inline styles/scripts or API rewrites
             value:
-              "frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'",
+              "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://hisaby-api.onrender.com https://accounts.google.com https://*.sentry.io; frame-src https://accounts.google.com; media-src 'self' blob:; worker-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests",
           },
         ],
       },

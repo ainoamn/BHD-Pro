@@ -58,7 +58,6 @@ export function NfcBadgeReader({ active, onRead, disabled }: Props) {
       try {
         setErr(null);
         setScanning(true);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const NDEFReaderCtor = (window as any).NDEFReader;
         reader = new NDEFReaderCtor();
         await reader!.scan();

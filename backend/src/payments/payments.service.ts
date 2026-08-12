@@ -13,6 +13,7 @@ import {
   RestoOrderChannel,
   RestoOrderStatus,
   RestoTableStatus,
+  Prisma,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PlanCatalogService } from '../subscriptions/plan-catalog.service';
@@ -23,8 +24,11 @@ import { PlatformGatewaysService } from './platform-gateways.service';
 import { CompanyGatewaysService } from './company-gateways.service';
 import { RedisService } from '../redis/redis.service';
 import { CustomerNotifyService } from '../notifications/customer-notify.service';
+import { nextDocumentNumber, seedAfter } from '../common/document-number';
+import { ensurePublicDocumentCode } from '../common/public-document-code';
 
 type GatewayRecord = {
+  companyId?: string;
   slug: PaymentGatewaySlug;
   isEnabled: boolean;
   isTestMode: boolean;
@@ -51,19 +55,26 @@ export class PaymentsService {
     const prefix = `PAY-${year}-`;
     const latest = await this.prisma.billingInvoice.findFirst({
       where: { number: { startsWith: prefix } },
-      orderBy: { number: 'desc' },
+      orderBy: { createdAt: 'desc' },
       select: { number: true },
     });
-    let next = 1;
-    if (latest?.number) {
-      const match = latest.number.match(/-(\d+)$/);
-      if (match) next = parseInt(match[1], 10) + 1;
-    }
-    return `${prefix}${String(next).padStart(4, '0')}`;
+    return nextDocumentNumber(this.prisma, {
+      scope: 'platform',
+      series: 'billing-invoice',
+      period: String(year),
+      prefix,
+      seed: seedAfter(latest?.number),
+    });
   }
 
   private configOf(gateway: GatewayRecord): Record<string, string> {
-    return this.platformGateways.decryptedConfig(gateway);
+    return gateway.companyId
+      ? this.companyGateways.decryptedConfig({
+          companyId: gateway.companyId,
+          slug: gateway.slug,
+          configJson: gateway.configJson,
+        })
+      : this.platformGateways.decryptedConfig(gateway);
   }
 
   async listPlatformGatewaysPublic() {
@@ -367,7 +378,7 @@ export class PaymentsService {
       customerEmail: opts.customerEmail || invoice.contact.email || undefined,
       customerName: invoice.contact.name,
       successUrl,
-      cancelUrl: `${frontendOrigin}/pay/${invoice.id}?cancelled=1`,
+      cancelUrl: `${frontendOrigin}/pay/${await ensurePublicDocumentCode(this.prisma, invoice.id)}?cancelled=1`,
       metadata: { invoice_number: number, sales_invoice_id: invoice.id },
     });
 
@@ -576,7 +587,20 @@ export class PaymentsService {
       const billingInvoice = await this.prisma.billingInvoice.findUnique({
         where: { number: result.invoiceNumber },
       });
-      if (billingInvoice && billingInvoice.status !== BillingInvoiceStatus.PAID) {
+      const belongsToGateway = billingInvoice?.gatewaySlug === gatewaySlug;
+      const belongsToScope =
+        scope === 'platform' || billingInvoice?.companyId === companyId;
+      const externalIdMatches =
+        !billingInvoice?.externalPaymentId ||
+        !result.externalId ||
+        billingInvoice.externalPaymentId === result.externalId;
+      if (
+        billingInvoice &&
+        billingInvoice.status !== BillingInvoiceStatus.PAID &&
+        belongsToGateway &&
+        belongsToScope &&
+        externalIdMatches
+      ) {
         await this.fulfillBillingInvoice(billingInvoice.id, result.externalId);
       }
     }
@@ -591,22 +615,27 @@ export class PaymentsService {
     if (!billingInvoice) return;
     if (billingInvoice.status === BillingInvoiceStatus.PAID) return;
 
-    const metadata = (billingInvoice.metadataJson as Record<string, string>) || {};
-
+    let fulfilled = false;
     await this.prisma.$transaction(async (tx) => {
-      const locked = await tx.billingInvoice.findUnique({
-        where: { id: billingInvoiceId },
-      });
-      if (!locked || locked.status === BillingInvoiceStatus.PAID) return;
-
-      await tx.billingInvoice.update({
-        where: { id: billingInvoiceId },
+      // Atomic claim: concurrent return + webhook requests cannot both fulfill.
+      const claimed = await tx.billingInvoice.updateMany({
+        where: {
+          id: billingInvoiceId,
+          status: BillingInvoiceStatus.PENDING,
+        },
         data: {
           status: BillingInvoiceStatus.PAID,
           paidAt: new Date(),
           ...(externalId && { externalPaymentId: externalId }),
         },
       });
+      if (claimed.count !== 1) return;
+
+      const locked = await tx.billingInvoice.findUnique({
+        where: { id: billingInvoiceId },
+      });
+      if (!locked) throw new Error('Claimed billing invoice disappeared');
+      const metadata = (locked.metadataJson as Record<string, string>) || {};
 
       if (locked.purpose === BillingPurpose.SUBSCRIPTION) {
         const plan = String(metadata.plan || 'STARTER');
@@ -625,17 +654,29 @@ export class PaymentsService {
         const salesInvoice = await tx.invoice.findUnique({
           where: { id: metadata.invoiceId },
         });
-        if (!salesInvoice) return;
+        if (!salesInvoice || salesInvoice.companyId !== locked.companyId) {
+          throw new Error('Payment invoice is missing or belongs to another company');
+        }
 
-        const total = Number(salesInvoice.total);
-        const alreadyPaid = Number(salesInvoice.paidAmount || 0);
-        const remaining = Number((total - alreadyPaid).toFixed(3));
-        if (remaining <= 0) return;
+        const total = new Prisma.Decimal(salesInvoice.total).toDecimalPlaces(3);
+        const alreadyPaid = new Prisma.Decimal(
+          salesInvoice.paidAmount || 0,
+        ).toDecimalPlaces(3);
+        const remaining = total.minus(alreadyPaid).toDecimalPlaces(3);
+        if (remaining.lte(0)) {
+          fulfilled = true;
+          return;
+        }
 
-        const payAmount = Math.min(Number(locked.amount), remaining);
-        const newPaid = Number((alreadyPaid + payAmount).toFixed(3));
+        const requestedAmount = new Prisma.Decimal(locked.amount).toDecimalPlaces(3);
+        const payAmount = requestedAmount.lte(remaining)
+          ? requestedAmount
+          : remaining;
+        const newPaid = alreadyPaid.plus(payAmount).toDecimalPlaces(3);
         const paymentStatus =
-          newPaid >= total - 0.001 ? PaymentStatus.PAID : PaymentStatus.PARTIAL;
+          newPaid.gte(total.minus(new Prisma.Decimal('0.001')))
+            ? PaymentStatus.PAID
+            : PaymentStatus.PARTIAL;
 
         await tx.payment.create({
           data: {
@@ -644,6 +685,7 @@ export class PaymentsService {
             method: PaymentMethod.ONLINE,
             date: new Date(),
             reference: locked.number,
+            idempotencyKey: `billing:${locked.id}`,
             notes: `Online payment via ${locked.gatewaySlug}`,
           },
         });
@@ -711,8 +753,10 @@ export class PaymentsService {
           }
         }
       }
+      fulfilled = true;
     });
 
+    if (!fulfilled) return;
     void this.redis
       .invalidateDashboardStats(billingInvoice.companyId)
       .catch(() => undefined);
@@ -740,32 +784,74 @@ export class PaymentsService {
     return invoice;
   }
 
-  async getPublicInvoicePayInfo(invoiceId: string) {
-    const invoice = await this.prisma.invoice.findUnique({
-      where: { id: invoiceId },
-      include: {
-        contact: { select: { name: true } },
-        company: { select: { id: true, name: true, currency: true } },
+  private async resolvePublicPayInvoice(publicRef: string) {
+    const normalized = publicRef.trim();
+    let invoice = await this.prisma.invoice.findFirst({
+      where: { publicVerifyCode: normalized },
+      select: {
+        id: true,
+        companyId: true,
+        number: true,
+        total: true,
+        paidAmount: true,
+        status: true,
+        paymentStatus: true,
+        company: { select: { name: true, currency: true } },
       },
     });
+    const legacyAllowed =
+      process.env.ALLOW_LEGACY_PUBLIC_INVOICE_IDS === '1' ||
+      process.env.ALLOW_LEGACY_PUBLIC_INVOICE_IDS === 'true';
+    if (!invoice && legacyAllowed) {
+      invoice = await this.prisma.invoice.findUnique({
+        where: { id: normalized },
+        select: {
+          id: true,
+          companyId: true,
+          number: true,
+          total: true,
+          paidAmount: true,
+          status: true,
+          paymentStatus: true,
+          company: { select: { name: true, currency: true } },
+        },
+      });
+    }
     if (!invoice) throw new NotFoundException('Invoice not found');
     if (invoice.status === InvoiceStatus.CANCELLED || invoice.paymentStatus === PaymentStatus.PAID) {
       throw new BadRequestException('Invoice is not payable');
     }
 
+    return invoice;
+  }
+
+  async getPublicInvoicePayInfo(publicRef: string) {
+    const invoice = await this.resolvePublicPayInvoice(publicRef);
     const gateways = await this.listCompanyGatewaysPublic(invoice.companyId);
-    const remaining = Number(invoice.total) - Number(invoice.paidAmount || 0);
+    const remaining = new Prisma.Decimal(invoice.total)
+      .minus(invoice.paidAmount || 0)
+      .toDecimalPlaces(3)
+      .toNumber();
 
     return {
-      id: invoice.id,
       number: invoice.number,
-      companyId: invoice.companyId,
       companyName: invoice.company.name,
-      contactName: invoice.contact.name,
-      total: Number(invoice.total),
       remaining,
       currency: invoice.company.currency || 'OMR',
       gateways,
     };
+  }
+
+  async createPublicInvoiceCheckout(
+    publicRef: string,
+    dto: { gatewaySlug: PaymentGatewaySlug; customerEmail?: string },
+  ) {
+    const invoice = await this.resolvePublicPayInvoice(publicRef);
+    return this.createInvoiceCollectionCheckout({
+      companyId: invoice.companyId,
+      invoiceId: invoice.id,
+      gatewaySlug: dto.gatewaySlug,
+      customerEmail: dto.customerEmail,
+    });
   }
 }

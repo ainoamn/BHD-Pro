@@ -3,8 +3,18 @@ import {
   canAccessModule,
   resolveModulePermissions,
 } from '../src/common/module-permissions';
+import { moduleForPath } from '../src/common/guards/module-permission.guard';
 
 describe('module-permissions', () => {
+  it('maps authenticated API controller paths to module permissions', () => {
+    expect(moduleForPath('/api/invoices')).toBe('sales');
+    expect(moduleForPath('/api/purchase-orders')).toBe('purchases');
+    expect(moduleForPath('/api/accounts')).toBe('chartOfAccounts');
+    expect(moduleForPath('/api/products')).toBe('inventory');
+    expect(moduleForPath('/api/resto/kitchen')).toBe('kitchen');
+    expect(moduleForPath('/api/payments/company-gateways')).toBe('settings');
+  });
+
   it('gives ADMIN full edit access', () => {
     const perms = resolveModulePermissions('ADMIN');
     expect(canAccessModule(perms, 'users', 'edit')).toBe(true);

@@ -5,4 +5,5 @@ export interface TokenPayload {
   companyId: string;
   /** Resolved module access matrix (view/edit/hidden) */
   modulePermissions?: Record<string, 'hidden' | 'view' | 'edit'>;
+  apiKeyScopes?: string[];
 }
