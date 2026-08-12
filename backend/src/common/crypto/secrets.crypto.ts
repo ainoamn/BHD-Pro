@@ -221,6 +221,20 @@ function assertStrongSecret(name: string, value: string, weak: string[]) {
   }
 }
 
+/**
+ * When true, production refuses to boot without dedicated TOTP key + S3 (or
+ * explicit ALLOW_INSECURE_DATAURL_STORAGE). Default is transitional so an
+ * existing Render service (PAYMENT key only + dataurl) can Manual-Deploy
+ * hardening without immediate outage — set HARDENING_STRICT_BOOT=true after
+ * ops adds TOTP_SECRETS_KEY and S3 (or the insecure flag).
+ */
+export function isHardeningStrictBoot(): boolean {
+  return (
+    process.env.HARDENING_STRICT_BOOT === '1' ||
+    process.env.HARDENING_STRICT_BOOT === 'true'
+  );
+}
+
 export function assertProductionSecrets() {
   if (process.env.NODE_ENV !== 'production') return;
 
@@ -228,6 +242,7 @@ export function assertProductionSecrets() {
   const refresh = process.env.JWT_REFRESH_SECRET || '';
   const paymentSecretsKey = process.env.PAYMENT_SECRETS_KEY || '';
   const totpSecretsKey = process.env.TOTP_SECRETS_KEY || '';
+  const strict = isHardeningStrictBoot();
   const weak = [
     'qootk-dev-secret-change-in-production',
     'qootk-dev-refresh-secret',
@@ -243,19 +258,34 @@ export function assertProductionSecrets() {
     throw new Error('FATAL: JWT_SECRET and JWT_REFRESH_SECRET must differ');
   }
   assertStrongSecret('PAYMENT_SECRETS_KEY', paymentSecretsKey, weak);
-  assertStrongSecret('TOTP_SECRETS_KEY', totpSecretsKey, weak);
-  if (paymentSecretsKey === totpSecretsKey) {
-    throw new Error(
-      'FATAL: PAYMENT_SECRETS_KEY and TOTP_SECRETS_KEY must differ',
+
+  if (totpSecretsKey) {
+    assertStrongSecret('TOTP_SECRETS_KEY', totpSecretsKey, weak);
+    if (paymentSecretsKey === totpSecretsKey) {
+      throw new Error(
+        'FATAL: PAYMENT_SECRETS_KEY and TOTP_SECRETS_KEY must differ',
+      );
+    }
+  } else if (strict) {
+    assertStrongSecret('TOTP_SECRETS_KEY', totpSecretsKey, weak);
+  } else {
+    console.error(
+      '[SECURITY] TOTP_SECRETS_KEY unset — transitional boot uses PAYMENT_SECRETS_KEY fallback for TOTP. Set a distinct TOTP_SECRETS_KEY then HARDENING_STRICT_BOOT=true.',
     );
   }
+
   const storage = (process.env.ATTACHMENT_STORAGE || '').toLowerCase();
   const insecureStorageAllowed =
     process.env.ALLOW_INSECURE_DATAURL_STORAGE === '1' ||
     process.env.ALLOW_INSECURE_DATAURL_STORAGE === 'true';
   if (storage !== 's3' && !insecureStorageAllowed) {
-    throw new Error(
-      'FATAL: production attachments require ATTACHMENT_STORAGE=s3 (temporary override: ALLOW_INSECURE_DATAURL_STORAGE=true)',
+    if (strict) {
+      throw new Error(
+        'FATAL: production attachments require ATTACHMENT_STORAGE=s3 (temporary override: ALLOW_INSECURE_DATAURL_STORAGE=true)',
+      );
+    }
+    console.error(
+      '[SECURITY] ATTACHMENT_STORAGE is not s3 — transitional boot allows dataurl/local. Set S3 or ALLOW_INSECURE_DATAURL_STORAGE=true, then HARDENING_STRICT_BOOT=true.',
     );
   }
   if (

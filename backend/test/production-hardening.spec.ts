@@ -51,6 +51,22 @@ describe('production hardening', () => {
     expect(() => assertProductionSecrets()).toThrow(/PAYMENT_SECRETS_KEY/);
   });
 
+  it('allows transitional boot without TOTP key or S3 when strict mode is off', () => {
+    delete process.env.HARDENING_STRICT_BOOT;
+    delete process.env.TOTP_SECRETS_KEY;
+    process.env.ATTACHMENT_STORAGE = 'dataurl';
+    delete process.env.ALLOW_INSECURE_DATAURL_STORAGE;
+    expect(() => assertProductionSecrets()).not.toThrow();
+  });
+
+  it('refuses missing TOTP and non-s3 storage when HARDENING_STRICT_BOOT=true', () => {
+    process.env.HARDENING_STRICT_BOOT = 'true';
+    delete process.env.TOTP_SECRETS_KEY;
+    process.env.ATTACHMENT_STORAGE = 'dataurl';
+    delete process.env.ALLOW_INSECURE_DATAURL_STORAGE;
+    expect(() => assertProductionSecrets()).toThrow(/TOTP_SECRETS_KEY/);
+  });
+
   it('uses only environment-configured production administrators', () => {
     expect(getBootstrapAdminEmails().sort()).toEqual([
       'operator@hisaby.pro',
