@@ -16,6 +16,32 @@ const nextConfig = {
     ];
   },
   async headers() {
+    const isDev = process.env.NODE_ENV !== 'production';
+    // Next.js dev server needs 'unsafe-eval' (HMR/React Refresh) and a websocket
+    // connect-src. Production keeps the strict policy unchanged.
+    const scriptSrc = isDev
+      ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com"
+      : "script-src 'self' 'unsafe-inline' https://accounts.google.com";
+    const connectSrc = isDev
+      ? "connect-src 'self' ws: http://localhost:3001 https://hisaby-api.onrender.com https://accounts.google.com https://*.sentry.io"
+      : "connect-src 'self' https://hisaby-api.onrender.com https://accounts.google.com https://*.sentry.io";
+    const csp = [
+      "default-src 'self'",
+      "base-uri 'self'",
+      "object-src 'none'",
+      "frame-ancestors 'none'",
+      "form-action 'self'",
+      scriptSrc,
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob: https:",
+      "font-src 'self' data:",
+      connectSrc,
+      'frame-src https://accounts.google.com',
+      "media-src 'self' blob:",
+      "worker-src 'self' blob:",
+      "manifest-src 'self'",
+      'upgrade-insecure-requests',
+    ].join('; ');
     return [
       {
         source: '/(.*)',
@@ -36,8 +62,7 @@ const nextConfig = {
           },
           {
             key: 'Content-Security-Policy',
-            value:
-              "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://hisaby-api.onrender.com https://accounts.google.com https://*.sentry.io; frame-src https://accounts.google.com; media-src 'self' blob:; worker-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests",
+            value: csp,
           },
         ],
       },
