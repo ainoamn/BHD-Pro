@@ -28,7 +28,7 @@ export const landingCopy = {
       },
       {
         title: "حسابي للمطاعم",
-        body: "صالة وقائمة مربوطة بمنتجات شركتك — مع مسار للمطبخ والطلبات في الموجات التالية.",
+        body: "صالة وقائمة ومطبخ KDS وحجوزات وسفري — مرتبطة بمنتجات ومخزون شركتك.",
       },
       {
         title: "المخزون والمستودعات",
@@ -85,6 +85,9 @@ export const landingCopy = {
     companyCta: "تعرّف على المنتج وابدأ تجربتك",
     footerTag: "محاسبة سحابية بسيطة وموثوقة",
     footerRights: "جميع الحقوق محفوظة",
+    footerPrivacy: "الخصوصية",
+    footerTerms: "الشروط",
+    footerSecurity: "الأمان والثقة",
     langSwitch: "English",
     adminLogin: "دخول الإدارة",
     regionLine: "عربي أولاً · ضريبة القيمة المضافة · جاهز لأعمال المنطقة",
@@ -145,7 +148,7 @@ export const landingCopy = {
       },
       {
         title: "Hisaby Restaurants",
-        body: "Floor and menu from your products — kitchen and tickets in upcoming waves.",
+        body: "Floor, menu, KDS kitchen, reservations, and takeaway linked to products and stock.",
       },
       {
         title: "Inventory & warehouses",
@@ -202,6 +205,9 @@ export const landingCopy = {
     companyCta: "Explore the product and start today",
     footerTag: "Simple, reliable cloud accounting",
     footerRights: "All rights reserved",
+    footerPrivacy: "Privacy",
+    footerTerms: "Terms",
+    footerSecurity: "Security & trust",
     langSwitch: "العربية",
     adminLogin: "Admin sign-in",
     regionLine: "Arabic-first · VAT-ready · Built for regional business",

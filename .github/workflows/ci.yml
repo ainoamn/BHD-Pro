@@ -12,6 +12,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  dependency-review:
+    name: Dependency review
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+
   backend:
     name: Backend build
     runs-on: ubuntu-latest
@@ -27,9 +39,10 @@ jobs:
           cache-dependency-path: backend/package-lock.json
       - run: npm ci
       - run: npx prisma generate
+      - run: npm run type-check
       - run: npm run build
-      - name: Unit smoke tests
-        run: npm test -- --passWithNoTests
+      - name: Unit and regression tests
+        run: npm test -- --runInBand
       - name: npm audit (high+)
         run: npm audit --omit=dev --audit-level=high
 
@@ -47,14 +60,17 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
+      - run: npm run lint
       - run: npm run type-check
+      - run: npm test
+      - run: npm run build
       - name: npm audit (high+)
         run: npm audit --omit=dev --audit-level=high
 
   smoke:
     name: Playwright login smoke
     runs-on: ubuntu-latest
-    needs: [frontend]
+    needs: [backend, frontend]
     defaults:
       run:
         working-directory: frontend

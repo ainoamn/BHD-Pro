@@ -23,7 +23,6 @@ export default function PayInvoiceContent() {
       return res.data as {
         number: string;
         companyName: string;
-        contactName: string;
         remaining: number;
         currency: string;
         gateways: { slug: string; nameAr: string; nameEn: string }[];
@@ -74,10 +73,6 @@ export default function PayInvoiceContent() {
           <div className="flex justify-between">
             <span className="text-slate-400">{t("invoiceNumber")}</span>
             <span className="text-white font-medium">{data.number}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-slate-400">{t("customer")}</span>
-            <span className="text-white">{data.contactName}</span>
           </div>
           <div className="flex justify-between text-base pt-2 border-t border-slate-700">
             <span className="text-slate-300">{t("amountDue")}</span>

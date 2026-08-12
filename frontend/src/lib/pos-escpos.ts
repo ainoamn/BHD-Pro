@@ -142,7 +142,6 @@ export async function printViaWebSerial(
   if (!isWebSerialSupported()) {
     throw new Error("Web Serial is not supported in this browser");
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const nav = navigator as any;
   const existing: any[] = (await nav.serial.getPorts?.()) || [];
   let port = existing[0];
@@ -181,7 +180,6 @@ export async function tryOpenCashDrawer(): Promise<boolean> {
  */
 export async function printViaBluetoothSerial(bytes: Uint8Array): Promise<boolean> {
   if (!isWebBluetoothSupported()) return false;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const nav = navigator as any;
   const COMMON_UART = [
     "0000ffe0-0000-1000-8000-00805f9b34fb",

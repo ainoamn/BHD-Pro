@@ -7,6 +7,7 @@ import api from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
 import { restoCopy } from "@/lib/resto-copy";
 import { cn, apiErrorMessage } from "@/lib/utils";
+import { escapeHtml } from "@/lib/html-escape";
 
 type Summary = Awaited<
   ReturnType<typeof api.getRestoReportsSummary>
@@ -48,21 +49,22 @@ export default function RestoReportsPage() {
     try {
       const res = await api.getRestoFlashReport();
       const flash = res.data as Flash;
+      const h = escapeHtml;
       const w = window.open("", "_blank", "noopener,noreferrer,width=720,height=900");
       if (!w) return;
       const rows = (flash.byServer || [])
         .map(
           (s) =>
-            `<tr><td>${s.name}</td><td>${s.orders}</td><td>${s.tips.toFixed(3)}</td></tr>`,
+            `<tr><td>${h(s.name)}</td><td>${h(s.orders)}</td><td>${h(s.tips.toFixed(3))}</td></tr>`,
         )
         .join("");
       const sections = (flash.sectionAssignments || [])
         .map(
           (a) =>
-            `<li>${a.zoneName}: <strong>${a.user?.name || "—"}</strong></li>`,
+            `<li>${h(a.zoneName)}: <strong>${h(a.user?.name || "—")}</strong></li>`,
         )
         .join("");
-      w.document.write(`<!doctype html><html><head><title>${t.flashTitle}</title>
+      w.document.write(`<!doctype html><html><head><title>${h(t.flashTitle)}</title>
 <style>
 body{font-family:system-ui,sans-serif;padding:24px;color:#111}
 h1{font-size:20px;margin:0 0 4px}
@@ -74,24 +76,24 @@ table{width:100%;border-collapse:collapse;margin-top:12px}
 th,td{border-bottom:1px solid #ddd;padding:6px 4px;text-align:start;font-size:13px}
 @media print{button{display:none}}
 </style></head><body>
-<h1>${t.flashTitle}</h1>
-<p class="meta">${t.flashPrinted}: ${new Date(flash.printedAt).toLocaleString()}</p>
+<h1>${h(t.flashTitle)}</h1>
+<p class="meta">${h(t.flashPrinted)}: ${h(new Date(flash.printedAt).toLocaleString())}</p>
 <div class="kpis">
-<div class="kpi"><span>${t.reportOrders}</span><b>${flash.orders}</b></div>
-<div class="kpi"><span>${t.reportClosed}</span><b>${flash.closed}</b></div>
-<div class="kpi"><span>${t.reportRevenue}</span><b>${flash.revenue.toFixed(3)}</b></div>
-<div class="kpi"><span>${t.reportTips}</span><b>${flash.tipsTotal.toFixed(3)}</b></div>
-<div class="kpi"><span>${t.reportServiceCharges}</span><b>${flash.serviceChargesTotal.toFixed(3)}</b></div>
-<div class="kpi"><span>${t.reportOpenNow}</span><b>${flash.openNow}</b></div>
+<div class="kpi"><span>${h(t.reportOrders)}</span><b>${h(flash.orders)}</b></div>
+<div class="kpi"><span>${h(t.reportClosed)}</span><b>${h(flash.closed)}</b></div>
+<div class="kpi"><span>${h(t.reportRevenue)}</span><b>${h(flash.revenue.toFixed(3))}</b></div>
+<div class="kpi"><span>${h(t.reportTips)}</span><b>${h(flash.tipsTotal.toFixed(3))}</b></div>
+<div class="kpi"><span>${h(t.reportServiceCharges)}</span><b>${h(flash.serviceChargesTotal.toFixed(3))}</b></div>
+<div class="kpi"><span>${h(t.reportOpenNow)}</span><b>${h(flash.openNow)}</b></div>
 </div>
-<h2 style="font-size:15px">${t.reportByServer}</h2>
-<table><thead><tr><th>${t.tipAssignee}</th><th>${t.reportOrders}</th><th>${t.tipAmount}</th></tr></thead>
-<tbody>${rows || `<tr><td colspan="3">${t.reportEmpty}</td></tr>`}</tbody></table>
-<h2 style="font-size:15px;margin-top:20px">${t.flashSections}</h2>
+<h2 style="font-size:15px">${h(t.reportByServer)}</h2>
+<table><thead><tr><th>${h(t.tipAssignee)}</th><th>${h(t.reportOrders)}</th><th>${h(t.tipAmount)}</th></tr></thead>
+<tbody>${rows || `<tr><td colspan="3">${h(t.reportEmpty)}</td></tr>`}</tbody></table>
+<h2 style="font-size:15px;margin-top:20px">${h(t.flashSections)}</h2>
 <ul>${sections || `<li>—</li>`}</ul>
-<script>window.onload=()=>{window.print()}</script>
 </body></html>`);
       w.document.close();
+      w.addEventListener("load", () => w.print(), { once: true });
     } catch (err) {
       toast.error(apiErrorMessage(err, t.actionFail));
     } finally {

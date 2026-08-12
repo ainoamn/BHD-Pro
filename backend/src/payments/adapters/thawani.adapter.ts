@@ -2,10 +2,31 @@ import * as crypto from 'crypto';
 import { PaymentGatewaySlug } from '@prisma/client';
 import type { PaymentAdapter } from '../payment.types';
 
-function checkoutHost(isTestMode: boolean, baseUrl: string) {
-  if (baseUrl.includes('uat')) return 'https://uatcheckout.thawani.om';
-  if (!isTestMode) return 'https://checkout.thawani.om';
-  return 'https://uatcheckout.thawani.om';
+function thawaniEndpoints(isTestMode: boolean, configured?: string) {
+  const origin = isTestMode
+    ? 'https://uatcheckout.thawani.om'
+    : 'https://checkout.thawani.om';
+  const expectedApi = `${origin}/api/v1`;
+  if (configured?.trim()) {
+    let parsed: URL;
+    try {
+      parsed = new URL(configured.trim());
+    } catch {
+      throw new Error('Thawani API URL is invalid');
+    }
+    if (
+      parsed.protocol !== 'https:' ||
+      parsed.origin !== origin ||
+      parsed.pathname.replace(/\/$/, '') !== '/api/v1' ||
+      parsed.username ||
+      parsed.password ||
+      parsed.search ||
+      parsed.hash
+    ) {
+      throw new Error('Thawani API URL is not allowlisted for the selected mode');
+    }
+  }
+  return { apiBase: expectedApi, checkoutOrigin: origin };
 }
 
 function verifyThawaniWebhook(
@@ -49,14 +70,16 @@ export const thawaniAdapter: PaymentAdapter = {
   async createCheckout(config, input, isTestMode) {
     const secretKey = config.secretKey?.trim();
     const publishableKey = config.publishableKey?.trim();
-    const baseUrl = (config.baseUrl?.trim() || 'https://uatcheckout.thawani.om/api/v1').replace(/\/$/, '');
+    const endpoints = thawaniEndpoints(isTestMode, config.baseUrl);
 
     if (!secretKey || !publishableKey) {
       throw new Error('Thawani publishable and secret keys are required');
     }
 
-    const resp = await fetch(`${baseUrl}/checkout/session`, {
+    const resp = await fetch(`${endpoints.apiBase}/checkout/session`, {
       method: 'POST',
+      redirect: 'error',
+      signal: AbortSignal.timeout(10_000),
       headers: {
         'Content-Type': 'application/json',
         'thawani-api-key': secretKey,
@@ -86,24 +109,25 @@ export const thawaniAdapter: PaymentAdapter = {
     const sessionId = body.data?.session_id ?? body.session_id;
     if (!sessionId) throw new Error('Thawani: no session id returned');
 
-    const host = checkoutHost(isTestMode, baseUrl);
     return {
       kind: 'redirect',
       externalId: sessionId,
-      redirectUrl: `${host}/pay/${sessionId}?key=${publishableKey}`,
+      redirectUrl: `${endpoints.checkoutOrigin}/pay/${encodeURIComponent(sessionId)}?key=${encodeURIComponent(publishableKey)}`,
     };
   },
 
-  async verifyReturn(config, params) {
+  async verifyReturn(config, params, isTestMode) {
     const sessionId = params.session_id;
     if (!sessionId) return { paid: false };
 
     const secretKey = config.secretKey?.trim();
-    const baseUrl = (config.baseUrl?.trim() || 'https://uatcheckout.thawani.om/api/v1').replace(/\/$/, '');
+    const endpoints = thawaniEndpoints(isTestMode, config.baseUrl);
     if (!secretKey) return { paid: false };
 
-    const resp = await fetch(`${baseUrl}/checkout/session/${sessionId}`, {
+    const resp = await fetch(`${endpoints.apiBase}/checkout/session/${encodeURIComponent(sessionId)}`, {
       headers: { 'thawani-api-key': secretKey },
+      redirect: 'error',
+      signal: AbortSignal.timeout(10_000),
     });
     if (!resp.ok) return { paid: false };
 

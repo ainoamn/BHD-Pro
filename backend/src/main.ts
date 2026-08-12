@@ -9,6 +9,8 @@ import { AppModule } from './app.module';
 import { PrismaService } from './prisma/prisma.service';
 import { assertProductionSecrets } from './common/crypto/secrets.crypto';
 import { initSentry } from './observability/sentry';
+import { csrfProtection } from './auth/csrf.middleware';
+import { MODULE_KEYS, ModulePermissions } from './common/module-permissions';
 
 async function bootstrap() {
   assertProductionSecrets();
@@ -37,6 +39,7 @@ async function bootstrap() {
     }),
   );
   app.use(cookieParser());
+  app.use(csrfProtection);
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -68,7 +71,13 @@ async function bootstrap() {
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Company-ID'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-API-Key',
+      'X-Company-ID',
+      'X-CSRF-Token',
+    ],
   });
 
   app.setGlobalPrefix('api');
@@ -89,19 +98,47 @@ async function bootstrap() {
       if (secret) {
         const keyHash = createHash('sha256').update(secret).digest('hex');
         const row = await prisma.companyApiKey.findFirst({
-          where: { keyHash, revokedAt: null },
+          where: {
+            keyHash,
+            revokedAt: null,
+            OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+          },
           include: { company: { select: { isActive: true } } },
         });
         if (row?.company.isActive) {
+          const scopes = Array.isArray(row.scopes)
+            ? row.scopes.filter((scope): scope is string => typeof scope === 'string')
+            : [];
+          const method = String(req.method || 'GET').toUpperCase();
+          const mutation = !['GET', 'HEAD', 'OPTIONS'].includes(method);
+          if (!scopes.includes('read') || (mutation && !scopes.includes('write'))) {
+            next();
+            return;
+          }
+          const access = scopes.includes('write') ? 'edit' : 'view';
+          const allModules = scopes.includes('all:modules');
+          const modulePermissions = Object.fromEntries(
+            MODULE_KEYS.map((module) => [
+              module,
+              allModules || scopes.includes(`module:${module}`)
+                ? access
+                : 'hidden',
+            ]),
+          ) as ModulePermissions;
           req.user = {
             sub: row.createdById || `api-key:${row.id}`,
             email: `api-key@${row.companyId}.local`,
             role: 'ACCOUNTANT',
             companyId: row.companyId,
+            modulePermissions,
+            apiKeyScopes: scopes,
           };
           req.apiKeyAuthenticated = true;
           prisma.companyApiKey
-            .update({ where: { id: row.id }, data: { lastUsedAt: new Date() } })
+            .update({
+              where: { id: row.id },
+              data: { lastUsedAt: new Date(), lastUsedIp: req.ip || null },
+            })
             .catch(() => undefined);
         }
       }

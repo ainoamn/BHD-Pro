@@ -218,11 +218,38 @@ export class DocumentShareService {
   ) {
     const invoice = await this.prisma.invoice.findFirst({
       where: { id: invoiceId, companyId },
-      include: {
-        contact: true,
+      select: {
+        number: true,
+        type: true,
+        date: true,
+        dueDate: true,
+        subtotal: true,
+        discount: true,
+        taxAmount: true,
+        total: true,
+        currency: true,
+        status: true,
+        paymentStatus: true,
+        notes: true,
+        contact: {
+          select: {
+            name: true,
+            taxId: true,
+            crNumber: true,
+            address: true,
+            city: true,
+            phone: true,
+          },
+        },
         items: {
-          include: {
-            product: { select: { id: true, sku: true, barcode: true } },
+          select: {
+            description: true,
+            quantity: true,
+            unitPrice: true,
+            discount: true,
+            taxAmount: true,
+            total: true,
+            product: { select: { sku: true, barcode: true } },
           },
         },
         company: {

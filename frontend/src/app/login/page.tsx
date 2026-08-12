@@ -223,10 +223,11 @@ function LoginForm() {
           {!tempToken ? (
             <>
               <div>
-                <label className="block text-sm text-slate-600 dark:text-slate-400 mb-1">{t("email")}</label>
+                <label htmlFor="login-email" className="block text-sm text-slate-600 dark:text-slate-400 mb-1">{t("email")}</label>
                 <div className="relative">
                   <Mail className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                   <input
+                    id="login-email"
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -237,10 +238,11 @@ function LoginForm() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm text-slate-400 mb-1">{t("password")}</label>
+                <label htmlFor="login-password" className="block text-sm text-slate-400 mb-1">{t("password")}</label>
                 <div className="relative">
                   <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                   <input
+                    id="login-password"
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -249,14 +251,20 @@ function LoginForm() {
                     required
                   />
                 </div>
+                <div className="mt-2 text-end">
+                  <Link href="/forgot-password" className="text-sm text-emerald-500 hover:underline">
+                    {t("forgotPassword")}
+                  </Link>
+                </div>
               </div>
             </>
           ) : (
             <div>
-              <label className="block text-sm text-slate-400 mb-1">{t("totpCode")}</label>
+              <label htmlFor="login-totp" className="block text-sm text-slate-400 mb-1">{t("totpCode")}</label>
               <div className="relative">
                 <Shield className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                 <input
+                  id="login-totp"
                   type="text"
                   inputMode="numeric"
                   autoComplete="one-time-code"
@@ -265,7 +273,8 @@ function LoginForm() {
                   className="w-full h-10 pr-10 pl-3 bg-slate-800/50 border border-slate-700 rounded-lg text-white tracking-widest focus:outline-none focus:border-emerald-500"
                   placeholder="000000"
                   minLength={6}
-                  maxLength={8}
+                  maxLength={6}
+                  pattern="[0-9]{6}"
                   required
                 />
               </div>

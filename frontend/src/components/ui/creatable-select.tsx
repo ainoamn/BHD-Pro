@@ -166,6 +166,7 @@ export function CreatableSelect({
               <button
                 type="button"
                 role="option"
+                aria-selected={false}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => pick(query)}
                 className="flex w-full items-center gap-2 px-3 py-2 text-start text-sm text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 border-t border-slate-200 dark:border-slate-800"

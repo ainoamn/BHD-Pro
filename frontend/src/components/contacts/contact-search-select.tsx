@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Loader2, Search, X } from "lucide-react";
 import api from "@/lib/api";
 import { formatPhoneDisplay } from "@/lib/phone";
@@ -62,6 +62,7 @@ export function ContactSearchSelect({
   disabled,
   variant = "pos",
 }: Props) {
+  const listId = useId();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -190,8 +191,10 @@ export function ContactSearchSelect({
         }}
         className={inputCls}
         autoComplete="off"
+        role="combobox"
         aria-autocomplete="list"
         aria-expanded={open}
+        aria-controls={listId}
       />
       {(value || query) && !disabled ? (
         <button
@@ -208,8 +211,8 @@ export function ContactSearchSelect({
       ) : null}
 
       {open ? (
-        <div className={panel} role="listbox">
-          <button type="button" className={row} onClick={() => pick(null)}>
+        <div id={listId} className={panel} role="listbox">
+          <button type="button" role="option" aria-selected={!value} className={row} onClick={() => pick(null)}>
             {emptyLabel}
           </button>
           {loading ? (
@@ -231,6 +234,8 @@ export function ContactSearchSelect({
               <button
                 key={c.id}
                 type="button"
+                role="option"
+                aria-selected={value === c.id}
                 className={cn(row, value === c.id && (isPos ? "bg-sky-500/20" : "bg-emerald-500/20"))}
                 onClick={() => pick(c)}
               >

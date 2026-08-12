@@ -6,6 +6,7 @@ import {
   decryptConfigSecrets,
   encryptConfigSecrets,
 } from '../common/crypto/secrets.crypto';
+import { validateGatewayConfigUpdate } from './gateway-config';
 
 function secretKeysFor(slug: PaymentGatewaySlug): string[] {
   return (GATEWAY_META[slug]?.configKeys || []).filter((k) => k.secret).map((k) => k.key);
@@ -54,9 +55,18 @@ export class CompanyGatewaysService {
     return gw;
   }
 
-  decryptedConfig(gateway: { slug: PaymentGatewaySlug; configJson: unknown }): Record<string, string> {
+  decryptedConfig(gateway: {
+    companyId: string;
+    slug: PaymentGatewaySlug;
+    configJson: unknown;
+  }): Record<string, string> {
     const raw = (gateway.configJson as Record<string, string>) || {};
-    return decryptConfigSecrets(raw, secretKeysFor(gateway.slug));
+    const decrypted = decryptConfigSecrets(raw, secretKeysFor(gateway.slug), {
+      aad: `company:${gateway.companyId}:gateway:${gateway.slug}`,
+    });
+    // Tenant administrators cannot control server-to-server API origins.
+    delete decrypted.baseUrl;
+    return decrypted;
   }
 
   async update(
@@ -73,10 +83,13 @@ export class CompanyGatewaysService {
     const currentConfig = (existing.configJson as Record<string, string>) || {};
     let nextConfig = currentConfig;
     if (data.configJson) {
-      const merged = { ...currentConfig, ...data.configJson };
-      nextConfig = encryptConfigSecrets(merged, secretKeysFor(slug));
+      const incomingConfig = validateGatewayConfigUpdate(slug, data.configJson);
+      const merged = { ...currentConfig, ...incomingConfig };
+      nextConfig = encryptConfigSecrets(merged, secretKeysFor(slug), {
+        aad: `company:${companyId}:gateway:${slug}`,
+      });
       for (const key of secretKeysFor(slug)) {
-        const incoming = data.configJson[key];
+        const incoming = incomingConfig[key];
         // Keep existing encrypted secret when UI sends mask or blank (user did not re-enter)
         if (incoming === '••••••••' || incoming === undefined || incoming === '') {
           nextConfig[key] = currentConfig[key] ?? '';

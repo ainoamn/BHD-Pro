@@ -167,16 +167,10 @@ export class PaymentsController {
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'Public checkout for invoice (uses company gateway)' })
   async publicInvoiceCheckout(
-    @Param('invoiceId') invoiceId: string,
+    @Param('invoiceId') publicRef: string,
     @Body() dto: CreateInvoiceCheckoutDto,
   ) {
-    const info = await this.payments.getPublicInvoicePayInfo(invoiceId);
-    return this.payments.createInvoiceCollectionCheckout({
-      companyId: info.companyId,
-      invoiceId,
-      gatewaySlug: dto.gatewaySlug,
-      customerEmail: dto.customerEmail,
-    });
+    return this.payments.createPublicInvoiceCheckout(publicRef, dto);
   }
 
   @Get('billing/:number')

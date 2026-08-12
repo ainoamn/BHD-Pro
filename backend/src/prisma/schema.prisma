@@ -169,6 +169,7 @@ model User {
   lockedPeriods AccountingPeriod[] @relation("PeriodLockedBy")
   auditLogs   AuditLog[]
   sessions    Session[]
+  passwordResetTokens PasswordResetToken[]
   apiKeysCreated CompanyApiKey[] @relation("ApiKeysCreated")
   employeeClaimsCreated EmployeeClaim[] @relation("EmployeeClaimsCreated")
   posDraftsCreated PosDraft[] @relation("PosDraftsCreated")
@@ -211,6 +212,31 @@ model Session {
   @@map("sessions")
 }
 
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId, expiresAt])
+  @@map("password_reset_tokens")
+}
+
+model DocumentSequence {
+  id        String   @id @default(uuid())
+  scope     String
+  series    String
+  period    String
+  lastValue Int      @map("last_value")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([scope, series, period])
+  @@map("document_sequences")
+}
+
 model CompanyApiKey {
   id          String    @id @default(uuid())
   companyId   String    @map("company_id")
@@ -219,8 +245,12 @@ model CompanyApiKey {
   name        String
   keyPrefix   String    @map("key_prefix")
   keyHash     String    @unique @map("key_hash")
+  /// read/write plus all:modules or module:<ModuleKey>
+  scopes      Json      @default("[\"read\",\"all:modules\"]")
+  expiresAt   DateTime? @map("expires_at")
 
   lastUsedAt  DateTime? @map("last_used_at")
+  lastUsedIp  String?   @map("last_used_ip")
   revokedAt   DateTime? @map("revoked_at")
 
   createdById String?   @map("created_by_id")
@@ -862,6 +892,8 @@ model Payment {
   amount      Decimal 
   method      PaymentMethod
   reference   String?
+  /// Stable key for exactly-once external/online payment fulfillment.
+  idempotencyKey String? @unique @map("idempotency_key")
   date        DateTime
   notes       String?
 

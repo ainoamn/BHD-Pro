@@ -48,7 +48,7 @@ describe('StorageService', () => {
         'co1',
         'a.pdf',
         'application/pdf',
-        'data:application/pdf;base64,AAAA',
+        `data:application/pdf;base64,${Buffer.from('%PDF-1.7\nvalid').toString('base64')}`,
       ),
     ).rejects.toThrow(/S3_BUCKET/);
   });

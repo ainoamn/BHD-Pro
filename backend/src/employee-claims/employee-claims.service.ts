@@ -12,6 +12,7 @@ import {
 } from './dto/employee-claim.dto';
 import { EmployeeClaimStatus, PaymentMethod } from '@prisma/client';
 import { GlPostingService } from '../journal/gl-posting.service';
+import { nextDocumentNumber, seedAfter } from '../common/document-number';
 
 @Injectable()
 export class EmployeeClaimsService {
@@ -25,15 +26,16 @@ export class EmployeeClaimsService {
     const prefix = `CL-${year}-`;
     const latest = await this.prisma.employeeClaim.findFirst({
       where: { companyId, number: { startsWith: prefix } },
-      orderBy: { number: 'desc' },
+      orderBy: { createdAt: 'desc' },
       select: { number: true },
     });
-    let next = 1;
-    if (latest?.number) {
-      const seq = Number(latest.number.slice(prefix.length));
-      if (!Number.isNaN(seq)) next = seq + 1;
-    }
-    return `${prefix}${String(next).padStart(4, '0')}`;
+    return nextDocumentNumber(this.prisma, {
+      scope: companyId,
+      series: 'employee-claim',
+      period: String(year),
+      prefix,
+      seed: seedAfter(latest?.number),
+    });
   }
 
   findAll(companyId: string) {

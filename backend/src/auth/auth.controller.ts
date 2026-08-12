@@ -23,6 +23,11 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { Disable2faDto, TotpCodeDto, Verify2faLoginDto } from './dto/two-factor.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { clearAuthCookies, REFRESH_COOKIE, setAuthCookies } from './auth-cookies';
+import {
+  ChangePasswordDto,
+  ForgotPasswordDto,
+  ResetPasswordDto,
+} from './dto/password.dto';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -133,7 +138,11 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Sign in or register with Google ID token' })
   async googleAuth(@Body() dto: GoogleAuthDto, @Res({ passthrough: true }) res: Response) {
-    const result = await this.authService.loginWithGoogle(dto.idToken, dto.companyName);
+    const result = await this.authService.loginWithGoogle(
+      dto.idToken,
+      dto.companyName,
+      dto.country,
+    );
     if ('requires2fa' in result && result.requires2fa) {
       return result;
     }
@@ -174,6 +183,44 @@ export class AuthController {
   @ApiOperation({ summary: 'Logout user' })
   async logout(@Req() req: Request & { user: { sub: string } }, @Res({ passthrough: true }) res: Response) {
     const result = await this.authService.logout(req.user.sub);
+    clearAuthCookies(res);
+    return result;
+  }
+
+  @Post('forgot-password')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @HttpCode(HttpStatus.OK)
+  requestPasswordReset(@Body() dto: ForgotPasswordDto) {
+    return this.authService.requestPasswordReset(dto.email);
+  }
+
+  @Post('reset-password')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @HttpCode(HttpStatus.OK)
+  async resetPassword(
+    @Body() dto: ResetPasswordDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.resetPassword(dto.token, dto.newPassword);
+    clearAuthCookies(res);
+    return result;
+  }
+
+  @Post('change-password')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @HttpCode(HttpStatus.OK)
+  async changePassword(
+    @Req() req: Request & { user: { sub: string } },
+    @Body() dto: ChangePasswordDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.changePassword(
+      req.user.sub,
+      dto.currentPassword,
+      dto.newPassword,
+    );
     clearAuthCookies(res);
     return result;
   }

@@ -9,9 +9,9 @@
     "dev": "next dev -p 3000",
     "build": "next build",
     "start": "next start -p 3000",
-    "lint": "next lint",
+    "lint": "eslint src --ext .js,.jsx,.ts,.tsx",
     "type-check": "tsc --noEmit",
-    "test": "jest",
+    "test": "jest --runInBand",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:e2e": "playwright test",
@@ -83,12 +83,6 @@
     "prettier": "^3.3.3",
     "prettier-plugin-tailwindcss": "^0.6.5",
     "ts-jest": "^29.2.3"
-  },
-  "jest": {
-    "passWithNoTests": true,
-    "testPathIgnorePatterns": [
-      "<rootDir>/e2e/"
-    ]
   },
   "overrides": {
     "postcss": "8.5.25",

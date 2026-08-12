@@ -7,6 +7,7 @@ import {
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
 import { AuditService } from './audit.service';
+import { sanitizeForAudit } from './audit-sanitizer';
 
 const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
@@ -96,18 +97,8 @@ export class AuditInterceptor implements NestInterceptor {
   }
 
   private safeBody(body: unknown, result: unknown) {
-    const strip = (obj: unknown) => {
-      if (!obj || typeof obj !== 'object') return obj;
-      const clone = { ...(obj as Record<string, unknown>) };
-      for (const key of Object.keys(clone)) {
-        if (/password|secret|token|cvv|pin/i.test(key)) {
-          clone[key] = '[redacted]';
-        }
-      }
-      return clone;
-    };
     return {
-      request: strip(body),
+      request: sanitizeForAudit(body),
       result:
         result && typeof result === 'object'
           ? {

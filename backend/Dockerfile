@@ -26,7 +26,6 @@ COPY --chown=node:node --from=build /app/dist ./dist
 COPY --chown=node:node --from=build /app/src/prisma ./src/prisma
 COPY --chown=node:node package.json ./
 EXPOSE 3001
-# Client already generated at image build — skip generate on boot (OOM on 512Mi).
-# Never start against an un-migrated schema and never mutate production with db push.
+# Database migration runs once in the release/migrate job, never in every replica.
 USER node
-CMD ["sh", "-c", "npx prisma migrate deploy && exec node --max-old-space-size=384 dist/main"]
+CMD ["node", "--max-old-space-size=384", "dist/main"]

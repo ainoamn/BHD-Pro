@@ -7,6 +7,7 @@ import api from "@/lib/api";
 import { useLocaleStore } from "@/store/locale";
 import { restoCopy } from "@/lib/resto-copy";
 import { apiErrorMessage } from "@/lib/utils";
+import { escapeHtml } from "@/lib/html-escape";
 
 type KitchenItem = {
   id: string;
@@ -199,7 +200,7 @@ export default function RestoKitchenPage() {
     };
   }, [load, stationId]);
 
-  const setStatus = async (
+  const setStatus = useCallback(async (
     itemId: string,
     status: "PREPARING" | "READY" | "SERVED",
   ) => {
@@ -232,7 +233,7 @@ export default function RestoKitchenPage() {
     } finally {
       setBusyId(null);
     }
-  };
+  }, [refreshAfterMutation, t]);
 
   const toggleRush = async (it: KitchenItem) => {
     setBusyId(it.id);
@@ -292,7 +293,7 @@ export default function RestoKitchenPage() {
           new Date(a.sentAt || 0).getTime() - new Date(b.sentAt || 0).getTime(),
       );
     if (ready[0]) await setStatus(ready[0].id, "SERVED");
-  }, [items]);
+  }, [items, setStatus]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -513,20 +514,21 @@ export default function RestoKitchenPage() {
                     onClick={() => {
                       const w = window.open("", "_blank", "width=360,height=480");
                       if (!w) return;
-                      w.document.write(`<!doctype html><html><head><title>${t.kitchenTicket}</title>
+                      const h = escapeHtml;
+                      w.document.write(`<!doctype html><html><head><title>${h(t.kitchenTicket)}</title>
 <style>body{font-family:system-ui;padding:16px}h1{font-size:18px;margin:0 0 8px}p{margin:4px 0;font-size:14px}</style>
 </head><body>
-<h1>${t.kitchenTicket}</h1>
-<p><b>${t.table}</b> ${it.table?.code || "—"} · ${it.orderNumber}</p>
-<p><b>${it.qty}× ${locale === "en" && it.nameEn ? it.nameEn : it.name}</b></p>
-${it.nameEn && it.nameEn !== it.name ? `<p>${locale === "en" ? it.name : it.nameEn}</p>` : ""}
-${(it.allergens || []).length ? `<p><b>${t.kdsAllergens}:</b> ${(it.allergens || []).join(", ")}</p>` : ""}
-${it.notes ? `<p>${it.notes}</p>` : ""}
-${it.orderNotes ? `<p>${it.orderNotes}</p>` : ""}
-<p>${minutes}m · ${it.status}${it.source === "GUEST" ? ` · ${t.fromGuest}` : ""}</p>
-<script>window.print()</script>
+<h1>${h(t.kitchenTicket)}</h1>
+<p><b>${h(t.table)}</b> ${h(it.table?.code || "—")} · ${h(it.orderNumber)}</p>
+<p><b>${h(it.qty)}× ${h(locale === "en" && it.nameEn ? it.nameEn : it.name)}</b></p>
+${it.nameEn && it.nameEn !== it.name ? `<p>${h(locale === "en" ? it.name : it.nameEn)}</p>` : ""}
+${(it.allergens || []).length ? `<p><b>${h(t.kdsAllergens)}:</b> ${h((it.allergens || []).join(", "))}</p>` : ""}
+${it.notes ? `<p>${h(it.notes)}</p>` : ""}
+${it.orderNotes ? `<p>${h(it.orderNotes)}</p>` : ""}
+<p>${h(minutes)}m · ${h(it.status)}${it.source === "GUEST" ? ` · ${h(t.fromGuest)}` : ""}</p>
 </body></html>`);
                       w.document.close();
+                      w.addEventListener("load", () => w.print(), { once: true });
                     }}
                     className="rounded-lg border border-white/15 px-2.5 py-1.5 text-[11px] font-bold text-stone-300 hover:bg-white/5"
                   >

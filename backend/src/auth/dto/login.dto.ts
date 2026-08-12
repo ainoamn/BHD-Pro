@@ -7,7 +7,6 @@ export class LoginDto {
   @IsNotEmpty({ message: 'Email is required' })
   email: string;
 
-  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   @IsNotEmpty({ message: 'Password is required' })
   password: string;

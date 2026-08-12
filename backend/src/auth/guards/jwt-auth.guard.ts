@@ -6,6 +6,21 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
+import { Reflector } from '@nestjs/core';
+import { enforceModulePermission } from '../../common/guards/module-permission.guard';
+
+export function assertTenantContext(req: {
+  user?: { companyId?: string };
+  headers?: Record<string, string | string[] | undefined>;
+}) {
+  const raw = req.headers?.['x-company-id'];
+  const requested = Array.isArray(raw) ? raw[0] : raw;
+  if (requested && req.user?.companyId && requested !== req.user.companyId) {
+    throw new ForbiddenException(
+      'Tenant header does not match authenticated company',
+    );
+  }
+}
 
 /**
  * JWT Bearer auth, or API key pre-authenticated by middleware (x-api-key / Bearer qk_...).
@@ -15,6 +30,10 @@ import { map } from 'rxjs/operators';
  */
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
+  constructor(private readonly reflector: Reflector) {
+    super();
+  }
+
   canActivate(context: ExecutionContext) {
     const req = context.switchToHttp().getRequest<{
       apiKeyAuthenticated?: boolean;
@@ -23,17 +42,21 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     }>();
     if (req.apiKeyAuthenticated && req.user?.companyId) {
       this.assertViewerNotMutating(req);
+      this.assertTenantHeader(req);
+      enforceModulePermission(context, this.reflector);
       return true;
     }
     const result = super.canActivate(context);
     const after = (ok: boolean) => {
       if (ok) {
-        this.assertViewerNotMutating(
-          context.switchToHttp().getRequest<{
-            method?: string;
-            user?: { role?: string };
-          }>(),
-        );
+        const authenticatedRequest = context.switchToHttp().getRequest<{
+          method?: string;
+          user?: { role?: string; companyId?: string };
+          headers?: Record<string, string | string[] | undefined>;
+        }>();
+        this.assertViewerNotMutating(authenticatedRequest);
+        this.assertTenantHeader(authenticatedRequest);
+        enforceModulePermission(context, this.reflector);
       }
       return ok;
     };
@@ -43,6 +66,13 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     return Promise.resolve(result as boolean | Promise<boolean>).then((ok) =>
       after(!!ok),
     );
+  }
+
+  private assertTenantHeader(req: {
+    user?: { companyId?: string };
+    headers?: Record<string, string | string[] | undefined>;
+  }) {
+    assertTenantContext(req);
   }
 
   private assertViewerNotMutating(req: {

@@ -19,7 +19,6 @@ export const GATEWAY_META: Record<
       { key: 'publishableKey', labelAr: 'المفتاح العام', labelEn: 'Publishable key', secret: false },
       { key: 'secretKey', labelAr: 'المفتاح السري', labelEn: 'Secret key', secret: true },
       { key: 'webhookSecret', labelAr: 'سر Webhook', labelEn: 'Webhook secret', secret: true },
-      { key: 'baseUrl', labelAr: 'رابط API', labelEn: 'API base URL', secret: false },
     ],
   },
   STRIPE: {

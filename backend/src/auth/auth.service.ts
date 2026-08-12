@@ -26,6 +26,9 @@ import {
   resolveTwoFactorGraceStart,
 } from './two-factor-policy';
 import { assertPublicRegistrationAllowed } from './registration-policy';
+import { EmailNotifyService } from '../notifications/email-notify.service';
+import { randomBytes } from 'crypto';
+import { resolveCountryPack } from '../common/country-packs';
 
 @Injectable()
 export class AuthService {
@@ -37,6 +40,7 @@ export class AuthService {
     private jwtService: JwtService,
     private config: ConfigService,
     private audit: AuditService,
+    private emailNotify: EmailNotifyService,
   ) {}
 
   private getGoogleClient() {
@@ -157,8 +161,13 @@ export class AuthService {
     if (!user || !user.isActive || !user.twoFactorEnabled || !user.twoFactorSecret) {
       throw new UnauthorizedException('Invalid credentials');
     }
+    if (user.lockedUntil && user.lockedUntil > new Date()) {
+      throw new ForbiddenException(
+        `Account locked until ${user.lockedUntil.toISOString()}`,
+      );
+    }
 
-    const secret = this.readTotpSecret(user.twoFactorSecret);
+    const secret = this.readTotpSecret(user.twoFactorSecret, user.id);
     if (!this.verifyTotp(secret, code)) {
       await this.incrementLoginAttempts(user.id);
       throw new UnauthorizedException('Invalid authentication code');
@@ -263,7 +272,10 @@ export class AuthService {
     await this.prisma.user.update({
       where: { id: userId },
       data: {
-        twoFactorSecret: encryptSecret(secret),
+        twoFactorSecret: encryptSecret(secret, {
+          purpose: 'totp',
+          aad: `user:${userId}`,
+        }),
         twoFactorEnabled: false,
       },
     });
@@ -276,7 +288,7 @@ export class AuthService {
     if (!user?.twoFactorSecret) {
       throw new BadRequestException('Run 2FA setup first');
     }
-    const secret = this.readTotpSecret(user.twoFactorSecret);
+    const secret = this.readTotpSecret(user.twoFactorSecret, user.id);
     if (!this.verifyTotp(secret, code)) {
       throw new UnauthorizedException('Invalid authentication code');
     }
@@ -301,7 +313,7 @@ export class AuthService {
     const ok = await bcrypt.compare(password, user.password);
     if (!ok) throw new UnauthorizedException('Invalid password');
     if (user.twoFactorEnabled && user.twoFactorSecret) {
-      const secret = this.readTotpSecret(user.twoFactorSecret);
+      const secret = this.readTotpSecret(user.twoFactorSecret, user.id);
       if (!this.verifyTotp(secret, code)) {
         throw new UnauthorizedException('Invalid authentication code');
       }
@@ -313,8 +325,11 @@ export class AuthService {
     return { enabled: false };
   }
 
-  private readTotpSecret(stored: string): string {
-    return decryptSecret(stored);
+  private readTotpSecret(stored: string, userId: string): string {
+    return decryptSecret(stored, {
+      purpose: 'totp',
+      aad: `user:${userId}`,
+    });
   }
 
   private verifyTotp(secret: string, code: string): boolean {
@@ -381,20 +396,22 @@ export class AuthService {
 
   async register(dto: RegisterDto) {
     assertPublicRegistrationAllowed();
-    const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    const email = dto.email.trim().toLowerCase();
+    const existing = await this.prisma.user.findUnique({ where: { email } });
     if (existing) {
       throw new ForbiddenException('Email already registered');
     }
 
     // Always start on STARTER — paid upgrades go through payment checkout only
+    const countryPack = resolveCountryPack(dto.country);
     const company = await this.prisma.company.create({
       data: {
         name: dto.companyName,
         plan: 'STARTER',
-        currency: 'OMR',
-        language: 'ar',
-        country: 'OM',
-        timezone: 'Asia/Muscat',
+        currency: countryPack.currency,
+        language: dto.language || countryPack.language,
+        country: countryPack.country,
+        timezone: countryPack.timezone,
         posLinkedAt: new Date(),
         restoLinkedAt: new Date(),
       },
@@ -407,7 +424,7 @@ export class AuthService {
     const user = await this.prisma.user.create({
       data: {
         name: dto.name,
-        email: dto.email,
+        email,
         password: hashedPassword,
         role: 'ADMIN',
         companyId: company.id,
@@ -423,7 +440,11 @@ export class AuthService {
     return this.issueSession(user, {});
   }
 
-  async loginWithGoogle(idToken: string, companyName?: string) {
+  async loginWithGoogle(
+    idToken: string,
+    companyName?: string,
+    countryCode?: string,
+  ) {
     const { client, clientId } = this.getGoogleClient();
     let payload;
     try {
@@ -525,15 +546,16 @@ export class AuthService {
     }
 
     assertPublicRegistrationAllowed();
+    const countryPack = resolveCountryPack(countryCode);
     const company = await this.prisma.company.create({
       data: {
         name: (companyName || `شركة ${name}`).trim(),
         email,
         plan: 'STARTER',
-        currency: 'OMR',
-        language: 'ar',
-        country: 'OM',
-        timezone: 'Asia/Muscat',
+        currency: countryPack.currency,
+        language: countryPack.language,
+        country: countryPack.country,
+        timezone: countryPack.timezone,
         logo: avatar,
         posLinkedAt: new Date(),
         restoLinkedAt: new Date(),
@@ -624,6 +646,154 @@ export class AuthService {
   async logout(userId: string, _accessToken?: string) {
     await this.prisma.session.deleteMany({ where: { userId } });
     return { message: 'Logged out successfully' };
+  }
+
+  async requestPasswordReset(emailInput: string) {
+    const email = String(emailInput || '').trim().toLowerCase();
+    const user = email
+      ? await this.prisma.user.findUnique({
+          where: { email },
+          select: { id: true, companyId: true, email: true, name: true, isActive: true },
+        })
+      : null;
+    if (user?.isActive) {
+      await this.issuePasswordReset(user);
+    }
+    // Deliberately identical for existing and unknown users.
+    return {
+      message: 'If the account exists, password reset instructions were sent.',
+    };
+  }
+
+  async requestPasswordResetByUserId(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, companyId: true, email: true, name: true, isActive: true },
+    });
+    if (!user || !user.isActive) throw new BadRequestException('User is not active');
+    const delivery = await this.issuePasswordReset(user);
+    return {
+      ok: delivery.ok,
+      email: user.email,
+      emailSent: delivery.ok && !delivery.mock,
+      emailMock: !!delivery.mock,
+      ...(delivery.error ? { emailError: delivery.error } : {}),
+    };
+  }
+
+  private async issuePasswordReset(user: {
+    id: string;
+    companyId: string;
+    email: string;
+    name: string;
+  }) {
+    const token = randomBytes(32).toString('base64url');
+    const tokenHash = hashToken(token);
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+    await this.prisma.$transaction([
+      this.prisma.passwordResetToken.deleteMany({
+        where: { userId: user.id, usedAt: null },
+      }),
+      this.prisma.passwordResetToken.create({
+        data: { userId: user.id, tokenHash, expiresAt },
+      }),
+    ]);
+
+    const frontend = (
+      process.env.FRONTEND_URL ||
+      process.env.CORS_ORIGIN?.split(',')[0] ||
+      'http://localhost:3000'
+    ).replace(/\/$/, '');
+    // Fragment keeps the raw token out of reverse-proxy and access logs.
+    const resetUrl = `${frontend}/reset-password#token=${encodeURIComponent(token)}`;
+    const delivery = await this.emailNotify.sendText({
+      to: user.email,
+      subject: 'Hisaby — password reset / إعادة تعيين كلمة المرور',
+      text: [
+        `Hello ${user.name},`,
+        'Use the following link within 15 minutes to reset your password:',
+        resetUrl,
+        '',
+        `مرحباً ${user.name}،`,
+        'استخدم الرابط التالي خلال 15 دقيقة لإعادة تعيين كلمة المرور:',
+        resetUrl,
+        '',
+        'If you did not request this, ignore this message.',
+      ].join('\n'),
+    });
+    await this.auditAuth({
+      companyId: user.companyId,
+      userId: user.id,
+      action: 'PASSWORD_RESET_REQUEST',
+      email: user.email,
+    });
+    return delivery;
+  }
+
+  async resetPassword(token: string, newPassword: string) {
+    const tokenHash = hashToken(token);
+    const reset = await this.prisma.passwordResetToken.findFirst({
+      where: { tokenHash, usedAt: null, expiresAt: { gt: new Date() } },
+      include: { user: { select: { id: true, companyId: true, email: true, isActive: true } } },
+    });
+    if (!reset?.user?.isActive) {
+      throw new UnauthorizedException('Invalid or expired password reset link');
+    }
+    const password = await bcrypt.hash(newPassword, 12);
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: reset.user.id },
+        data: { password, loginAttempts: 0, lockedUntil: null },
+      }),
+      this.prisma.session.deleteMany({ where: { userId: reset.user.id } }),
+      this.prisma.passwordResetToken.updateMany({
+        where: { userId: reset.user.id, usedAt: null },
+        data: { usedAt: new Date() },
+      }),
+    ]);
+    await this.auditAuth({
+      companyId: reset.user.companyId,
+      userId: reset.user.id,
+      action: 'PASSWORD_RESET_COMPLETE',
+      email: reset.user.email,
+    });
+    return { message: 'Password changed. Sign in again on all devices.' };
+  }
+
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+  ) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user?.isActive || !user.password) {
+      throw new UnauthorizedException('Current password is required');
+    }
+    if (!(await bcrypt.compare(currentPassword, user.password))) {
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+    if (await bcrypt.compare(newPassword, user.password)) {
+      throw new BadRequestException('New password must differ from current password');
+    }
+    const password = await bcrypt.hash(newPassword, 12);
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: user.id },
+        data: { password, loginAttempts: 0, lockedUntil: null },
+      }),
+      this.prisma.session.deleteMany({ where: { userId: user.id } }),
+      this.prisma.passwordResetToken.updateMany({
+        where: { userId: user.id, usedAt: null },
+        data: { usedAt: new Date() },
+      }),
+    ]);
+    await this.auditAuth({
+      companyId: user.companyId,
+      userId: user.id,
+      action: 'PASSWORD_CHANGE',
+      email: user.email,
+    });
+    return { message: 'Password changed. All sessions were revoked.' };
   }
 
   async getInvite(token: string) {

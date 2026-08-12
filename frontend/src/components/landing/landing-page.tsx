@@ -1299,6 +1299,15 @@ export function LandingPage({
               <Link href="/register" className="text-slate-500 transition hover:text-emerald-900">
                 {t.register}
               </Link>
+              <Link href="/privacy" className="text-slate-500 transition hover:text-emerald-900">
+                {t.footerPrivacy}
+              </Link>
+              <Link href="/terms" className="text-slate-500 transition hover:text-emerald-900">
+                {t.footerTerms}
+              </Link>
+              <Link href="/security" className="text-slate-500 transition hover:text-emerald-900">
+                {t.footerSecurity}
+              </Link>
               <Link
                 href="/login?next=/admin&switch=1"
                 className="rounded-lg border border-emerald-950/10 bg-[#fafcfb] px-3 py-1.5 text-emerald-950 transition hover:bg-emerald-50"

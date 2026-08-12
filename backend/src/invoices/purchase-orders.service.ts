@@ -11,6 +11,8 @@ import {
 } from './dto/procurement.dto';
 import { InvoiceType, PurchaseOrderStatus } from '@prisma/client';
 import { InvoicesService } from './invoices.service';
+import { nextDocumentNumber, seedAfter } from '../common/document-number';
+import { calculateTaxLine } from '../common/money';
 
 const OMAN_VAT_RATE = 5;
 
@@ -22,12 +24,14 @@ export class PurchaseOrdersService {
   ) {}
 
   private calcLine(item: { quantity: number; unitPrice: number; discount?: number; taxRate?: number }) {
-    const discount = item.discount || 0;
-    const lineSubtotal = item.quantity * item.unitPrice - discount;
     const taxRate = item.taxRate ?? OMAN_VAT_RATE;
-    const taxAmount = Number((lineSubtotal * (taxRate / 100)).toFixed(3));
-    const total = Number((lineSubtotal + taxAmount).toFixed(3));
-    return { lineSubtotal, taxRate, taxAmount, total };
+    const result = calculateTaxLine({ ...item, taxRate });
+    return {
+      lineSubtotal: result.lineSubtotal.toNumber(),
+      taxRate: result.taxRate.toNumber(),
+      taxAmount: result.taxAmount.toNumber(),
+      total: result.total.toNumber(),
+    };
   }
 
   private async generateNumber(companyId: string): Promise<string> {
@@ -35,15 +39,16 @@ export class PurchaseOrdersService {
     const prefix = `PO-${year}-`;
     const latest = await this.prisma.purchaseOrder.findFirst({
       where: { companyId, number: { startsWith: prefix } },
-      orderBy: { number: 'desc' },
+      orderBy: { createdAt: 'desc' },
       select: { number: true },
     });
-    let nextSeq = 1;
-    if (latest?.number) {
-      const match = latest.number.match(/-(\d+)$/);
-      if (match) nextSeq = parseInt(match[1], 10) + 1;
-    }
-    return `${prefix}${String(nextSeq).padStart(4, '0')}`;
+    return nextDocumentNumber(this.prisma, {
+      scope: companyId,
+      series: 'purchase-order',
+      period: String(year),
+      prefix,
+      seed: seedAfter(latest?.number),
+    });
   }
 
   private buildItems(items: CreatePurchaseOrderDto['items'], taxRate: number) {
