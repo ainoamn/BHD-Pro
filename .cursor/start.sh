@@ -10,6 +10,11 @@ cd "$REPO_ROOT"
 
 log() { printf '\n=== %s ===\n' "$1"; }
 
+# Serialize concurrent invocations (this may run both as the `start` phase and
+# from the backend terminal); the lock makes the whole script safe to re-run.
+exec 9>/tmp/bhd-start.lock
+flock 9
+
 # Node 24 on PATH.
 export NVM_DIR="$HOME/.nvm"
 # shellcheck disable=SC1091

@@ -5,7 +5,7 @@
   "terminals": [
     {
       "name": "backend",
-      "command": "cd backend && npm run start:dev"
+      "command": "bash .cursor/start.sh && cd backend && npm run start:dev"
     },
     {
       "name": "frontend",
