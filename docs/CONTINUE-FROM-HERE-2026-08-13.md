@@ -74,9 +74,8 @@ git switch main
 git pull origin main
 git status
 git rev-parse --short HEAD
-# يجب أن يطابق أو يتجاوز 949aab0 (أو أحدث main بعد هذا التسليم)
+# يجب أن يطابق أو يتجاوز 9bb8027
 ```
-
 ### قواعد لمنع التعارض
 
 | افعل | لا تفعل |
