@@ -1,30 +1,29 @@
-# نشر الإنتاج — Render متوقف على commit قديم (محدث 12 أغسطس 2026)
+# نشر الإنتاج — Render (محدث 13 أغسطس 2026)
 
 ## الحالة المرصودة
 
-| مكوّن | المتوقع | الحي |
-|--------|---------|------|
-| GitHub `main` | تقوية `209d2cb`+ | مرفوع |
+| مكوّن | المتوقع | الحي (12 أغسطس 2026) |
+|--------|---------|----------------------|
+| GitHub `main` | تقوية + إقلاع انتقالي | **`949aab0`+ مرفوع** |
 | Vercel | أحدث `main` | عادة تلقائي |
-| **Render `hisaby-api`** | نفس SHA | **`0384917` — لم ينشر** |
+| **Render `hisaby-api`** | نفس SHA | **Live على `949aab0`** (بعد فشل `209d2cb`) |
 
-**دليل go-live للتقوية (إلزامي قبل/مع Deploy):**  
-[`HISABY-RENDER-GO-LIVE-HARDENING-2026-08-12.md`](./HISABY-RENDER-GO-LIVE-HARDENING-2026-08-12.md)
+**تسليم جهاز آخر:** [`CONTINUE-FROM-HERE-2026-08-13.md`](./CONTINUE-FROM-HERE-2026-08-13.md)  
+**دليل go-live للتقوية:** [`HISABY-RENDER-GO-LIVE-HARDENING-2026-08-12.md`](./HISABY-RENDER-GO-LIVE-HARDENING-2026-08-12.md)
 
-بدون Manual Deploy على Render لا تصل إصلاحات واتساب/كاشير/مطاعم/التقوية الأمنية للزبائن.
+`209d2cb` فشل إقلاع بسبب صرامة TOTP/S3؛ `949aab0` أصلحه بوضع انتقالي. ما زال مطلوباً: هجرة Prisma إن لم تُنفَّذ، واتساب Permanent Token، ثم لاحقاً `HARDENING_STRICT_BOOT=true`.
 
 ---
 
-## ماذا تفعل الآن
+## ماذا تفعل الآن (بعد أن أصبح Live)
 
-1. اقرأ go-live أعلاه (dataurl انتقالي + `start:prod:migrate`).  
-2. Environment: على الأقل `ALLOW_INSECURE_DATAURL_STORAGE=true` وCORS للواجهة الحية.  
-3. Start Command: `npm run start:prod:migrate` (نسخة واحدة).  
-4. Neon backup → **Manual Deploy** latest `main`.  
-5. `curl -s https://hisaby-api.onrender.com/api/health` → `commit` ≠ `0384917`.  
-6. لاحقاً: `TOTP_SECRETS_KEY` + `HARDENING_STRICT_BOOT=true` + واتساب Permanent token.
+1. تحقق: `curl -s https://hisaby-api.onrender.com/api/health` → يبدأ بـ `949aab0` (أو أحدث).  
+2. إن لزم: Shell → `npx prisma migrate deploy --schema src/prisma/schema.prisma` أو Start = `npm run start:prod:migrate`.  
+3. Environment: `ALLOW_INSECURE_DATAURL_STORAGE=true` حتى S3.  
+4. واتساب `#200`: جدّد التوكن.  
+5. لاحقاً: `TOTP_SECRETS_KEY` + `HARDENING_STRICT_BOOT=true`.
 
-لا يوجد Deploy Hook في المستودع — النشر يدوي من لوحة Render.
+لا يوجد Deploy Hook في المستودع — أي نشر لاحق يدوي أو Auto-Deploy من GitHub.
 
 ---
 
