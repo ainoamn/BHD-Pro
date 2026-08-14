@@ -1,0 +1,19 @@
+{
+  "name": "BHD Pro",
+  "install": "bash .cursor/install.sh",
+  "start": "bash .cursor/start.sh",
+  "terminals": [
+    {
+      "name": "backend",
+      "command": "bash .cursor/start.sh && cd backend && npm run start:dev"
+    },
+    {
+      "name": "frontend",
+      "command": "cd frontend && npm run dev"
+    }
+  ],
+  "ports": [
+    { "name": "frontend", "port": 3000 },
+    { "name": "backend", "port": 3001 }
+  ]
+}
