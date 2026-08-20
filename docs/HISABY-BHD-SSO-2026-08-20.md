@@ -65,6 +65,12 @@ JWT_REFRESH_EXPIRATION=48h
 
 **السبب:** الاعتماد على `rewrites` في `next.config` نحو Render يسقط أو يُخطئ نطاق `Set-Cookie`؛ وجلسة الدخول المحلي كانت تعمل لأن التوكن يُحفظ في الذاكرة من JSON، بينما SSO يعتمد على الكوكي فقط. كما أن البوابة ترسل `returnTo=/`.
 
-**الإصلاح:** مسارات App Router تبروكسي Nest وتعيد الكوكيز على منشأ الواجهة؛ و`returnTo=/` يُحوَّل إلى `/dashboard`.
+**الإصلاح:** مسارات App Router تبروكسي Nest وتعيد الكوكيز عبر `cookies.set` على منشأ الواجهة؛ و`returnTo=/` يُحوَّل إلى `/dashboard`.
 
-**ملفات:** `frontend/src/lib/bhd-sso-proxy.ts` · `frontend/src/app/api/auth/bhd/*` · `frontend/src/app/api/auth/admin-entry/route.ts`
+**عَرَض 2:** وميض على `/login?bhd=error` مع «جاري التحويل…» بلا توقف.
+
+**السبب:** غلاف `/login` يعيد التوجيه تلقائياً إلى `start` حتى بعد فشل الـ callback → حلقة.
+
+**الإصلاح:** عند `bhd=error|denied|state|params|exchange|no_user` تتوقف الحلقة وتظهر رسالة + زر إعادة محاولة.
+
+**ملفات:** `frontend/src/lib/bhd-sso-proxy.ts` · `frontend/src/app/api/auth/bhd/*` · `frontend/src/app/api/auth/admin-entry/route.ts` · `frontend/src/app/login/page.tsx`

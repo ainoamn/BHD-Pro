@@ -144,16 +144,21 @@ export class BhdSsoService {
     authorize.searchParams.set('code_challenge_method', 'S256');
     return {
       authorizeUrl: authorize.toString(),
-      stateCookieValue: encodeURIComponent(JSON.stringify(payload)),
+      // Plain JSON — Express cookie serializer encodes once (avoid double encodeURIComponent)
+      stateCookieValue: JSON.stringify(payload),
     };
   }
 
   parseStateCookie(raw: string | undefined): OAuthState | null {
     if (!raw) return null;
     try {
-      return JSON.parse(decodeURIComponent(raw)) as OAuthState;
+      return JSON.parse(raw) as OAuthState;
     } catch {
-      return null;
+      try {
+        return JSON.parse(decodeURIComponent(raw)) as OAuthState;
+      } catch {
+        return null;
+      }
     }
   }
 

@@ -15,6 +15,25 @@ function bhdStartUrl(returnTo: string): string {
   return `/api/auth/bhd/start?returnTo=${encodeURIComponent(returnTo)}`;
 }
 
+function bhdErrorMessage(bhd: string | null): string | null {
+  switch (bhd) {
+    case "no_user":
+      return "لا يوجد مستخدم حسابي مرتبط بهذا الحساب على الهوية. اطلب دعوة من مدير شركتك بنفس البريد، ثم أعد المحاولة.";
+    case "denied":
+      return "تم رفض التفويض من بوابة BHD أو أُلغي الدخول.";
+    case "state":
+      return "انتهت صلاحية خطوة التحقق أو لم تُحفظ كوكي الجلسة. أعد المحاولة من نفس المتصفح بدون فتح نافذة خاصة.";
+    case "params":
+      return "رد الهوية ناقص (رمز أو حالة). أعد المحاولة.";
+    case "exchange":
+      return "تعذّر استبدال رمز الهوية أو التحقق من البريد. تأكد أن بريدك موثّق على id.bhd-om.com.";
+    case "error":
+      return "تعذّر إكمال الدخول الموحّد. أعد المحاولة، وإن استمر العطل راجع أن حسابك موجود في حسابي بنفس البريد.";
+    default:
+      return null;
+  }
+}
+
 function LoginShell() {
   const searchParams = useSearchParams();
   const nextPath = useMemo(
@@ -24,9 +43,12 @@ function LoginShell() {
   const local = searchParams.get("local") === "1";
   const bhd = searchParams.get("bhd");
   const isAdminNext = nextPath.startsWith("/admin");
+  const bhdError = bhdErrorMessage(bhd);
+  /** Stop SSO auto-redirect when callback already failed — avoids flash loop. */
+  const stopAutoSso = !!bhdError || (local && !isAdminNext);
 
   useEffect(() => {
-    if (local && !isAdminNext) return;
+    if (stopAutoSso) return;
     if (isAdminNext) {
       window.location.replace(
         `/api/auth/admin-entry?next=${encodeURIComponent(nextPath)}`,
@@ -34,9 +56,9 @@ function LoginShell() {
       return;
     }
     window.location.replace(bhdStartUrl(nextPath));
-  }, [local, isAdminNext, nextPath]);
+  }, [stopAutoSso, isAdminNext, nextPath]);
 
-  if (!local || isAdminNext) {
+  if (!stopAutoSso) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-[#fbfaf7] text-[#092d24]">
         <Loader2 className="h-8 w-8 animate-spin text-[#075c45]" />
@@ -45,19 +67,35 @@ function LoginShell() {
     );
   }
 
+  if (bhdError && !local) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[#fbfaf7] px-4 text-[#092d24]">
+        <h1 className="text-xl font-bold">تعذّر الدخول الموحّد</h1>
+        <p className="max-w-md text-center text-sm text-red-700">{bhdError}</p>
+        <a
+          className="rounded-lg bg-[#075c45] px-4 py-2 text-sm font-semibold text-white"
+          href={bhdStartUrl(nextPath)}
+        >
+          إعادة المحاولة عبر BHD
+        </a>
+        <a
+          className="text-sm text-[#075c45] underline"
+          href="https://id.bhd-om.com/login"
+        >
+          فتح بوابة الهوية
+        </a>
+        <Link href="/" className="text-xs text-stone-500 underline">
+          الصفحة الرئيسية
+        </Link>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[#fbfaf7] px-4 text-[#092d24]">
       <h1 className="text-xl font-bold">حسابي — دخول طوارئ محلي</h1>
-      {bhd === "no_user" && (
-        <p className="max-w-md text-center text-sm text-amber-800">
-          لا يوجد مستخدم حسابي مرتبط بهذا الحساب على الهوية. اطلب دعوة من مدير
-          شركتك بنفس البريد، ثم ادخل عبر BHD.
-        </p>
-      )}
-      {bhd === "error" || bhd === "denied" ? (
-        <p className="max-w-md text-center text-sm text-red-700">
-          تعذّر إكمال الدخول الموحّد. حاول مرة أخرى من بوابة BHD.
-        </p>
+      {bhdError ? (
+        <p className="max-w-md text-center text-sm text-red-700">{bhdError}</p>
       ) : null}
       <a
         className="rounded-lg bg-[#075c45] px-4 py-2 text-sm font-semibold text-white"

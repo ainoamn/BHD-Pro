@@ -10,32 +10,9 @@ export function backendBase(): string {
   ).replace(/\/$/, "");
 }
 
-/** Host-only cookies on the frontend origin — drop any upstream Domain=. */
-function stripCookieDomain(setCookie: string): string {
-  return setCookie
-    .split(";")
-    .map((p) => p.trim())
-    .filter((p) => p.length > 0 && !/^domain=/i.test(p))
-    .join("; ");
-}
-
-function appendSetCookies(from: Headers, to: Headers) {
-  const list =
-    typeof from.getSetCookie === "function" ? from.getSetCookie() : [];
-  if (list.length > 0) {
-    for (const c of list) {
-      to.append("set-cookie", stripCookieDomain(c));
-    }
-    return;
-  }
-  const single = from.get("set-cookie");
-  if (single) {
-    to.append("set-cookie", stripCookieDomain(single));
-  }
-}
-
 /**
  * After SSO, portal often sends returnTo=/ — Hisaby product home is the dashboard.
+ * Do not remap /login (error surfaces) or other app paths.
  */
 export function productHomePath(pathname: string): string {
   if (!pathname || pathname === "/") return "/dashboard";
@@ -43,7 +20,10 @@ export function productHomePath(pathname: string): string {
 }
 
 function isSameSiteHost(a: string, b: string): boolean {
-  return a.replace(/^www\./i, "").toLowerCase() === b.replace(/^www\./i, "").toLowerCase();
+  return (
+    a.replace(/^www\./i, "").toLowerCase() ===
+    b.replace(/^www\./i, "").toLowerCase()
+  );
 }
 
 function resolveRedirect(location: string | null, req: NextRequest): string {
@@ -69,7 +49,6 @@ function resolveRedirect(location: string | null, req: NextRequest): string {
     }
 
     // Keep absolute redirects to Identity (id.bhd-om.com) and other externals.
-    // Only rewrite when Nest pointed at the API host or our own frontend host.
     const onFrontend = isSameSiteHost(u.host, frontendHost);
     const onApi = backendHost && isSameSiteHost(u.host, backendHost);
     if (!onFrontend && !onApi) {
@@ -80,6 +59,78 @@ function resolveRedirect(location: string | null, req: NextRequest): string {
     return `${origin}${path}${u.search}${u.hash}`;
   } catch {
     return `${origin}/dashboard`;
+  }
+}
+
+function collectSetCookieHeaders(from: Headers): string[] {
+  if (typeof from.getSetCookie === "function") {
+    const list = from.getSetCookie();
+    if (list.length) return list;
+  }
+  const single = from.get("set-cookie");
+  return single ? [single] : [];
+}
+
+/**
+ * Apply upstream Set-Cookie via Next cookies API (reliable on Vercel).
+ * Decode once so Next does not double-encode Express values.
+ */
+function applyUpstreamCookies(res: NextResponse, from: Headers) {
+  const secureDefault =
+    process.env.VERCEL === "1" || process.env.NODE_ENV === "production";
+
+  for (const raw of collectSetCookieHeaders(from)) {
+    const segments = raw.split(";").map((s) => s.trim()).filter(Boolean);
+    if (!segments.length) continue;
+
+    const first = segments[0];
+    const eq = first.indexOf("=");
+    if (eq <= 0) continue;
+
+    const name = first.slice(0, eq).trim();
+    let value = first.slice(eq + 1).trim();
+    if (/%[0-9A-Fa-f]{2}/.test(value)) {
+      try {
+        value = decodeURIComponent(value);
+      } catch {
+        /* keep raw */
+      }
+    }
+
+    const options: {
+      path?: string;
+      httpOnly?: boolean;
+      secure?: boolean;
+      maxAge?: number;
+      sameSite?: "lax" | "strict" | "none";
+    } = { path: "/" };
+    for (let i = 1; i < segments.length; i++) {
+      const seg = segments[i];
+      const iEq = seg.indexOf("=");
+      const key = (iEq === -1 ? seg : seg.slice(0, iEq)).trim().toLowerCase();
+      const val = iEq === -1 ? undefined : seg.slice(iEq + 1).trim();
+      if (key === "httponly") options.httpOnly = true;
+      else if (key === "secure") options.secure = true;
+      else if (key === "path" && val) options.path = val;
+      else if (key === "max-age" && val) options.maxAge = Number(val);
+      else if (key === "expires" && val && options.maxAge == null) {
+        const t = Date.parse(val);
+        if (!Number.isNaN(t)) {
+          options.maxAge = Math.max(0, Math.floor((t - Date.now()) / 1000));
+        }
+      } else if (key === "samesite" && val) {
+        const s = val.toLowerCase();
+        if (s === "lax" || s === "strict" || s === "none") {
+          options.sameSite = s;
+        }
+      }
+      // never copy Domain — cookies must be host-only on the frontend
+    }
+
+    if (secureDefault) options.secure = true;
+    if (!options.sameSite) options.sameSite = "lax";
+
+    res.cookies.set(name, value, options);
   }
 }
 
@@ -121,7 +172,7 @@ export async function proxyBhdAuth(
       dest,
       status as 301 | 302 | 303 | 307 | 308,
     );
-    appendSetCookies(upstream.headers, res.headers);
+    applyUpstreamCookies(res, upstream.headers);
     res.headers.set("cache-control", "no-store");
     return res;
   }
@@ -130,7 +181,7 @@ export async function proxyBhdAuth(
   const res = new NextResponse(body, { status });
   const ct = upstream.headers.get("content-type");
   if (ct) res.headers.set("content-type", ct);
-  appendSetCookies(upstream.headers, res.headers);
+  applyUpstreamCookies(res, upstream.headers);
   res.headers.set("cache-control", "no-store");
   return res;
 }

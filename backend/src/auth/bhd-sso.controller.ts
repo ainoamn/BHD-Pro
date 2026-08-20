@@ -90,8 +90,13 @@ export class BhdSsoController {
     // Clear any previous product session before establishing the new one (§0.7)
     clearAuthCookies(res);
 
-    if (!saved || !code || !state) {
-      return fail();
+    if (!saved) {
+      this.logger.warn('BHD callback: missing or invalid oauth state cookie');
+      return fail('/login?bhd=state');
+    }
+    if (!code || !state) {
+      this.logger.warn('BHD callback: missing code or state query');
+      return fail('/login?bhd=params');
     }
 
     try {
@@ -114,15 +119,15 @@ export class BhdSsoController {
       );
       if (err instanceof ForbiddenException) {
         const body = err.getResponse();
-        const code =
+        const errCode =
           typeof body === 'object' && body && 'code' in body
             ? String((body as { code: string }).code)
             : '';
-        if (code === 'BHD_NO_LOCAL_USER') {
+        if (errCode === 'BHD_NO_LOCAL_USER') {
           return fail('/login?bhd=no_user');
         }
       }
-      return fail();
+      return fail('/login?bhd=exchange');
     }
   }
 
