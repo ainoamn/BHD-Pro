@@ -25,8 +25,14 @@ function bhdErrorMessage(bhd: string | null): string | null {
       return "انتهت صلاحية خطوة التحقق أو لم تُحفظ كوكي الجلسة. أعد المحاولة من نفس المتصفح بدون فتح نافذة خاصة.";
     case "params":
       return "رد الهوية ناقص (رمز أو حالة). أعد المحاولة.";
+    case "token":
+      return "فشل استبدال رمز التفويض مع الهوية. تأكد من تسجيل redirect_uri وBHD_OAUTH_CLIENT_SECRET على الخادم.";
+    case "verify":
+      return "تعذّر التحقق من رمز الهوية. على Render يجب ضبط BHD_IDENTITY_TOKEN_SECRET بنفس قيمة IDENTITY_TOKEN_SECRET في مشروع الهوية (حالياً التوقيع HS256 وJWKS فارغ).";
+    case "email":
+      return "بريدك غير موثّق على id.bhd-om.com. وثّقه من بوابة الهوية ثم أعد المحاولة.";
     case "exchange":
-      return "تعذّر استبدال رمز الهوية أو التحقق من البريد. تأكد أن بريدك موثّق على id.bhd-om.com.";
+      return "تعذّر إكمال الدخول الموحّد بعد الهوية. أعد المحاولة أو راجع سجلات API.";
     case "error":
       return "تعذّر إكمال الدخول الموحّد. أعد المحاولة، وإن استمر العطل راجع أن حسابك موجود في حسابي بنفس البريد.";
     default:

@@ -26,6 +26,9 @@
 BHD_IDENTITY_ISSUER=https://id.bhd-om.com
 BHD_OAUTH_CLIENT_ID=bhd-hisaby
 BHD_OAUTH_CLIENT_SECRET=
+# مطلوب حالياً: نفس قيمة IDENTITY_TOKEN_SECRET في مشروع الهوية (ONE-BHD)
+# لأن JWKS فارغ والتوقيع HS256 — بدونها يفشل الدخول بـ ?bhd=verify أو ?bhd=exchange
+BHD_IDENTITY_TOKEN_SECRET=
 # اختياري إن كان Host يمر عبر البروكسي:
 # BHD_OAUTH_REDIRECT_URI=https://hisaby.bhd-om.com/api/auth/bhd/callback
 FRONTEND_URL=https://hisaby.bhd-om.com
@@ -73,4 +76,8 @@ JWT_REFRESH_EXPIRATION=48h
 
 **الإصلاح:** عند `bhd=error|denied|state|params|exchange|no_user` تتوقف الحلقة وتظهر رسالة + زر إعادة محاولة.
 
-**ملفات:** `frontend/src/lib/bhd-sso-proxy.ts` · `frontend/src/app/api/auth/bhd/*` · `frontend/src/app/api/auth/admin-entry/route.ts` · `frontend/src/app/login/page.tsx`
+**عَرَض 3:** `/login?bhd=exchange` أو `verify` بعد نجاح الهوية.
+
+**السبب:** اكتشاف الهوية يعلن `HS256` و`/oauth/jwks.json` يعيد `{"keys":[]}` بينما حسابي كان يتحقق عبر JWKS فقط.
+
+**الإصلاح:** التحقق بـ HS256 عبر `BHD_IDENTITY_TOKEN_SECRET` (نسخة من `IDENTITY_TOKEN_SECRET` على ONE-BHD) مع الإبقاء على JWKS عند تفعيل RS256 لاحقاً.

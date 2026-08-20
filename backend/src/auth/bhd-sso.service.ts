@@ -169,7 +169,11 @@ export class BhdSsoService {
     meta: { ipAddress?: string; userAgent?: string },
   ): Promise<{ tokens: { accessToken: string; refreshToken: string }; returnTo: string }> {
     if (!code || !stateParam || saved.state !== stateParam) {
-      throw new BadRequestException('Invalid OAuth state');
+      throw new BadRequestException({
+        statusCode: 400,
+        code: 'BHD_STATE_MISMATCH',
+        message: 'Invalid OAuth state',
+      });
     }
 
     const body = new URLSearchParams({
@@ -189,12 +193,22 @@ export class BhdSsoService {
     });
     if (!tokenRes.ok) {
       const text = await tokenRes.text();
-      this.logger.warn(`BHD token exchange failed: ${tokenRes.status} ${text.slice(0, 200)}`);
-      throw new UnauthorizedException('BHD token exchange failed');
+      this.logger.warn(
+        `BHD token exchange failed: ${tokenRes.status} ${text.slice(0, 200)} redirect_uri=${saved.redirectUri}`,
+      );
+      throw new UnauthorizedException({
+        statusCode: 401,
+        code: 'BHD_TOKEN_EXCHANGE',
+        message: 'BHD token exchange failed',
+      });
     }
     const tokenJson = (await tokenRes.json()) as { id_token?: string };
     if (!tokenJson.id_token) {
-      throw new UnauthorizedException('Missing id_token');
+      throw new UnauthorizedException({
+        statusCode: 401,
+        code: 'BHD_MISSING_ID_TOKEN',
+        message: 'Missing id_token',
+      });
     }
 
     const claims = await this.verifyIdToken(tokenJson.id_token, saved.nonce);
@@ -212,23 +226,53 @@ export class BhdSsoService {
     return url.toString();
   }
 
+  /** Shared HS256 secret while Identity JWKS is empty (see BHD-IDENTITY-SSO §2). */
+  private identityTokenSecret(): string {
+    return (
+      process.env.BHD_IDENTITY_TOKEN_SECRET ||
+      process.env.IDENTITY_TOKEN_SECRET ||
+      ''
+    ).trim();
+  }
+
   private async verifyIdToken(idToken: string, expectedNonce: string): Promise<IdClaims> {
     const issuer = this.issuer();
-    if (!this.jwks) {
-      this.jwks = createRemoteJWKSet(new URL(`${issuer}/oauth/jwks.json`));
+    const audience = this.clientId();
+
+    let payload: Record<string, unknown>;
+    try {
+      payload = await this.verifyIdTokenPayload(idToken, issuer, audience);
+    } catch (err: unknown) {
+      this.logger.warn(
+        `BHD id_token verify failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      throw new UnauthorizedException({
+        statusCode: 401,
+        code: 'BHD_ID_TOKEN_VERIFY',
+        message: 'Invalid id_token',
+      });
     }
-    const { payload } = await jwtVerify(idToken, this.jwks, {
-      issuer,
-      audience: this.clientId(),
-    });
+
     if (payload.nonce !== expectedNonce) {
-      throw new UnauthorizedException('Invalid nonce');
+      throw new UnauthorizedException({
+        statusCode: 401,
+        code: 'BHD_NONCE',
+        message: 'Invalid nonce',
+      });
     }
     if (typeof payload.sub !== 'string' || typeof payload.email !== 'string') {
-      throw new UnauthorizedException('Invalid id_token claims');
+      throw new UnauthorizedException({
+        statusCode: 401,
+        code: 'BHD_CLAIMS',
+        message: 'Invalid id_token claims',
+      });
     }
     if (payload.email_verified !== true && payload.email_verified !== 'true') {
-      throw new UnauthorizedException('Email not verified on BHD Identity');
+      throw new UnauthorizedException({
+        statusCode: 401,
+        code: 'BHD_EMAIL_UNVERIFIED',
+        message: 'Email not verified on BHD Identity',
+      });
     }
     return {
       sub: payload.sub,
@@ -241,5 +285,51 @@ export class BhdSsoService {
           ? payload.preferred_username
           : undefined,
     };
+  }
+
+  /**
+   * Prefer HS256 with BHD_IDENTITY_TOKEN_SECRET while Identity JWKS is empty;
+   * fall back to JWKS for future RS256.
+   */
+  private async verifyIdTokenPayload(
+    idToken: string,
+    issuer: string,
+    audience: string,
+  ): Promise<Record<string, unknown>> {
+    const hsSecret = this.identityTokenSecret();
+
+    if (hsSecret) {
+      try {
+        const { payload } = await jwtVerify(
+          idToken,
+          new TextEncoder().encode(hsSecret),
+          {
+            issuer,
+            audience,
+            algorithms: ['HS256'],
+          },
+        );
+        return payload as Record<string, unknown>;
+      } catch (hsErr: unknown) {
+        this.logger.warn(
+          `BHD HS256 id_token verify failed, trying JWKS: ${
+            hsErr instanceof Error ? hsErr.message : String(hsErr)
+          }`,
+        );
+      }
+    } else {
+      this.logger.warn(
+        'BHD_IDENTITY_TOKEN_SECRET unset — required while Identity signs HS256 (JWKS empty)',
+      );
+    }
+
+    if (!this.jwks) {
+      this.jwks = createRemoteJWKSet(new URL(`${issuer}/oauth/jwks.json`));
+    }
+    const { payload } = await jwtVerify(idToken, this.jwks, {
+      issuer,
+      audience,
+    });
+    return payload as Record<string, unknown>;
   }
 }

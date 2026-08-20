@@ -6,6 +6,7 @@ import {
   Res,
   Logger,
   ForbiddenException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { SkipThrottle, Throttle } from '@nestjs/throttler';
@@ -117,18 +118,48 @@ export class BhdSsoController {
       this.logger.warn(
         `BHD callback failed: ${err instanceof Error ? err.message : String(err)}`,
       );
-      if (err instanceof ForbiddenException) {
-        const body = err.getResponse();
-        const errCode =
-          typeof body === 'object' && body && 'code' in body
-            ? String((body as { code: string }).code)
-            : '';
-        if (errCode === 'BHD_NO_LOCAL_USER') {
-          return fail('/login?bhd=no_user');
-        }
+      const errCode = this.bhdErrorCode(err);
+      if (errCode === 'BHD_NO_LOCAL_USER') {
+        return fail('/login?bhd=no_user');
+      }
+      if (errCode === 'BHD_EMAIL_UNVERIFIED') {
+        return fail('/login?bhd=email');
+      }
+      if (errCode === 'BHD_TOKEN_EXCHANGE' || errCode === 'BHD_MISSING_ID_TOKEN') {
+        return fail('/login?bhd=token');
+      }
+      if (
+        errCode === 'BHD_ID_TOKEN_VERIFY' ||
+        errCode === 'BHD_NONCE' ||
+        errCode === 'BHD_CLAIMS'
+      ) {
+        return fail('/login?bhd=verify');
+      }
+      if (errCode === 'BHD_STATE_MISMATCH') {
+        return fail('/login?bhd=state');
       }
       return fail('/login?bhd=exchange');
     }
+  }
+
+  private bhdErrorCode(err: unknown): string {
+    if (err instanceof ForbiddenException || err instanceof UnauthorizedException) {
+      const body = err.getResponse();
+      if (typeof body === 'object' && body && 'code' in body) {
+        return String((body as { code: string }).code);
+      }
+    }
+    if (err && typeof err === 'object' && 'getResponse' in err) {
+      try {
+        const body = (err as ForbiddenException).getResponse();
+        if (typeof body === 'object' && body && 'code' in body) {
+          return String((body as { code: string }).code);
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    return '';
   }
 
   @Get('bhd/logout')
