@@ -10,6 +10,14 @@ const nextConfig = {
       (process.env.VERCEL ? 'https://hisaby-api.onrender.com' : 'http://localhost:3001');
     return [
       {
+        source: '/api/auth/bhd/:path*',
+        destination: `${backend}/api/auth/bhd/:path*`,
+      },
+      {
+        source: '/api/auth/admin-entry',
+        destination: `${backend}/api/auth/admin-entry`,
+      },
+      {
         source: '/backend-api/:path*',
         destination: `${backend}/api/:path*`,
       },
@@ -37,7 +45,7 @@ const nextConfig = {
           {
             key: 'Content-Security-Policy',
             value:
-              "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://hisaby-api.onrender.com https://accounts.google.com https://*.sentry.io; frame-src https://accounts.google.com; media-src 'self' blob:; worker-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests",
+              "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self' https://id.bhd-om.com; script-src 'self' 'unsafe-inline' https://accounts.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://hisaby-api.onrender.com https://id.bhd-om.com https://accounts.google.com https://*.sentry.io; frame-src https://accounts.google.com https://id.bhd-om.com; media-src 'self' blob:; worker-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests",
           },
         ],
       },

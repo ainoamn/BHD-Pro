@@ -139,6 +139,8 @@ model User {
   /// Null for Google-only accounts
   password    String?
   googleId    String?  @unique @map("google_id")
+  /// BHD Identity subject (`sub` from id.bhd-om.com) — SSO link; roles stay local
+  bhdSub      String?  @unique @map("bhd_sub")
   avatar      String?
   phone       String?
   role        UserRole @default(ACCOUNTANT)

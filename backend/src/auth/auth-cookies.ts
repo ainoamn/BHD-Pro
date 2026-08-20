@@ -32,7 +32,8 @@ export function setAuthCookies(
   });
   res.cookie(REFRESH_COOKIE, tokens.refreshToken, {
     ...base,
-    maxAge: 7 * 24 * 60 * 60 * 1000,
+    // BHD unified idle window: 48h sliding (refresh + product session)
+    maxAge: 48 * 60 * 60 * 1000,
   });
   res.cookie(CSRF_COOKIE, randomBytes(24).toString('base64url'), {
     ...base,

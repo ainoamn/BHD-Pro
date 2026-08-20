@@ -347,7 +347,7 @@ export class AuthService {
       data: {
         userId: user.id,
         token: hashToken(tokens.refreshToken),
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
         ipAddress: meta.ipAddress,
         userAgent: meta.userAgent,
       },
@@ -588,6 +588,93 @@ export class AuthService {
     return this.issueSession(safe, {});
   }
 
+  /**
+   * BHD Identity SSO (§0.7): link by bhd_sub, else verified email keeping local role.
+   * Does not create companies — invite/register remains product-local or identity-only signup + invite.
+   */
+  async loginWithBhdIdentity(
+    claims: {
+      sub: string;
+      email: string;
+      name?: string;
+      picture?: string;
+    },
+    meta: { ipAddress?: string; userAgent?: string } = {},
+  ) {
+    const email = claims.email.trim().toLowerCase();
+    const bhdSub = claims.sub;
+    const includeUser = {
+      company: true,
+      defaultWarehouse: {
+        select: { id: true, code: true, name: true, nameEn: true },
+      },
+    } as const;
+
+    let user = await this.prisma.user.findFirst({
+      where: { bhdSub },
+      include: includeUser,
+    });
+
+    if (!user) {
+      const byEmail = await this.prisma.user.findFirst({
+        where: { email },
+        include: includeUser,
+      });
+      if (byEmail?.bhdSub && byEmail.bhdSub !== bhdSub) {
+        throw new UnauthorizedException(
+          'This email is already linked to another BHD identity',
+        );
+      }
+      if (byEmail && !byEmail.bhdSub) {
+        user = await this.prisma.user.update({
+          where: { id: byEmail.id },
+          data: {
+            bhdSub,
+            name: (claims.name || byEmail.name).trim(),
+            avatar: claims.picture || byEmail.avatar,
+            loginAttempts: 0,
+            lockedUntil: null,
+            lastLoginAt: new Date(),
+          },
+          include: includeUser,
+        });
+      }
+    } else {
+      user = await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          name: (claims.name || user.name).trim(),
+          avatar: claims.picture || user.avatar,
+          email: email || user.email,
+          loginAttempts: 0,
+          lockedUntil: null,
+          lastLoginAt: new Date(),
+        },
+        include: includeUser,
+      });
+    }
+
+    if (!user) {
+      throw new ForbiddenException({
+        statusCode: 403,
+        code: 'BHD_NO_LOCAL_USER',
+        message:
+          'No Hisaby user for this BHD identity. Ask your company admin for an invite matching your email, then sign in again.',
+      });
+    }
+    if (!user.isActive || !user.company?.isActive) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+    if (user.lockedUntil && user.lockedUntil > new Date()) {
+      throw new ForbiddenException(
+        `Account locked until ${user.lockedUntil.toISOString()}`,
+      );
+    }
+
+    const { password: _, twoFactorSecret: __, ...safe } = user;
+    return this.issueSession(safe, meta);
+  }
+
   async refreshToken(refreshToken: string) {
     try {
       const payload = this.jwtService.verify(refreshToken, {
@@ -629,7 +716,7 @@ export class AuthService {
           data: {
             userId: user.id,
             token: hashToken(tokens.refreshToken),
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
             ipAddress: session.ipAddress,
             userAgent: session.userAgent,
           },

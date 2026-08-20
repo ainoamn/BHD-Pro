@@ -1,16 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, Suspense } from "react";
+import { Suspense, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useTranslations } from "next-intl";
-import { Mail, Lock, Loader2, Shield } from "lucide-react";
-import toast from "react-hot-toast";
-import api from "@/lib/api";
-import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
-import { useAuthStore } from "@/store/auth";
-import { homePathForUser } from "@/lib/user-home";
-import { wakeApi } from "@/lib/wake-api";
+import { useSearchParams } from "next/navigation";
+import { Loader2 } from "lucide-react";
 
 function safeNextPath(raw: string | null): string {
   if (!raw) return "/dashboard";
@@ -18,312 +11,122 @@ function safeNextPath(raw: string | null): string {
   return raw;
 }
 
-function LoginForm() {
-  const t = useTranslations("auth");
-  const tApp = useTranslations("app");
-  const router = useRouter();
+function bhdStartUrl(returnTo: string): string {
+  return `/api/auth/bhd/start?returnTo=${encodeURIComponent(returnTo)}`;
+}
+
+function LoginShell() {
   const searchParams = useSearchParams();
   const nextPath = useMemo(
-    () => safeNextPath(searchParams.get("next")),
-    [searchParams]
+    () => safeNextPath(searchParams.get("next") || searchParams.get("returnTo")),
+    [searchParams],
   );
-  const forceSwitch = searchParams.get("switch") === "1";
+  const local = searchParams.get("local") === "1";
+  const bhd = searchParams.get("bhd");
   const isAdminNext = nextPath.startsWith("/admin");
-  const currentEmail = useAuthStore((s) => s.user?.email);
-  const [ready, setReady] = useState(false);
-  const [email, setEmail] = useState(
-    process.env.NODE_ENV === "development" ? "admin@bhd.om" : ""
-  );
-  const [password, setPassword] = useState(
-    process.env.NODE_ENV === "development" ? "Admin123!x" : ""
-  );
-  const [totpCode, setTotpCode] = useState("");
-  const [tempToken, setTempToken] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [switching, setSwitching] = useState(false);
-  const probeGen = useRef(0);
 
   useEffect(() => {
-    wakeApi();
-    let cancelled = false;
-    const myProbe = ++probeGen.current;
-    // Safety net: never leave the page stuck on the spinner (cold API / hung refresh).
-    const safety = window.setTimeout(() => {
-      if (!cancelled && myProbe === probeGen.current) setReady(true);
-    }, 10000);
-
-    (async () => {
-      try {
-        if (forceSwitch) {
-          if (useAuthStore.getState().isAuthenticated) {
-            await api.logout();
-          }
-          if (!cancelled && myProbe === probeGen.current) setReady(true);
-          return;
-        }
-
-        // Always verify cookies — persisted localStorage alone can be stale and
-        // caused dashboard↔login bounce / endless loading.
-        const ok = await api.restoreSession();
-        if (cancelled || myProbe !== probeGen.current) return;
-
-        if (!ok || !useAuthStore.getState().isAuthenticated) {
-          setReady(true);
-          return;
-        }
-
-        if (isAdminNext) {
-          try {
-            const res = await api.getAdminMe();
-            if (cancelled || myProbe !== probeGen.current) return;
-            if (res.data.isPlatformAdmin) {
-              router.replace(nextPath);
-              return;
-            }
-          } catch {
-            /* stay on login to switch account */
-          }
-          if (!cancelled && myProbe === probeGen.current) setReady(true);
-          return;
-        }
-
-        router.replace(
-          nextPath !== "/dashboard" ? nextPath : homePathForUser(useAuthStore.getState().user)
-        );
-      } catch {
-        if (!cancelled && myProbe === probeGen.current) setReady(true);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(safety);
-    };
-  }, [forceSwitch, isAdminNext, nextPath, router]);
-
-  const finishLogin = () => {
-    // Invalidate any in-flight session probe from this page.
-    probeGen.current += 1;
-    toast.success(t("login"));
-    router.replace(nextPath !== "/dashboard" ? nextPath : homePathForUser(useAuthStore.getState().user));
-  };
-
-  const switchAccount = async () => {
-    setSwitching(true);
-    try {
-      await api.logout();
-      setReady(true);
-    } finally {
-      setSwitching(false);
+    if (local && !isAdminNext) return;
+    if (isAdminNext) {
+      window.location.replace(
+        `/api/auth/admin-entry?next=${encodeURIComponent(nextPath)}`,
+      );
+      return;
     }
-  };
+    window.location.replace(bhdStartUrl(nextPath));
+  }, [local, isAdminNext, nextPath]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      if (useAuthStore.getState().isAuthenticated) {
-        await api.logout();
-      }
-      if (tempToken) {
-        await api.verify2faLogin(tempToken, totpCode);
-        finishLogin();
-        return;
-      }
-      const data = await api.login(email, password);
-      if (data?.requires2fa && data.tempToken) {
-        setTempToken(data.tempToken);
-        toast.success(t("totpPrompt"));
-        return;
-      }
-      finishLogin();
-    } catch (err: unknown) {
-      const axiosErr = err as {
-        response?: { data?: { message?: string | string[] }; status?: number };
-      };
-      const msg = axiosErr?.response?.data?.message;
-      const status = axiosErr?.response?.status;
-      if (!axiosErr?.response) {
-        toast.error(t("networkError"));
-      } else if (status === 403 && typeof msg === "string" && msg.includes("locked")) {
-        const untilMatch = msg.match(/until\s+(\S+)/i);
-        let untilLabel = "";
-        if (untilMatch?.[1]) {
-          try {
-            untilLabel = new Date(untilMatch[1].replace(/\.+$/, "")).toLocaleString();
-          } catch {
-            untilLabel = untilMatch[1];
-          }
-        }
-        toast.error(
-          untilLabel
-            ? t("accountLockedUntil", { until: untilLabel })
-            : t("accountLocked"),
-        );
-      } else {
-        toast.error(Array.isArray(msg) ? msg.join(" — ") : msg || t("invalidCredentials"));
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (!ready) {
+  if (!local || isAdminNext) {
     return (
-      <div className="min-h-screen bg-app flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-[#fbfaf7] text-[#092d24]">
+        <Loader2 className="h-8 w-8 animate-spin text-[#075c45]" />
+        <p className="text-sm font-medium">جاري التحويل إلى بوابة BHD…</p>
       </div>
     );
   }
 
-  const stillLoggedIn = useAuthStore.getState().isAuthenticated;
-
   return (
-    <div className="min-h-screen bg-app flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <Link href="/" className="inline-flex flex-col items-center gap-3 mb-2">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/brand/hisaby-mark.png"
-              alt="Hisaby"
-              className="w-14 h-14 rounded-2xl object-cover"
-            />
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">{tApp("name")}</h1>
-          </Link>
-          <p className="text-slate-500 dark:text-slate-400 mt-1">{tApp("tagline")}</p>
-          {isAdminNext && (
-            <p className="mt-3 text-sm text-amber-600 dark:text-amber-400 font-medium">
-              {t("adminLoginHint")}
-            </p>
-          )}
-        </div>
-
-        {stillLoggedIn && isAdminNext && (
-          <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-800 dark:text-amber-200 space-y-2">
-            <p>
-              {t("adminWrongAccount", { email: currentEmail || "—" })}
-            </p>
-            <button
-              type="button"
-              onClick={switchAccount}
-              disabled={switching}
-              className="text-sm font-bold underline underline-offset-2"
-            >
-              {switching ? "…" : t("adminSwitchAccount")}
-            </button>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="glass rounded-2xl p-6 space-y-4">
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
-            {tempToken ? t("totpTitle") : isAdminNext ? t("adminLoginTitle") : t("login")}
-          </h2>
-
-          {!tempToken ? (
-            <>
-              <div>
-                <label htmlFor="login-email" className="block text-sm text-slate-600 dark:text-slate-400 mb-1">{t("email")}</label>
-                <div className="relative">
-                  <Mail className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-                  <input
-                    id="login-email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    autoComplete="username"
-                    className="w-full h-10 pr-10 pl-3 bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
-                    required
-                  />
-                </div>
-              </div>
-              <div>
-                <label htmlFor="login-password" className="block text-sm text-slate-400 mb-1">{t("password")}</label>
-                <div className="relative">
-                  <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-                  <input
-                    id="login-password"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    autoComplete="current-password"
-                    className="w-full h-10 pr-10 pl-3 bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
-                    required
-                  />
-                </div>
-                <div className="mt-2 text-end">
-                  <Link href="/forgot-password" className="text-sm text-emerald-500 hover:underline">
-                    {t("forgotPassword")}
-                  </Link>
-                </div>
-              </div>
-            </>
-          ) : (
-            <div>
-              <label htmlFor="login-totp" className="block text-sm text-slate-400 mb-1">{t("totpCode")}</label>
-              <div className="relative">
-                <Shield className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-                <input
-                  id="login-totp"
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  value={totpCode}
-                  onChange={(e) => setTotpCode(e.target.value)}
-                  className="w-full h-10 pr-10 pl-3 bg-slate-800/50 border border-slate-700 rounded-lg text-white tracking-widest focus:outline-none focus:border-emerald-500"
-                  placeholder="000000"
-                  minLength={6}
-                  maxLength={6}
-                  pattern="[0-9]{6}"
-                  required
-                />
-              </div>
-              <button
-                type="button"
-                className="text-xs text-slate-400 mt-2 hover:text-emerald-400"
-                onClick={() => {
-                  setTempToken(null);
-                  setTotpCode("");
-                }}
-              >
-                {t("backToLogin")}
-              </button>
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full h-10 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
-          >
-            {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-            {tempToken ? t("verifyTotp") : t("login")}
-          </button>
-
-          {!tempToken && (
-            <GoogleSignInButton
-              onSuccess={finishLogin}
-              onRequires2fa={(token) => setTempToken(token)}
-            />
-          )}
-
-          {!tempToken && (
-            <p className="text-center text-sm text-slate-400">
-              {t("noAccount")}{" "}
-              <Link href="/register" className="text-emerald-400 hover:underline">
-                {t("register")}
-              </Link>
-            </p>
-          )}
-
-          <p className="text-center text-sm text-slate-400">
-            <Link href="/" className="text-emerald-400 hover:underline">
-              {t("backHome")}
-            </Link>
-          </p>
-        </form>
-      </div>
+    <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[#fbfaf7] px-4 text-[#092d24]">
+      <h1 className="text-xl font-bold">حسابي — دخول طوارئ محلي</h1>
+      {bhd === "no_user" && (
+        <p className="max-w-md text-center text-sm text-amber-800">
+          لا يوجد مستخدم حسابي مرتبط بهذا الحساب على الهوية. اطلب دعوة من مدير
+          شركتك بنفس البريد، ثم ادخل عبر BHD.
+        </p>
+      )}
+      {bhd === "error" || bhd === "denied" ? (
+        <p className="max-w-md text-center text-sm text-red-700">
+          تعذّر إكمال الدخول الموحّد. حاول مرة أخرى من بوابة BHD.
+        </p>
+      ) : null}
+      <a
+        className="rounded-lg bg-[#075c45] px-4 py-2 text-sm font-semibold text-white"
+        href={bhdStartUrl(nextPath)}
+      >
+        الدخول عبر هوية BHD
+      </a>
+      <a
+        className="text-sm text-[#075c45] underline"
+        href={`/api/auth/admin-entry?next=${encodeURIComponent("/admin")}`}
+      >
+        دخول إدارة المنصة
+      </a>
+      <p className="max-w-sm text-center text-xs text-stone-500">
+        النموذج المحلي معطّل للمستخدم النهائي. استخدم{" "}
+        <Link href="https://id.bhd-om.com/login" className="underline">
+          id.bhd-om.com
+        </Link>
+        . للطوارئ فقط أبقِ <code>?local=1</code> مع مسار غير /admin.
+      </p>
+      <LegacyLocalForm nextPath={nextPath} />
     </div>
+  );
+}
+
+/** Emergency-only password form (ops break-glass). */
+function LegacyLocalForm({ nextPath }: { nextPath: string }) {
+  return (
+    <form
+      className="mt-4 w-full max-w-sm space-y-3 rounded-xl border border-[#d7e2dc] bg-white p-4 shadow-sm"
+      action="#"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.currentTarget);
+        const email = String(fd.get("email") || "");
+        const password = String(fd.get("password") || "");
+        try {
+          const { default: api } = await import("@/lib/api");
+          await api.login(email, password);
+          window.location.replace(nextPath);
+        } catch {
+          alert("فشل الدخول المحلي");
+        }
+      }}
+    >
+      <p className="text-xs font-semibold text-amber-700">
+        طوارئ فقط — لا تستخدم للتشغيل اليومي
+      </p>
+      <input
+        name="email"
+        type="email"
+        required
+        placeholder="البريد"
+        className="w-full rounded border px-3 py-2 text-sm"
+      />
+      <input
+        name="password"
+        type="password"
+        required
+        placeholder="كلمة المرور"
+        className="w-full rounded border px-3 py-2 text-sm"
+      />
+      <button
+        type="submit"
+        className="w-full rounded-lg bg-stone-800 py-2 text-sm font-semibold text-white"
+      >
+        دخول محلي
+      </button>
+    </form>
   );
 }
 
@@ -331,12 +134,12 @@ export default function LoginPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-app flex items-center justify-center">
-          <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
+        <div className="flex min-h-screen items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-[#075c45]" />
         </div>
       }
     >
-      <LoginForm />
+      <LoginShell />
     </Suspense>
   );
 }

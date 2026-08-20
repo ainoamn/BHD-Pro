@@ -9,6 +9,8 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { PrismaModule } from '../prisma/prisma.module';
 import { AuditModule } from '../audit/audit.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { BhdSsoService } from './bhd-sso.service';
+import { BhdSsoController } from './bhd-sso.controller';
 
 @Module({
   imports: [
@@ -30,8 +32,8 @@ import { NotificationsModule } from '../notifications/notifications.module';
       inject: [ConfigService],
     }),
   ],
-  controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
-  exports: [AuthService],
+  controllers: [AuthController, BhdSsoController],
+  providers: [AuthService, JwtStrategy, BhdSsoService],
+  exports: [AuthService, BhdSsoService],
 })
 export class AuthModule {}

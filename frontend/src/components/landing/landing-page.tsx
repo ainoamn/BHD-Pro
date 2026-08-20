@@ -1309,7 +1309,7 @@ export function LandingPage({
                 {t.footerSecurity}
               </Link>
               <Link
-                href="/login?next=/admin&switch=1"
+                href="/api/auth/admin-entry?next=/admin"
                 className="rounded-lg border border-emerald-950/10 bg-[#fafcfb] px-3 py-1.5 text-emerald-950 transition hover:bg-emerald-50"
               >
                 {t.adminLogin}

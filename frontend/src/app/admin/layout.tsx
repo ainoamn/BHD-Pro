@@ -156,7 +156,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       }
       const nextAuth = useAuthStore.getState();
       if (!ok || !nextAuth.isAuthenticated || !nextAuth.user) {
-        router.replace(`/login?next=${encodeURIComponent(pathnameRef.current || "/admin")}`);
+        router.replace(`/api/auth/admin-entry?next=${encodeURIComponent(pathnameRef.current || "/admin")}`);
         return;
       }
 
@@ -205,7 +205,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number } })?.response?.status;
       if (status === 401) {
-        router.replace(`/login?next=${encodeURIComponent(pathnameRef.current || "/admin")}`);
+        router.replace(`/api/auth/admin-entry?next=${encodeURIComponent(pathnameRef.current || "/admin")}`);
         return;
       }
       setAllowed(false);
@@ -281,7 +281,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             {t.backApp}
           </Link>
           <Link
-            href="/login?next=/admin&switch=1"
+            href="/api/auth/admin-entry?next=/admin"
             className="block text-sm font-bold text-emerald-900 hover:underline"
           >
             {locale === "en" ? "Sign in with another account" : "الدخول بحساب مشرف آخر"}
