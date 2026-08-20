@@ -52,6 +52,8 @@ function safeReturnTo(raw: string | null | undefined): string {
   if (!v.startsWith('/') || v.startsWith('//') || v.includes('://') || v.includes('\\')) {
     return '/dashboard';
   }
+  // Portal launcher always sends returnTo=/ — Hisaby home is the dashboard.
+  if (v === '/') return '/dashboard';
   return v;
 }
 

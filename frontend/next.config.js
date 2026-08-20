@@ -8,15 +8,10 @@ const nextConfig = {
     const backend =
       process.env.BACKEND_URL ||
       (process.env.VERCEL ? 'https://hisaby-api.onrender.com' : 'http://localhost:3001');
+    // BHD SSO (/api/auth/bhd/*, admin-entry) is handled by App Router routes
+    // that proxy Nest and re-attach Set-Cookie on the frontend host.
+    // Do not rewrite those paths — rewrites alone drop session cookies on Vercel.
     return [
-      {
-        source: '/api/auth/bhd/:path*',
-        destination: `${backend}/api/auth/bhd/:path*`,
-      },
-      {
-        source: '/api/auth/admin-entry',
-        destination: `${backend}/api/auth/admin-entry`,
-      },
       {
         source: '/backend-api/:path*',
         destination: `${backend}/api/:path*`,

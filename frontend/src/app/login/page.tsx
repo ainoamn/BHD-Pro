@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 
 function safeNextPath(raw: string | null): string {
-  if (!raw) return "/dashboard";
+  if (!raw || raw === "/") return "/dashboard";
   if (!raw.startsWith("/") || raw.startsWith("//")) return "/dashboard";
   return raw;
 }

@@ -503,7 +503,7 @@ CREATE INDEX IF NOT EXISTS users_bhd_sub_idx ON <users>(bhd_sub);
 |---|---|---|---|---|
 | الهوية / البوابة | نعم (هي المُصدِر) | نعم | portal `sso` | القسم 6 أعلاه + 12.1 |
 | وازن | قيد التنفيذ | بعد OIDC | `browse` حتى إشعار ONE-BHD | 12.2 |
-| حسابي | لم يُربط | — | `browse` | 12.3 |
+| حسابي | نعم (20 أغسطس 2026) | بعد جلسة المنتج | `browse` حتى قلب ONE-BHD | 12.3 · `HISABY-BHD-SSO-2026-08-20.md` |
 | نَسَب | نعم | نعم | `sso` | 12.4 |
 | بيتك | لم يُربط | — | `browse` | 12.5 |
 | المتجر | نعم | نعم | `sso` | 12.6 |
@@ -587,19 +587,20 @@ authorize وtoken دائماً على https://id.bhd-om.com وليس أصل ال
 
 | البند | التوثيق |
 |---|---|
-| تاريخ التثبيت | 20 أغسطس 2026 — OIDC + غلاف دخول + `admin-entry` على `main` |
+| تاريخ التثبيت | 20 أغسطس 2026 — OIDC + غلاف دخول + `admin-entry` على `main`؛ إصلاح كوكي الجلسة عبر مسارات Next (نفس اليوم) |
 | `client_id` | `bhd-hisaby` |
 | نطاق BHD | `https://hisaby.bhd-om.com` (+ `hisaby.pro` / `bhd-pro.vercel.app` إضافي) |
-| `redirect_uri` | `{origin}/api/auth/bhd/callback` (مشتق من Host عبر Vercel rewrite → Nest) |
-| كيف ثُبّت | القسم 4 + **0.7** + **4.9**: `User.bhdSub` · Nest `BhdSsoController` · rewrite واجهة `/api/auth/bhd/*` و`/api/auth/admin-entry` · غلاف `/login`→SSO · `/register`→`id.bhd-om.com` · ربط مستخدم قديم بالبريد مع الإبقاء على الدور · لا إنشاء شركة من الهوية |
-| كيف يعمل الدخول | `start` → `https://id.bhd-om.com/oauth/authorize` → `callback` upsert على `bhd_sub` (يحفظ `User.role` وPlatform admin بالبريد) → كوكي `bhd_access`/`bhd_refresh` Host-only على منشأ الواجهة عبر البروكسي |
+| `redirect_uri` | `{origin}/api/auth/bhd/callback` (Host الواجهة → مسار Next يبروكسي Nest) |
+| كيف ثُبّت | القسم 4 + **0.7** + **4.9**: `User.bhdSub` · Nest `BhdSsoController` · مسارات Next `app/api/auth/bhd/{start,callback,logout}` و`admin-entry` تبروكسي Nest وتعيد `Set-Cookie` Host-only · غلاف `/login`→SSO · `/register`→`id.bhd-om.com` · `returnTo=/`→`/dashboard` · ربط مستخدم قديم بالبريد مع الإبقاء على الدور · لا إنشاء شركة من الهوية |
+| كيف يعمل الدخول | `start` → `https://id.bhd-om.com/oauth/authorize` → `callback` upsert على `bhd_sub` (يحفظ `User.role` وPlatform admin بالبريد) → كوكي `bhd_access`/`bhd_refresh` على منشأ الواجهة عبر بروكسي Next (لا rewrite وحده) → `/dashboard` |
+| ملفات `start` / `callback` | Nest: `backend/src/auth/bhd-sso.*` · Next: `frontend/src/app/api/auth/bhd/*` · `frontend/src/lib/bhd-sso-proxy.ts` · `admin-entry` |
 | التنقل الصامت | كوكي `bhd_id` على مضيف الهوية فقط؛ حسابي لا يقرأ كوكي البوابة |
 | الإدارة | منصة `/admin`: `PLATFORM_ADMIN_EMAILS` / `PlatformOperator` محلياً بعد SSO. أدمن شركة = `User.role=ADMIN` محلي مربوط بـ `bhd_sub`. مسار: `GET /api/auth/admin-entry` |
 | جلسة المنتج | خمول منزلق 48 ساعة (كوكي refresh + صف Session) |
-| أسرار (أسماء فقط) | `BHD_IDENTITY_ISSUER`, `BHD_OAUTH_CLIENT_ID`, `BHD_OAUTH_CLIENT_SECRET`, `BHD_OAUTH_REDIRECT_URI` (اختياري), `JWT_*`, `FRONTEND_URL`, `CORS_ORIGIN` |
+| أسرار (أسماء فقط) | `BHD_IDENTITY_ISSUER`, `BHD_OAUTH_CLIENT_ID`, `BHD_OAUTH_CLIENT_SECRET`, `BHD_OAUTH_REDIRECT_URI` (اختياري), `JWT_*`, `FRONTEND_URL`, `CORS_ORIGIN`, `BACKEND_URL` (Vercel) |
 | التقنيات الكاملة | Frontend: Next.js 15 · React · Tailwind · Vercel. Backend: NestJS 11 · Prisma · PostgreSQL (Neon) · Render `hisaby-api`. مصادقة منتج: JWT في كوكي. وحدات: محاسبة، POS، مطاعم، مخزون، فواتير… |
 | ما لم يُوحَّد | الشركات، الفواتير، الضريبة، الكاشير، المطبخ، المخزون، أدوار الشركة |
-| قلب `mode` إلى `sso` | يُطلب في ONE-BHD `apps.ts` بعد تحقق 302 حي لـ `start` |
+| قلب `mode` إلى `sso` | يُطلب في ONE-BHD `apps.ts` بعد تحقق 302 حي لـ `start` + جلسة كوكي على الواجهة |
 | مستودع التنفيذ | `ainoamn/BHD-Pro` · دليل: `docs/HISABY-BHD-SSO-2026-08-20.md` |
 
 ### 12.4 نَسَب — `ainoamn/Nasab`

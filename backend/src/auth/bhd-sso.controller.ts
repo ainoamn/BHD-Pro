@@ -105,7 +105,8 @@ export class BhdSsoController {
         },
       );
       setAuthCookies(res, tokens);
-      const dest = returnTo.startsWith('/') ? returnTo : '/dashboard';
+      let dest = returnTo.startsWith('/') ? returnTo : '/dashboard';
+      if (dest === '/') dest = '/dashboard';
       return res.redirect(302, `${origin}${dest}`);
     } catch (err: unknown) {
       this.logger.warn(
